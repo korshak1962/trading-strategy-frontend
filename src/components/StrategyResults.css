@@ -1,0 +1,122 @@
+/* StrategyResults styles */
+.tabs {
+    border-bottom: 1px solid #d1d5db;
+    margin-bottom: 1rem;
+  }
+  
+  .tabs-nav {
+    display: flex;
+  }
+  
+  .tab-btn {
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    border: none;
+    background: none;
+    border-bottom: 2px solid transparent;
+  }
+  
+  .tab-btn.active {
+    border-bottom-color: #3b82f6;
+    color: #3b82f6;
+  }
+  
+  .tab-btn:not(.active) {
+    color: #6b7280;
+  }
+  
+  .tab-btn:not(.active):hover {
+    color: #4b5563;
+    border-bottom-color: #d1d5db;
+  }
+  
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  @media (min-width: 768px) {
+    .metrics-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  
+  .metrics-card {
+    background-color: #f9fafb;
+    padding: 1rem;
+    border-radius: 0.25rem;
+  }
+  
+  .metrics-title {
+    font-size: 1.125rem;
+    font-weight: 500;
+    margin-bottom: 1rem;
+  }
+  
+  .metrics-data {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  
+  .metrics-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+  
+  .metrics-value {
+    font-size: 0.875rem;
+    text-align: right;
+  }
+  
+  .positive {
+    color: #10b981;
+  }
+  
+  .negative {
+    color: #ef4444;
+  }
+  
+  .trades-table {
+    width: 100%;
+    min-width: 100%;
+    border-collapse: collapse;
+  }
+  
+  .trades-table th {
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #6b7280;
+    text-transform: uppercase;
+    background-color: #f9fafb;
+  }
+  
+  .trades-table td {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    border-top: 1px solid #e5e7eb;
+  }
+  
+  .trade-open {
+    color: #10b981;
+    font-weight: 500;
+  }
+  
+  .trade-close {
+    color: #ef4444;
+    font-weight: 500;
+  }
+  
+  .trades-wrapper {
+    overflow-x: auto;
+    max-height: 24rem;
+  }
+  
+  .no-data {
+    padding: 1rem;
+    text-align: center;
+    color: #6b7280;
+  }
