@@ -1,5 +1,5 @@
 // src/components/ResultChart.jsx
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 const ResultChart = ({ data }) => {
@@ -11,7 +11,7 @@ const ResultChart = ({ data }) => {
     if (!data) return;
 
     // Process data for the chart
-    const processed = data.prices.map((price, index) => {
+    const processed = data.prices.map((price) => {
       // Find signals that occurred on this price's date
       const matchingSignals = data.signals.filter(
         signal => signal.date === price.date
@@ -168,7 +168,7 @@ const ResultChart = ({ data }) => {
             />
           )}
           
-          {chartData.map((entry, index) => getSignalMarker(entry))}
+          {chartData.map(entry => getSignalMarker(entry))}
         </LineChart>
       </ResponsiveContainer>
     </div>

@@ -1,0 +1,35 @@
+/* ReporterStyleChart.css */
+.reporter-chart-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+    padding: 1rem;
+    background-color: white;
+    border-radius: 0.25rem;
+  }
+  
+  .chart-title {
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #333;
+  }
+  
+  .price-chart-canvas,
+  .pnl-chart-canvas,
+  .indicator-chart-canvas {
+    width: 100%;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+  
+  .price-chart-canvas {
+    height: 360px;
+  }
+  
+  .pnl-chart-canvas,
+  .indicator-chart-canvas {
+    height: 120px;
+  }

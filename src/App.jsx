@@ -1,10 +1,12 @@
-// src/App.jsx
+// src/App.jsx - Updated to include EnhancedResultChart
 import { useState, useEffect } from 'react';
 import Header from './components/Header';
 import StrategySelector from './components/StrategySelector';
 import StrategyConfig from './components/StrategyConfig';
 import DateRangePicker from './components/DateRangePicker';
-import ResultChart from './components/ResultChart';
+import EnhancedResultChart from './components/EnhancedResultChart'; // Import the enhanced chart component
+import ReporterStyleChart from './components/ReporterStyleChart'; // Import the Reporter-style chart
+import ResultChart from './components/ResultChart'; // Keep the original chart
 import StrategyResults from './components/StrategyResults';
 import { getAvailableStrategies, submitStrategies, formatStrategyConfig } from './api/strategyApi';
 
@@ -27,6 +29,9 @@ const App = () => {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
+  
+  // New state to toggle between chart views
+  const [chartView, setChartView] = useState('enhanced'); // Options: 'enhanced', 'reporter', 'simple'
 
   // Fetch available strategies on component mount
   useEffect(() => {
@@ -72,7 +77,7 @@ const App = () => {
     setSelectedStrategies(prev => ({
       ...prev,
       [strategy.name]: strategy.parameters.reduce((acc, param) => {
-        acc[param.id.paramName] = param;
+        acc[param.paramName] = param;
         return acc;
       }, {})
     }));
@@ -189,9 +194,51 @@ const App = () => {
               <div className="bg-white p-6 rounded-lg shadow">
                 <h2 className="text-xl font-bold mb-4">Results for {results.ticker}</h2>
                 
+                {/* Chart View Toggle */}
+                <div className="flex mb-4 border-b">
+                  <button 
+                    className={`py-2 px-4 font-medium border-b-2 ${
+                      chartView === 'enhanced' 
+                        ? 'border-blue-500 text-blue-600' 
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                    onClick={() => setChartView('enhanced')}
+                  >
+                    Enhanced Chart
+                  </button>
+                  <button 
+                    className={`py-2 px-4 font-medium border-b-2 ${
+                      chartView === 'reporter' 
+                        ? 'border-blue-500 text-blue-600' 
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                    onClick={() => setChartView('reporter')}
+                  >
+                    Reporter-Style Chart
+                  </button>
+                  <button 
+                    className={`py-2 px-4 font-medium border-b-2 ${
+                      chartView === 'simple' 
+                        ? 'border-blue-500 text-blue-600' 
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                    onClick={() => setChartView('simple')}
+                  >
+                    Simple Chart
+                  </button>
+                </div>
+                
                 {/* Chart */}
                 <div className="mb-6">
-                  <ResultChart data={results.chartDataDTO} />
+                  {chartView === 'enhanced' ? (
+                    <EnhancedResultChart data={results.chartDataDTO} />
+                  ) : chartView === 'reporter' ? (
+                    <ReporterStyleChart data={results.chartDataDTO} />
+                  ) : (
+                    <div style={{ height: '400px' }}>
+                      <ResultChart data={results.chartDataDTO} />
+                    </div>
+                  )}
                 </div>
                 
                 {/* Results Summary */}
