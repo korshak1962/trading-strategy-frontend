@@ -523,35 +523,68 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
     ctx.stroke();
   };
   
-  const drawSignals = (ctx, signals, dateRange, minMax, width, height) => {
-    const [startDate, endDate] = dateRange;
-    const { min, max } = minMax;
-    const totalMs = endDate.getTime() - startDate.getTime();
+// Update the drawSignals function in ReporterStyleChart.jsx
+
+const drawSignals = (ctx, signals, dateRange, minMax, width, height) => {
+  const [startDate, endDate] = dateRange;
+  const { min, max } = minMax;
+  const totalMs = endDate.getTime() - startDate.getTime();
+  
+  signals.forEach(signal => {
+    const date = new Date(signal.date);
+    const x = ((date.getTime() - startDate.getTime()) / totalMs) * width;
+    const y = height - ((signal.price - min) / (max - min)) * height;
     
-    signals.forEach(signal => {
-      const date = new Date(signal.date);
-      const x = ((date.getTime() - startDate.getTime()) / totalMs) * width;
-      const y = height - ((signal.price - min) / (max - min)) * height;
-      
-      // Draw marker based on signal type
-      ctx.beginPath();
-      ctx.arc(x, y, 6, 0, Math.PI * 2);
-      
-      if (signal.type === 'LongOpen') {
-        ctx.fillStyle = 'green';
-      } else if (signal.type === 'LongClose') {
-        ctx.fillStyle = 'red';
-      } else if (signal.type === 'ShortOpen') {
-        ctx.fillStyle = 'blue';
-      } else if (signal.type === 'ShortClose') {
-        ctx.fillStyle = 'orange';
-      } else {
-        ctx.fillStyle = 'gray';
-      }
-      
-      ctx.fill();
-    });
-  };
+    // Set color based on signal type
+    if (signal.type === 'LongOpen') {
+      ctx.fillStyle = 'green';
+      drawUpTriangle(ctx, x, y, 7); // Up triangle for open signals
+    } else if (signal.type === 'LongClose') {
+      ctx.fillStyle = 'red';
+      drawDownTriangle(ctx, x, y, 7); // Down triangle for close signals
+    } else if (signal.type === 'ShortOpen') {
+      ctx.fillStyle = 'blue';
+      drawUpTriangle(ctx, x, y, 7); // Up triangle for open signals
+    } else if (signal.type === 'ShortClose') {
+      ctx.fillStyle = 'orange';
+      drawDownTriangle(ctx, x, y, 7); // Down triangle for close signals
+    } else {
+      // Default for unknown signal types
+      ctx.fillStyle = 'gray';
+      drawCircle(ctx, x, y, 6);
+    }
+  });
+};
+
+// Helper function to draw an upward-pointing triangle
+const drawUpTriangle = (ctx, x, y, size) => {
+  ctx.beginPath();
+  ctx.moveTo(x, y - size); // Top point
+  ctx.lineTo(x - size, y + size); // Bottom left
+  ctx.lineTo(x + size, y + size); // Bottom right
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+};
+
+// Helper function to draw a downward-pointing triangle
+const drawDownTriangle = (ctx, x, y, size) => {
+  ctx.beginPath();
+  ctx.moveTo(x, y + size); // Bottom point
+  ctx.lineTo(x - size, y - size); // Top left
+  ctx.lineTo(x + size, y - size); // Top right
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+};
+
+// Helper function to draw a circle (for fallback/unknown signal types)
+const drawCircle = (ctx, x, y, radius) => {
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+};
   
   const extractTradesFromSignals = (signals) => {
     const extractedTrades = [];
