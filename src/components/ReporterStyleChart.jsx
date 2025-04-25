@@ -350,11 +350,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
       
       ctx.fill();
       
-      // Draw signal label
-      ctx.fillStyle = '#333';
-      ctx.font = '10px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(signal.type, x, y - 10);
+      // Signal labels have been removed as requested
     });
   };
   

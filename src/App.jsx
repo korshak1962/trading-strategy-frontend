@@ -1,13 +1,15 @@
-// src/App.jsx - Updated to include EnhancedResultChart
 import { useState, useEffect } from 'react';
 import Header from './components/Header';
 import StrategySelector from './components/StrategySelector';
 import StrategyConfig from './components/StrategyConfig';
 import DateRangePicker from './components/DateRangePicker';
-import EnhancedResultChart from './components/EnhancedResultChart'; // Import the enhanced chart component
-import ReporterStyleChart from './components/ReporterStyleChart'; // Import the Reporter-style chart
-import ResultChart from './components/ResultChart'; // Keep the original chart
+import EnhancedResultChart from './components/EnhancedResultChart';
+import ReporterStyleChart from './components/ReporterStyleChart';
+import ResultChart from './components/ResultChart';
 import StrategyResults from './components/StrategyResults';
+import TradesTable from './components/TradesTable';
+import PerformanceMetricsTable from './components/PerformanceMetricsTable';
+import TradeStatisticsTable from './components/TradeStatisticsTable';
 import { getAvailableStrategies, submitStrategies, formatStrategyConfig } from './api/strategyApi';
 
 const App = () => {

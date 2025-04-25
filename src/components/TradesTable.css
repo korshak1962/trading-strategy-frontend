@@ -1,0 +1,123 @@
+/* src/components/TradesTable.css */
+.trades-table-container {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background-color: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  
+  .trades-table-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #1e40af;
+  }
+  
+  .trades-table-wrapper {
+    overflow-x: auto;
+    border-radius: 0.25rem;
+    border: 1px solid #e5e7eb;
+  }
+  
+  .trades-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 800px;
+    font-size: 0.875rem;
+  }
+  
+  .trades-table th,
+  .trades-table td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  
+  .trades-table th {
+    background-color: #f9fafb;
+    font-weight: 600;
+    color: #4b5563;
+    cursor: pointer;
+    position: relative;
+    user-select: none;
+  }
+  
+  .trades-table th:hover {
+    background-color: #f3f4f6;
+  }
+  
+  .trades-table th.asc .sort-icon:after {
+    content: " ▲";
+    font-size: 0.75rem;
+  }
+  
+  .trades-table th.desc .sort-icon:after {
+    content: " ▼";
+    font-size: 0.75rem;
+  }
+  
+  .trades-table tbody tr:hover {
+    background-color: #f9fafb;
+  }
+  
+  .trades-table tfoot tr {
+    background-color: #f3f4f6;
+    font-weight: 600;
+  }
+  
+  .trades-table tfoot td {
+    border-bottom: none;
+  }
+  
+  .summary-label {
+    text-align: right;
+    color: #4b5563;
+  }
+  
+  .long-trade {
+    color: #059669;
+    font-weight: 500;
+  }
+  
+  .short-trade {
+    color: #6366f1;
+    font-weight: 500;
+  }
+  
+  .pnl-cell {
+    font-weight: 600;
+  }
+  
+  .pnl-cell.positive {
+    color: #059669;
+  }
+  
+  .pnl-cell.negative {
+    color: #dc2626;
+  }
+  
+  .profitable-trade {
+    background-color: rgba(5, 150, 105, 0.05);
+  }
+  
+  .losing-trade {
+    background-color: rgba(220, 38, 38, 0.05);
+  }
+  
+  .comment-cell {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .no-trades-message {
+    padding: 2rem;
+    text-align: center;
+    color: #6b7280;
+    font-style: italic;
+    background-color: #f9fafb;
+    border-radius: 0.25rem;
+    border: 1px dashed #d1d5db;
+  }

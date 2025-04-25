@@ -1,31 +1,11 @@
 // src/components/StrategyResults.jsx
 import { useState } from 'react';
+import TradesTable from './TradesTable';
+import PerformanceMetricsTable from './PerformanceMetricsTable';
+import TradeStatisticsTable from './TradeStatisticsTable';
 
 const StrategyResults = ({ results }) => {
   const [activeTab, setActiveTab] = useState('summary');
-
-  // Format number with commas and 2 decimal places
-  const formatNumber = (num) => {
-    return new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(num);
-  };
-
-  // Format percentage
-  const formatPercent = (num) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'percent',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(num / 100);
-  };
-
-  // Calculate win rate
-  const calculateWinRate = () => {
-    const totalTrades = results.profitableTradesCount + results.lostTradesCount;
-    return totalTrades > 0 ? results.profitableTradesCount / totalTrades : 0;
-  };
 
   return (
     <div>
@@ -44,6 +24,16 @@ const StrategyResults = ({ results }) => {
           </button>
           <button
             className={`py-2 px-4 font-medium border-b-2 ${
+              activeTab === 'performance'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+            onClick={() => setActiveTab('performance')}
+          >
+            Performance
+          </button>
+          <button
+            className={`py-2 px-4 font-medium border-b-2 ${
               activeTab === 'trades'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -55,124 +45,63 @@ const StrategyResults = ({ results }) => {
         </nav>
       </div>
 
-      {/* Summary Tab */}
+      {/* Summary Tab - Quick overview */}
       {activeTab === 'summary' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Performance Metrics */}
-          <div className="bg-gray-50 p-4 rounded">
-            <h3 className="text-lg font-medium mb-4">Performance Metrics</h3>
+        <div className="grid grid-cols-1 gap-4">
+          <div className="bg-white p-4 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900 mb-3">Strategy Performance Summary</h3>
             
-            <div className="grid grid-cols-2 gap-2">
-              <div className="text-sm font-medium">Long PnL:</div>
-              <div className="text-sm text-right">
-                <span className={results.longPnL >= 0 ? 'text-green-600' : 'text-red-600'}>
-                  {formatNumber(results.longPnL)}
-                </span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {/* Quick metrics */}
+              <div className="bg-blue-50 p-3 rounded">
+                <div className="text-sm text-blue-700 font-medium">Total PnL</div>
+                <div className={`text-xl font-bold ${(results.longPnL + results.shortPnL) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {(results.longPnL + results.shortPnL).toFixed(2)}
+                </div>
               </div>
               
-              <div className="text-sm font-medium">Short PnL:</div>
-              <div className="text-sm text-right">
-                <span className={results.shortPnL >= 0 ? 'text-green-600' : 'text-red-600'}>
-                  {formatNumber(results.shortPnL)}
-                </span>
+              <div className="bg-blue-50 p-3 rounded">
+                <div className="text-sm text-blue-700 font-medium">Win Rate</div>
+                <div className="text-xl font-bold">
+                  {results.profitableTradesCount + results.lostTradesCount > 0 
+                    ? `${Math.round((results.profitableTradesCount / (results.profitableTradesCount + results.lostTradesCount)) * 100)}%` 
+                    : '0%'}
+                </div>
               </div>
               
-              <div className="text-sm font-medium">Buy & Hold PnL:</div>
-              <div className="text-sm text-right">
-                <span className={results.buyAndHoldPnL >= 0 ? 'text-green-600' : 'text-red-600'}>
-                  {formatNumber(results.buyAndHoldPnL)}
-                </span>
+              <div className="bg-blue-50 p-3 rounded">
+                <div className="text-sm text-blue-700 font-medium">Total Trades</div>
+                <div className="text-xl font-bold">
+                  {results.profitableTradesCount + results.lostTradesCount}
+                </div>
               </div>
               
-              <div className="text-sm font-medium">Annual Return:</div>
-              <div className="text-sm text-right">
-                <span className={results.annualPercentageReturn >= 0 ? 'text-green-600' : 'text-red-600'}>
-                  {formatPercent(results.annualPercentageReturn)}
-                </span>
-              </div>
-              
-              <div className="text-sm font-medium">Profit/Loss Ratio:</div>
-              <div className="text-sm text-right">
-                <span className={results.profitToLostRatio >= 1 ? 'text-green-600' : 'text-red-600'}>
-                  {formatNumber(results.profitToLostRatio)}
-                </span>
-              </div>
-              
-              <div className="text-sm font-medium">Win Rate:</div>
-              <div className="text-sm text-right">
-                <span className={calculateWinRate() >= 0.5 ? 'text-green-600' : 'text-red-600'}>
-                  {formatPercent(calculateWinRate() * 100)}
-                </span>
+              <div className="bg-blue-50 p-3 rounded">
+                <div className="text-sm text-blue-700 font-medium">Annual Return</div>
+                <div className={`text-xl font-bold ${results.annualPercentageReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {(results.annualPercentageReturn).toFixed(2)}%
+                </div>
               </div>
             </div>
-          </div>
-          
-          {/* Trade Statistics */}
-          <div className="bg-gray-50 p-4 rounded">
-            <h3 className="text-lg font-medium mb-4">Trade Statistics</h3>
             
-            <div className="grid grid-cols-2 gap-2">
-              <div className="text-sm font-medium">Total Trades:</div>
-              <div className="text-sm text-right">
-                {results.profitableTradesCount + results.lostTradesCount}
-              </div>
-              
-              <div className="text-sm font-medium">Profitable Trades:</div>
-              <div className="text-sm text-right text-green-600">
-                {results.profitableTradesCount}
-              </div>
-              
-              <div className="text-sm font-medium">Losing Trades:</div>
-              <div className="text-sm text-right text-red-600">
-                {results.lostTradesCount}
-              </div>
+            <div className="mt-4 text-sm text-gray-600">
+              Click on the Performance or Trades tabs to see more detailed analysis.
             </div>
           </div>
         </div>
       )}
 
-      {/* Trades Tab */}
-      {activeTab === 'trades' && (
-        <div className="overflow-auto max-h-96">
-          {results.chartDataDTO?.signals?.length > 0 ? (
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Comment</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {results.chartDataDTO.signals.map((signal, index) => (
-                  <tr key={index}>
-                    <td className={`px-3 py-2 text-sm ${
-                      signal.type === 'LongOpen' || signal.type === 'ShortOpen' 
-                        ? 'text-green-600 font-medium' 
-                        : 'text-red-600 font-medium'
-                    }`}>
-                      {signal.type}
-                    </td>
-                    <td className="px-3 py-2 text-sm text-gray-700">
-                      {new Date(signal.date).toLocaleString()}
-                    </td>
-                    <td className="px-3 py-2 text-sm text-gray-700">
-                      {formatNumber(signal.price)}
-                    </td>
-                    <td className="px-3 py-2 text-sm text-gray-500">
-                      {signal.comment}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="p-4 text-center text-gray-500">
-              No trade signals available
-            </div>
-          )}
+      {/* Performance Tab - Detailed metrics */}
+      {activeTab === 'performance' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <PerformanceMetricsTable results={results} />
+          <TradeStatisticsTable results={results} />
         </div>
+      )}
+
+      {/* Trades Tab - Table of all trades */}
+      {activeTab === 'trades' && (
+        <TradesTable data={results.chartDataDTO} />
       )}
     </div>
   );
