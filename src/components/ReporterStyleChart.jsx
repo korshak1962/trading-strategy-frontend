@@ -643,33 +643,62 @@ const drawCircle = (ctx, x, y, radius) => {
     return extractedTrades;
   };
   
-  const drawIndividualTradeBars = (ctx, trades, dateRange, minMax, width, height) => {
-    const [startDate, endDate] = dateRange;
-    const { min, max } = minMax;
-    const totalMs = endDate.getTime() - startDate.getTime();
+// Updated drawIndividualTradeBars function to span from open to close signals
+const drawIndividualTradeBars = (ctx, trades, dateRange, minMax, width, height) => {
+  const [startDate, endDate] = dateRange;
+  const { min, max } = minMax;
+  const totalMs = endDate.getTime() - startDate.getTime();
+  
+  const zeroY = height - ((0 - min) / (max - min)) * height;
+  
+  // Draw individual trade bars
+  trades.forEach(trade => {
+    // Calculate x positions for open and close dates
+    const openX = ((trade.openDate.getTime() - startDate.getTime()) / totalMs) * width;
+    const closeX = ((trade.closeDate.getTime() - startDate.getTime()) / totalMs) * width;
     
-    const zeroY = height - ((0 - min) / (max - min)) * height;
+    // Bar width spans from open to close
+    const barWidth = closeX - openX;
     
-    // Draw individual trade bars
-    trades.forEach(trade => {
-      const closeDate = trade.closeDate;
-      const x = ((closeDate.getTime() - startDate.getTime()) / totalMs) * width;
-      
-      // Bar height depends on PnL
-      const barHeight = Math.abs(((trade.pnl - 0) / (max - min)) * height);
-      // Position from zero line
-      const y = trade.pnl >= 0 ? zeroY - barHeight : zeroY;
-      
-      // Draw bar
-      ctx.fillStyle = trade.pnl >= 0 ? 'rgba(0, 128, 0, 0.6)' : 'rgba(255, 0, 0, 0.6)';
-      ctx.fillRect(x - 10, y, 20, barHeight);
-      
-      // Draw outline
-      ctx.strokeStyle = 'black';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x - 10, y, 20, barHeight);
-    });
-  };
+    // Bar height depends on PnL
+    const barHeight = Math.abs(((trade.pnl - 0) / (max - min)) * height);
+    
+    // Position from zero line
+    const y = trade.pnl >= 0 ? zeroY - barHeight : zeroY;
+    
+    // Draw bar
+    ctx.fillStyle = trade.pnl >= 0 ? 'rgba(0, 128, 0, 0.4)' : 'rgba(255, 0, 0, 0.4)';
+    ctx.fillRect(openX, y, barWidth, barHeight);
+    
+    // Draw outline
+    ctx.strokeStyle = trade.pnl >= 0 ? 'rgba(0, 100, 0, 0.8)' : 'rgba(180, 0, 0, 0.8)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(openX, y, barWidth, barHeight);
+    
+    // Add gradient for visual appeal
+    const gradient = ctx.createLinearGradient(openX, y, closeX, y + barHeight);
+    if (trade.pnl >= 0) {
+      gradient.addColorStop(0, 'rgba(0, 128, 0, 0.1)');
+      gradient.addColorStop(1, 'rgba(0, 128, 0, 0.5)');
+    } else {
+      gradient.addColorStop(0, 'rgba(255, 0, 0, 0.1)');
+      gradient.addColorStop(1, 'rgba(255, 0, 0, 0.5)');
+    }
+    
+    // Apply gradient to draw a decorative overlay
+    ctx.fillStyle = gradient;
+    ctx.fillRect(openX, y, barWidth, barHeight);
+    
+    // Draw a small label if the bar is wide enough
+    if (barWidth > 30) {
+      ctx.fillStyle = '#000';
+      ctx.font = '9px Arial';
+      ctx.textAlign = 'center';
+      // Position text in middle of bar
+      ctx.fillText(trade.pnl.toFixed(2), openX + barWidth / 2, y + barHeight / 2 + 3);
+    }
+  });
+};
   
   // Render tooltip
   const renderTooltip = () => {
