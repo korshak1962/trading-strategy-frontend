@@ -1,35 +1,92 @@
 /* ReporterStyleChart.css */
 .reporter-chart-container {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    width: 100%;
-    padding: 1rem;
-    background-color: white;
-    border-radius: 0.25rem;
-  }
-  
-  .chart-title {
-    margin-bottom: 0.5rem;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #333;
-  }
-  
-  .price-chart-canvas,
-  .pnl-chart-canvas,
-  .indicator-chart-canvas {
-    width: 100%;
-    background-color: white;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-  }
-  
-  .price-chart-canvas {
-    height: 360px;
-  }
-  
-  .pnl-chart-canvas,
-  .indicator-chart-canvas {
-    height: 120px;
-  }
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  padding: 1rem;
+  background-color: white;
+  border-radius: 0.25rem;
+  position: relative;
+}
+
+.chart-title {
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.chart-wrapper {
+  position: relative;
+  width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.price-chart-canvas,
+.pnl-chart-canvas,
+.indicator-chart-canvas {
+  width: 100%;
+  background-color: white;
+  cursor: crosshair;
+}
+
+.price-chart-canvas {
+  height: 360px;
+}
+
+.pnl-chart-canvas,
+.indicator-chart-canvas {
+  height: 120px;
+}
+
+/* Crosshair styles */
+.crosshair-line {
+  position: absolute;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.crosshair-line.vertical {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  border-left: 1px dashed rgba(100, 100, 100, 0.5);
+}
+
+.crosshair-line.horizontal {
+  left: 0;
+  right: 0;
+  height: 1px;
+  border-top: 1px dashed rgba(100, 100, 100, 0.5);
+}
+
+/* Tooltip styles */
+.chart-tooltip {
+  font-size: 12px;
+  line-height: 1.4;
+  background-color: rgba(255, 255, 255, 0.9);
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 8px;
+  pointer-events: none;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  z-index: 1000;
+  max-width: 250px;
+}
+
+.chart-tooltip > div {
+  margin-bottom: 3px;
+}
+
+/* Animation for tooltip */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.chart-tooltip {
+  animation: fadeIn 0.2s ease-in-out;
+}
