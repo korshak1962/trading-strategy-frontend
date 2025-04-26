@@ -31,15 +31,8 @@
   width: 100%;
   background-color: white;
   cursor: crosshair;
-}
-
-.price-chart-canvas {
-  height: 360px;
-}
-
-.pnl-chart-canvas,
-.indicator-chart-canvas {
-  height: 120px;
+  /* Remove the fixed heights as they're now set dynamically */
+  display: block; /* Fix some browser rendering issues */
 }
 
 /* Crosshair styles */

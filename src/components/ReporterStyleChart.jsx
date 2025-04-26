@@ -1,5 +1,5 @@
 // src/components/ReporterStyleChart.jsx
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import './ReporterStyleChart.css';
 import { 
   findMinMaxPriceRange, 
@@ -13,9 +13,6 @@ import {
   drawIndicatorAxis,
   drawPriceCandlesticks,
   drawIndicatorLine,
-  drawUpTriangle,
-  drawDownTriangle,
-  drawCircle,
   drawSignals,
   drawIndividualTradeBars
 } from '../utils/ChartDrawingUtils';
@@ -39,6 +36,70 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
     canvasPositions: {}
   });
 
+  // Function to update tooltip data based on mouse position - defined with useCallback
+  // to avoid recreation on each render
+  const updateTooltipData = useCallback((mouseX, mouseY) => {
+    // Skip if we don't have prices
+    if (!chartData.current.prices || chartData.current.prices.length === 0 || !chartRef.current) return;
+    
+    // Find price data at mouse position
+    const prices = chartData.current.prices;
+    const dateRange = chartData.current.dateRange;
+    
+    if (prices.length > 0 && dateRange.length === 2) {
+      const totalTime = dateRange[1].getTime() - dateRange[0].getTime();
+      const pixelRatio = window.devicePixelRatio || 1;
+      const chartWidth = chartRef.current.clientWidth || chartRef.current.width / pixelRatio;
+      
+      // Calculate date at mouse position
+      const mouseRatio = mouseX / chartWidth;
+      const mouseDate = new Date(dateRange[0].getTime() + mouseRatio * totalTime);
+      
+      // Find closest price point
+      let closestPrice = null;
+      let minTimeDiff = Infinity;
+      
+      for (const price of prices) {
+        const timeDiff = Math.abs(price.date.getTime() - mouseDate.getTime());
+        if (timeDiff < minTimeDiff) {
+          minTimeDiff = timeDiff;
+          closestPrice = price;
+        }
+      }
+      
+      if (!closestPrice) return;
+      
+      // Find signals for this price point
+      let signals = [];
+      if (data && data.signals) {
+        signals = data.signals.filter(signal => 
+          new Date(signal.date).toISOString() === closestPrice.date.toISOString()
+        );
+      }
+      
+      // Find indicator values for this date
+      const indicatorValues = {};
+      if (data && data.indicators) {
+        Object.entries(data.indicators).forEach(([name, values]) => {
+          const matchingIndicator = values.find(ind => 
+            new Date(ind.date).toISOString() === closestPrice.date.toISOString()
+          );
+          if (matchingIndicator) {
+            indicatorValues[name] = matchingIndicator.value;
+          }
+        });
+      }
+      
+      setTooltipData({
+        price: closestPrice,
+        signals,
+        indicators: indicatorValues,
+        position: { x: mouseX, y: mouseY }
+      });
+    }
+  }, [data]);
+
+  // Main chart drawing effect
   useEffect(() => {
     // Store references to elements that will be used in the cleanup function
     const chartCanvasRef = chartRef.current;
@@ -52,13 +113,24 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
     const containerWidth = containerElement ? containerElement.clientWidth : width;
     const actualWidth = Math.min(containerWidth - 40, width); // Leave some margin
     
-    // Set canvas dimensions
-    chartCanvasRef.width = actualWidth;
-    chartCanvasRef.height = height * 0.6;
-    pnlCanvasRef.width = actualWidth;
-    pnlCanvasRef.height = height * 0.2;
-    indicatorCanvasRef.width = actualWidth;
-    indicatorCanvasRef.height = height * 0.2;
+    // Get device pixel ratio for high-DPI displays
+    const pixelRatio = window.devicePixelRatio || 1;
+    
+    // Set physical canvas size
+    chartCanvasRef.width = actualWidth * pixelRatio;
+    chartCanvasRef.height = height * 0.6 * pixelRatio;
+    pnlCanvasRef.width = actualWidth * pixelRatio;
+    pnlCanvasRef.height = height * 0.2 * pixelRatio;
+    indicatorCanvasRef.width = actualWidth * pixelRatio;
+    indicatorCanvasRef.height = height * 0.2 * pixelRatio;
+    
+    // Set display size via CSS
+    chartCanvasRef.style.width = `${actualWidth}px`;
+    chartCanvasRef.style.height = `${height * 0.6}px`;
+    pnlCanvasRef.style.width = `${actualWidth}px`;
+    pnlCanvasRef.style.height = `${height * 0.2}px`;
+    indicatorCanvasRef.style.width = `${actualWidth}px`;
+    indicatorCanvasRef.style.height = `${height * 0.2}px`;
     
     // Store canvas positions for crosshair calculations
     const chartRect = chartCanvasRef.getBoundingClientRect();
@@ -97,13 +169,18 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
       const pnlCtx = pnlCanvasRef.getContext('2d');
       const indicatorCtx = indicatorCanvasRef.getContext('2d');
       
+      // Scale contexts for high-DPI displays
+      chartCtx.scale(pixelRatio, pixelRatio);
+      pnlCtx.scale(pixelRatio, pixelRatio);
+      indicatorCtx.scale(pixelRatio, pixelRatio);
+      
       // Clear canvases
-      chartCtx.clearRect(0, 0, chartCanvasRef.width, chartCanvasRef.height);
-      pnlCtx.clearRect(0, 0, pnlCanvasRef.width, pnlCanvasRef.height);
-      indicatorCtx.clearRect(0, 0, indicatorCanvasRef.width, indicatorCanvasRef.height);
+      chartCtx.clearRect(0, 0, actualWidth, chartCanvasRef.height / pixelRatio);
+      pnlCtx.clearRect(0, 0, actualWidth, pnlCanvasRef.height / pixelRatio);
+      indicatorCtx.clearRect(0, 0, actualWidth, indicatorCanvasRef.height / pixelRatio);
       
       if (!data.prices || data.prices.length === 0) {
-        drawNoDataMessage(chartCtx, chartCanvasRef.width, chartCanvasRef.height);
+        drawNoDataMessage(chartCtx, actualWidth, chartCanvasRef.height / pixelRatio);
         return;
       }
       
@@ -117,16 +194,16 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
       const dateRange = [new Date(prices[0].date), new Date(prices[prices.length - 1].date)];
       
       // Draw price chart
-      drawGrid(chartCtx, chartCanvasRef.width, chartCanvasRef.height);
-      drawDateAxis(chartCtx, dateRange, chartCanvasRef.width, chartCanvasRef.height);
-      drawPriceAxis(chartCtx, minMaxPrice, chartCanvasRef.width, chartCanvasRef.height);
+      drawGrid(chartCtx, actualWidth, chartCanvasRef.height / pixelRatio);
+      drawDateAxis(chartCtx, dateRange, actualWidth, chartCanvasRef.height / pixelRatio);
+      drawPriceAxis(chartCtx, minMaxPrice, actualWidth, chartCanvasRef.height / pixelRatio);
       
       // Use candlesticks instead of line
-      drawPriceCandlesticks(chartCtx, prices, dateRange, minMaxPrice, chartCanvasRef.width, chartCanvasRef.height);
+      drawPriceCandlesticks(chartCtx, prices, dateRange, minMaxPrice, actualWidth, chartCanvasRef.height / pixelRatio);
       
       // Draw signals if available
       if (signals.length > 0) {
-        drawSignals(chartCtx, signals, dateRange, minMaxPrice, chartCanvasRef.width, chartCanvasRef.height);
+        drawSignals(chartCtx, signals, dateRange, minMaxPrice, actualWidth, chartCanvasRef.height / pixelRatio);
       }
       
       // Draw indicators if available
@@ -136,12 +213,30 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
         const indicatorData = indicators[mainIndicator];
         const minMaxIndicator = findMinMaxValuesForIndicator(indicatorData);
         
-        drawGrid(indicatorCtx, indicatorCanvasRef.width, indicatorCanvasRef.height);
-        drawDateAxis(indicatorCtx, dateRange, indicatorCanvasRef.width, indicatorCanvasRef.height);
-        drawIndicatorAxis(indicatorCtx, minMaxIndicator, indicatorCanvasRef.width, indicatorCanvasRef.height, mainIndicator);
-        drawIndicatorLine(indicatorCtx, indicatorData, dateRange, minMaxIndicator, indicatorCanvasRef.width, indicatorCanvasRef.height);
+        drawGrid(indicatorCtx, actualWidth, indicatorCanvasRef.height / pixelRatio);
+        drawDateAxis(indicatorCtx, dateRange, actualWidth, indicatorCanvasRef.height / pixelRatio);
+        drawIndicatorAxis(
+          indicatorCtx, 
+          minMaxIndicator, 
+          actualWidth, 
+          indicatorCanvasRef.height / pixelRatio, 
+          mainIndicator
+        );
+        drawIndicatorLine(
+          indicatorCtx, 
+          indicatorData, 
+          dateRange, 
+          minMaxIndicator, 
+          actualWidth, 
+          indicatorCanvasRef.height / pixelRatio
+        );
       } else {
-        drawNoDataMessage(indicatorCtx, indicatorCanvasRef.width, indicatorCanvasRef.height, "No indicator data available");
+        drawNoDataMessage(
+          indicatorCtx, 
+          actualWidth, 
+          indicatorCanvasRef.height / pixelRatio, 
+          "No indicator data available"
+        );
       }
       
       // Extract trades and draw individual PnL bars
@@ -151,15 +246,32 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
           // Find min/max PnL values for scaling
           const minMaxPnL = findMinMaxTradeValues(trades);
           
-          drawGrid(pnlCtx, pnlCanvasRef.width, pnlCanvasRef.height);
-          drawDateAxis(pnlCtx, dateRange, pnlCanvasRef.width, pnlCanvasRef.height);
-          drawPnLAxis(pnlCtx, minMaxPnL, pnlCanvasRef.width, pnlCanvasRef.height);
-          drawIndividualTradeBars(pnlCtx, trades, dateRange, minMaxPnL, pnlCanvasRef.width, pnlCanvasRef.height);
+          drawGrid(pnlCtx, actualWidth, pnlCanvasRef.height / pixelRatio);
+          drawDateAxis(pnlCtx, dateRange, actualWidth, pnlCanvasRef.height / pixelRatio);
+          drawPnLAxis(pnlCtx, minMaxPnL, actualWidth, pnlCanvasRef.height / pixelRatio);
+          drawIndividualTradeBars(
+            pnlCtx, 
+            trades, 
+            dateRange, 
+            minMaxPnL, 
+            actualWidth, 
+            pnlCanvasRef.height / pixelRatio
+          );
         } else {
-          drawNoDataMessage(pnlCtx, pnlCanvasRef.width, pnlCanvasRef.height, "No completed trades available");
+          drawNoDataMessage(
+            pnlCtx, 
+            actualWidth, 
+            pnlCanvasRef.height / pixelRatio, 
+            "No completed trades available"
+          );
         }
       } else {
-        drawNoDataMessage(pnlCtx, pnlCanvasRef.width, pnlCanvasRef.height, "No trade signals available");
+        drawNoDataMessage(
+          pnlCtx, 
+          actualWidth, 
+          pnlCanvasRef.height / pixelRatio, 
+          "No trade signals available"
+        );
       }
     };
 
@@ -171,17 +283,17 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
       // Use the captured refs from the beginning of the effect
       if (chartCanvasRef) {
         const chartCtx = chartCanvasRef.getContext('2d');
-        chartCtx.clearRect(0, 0, chartCanvasRef.width, chartCanvasRef.height);
+        chartCtx.clearRect(0, 0, actualWidth, chartCanvasRef.height / pixelRatio);
       }
       
       if (pnlCanvasRef) {
         const pnlCtx = pnlCanvasRef.getContext('2d');
-        pnlCtx.clearRect(0, 0, pnlCanvasRef.width, pnlCanvasRef.height);
+        pnlCtx.clearRect(0, 0, actualWidth, pnlCanvasRef.height / pixelRatio);
       }
       
       if (indicatorCanvasRef) {
         const indicatorCtx = indicatorCanvasRef.getContext('2d');
-        indicatorCtx.clearRect(0, 0, indicatorCanvasRef.width, indicatorCanvasRef.height);
+        indicatorCtx.clearRect(0, 0, actualWidth, indicatorCanvasRef.height / pixelRatio);
       }
     };
   }, [data, width, height]);
@@ -225,71 +337,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
         currentContainerRef.removeEventListener('mouseleave', handleMouseLeave);
       }
     };
-  }, [data]);
-  
-  // Function to update tooltip data based on mouse position
-  const updateTooltipData = (mouseX, mouseY) => {
-    // Skip if we don't have prices
-    if (!chartData.current.prices || chartData.current.prices.length === 0) return;
-    
-    // Find which chart the mouse is over
-    const { canvasPositions } = chartData.current;
-    
-    // Find price data at mouse position
-    const prices = chartData.current.prices;
-    const dateRange = chartData.current.dateRange;
-    
-    if (prices.length > 0 && dateRange.length === 2) {
-      const totalTime = dateRange[1].getTime() - dateRange[0].getTime();
-      const chartWidth = chartRef.current.width;
-      
-      // Calculate date at mouse position
-      const mouseRatio = mouseX / chartWidth;
-      const mouseDate = new Date(dateRange[0].getTime() + mouseRatio * totalTime);
-      
-      // Find closest price point
-      let closestPrice = null;
-      let minTimeDiff = Infinity;
-      
-      for (const price of prices) {
-        const timeDiff = Math.abs(price.date.getTime() - mouseDate.getTime());
-        if (timeDiff < minTimeDiff) {
-          minTimeDiff = timeDiff;
-          closestPrice = price;
-        }
-      }
-      
-      // Find signals for this price point
-      let signals = [];
-      if (data.signals) {
-        signals = data.signals.filter(signal => 
-          new Date(signal.date).toISOString() === closestPrice.date.toISOString()
-        );
-      }
-      
-      // Find indicator values for this date
-      const indicatorValues = {};
-      if (data.indicators) {
-        Object.entries(data.indicators).forEach(([name, values]) => {
-          const matchingIndicator = values.find(ind => 
-            new Date(ind.date).toISOString() === closestPrice.date.toISOString()
-          );
-          if (matchingIndicator) {
-            indicatorValues[name] = matchingIndicator.value;
-          }
-        });
-      }
-      
-      if (closestPrice) {
-        setTooltipData({
-          price: closestPrice,
-          signals,
-          indicators: indicatorValues,
-          position: { x: mouseX, y: mouseY }
-        });
-      }
-    }
-  };
+  }, [updateTooltipData]);
   
   // Render tooltip
   const renderTooltip = () => {
