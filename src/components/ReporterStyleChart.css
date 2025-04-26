@@ -23,6 +23,7 @@
   border: 1px solid #ddd;
   border-radius: 4px;
   overflow: hidden;
+  cursor: crosshair; /* Change cursor to indicate zoom functionality */
 }
 
 .position-relative {
@@ -34,7 +35,6 @@
 .indicator-chart-canvas {
   width: 100%;
   background-color: white;
-  cursor: crosshair;
   display: block; /* Fix some browser rendering issues */
 }
 
@@ -77,6 +77,54 @@
   margin-bottom: 3px;
 }
 
+/* Chart controls for zoom */
+.chart-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.zoom-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.zoom-reset-btn {
+  padding: 0.35rem 0.75rem;
+  background-color: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.zoom-reset-btn:hover:not(:disabled) {
+  background-color: #e0e0e0;
+}
+
+.zoom-reset-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.zoom-instructions {
+  font-size: 0.8rem;
+  color: #666;
+  font-style: italic;
+}
+
+.zoom-range-display {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #2196F3;
+  padding: 0.25rem 0.5rem;
+  background-color: rgba(33, 150, 243, 0.1);
+  border-radius: 4px;
+}
+
 /* Animation for tooltip */
 @keyframes fadeIn {
   from { opacity: 0; }
@@ -85,4 +133,10 @@
 
 .chart-tooltip {
   animation: fadeIn 0.2s ease-in-out;
+}
+
+/* Zoom selection styles */
+.zoom-selection {
+  z-index: 5;
+  animation: fadeIn 0.1s ease-in-out;
 }
