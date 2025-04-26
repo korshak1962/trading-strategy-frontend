@@ -1,4 +1,4 @@
-/* ReporterStyleChart.css */
+/* src/components/ReporterStyleChart.css */
 .reporter-chart-container {
   display: flex;
   flex-direction: column;
@@ -25,13 +25,16 @@
   overflow: hidden;
 }
 
+.position-relative {
+  position: relative;
+}
+
 .price-chart-canvas,
 .pnl-chart-canvas,
 .indicator-chart-canvas {
   width: 100%;
   background-color: white;
   cursor: crosshair;
-  /* Remove the fixed heights as they're now set dynamically */
   display: block; /* Fix some browser rendering issues */
 }
 
@@ -60,7 +63,7 @@
 .chart-tooltip {
   font-size: 12px;
   line-height: 1.4;
-  background-color: rgba(255, 255, 255, 0.9);
+  background-color: rgba(255, 255, 255, 0.95);
   border: 1px solid #ddd;
   border-radius: 4px;
   padding: 8px;

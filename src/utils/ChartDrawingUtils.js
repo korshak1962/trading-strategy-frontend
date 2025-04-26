@@ -88,6 +88,22 @@ export const findMinMaxPriceRange = (prices) => {
   };
   
   export const drawDateAxis = (ctx, dateRange, width, height) => {
+    // Guard against undefined or incomplete dateRange
+    if (!dateRange || !dateRange[0] || !dateRange[1] || 
+        !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) {
+      // Draw a generic axis if no valid date range is provided
+      ctx.fillStyle = '#333';
+      ctx.font = '10px Arial';
+      ctx.textAlign = 'center';
+      
+      const numLabels = 10;
+      for (let i = 0; i <= numLabels; i++) {
+        const x = (i / numLabels) * width;
+        ctx.fillText(`Point ${i}`, x, height - 5);
+      }
+      return;
+    }
+    
     const [startDate, endDate] = dateRange;
     const totalMs = endDate.getTime() - startDate.getTime();
     
@@ -224,6 +240,12 @@ export const findMinMaxPriceRange = (prices) => {
   
   // Chart element drawing functions
   export const drawPriceCandlesticks = (ctx, prices, dateRange, minMax, width, height) => {
+    // Guard against undefined or incomplete dateRange
+    if (!dateRange || !dateRange[0] || !dateRange[1] || 
+        !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) {
+      return; // Skip drawing if no valid date range
+    }
+    
     const [startDate, endDate] = dateRange;
     const { min, max } = minMax;
     const totalMs = endDate.getTime() - startDate.getTime();
@@ -285,6 +307,12 @@ export const findMinMaxPriceRange = (prices) => {
   };
   
   export const drawIndicatorLine = (ctx, indicators, dateRange, minMax, width, height) => {
+    // Guard against undefined or incomplete dateRange
+    if (!dateRange || !dateRange[0] || !dateRange[1] || 
+        !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) {
+      return; // Skip drawing if no valid date range
+    }
+    
     const [startDate, endDate] = dateRange;
     const { min, max } = minMax;
     const totalMs = endDate.getTime() - startDate.getTime();
@@ -309,6 +337,12 @@ export const findMinMaxPriceRange = (prices) => {
   };
   
   export const drawSignals = (ctx, signals, dateRange, minMax, width, height) => {
+    // Guard against undefined or incomplete dateRange
+    if (!dateRange || !dateRange[0] || !dateRange[1] || 
+        !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) {
+      return; // Skip drawing if no valid date range
+    }
+    
     const [startDate, endDate] = dateRange;
     const { min, max } = minMax;
     const totalMs = endDate.getTime() - startDate.getTime();
@@ -340,6 +374,12 @@ export const findMinMaxPriceRange = (prices) => {
   };
   
   export const drawIndividualTradeBars = (ctx, trades, dateRange, minMax, width, height) => {
+    // Guard against undefined or incomplete dateRange
+    if (!dateRange || !dateRange[0] || !dateRange[1] || 
+        !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) {
+      return; // Skip drawing if no valid date range
+    }
+    
     const [startDate, endDate] = dateRange;
     const { min, max } = minMax;
     const totalMs = endDate.getTime() - startDate.getTime();
@@ -348,9 +388,13 @@ export const findMinMaxPriceRange = (prices) => {
     
     // Draw individual trade bars
     trades.forEach(trade => {
+      // Ensure trade dates are properly processed as Date objects
+      const openDate = trade.openDate instanceof Date ? trade.openDate : new Date(trade.openDate);
+      const closeDate = trade.closeDate instanceof Date ? trade.closeDate : new Date(trade.closeDate);
+      
       // Calculate x positions for open and close dates
-      const openX = ((trade.openDate.getTime() - startDate.getTime()) / totalMs) * width;
-      const closeX = ((trade.closeDate.getTime() - startDate.getTime()) / totalMs) * width;
+      const openX = ((openDate.getTime() - startDate.getTime()) / totalMs) * width;
+      const closeX = ((closeDate.getTime() - startDate.getTime()) / totalMs) * width;
       
       // Bar width spans from open to close
       const barWidth = closeX - openX;
