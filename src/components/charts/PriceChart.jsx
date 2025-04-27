@@ -55,9 +55,6 @@ const PriceChart = ({ data, width, height, dateRange }) => {
     const prices = data.prices;
     const signals = data.signals || [];
     
-    // Find min/max values for scaling
-    const minMaxPrice = findMinMaxPriceRange(prices);
-    
     // Use passed dateRange if provided and valid, otherwise calculate it
     let chartDateRange = dateRange;
     
@@ -89,18 +86,52 @@ const PriceChart = ({ data, width, height, dateRange }) => {
         ];
       }
     }
+
+    // Filter to only show prices within the date range
+    const visiblePrices = prices.filter(price => {
+      const priceDate = new Date(price.date);
+      return priceDate >= chartDateRange[0] && priceDate <= chartDateRange[1];
+    });
+    
+    // Calculate how many candles we're displaying in the current view
+    const visibleCandleCount = visiblePrices.length;
+    
+    // Calculate optimal candle width based on zoom level
+    const candleWidthRatio = 0.8; // 80% of available space per candle
+    const candleSpacing = width / Math.max(visibleCandleCount, 1);
+    const candleWidth = Math.min(
+      candleSpacing * candleWidthRatio, 
+      20 // Maximum width in pixels
+    );
+    
+    // Find min/max values only for visible prices (for vertical scaling)
+    let minMaxPrice;
+    if (visiblePrices.length > 0) {
+      // Calculate min/max only for the visible price range
+      minMaxPrice = findMinMaxPriceRange(visiblePrices);
+    } else {
+      // Fall back to the entire dataset if no visible prices
+      minMaxPrice = findMinMaxPriceRange(prices);
+    }
     
     // Draw chart components
     drawGrid(ctx, width, height);
     drawDateAxis(ctx, chartDateRange, width, height);
     drawPriceAxis(ctx, minMaxPrice, width, height);
     
-    // Draw price candlesticks
-    drawPriceCandlesticks(ctx, prices, chartDateRange, minMaxPrice, width, height);
+    // Draw price candlesticks with the calculated width
+    drawPriceCandlesticks(ctx, prices, chartDateRange, minMaxPrice, width, height, candleWidth);
     
-    // Draw signals if available
+    // Draw signals that are within the date range
     if (signals.length > 0) {
-      drawSignals(ctx, signals, chartDateRange, minMaxPrice, width, height);
+      const visibleSignals = signals.filter(signal => {
+        const signalDate = new Date(signal.date);
+        return signalDate >= chartDateRange[0] && signalDate <= chartDateRange[1];
+      });
+      
+      if (visibleSignals.length > 0) {
+        drawSignals(ctx, visibleSignals, chartDateRange, minMaxPrice, width, height);
+      }
     }
     
     // Clean up function

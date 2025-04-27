@@ -89,17 +89,34 @@ const PnLChart = ({ data, width, height, dateRange }) => {
     
     // Extract trades from signals
     if (signals.length > 0) {
-      const trades = extractTradesFromSignals(signals);
+      const allTrades = extractTradesFromSignals(signals);
       
-      if (trades.length > 0) {
-        // Find min/max PnL values for scaling
-        const minMaxPnL = findMinMaxTradeValues(trades);
+      if (allTrades.length > 0) {
+        // Filter trades to only show those within the date range
+        const visibleTrades = allTrades.filter(trade => {
+          const openDate = trade.openDate instanceof Date ? trade.openDate : new Date(trade.openDate);
+          const closeDate = trade.closeDate instanceof Date ? trade.closeDate : new Date(trade.closeDate);
+          
+          // Include trade if any part of it is in the visible range
+          return (
+            (openDate >= chartDateRange[0] && openDate <= chartDateRange[1]) ||
+            (closeDate >= chartDateRange[0] && closeDate <= chartDateRange[1]) ||
+            (openDate <= chartDateRange[0] && closeDate >= chartDateRange[1])
+          );
+        });
         
-        // Draw chart components
-        drawGrid(ctx, width, height);
-        drawDateAxis(ctx, chartDateRange, width, height);
-        drawPnLAxis(ctx, minMaxPnL, width, height);
-        drawIndividualTradeBars(ctx, trades, chartDateRange, minMaxPnL, width, height);
+        if (visibleTrades.length > 0) {
+          // Find min/max PnL values for scaling based on visible trades
+          const minMaxPnL = findMinMaxTradeValues(visibleTrades);
+          
+          // Draw chart components
+          drawGrid(ctx, width, height);
+          drawDateAxis(ctx, chartDateRange, width, height);
+          drawPnLAxis(ctx, minMaxPnL, width, height);
+          drawIndividualTradeBars(ctx, visibleTrades, chartDateRange, minMaxPnL, width, height);
+        } else {
+          drawNoDataMessage(ctx, width, height, "No trades visible in current range");
+        }
       } else {
         drawNoDataMessage(ctx, width, height, "No completed trades available");
       }

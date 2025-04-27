@@ -239,7 +239,7 @@ export const findMinMaxPriceRange = (prices) => {
   };
   
   // Chart element drawing functions
-  export const drawPriceCandlesticks = (ctx, prices, dateRange, minMax, width, height) => {
+  export const drawPriceCandlesticks = (ctx, prices, dateRange, minMax, width, height, candleWidth) => {
     // Guard against undefined or incomplete dateRange
     if (!dateRange || !dateRange[0] || !dateRange[1] || 
         !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) {
@@ -250,13 +250,22 @@ export const findMinMaxPriceRange = (prices) => {
     const { min, max } = minMax;
     const totalMs = endDate.getTime() - startDate.getTime();
     
-    // Calculate appropriate candlestick width based on number of price points
-    const candleWidth = Math.min(
+    // Default candle width if not provided
+    const defaultCandleWidth = Math.min(
       width / prices.length * 0.8, // Maximum width as percentage of available space per price point
       15 // Hard maximum pixel width
     );
     
-    prices.forEach((price) => {
+    // Use provided candle width or fall back to default
+    const actualCandleWidth = candleWidth || defaultCandleWidth;
+    
+    // Filter to only show prices within the date range
+    const visiblePrices = prices.filter(price => {
+      const priceDate = new Date(price.date);
+      return priceDate >= startDate && priceDate <= endDate;
+    });
+    
+    visiblePrices.forEach((price) => {
       const date = new Date(price.date);
       const x = ((date.getTime() - startDate.getTime()) / totalMs) * width;
       
@@ -290,17 +299,17 @@ export const findMinMaxPriceRange = (prices) => {
       
       // Draw rectangle with minimum height of 1px
       ctx.fillRect(
-        x - candleWidth / 2, 
+        x - actualCandleWidth / 2, 
         yStart, 
-        candleWidth, 
+        actualCandleWidth, 
         Math.max(candleHeight, 1)
       );
       
       // Draw outline
       ctx.strokeRect(
-        x - candleWidth / 2, 
+        x - actualCandleWidth / 2, 
         yStart, 
-        candleWidth, 
+        actualCandleWidth, 
         Math.max(candleHeight, 1)
       );
     });

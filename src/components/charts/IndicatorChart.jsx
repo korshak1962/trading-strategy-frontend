@@ -93,13 +93,25 @@ const IndicatorChart = ({ data, width, height, dateRange }) => {
       // Just use the first indicator for simplicity
       const mainIndicator = indicatorNames[0]; 
       const indicatorData = indicators[mainIndicator];
-      const minMaxIndicator = findMinMaxValuesForIndicator(indicatorData);
       
-      // Draw chart components
-      drawGrid(ctx, width, height);
-      drawDateAxis(ctx, chartDateRange, width, height);
-      drawIndicatorAxis(ctx, minMaxIndicator, width, height, mainIndicator);
-      drawIndicatorLine(ctx, indicatorData, chartDateRange, minMaxIndicator, width, height);
+      // Filter indicator data to only show values within the date range
+      const visibleIndicatorData = indicatorData.filter(item => {
+        const itemDate = new Date(item.date);
+        return itemDate >= chartDateRange[0] && itemDate <= chartDateRange[1];
+      });
+      
+      if (visibleIndicatorData.length > 0) {
+        // Calculate min/max based on the visible indicator data
+        const minMaxIndicator = findMinMaxValuesForIndicator(visibleIndicatorData);
+        
+        // Draw chart components
+        drawGrid(ctx, width, height);
+        drawDateAxis(ctx, chartDateRange, width, height);
+        drawIndicatorAxis(ctx, minMaxIndicator, width, height, mainIndicator);
+        drawIndicatorLine(ctx, visibleIndicatorData, chartDateRange, minMaxIndicator, width, height);
+      } else {
+        drawNoDataMessage(ctx, width, height, "No indicator data in current range");
+      }
     } else {
       drawNoDataMessage(ctx, width, height, "No indicator data available");
     }

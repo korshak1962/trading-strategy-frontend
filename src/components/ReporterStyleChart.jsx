@@ -212,6 +212,73 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
     setZoomActive(false);
   }, [zoomActive, zoomStart, zoomEnd, dateRange]);
   
+  // Handle mouse wheel for zoom in/out
+  const handleMouseWheel = useCallback((e) => {
+    if (!containerRef.current) return;
+    e.preventDefault(); // Prevent page scrolling
+    
+    // Get current dateRange or use the original
+    const currentDateRange = dateRange || chartData.current.dateRange;
+    
+    if (!currentDateRange || currentDateRange.length !== 2) return;
+    
+    // Get container position
+    const containerRect = containerRef.current.getBoundingClientRect();
+    
+    // Get mouse position relative to container width
+    const mouseX = e.clientX - containerRect.left;
+    const containerWidth = containerRect.width;
+    const mouseRatio = mouseX / containerWidth;
+    
+    // Calculate current date at mouse position
+    const totalTime = currentDateRange[1].getTime() - currentDateRange[0].getTime();
+    const pivotTime = currentDateRange[0].getTime() + mouseRatio * totalTime;
+    const pivotDate = new Date(pivotTime);
+    
+    // Determine zoom direction and factor
+    // Normalize wheel delta across browsers
+    const delta = e.deltaY || e.detail || e.wheelDelta;
+    const zoomOut = delta > 0;
+    
+    // Use a zoom factor of 15% per wheel tick
+    const zoomFactor = zoomOut ? 1.15 : 0.85; 
+    
+    // Calculate new timespan
+    const currentTimespan = totalTime;
+    const newTimespan = currentTimespan * zoomFactor;
+    
+    // Calculate new start and end dates based on the pivot point
+    const pivotRatio = (pivotTime - currentDateRange[0].getTime()) / totalTime;
+    const newStartTime = pivotTime - (pivotRatio * newTimespan);
+    const newEndTime = newStartTime + newTimespan;
+    
+    // Create new date objects
+    const newStartDate = new Date(newStartTime);
+    const newEndDate = new Date(newEndTime);
+    
+    // Apply bounds checking against original date range
+    const originalRange = originalDateRange || chartData.current.dateRange;
+    const minStartTime = originalRange[0].getTime();
+    const maxEndTime = originalRange[1].getTime();
+    const originalTimespan = maxEndTime - minStartTime;
+    
+    // Don't allow zooming out beyond original range
+    if (newStartTime <= minStartTime && newEndTime >= maxEndTime) {
+      setDateRange(originalRange);
+      return;
+    }
+    
+    // Don't allow zooming in too far (prevent excessive zoom)
+    const minTimespan = originalTimespan * 0.01; // Minimum 1% of original range
+    if (newTimespan < minTimespan) return;
+    
+    // Apply the zoom, keeping within the original bounds
+    const boundedStart = new Date(Math.max(newStartTime, minStartTime));
+    const boundedEnd = new Date(Math.min(newEndTime, maxEndTime));
+    
+    setDateRange([boundedStart, boundedEnd]);
+  }, [dateRange, originalDateRange]);
+  
   // Handle mouse leave
   const handleMouseLeave = useCallback(() => {
     setShowCrosshair(false);
@@ -237,6 +304,12 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
       currentContainerRef.addEventListener('mousemove', handleMouseMove);
       currentContainerRef.addEventListener('mouseup', handleMouseUp);
       currentContainerRef.addEventListener('mouseleave', handleMouseLeave);
+      
+      // Add wheel event listener with passive: false to prevent scrolling
+      // Use all variations for cross-browser compatibility
+      currentContainerRef.addEventListener('wheel', handleMouseWheel, { passive: false });
+      currentContainerRef.addEventListener('mousewheel', handleMouseWheel, { passive: false });
+      currentContainerRef.addEventListener('DOMMouseScroll', handleMouseWheel, { passive: false });
     }
     
     // Cleanup
@@ -246,9 +319,13 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
         currentContainerRef.removeEventListener('mousemove', handleMouseMove);
         currentContainerRef.removeEventListener('mouseup', handleMouseUp);
         currentContainerRef.removeEventListener('mouseleave', handleMouseLeave);
+        
+        currentContainerRef.removeEventListener('wheel', handleMouseWheel);
+        currentContainerRef.removeEventListener('mousewheel', handleMouseWheel);
+        currentContainerRef.removeEventListener('DOMMouseScroll', handleMouseWheel);
       }
     };
-  }, [handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave]);
+  }, [handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave, handleMouseWheel]);
   
   // Calculate chart width based on container
   const getChartWidth = () => {
@@ -306,7 +383,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
             Reset Zoom
           </button>
           <div className="zoom-instructions">
-            Click and drag horizontally to zoom in on a specific time range
+            Click and drag horizontally to zoom in on a specific time range, or use the mouse wheel to zoom in/out
           </div>
         </div>
         
