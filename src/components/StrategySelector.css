@@ -1,0 +1,33 @@
+/* StrategySelector.css */
+.strategy-selector {
+    margin-bottom: 1rem;
+  }
+  
+  .strategy-selector-controls {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+  
+  .strategy-selector-select {
+    flex-grow: 1;
+  }
+  
+  .strategy-info {
+    background-color: #f9fafb;
+    padding: 0.75rem;
+    border-radius: 0.25rem;
+    border: 1px solid #e5e7eb;
+  }
+  
+  .strategy-name {
+    font-size: 1rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+  }
+  
+  .strategy-description {
+    font-size: 0.875rem;
+    color: #4b5563;
+    margin: 0;
+  }
