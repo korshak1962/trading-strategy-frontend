@@ -14,11 +14,11 @@ const TradesTable = ({ data }) => {
     if (!data || !data.signals || data.signals.length === 0) return;
 
     // Extract trades from signals
-    const extractedTrades = extractTradesFromSignals(data.signals, data.prices);
+    const extractedTrades = extractTradesFromSignals(data.signals);
     setTrades(extractedTrades);
   }, [data]);
 
-  const extractTradesFromSignals = (signals, prices) => {
+  const extractTradesFromSignals = (signals) => {
     const extractedTrades = [];
     const openSignals = {};
 
@@ -45,7 +45,8 @@ const TradesTable = ({ data }) => {
           openPrice: openSignal.price,
           closePrice: signal.price,
           pnl: profit,
-          comment: openSignal.comment || signal.comment
+          openComment: openSignal.comment || '',
+          closeComment: signal.comment || ''
         });
         
         // Clear open signal
@@ -68,7 +69,8 @@ const TradesTable = ({ data }) => {
           openPrice: openSignal.price,
           closePrice: signal.price,
           pnl: profit,
-          comment: openSignal.comment || signal.comment
+          openComment: openSignal.comment || '',
+          closeComment: signal.comment || ''
         });
         
         // Clear open signal
@@ -140,7 +142,8 @@ const TradesTable = ({ data }) => {
                 <th onClick={() => requestSort('pnl')} className={getClassNamesFor('pnl')}>
                   P&L <span className="sort-icon"></span>
                 </th>
-                <th>Comment</th>
+                <th>Open Comment</th>
+                <th>Close Comment</th>
               </tr>
             </thead>
             <tbody>
@@ -157,7 +160,8 @@ const TradesTable = ({ data }) => {
                   <td className={`pnl-cell ${trade.pnl >= 0 ? 'positive' : 'negative'}`}>
                     {formatNumber(trade.pnl)}
                   </td>
-                  <td className="comment-cell">{trade.comment}</td>
+                  <td className="comment-cell">{trade.openComment}</td>
+                  <td className="comment-cell">{trade.closeComment}</td>
                 </tr>
               ))}
             </tbody>
@@ -169,7 +173,7 @@ const TradesTable = ({ data }) => {
                 }`}>
                   {formatNumber(trades.reduce((sum, trade) => sum + trade.pnl, 0))}
                 </td>
-                <td></td>
+                <td colSpan="2"></td>
               </tr>
               <tr>
                 <td colSpan="6" className="summary-label">Win Rate:</td>
@@ -179,7 +183,7 @@ const TradesTable = ({ data }) => {
                     : '0%'
                   }
                 </td>
-                <td></td>
+                <td colSpan="2"></td>
               </tr>
             </tfoot>
           </table>
