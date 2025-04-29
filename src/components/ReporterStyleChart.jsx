@@ -31,6 +31,9 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
   const [dateRange, setDateRange] = useState(null);
   const [originalDateRange, setOriginalDateRange] = useState(null);
   
+  // New state for storing the exact date at mousedown
+  const [selectionStartDate, setSelectionStartDate] = useState(null);
+  
   // Calculate sub-chart heights
   const priceChartHeight = height * 0.6;
   const pnlChartHeight = height * 0.2;
@@ -93,30 +96,40 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
     setForceRender(prev => prev + 1);
   }, []);
   
+  // Calculate the exact date at a specific x position
+  const calculateDateAtPosition = useCallback((xPosition) => {
+    if (!containerRef.current || !dateRange) return null;
+    
+    const containerWidth = containerRef.current.clientWidth;
+    const mouseRatio = xPosition / containerWidth;
+    const [startDate, endDate] = dateRange[0] <= dateRange[1] 
+      ? [dateRange[0], dateRange[1]] 
+      : [dateRange[1], dateRange[0]];
+    
+    const totalTime = endDate.getTime() - startDate.getTime();
+    return new Date(startDate.getTime() + mouseRatio * totalTime);
+  }, [dateRange]);
+  
   // Function to update tooltip data based on mouse position
   const updateTooltipData = useCallback((mouseX, mouseY) => {
     // Skip if we don't have prices
     if (!chartData.current.prices || chartData.current.prices.length === 0) return;
     
+    // Calculate the exact date at mouse position using the same function as zoom
+    const mouseDate = calculateDateAtPosition(mouseX);
+    if (!mouseDate) return;
+    
     // Find price data at mouse position
     const prices = chartData.current.prices;
     const currentDateRange = dateRange || chartData.current.dateRange;
     
-    if (prices.length > 0 && currentDateRange?.length === 2 && containerRef.current) {
+    if (prices.length > 0 && currentDateRange?.length === 2) {
       // Ensure dates are properly ordered
       const orderedDates = [...currentDateRange].sort((a, b) => a.getTime() - b.getTime());
       const startDate = orderedDates[0];
       const endDate = orderedDates[1];
       
-      // Calculate container width
-      const containerWidth = containerRef.current.clientWidth;
-      
-      // Calculate date at mouse position
-      const mouseRatio = mouseX / containerWidth;
-      const totalTime = endDate.getTime() - startDate.getTime();
-      const mouseDate = new Date(startDate.getTime() + mouseRatio * totalTime);
-      
-      // Find closest price point
+      // Find closest price point to the mouse date
       let closestPrice = null;
       let minTimeDiff = Infinity;
       
@@ -165,7 +178,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
         position: { x: mouseX, y: mouseY }
       });
     }
-  }, [data, dateRange]);
+  }, [data, dateRange, calculateDateAtPosition]);
   
   // Handle mouse down for zoom selection start
   const handleMouseDown = useCallback((e) => {
@@ -180,11 +193,16 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
     // Get mouse position relative to container
     const x = e.clientX - containerRect.left;
     
+    // Calculate the exact date at this x position
+    const exactDateAtMouseDown = calculateDateAtPosition(x);
+    if (!exactDateAtMouseDown) return;
+    
     // Start zoom selection
     setZoomActive(true);
     setZoomStart(x);
     setZoomEnd(x);
-  }, []);
+    setSelectionStartDate(exactDateAtMouseDown);
+  }, [calculateDateAtPosition]);
   
   // Handle mouse move for zoom selection
   const handleMouseMove = useCallback((e) => {
@@ -212,60 +230,35 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
   
   // Handle mouse up for zoom selection end
   const handleMouseUp = useCallback(() => {
-    if (!zoomActive || !containerRef.current) {
+    if (!zoomActive || !containerRef.current || !selectionStartDate) {
       setZoomActive(false);
       return;
     }
     
-    // Calculate zoom range
-    const containerWidth = containerRef.current.clientWidth;
-    const currentDateRange = dateRange || chartData.current.dateRange;
-    
-    if (!currentDateRange || currentDateRange.length !== 2) {
+    // Calculate the exact date at current mouse position
+    const exactDateAtMouseUp = calculateDateAtPosition(zoomEnd);
+    if (!exactDateAtMouseUp) {
       setZoomActive(false);
       return;
     }
-    
-    // Ensure the date range is properly ordered
-    const [startDate, endDate] = currentDateRange[0] <= currentDateRange[1]
-      ? [currentDateRange[0], currentDateRange[1]]
-      : [currentDateRange[1], currentDateRange[0]];
-    
-    // Get start and end ratios for zoom based on mouse positions
-    const startRatio = zoomStart / containerWidth;
-    const endRatio =  zoomEnd / containerWidth;
     
     // Only apply zoom if selection is significant (more than 5% of width)
-    if (Math.abs(endRatio - startRatio) < 0.01) {
+    if (Math.abs(zoomEnd - zoomStart) < containerRef.current.clientWidth * 0.05) {
       setZoomActive(false);
       return;
     }
-    
-    // Calculate the amount of time in the current view
-    const totalTime = endDate.getTime() - startDate.getTime();
-    
-    // Calculate the new start and end dates based on the selection ratios
-    const newStartDate = new Date(startDate.getTime() + (startRatio * totalTime));
-    const newEndDate = new Date(startDate.getTime() + (endRatio * totalTime));
-    
-    console.log('Zoom selection', {
-      containerWidth,
-      zoomStart,
-      zoomEnd,
-      startRatio,
-      endRatio,
-      currentStartDate: startDate.toISOString(),
-      currentEndDate: endDate.toISOString(),
-      newStartDate: newStartDate.toISOString(),
-      newEndDate: newEndDate.toISOString()
-    });
     
     // First clear zoom active state
     setZoomActive(false);
     
-    setDateRange([newStartDate, newEndDate]);
-    // Then apply zoom
-  }, [zoomActive, zoomStart, zoomEnd, dateRange]);
+    // Sort the dates so start is before end
+    const newDateRange = [selectionStartDate, exactDateAtMouseUp].sort((a, b) => a - b);
+    
+    // Apply the new date range
+    setDateRange(newDateRange);
+    // Force a render after applying zoom
+    setTimeout(triggerRerender, 50);
+  }, [zoomActive, zoomStart, zoomEnd, selectionStartDate, calculateDateAtPosition, triggerRerender]);
   
   // Handle mouse leave
   const handleMouseLeave = useCallback(() => {
@@ -338,7 +331,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
     );
   };
   
-  // Format date for display - FIXED FUNCTION
+  // Format date for display
   const formatDate = (date) => {
     if (!date || !(date instanceof Date) || isNaN(date.getTime())) return '';
     

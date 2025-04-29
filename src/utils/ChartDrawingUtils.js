@@ -329,10 +329,10 @@ export const drawPriceCandlesticks = (ctx, prices, dateRange, minMax, width, hei
     // Set colors based on candle direction
     if (isUp) {
       ctx.strokeStyle = '#22c55e'; // Green for up candles
-      ctx.fillStyle = 'rgba(34, 197, 94, 0.5)'; // Semi-transparent green
+      ctx.fillStyle = 'rgba(34, 197, 94, 1)'; // Semi-transparent green
     } else {
       ctx.strokeStyle = '#ef4444'; // Red for down candles
-      ctx.fillStyle = 'rgba(239, 68, 68, 0.5)'; // Semi-transparent red
+      ctx.fillStyle = 'rgba(239, 68, 68, 1)'; // Semi-transparent red
     }
     
     // Draw the high-low wick (vertical line)
