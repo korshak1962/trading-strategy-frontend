@@ -7,7 +7,8 @@ import {
   drawDateAxis,
   drawPriceAxis,
   drawPriceCandlesticks,
-  drawSignals
+  drawSignals,
+  filterDataByDateRange
 } from '../../utils/ChartDrawingUtils';
 
 /**
@@ -55,9 +56,6 @@ const PriceChart = ({ data, width, height, dateRange }) => {
     const prices = data.prices;
     const signals = data.signals || [];
     
-    // Find min/max values for scaling
-    const minMaxPrice = findMinMaxPriceRange(prices);
-    
     // Use passed dateRange if provided and valid, otherwise calculate it
     let chartDateRange = dateRange;
     
@@ -90,17 +88,26 @@ const PriceChart = ({ data, width, height, dateRange }) => {
       }
     }
     
+    // Filter prices to only those in current date range
+    const visiblePrices = filterDataByDateRange(prices, chartDateRange);
+    
+    // Find min/max values for scaling using only visible prices
+    const minMaxPrice = findMinMaxPriceRange(visiblePrices);
+    
+    // Filter signals to only those in current date range
+    const visibleSignals = filterDataByDateRange(signals, chartDateRange);
+    
     // Draw chart components
     drawGrid(ctx, width, height);
     drawDateAxis(ctx, chartDateRange, width, height);
     drawPriceAxis(ctx, minMaxPrice, width, height);
     
     // Draw price candlesticks
-    drawPriceCandlesticks(ctx, prices, chartDateRange, minMaxPrice, width, height);
+    drawPriceCandlesticks(ctx, visiblePrices, chartDateRange, minMaxPrice, width, height);
     
     // Draw signals if available
-    if (signals.length > 0) {
-      drawSignals(ctx, signals, chartDateRange, minMaxPrice, width, height);
+    if (visibleSignals.length > 0) {
+      drawSignals(ctx, visibleSignals, chartDateRange, minMaxPrice, width, height);
     }
     
     // Clean up function

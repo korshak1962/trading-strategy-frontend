@@ -17,6 +17,7 @@ import Crosshair from './charts/Crosshair';
  */
 const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
   const containerRef = useRef(null);
+  const [forceRender, setForceRender] = useState(0); // Counter to force render
   
   // State for crosshair position
   const [crosshairPosition, setCrosshairPosition] = useState({ x: 0, y: 0 });
@@ -45,32 +46,52 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
   useEffect(() => {
     if (!data || !data.prices || data.prices.length === 0) return;
     
-    // Store processed price data
-    chartData.current.prices = data.prices.map(price => ({
-      date: new Date(price.date),
-      open: price.open,
-      high: price.high,
-      low: price.low,
-      close: price.close,
-      volume: price.volume
-    }));
-    
-    // Store date range
-    if (data.prices.length > 0) {
-      const range = [
-        new Date(data.prices[0].date),
-        new Date(data.prices[data.prices.length - 1].date)
-      ];
+    try {
+      // Store processed price data with proper Date objects
+      chartData.current.prices = data.prices.map(price => ({
+        date: new Date(price.date),
+        open: price.open,
+        high: price.high,
+        low: price.low,
+        close: price.close,
+        volume: price.volume
+      }));
       
-      chartData.current.dateRange = range;
+      // Sort the prices by date to ensure correct chronological order
+      chartData.current.prices.sort((a, b) => a.date.getTime() - b.date.getTime());
       
-      // Initialize dateRange state if it's not already set
-      if (!dateRange) {
-        setDateRange(range);
-        setOriginalDateRange(range);
+      // Set date range based on the first and last price points
+      if (chartData.current.prices.length > 0) {
+        const firstPrice = chartData.current.prices[0];
+        const lastPrice = chartData.current.prices[chartData.current.prices.length - 1];
+        
+        const correctDateRange = [
+          new Date(firstPrice.date),
+          new Date(lastPrice.date)
+        ];
+        
+        console.log('Setting initial date range:', {
+          first: correctDateRange[0].toISOString(),
+          last: correctDateRange[1].toISOString()
+        });
+        
+        chartData.current.dateRange = correctDateRange;
+        
+        // Initialize dateRange state if it's not already set
+        if (!dateRange) {
+          setDateRange(correctDateRange);
+          setOriginalDateRange(correctDateRange);
+        }
       }
+    } catch (error) {
+      console.error('Error processing price data:', error);
     }
   }, [data, dateRange]);
+  
+  // Function to force a re-render of the charts
+  const triggerRerender = useCallback(() => {
+    setForceRender(prev => prev + 1);
+  }, []);
   
   // Function to update tooltip data based on mouse position
   const updateTooltipData = useCallback((mouseX, mouseY) => {
@@ -81,20 +102,30 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
     const prices = chartData.current.prices;
     const currentDateRange = dateRange || chartData.current.dateRange;
     
-    if (prices.length > 0 && currentDateRange.length === 2 && containerRef.current) {
+    if (prices.length > 0 && currentDateRange?.length === 2 && containerRef.current) {
+      // Ensure dates are properly ordered
+      const orderedDates = [...currentDateRange].sort((a, b) => a.getTime() - b.getTime());
+      const startDate = orderedDates[0];
+      const endDate = orderedDates[1];
+      
       // Calculate container width
       const containerWidth = containerRef.current.clientWidth;
       
       // Calculate date at mouse position
       const mouseRatio = mouseX / containerWidth;
-      const totalTime = currentDateRange[1].getTime() - currentDateRange[0].getTime();
-      const mouseDate = new Date(currentDateRange[0].getTime() + mouseRatio * totalTime);
+      const totalTime = endDate.getTime() - startDate.getTime();
+      const mouseDate = new Date(startDate.getTime() + mouseRatio * totalTime);
       
       // Find closest price point
       let closestPrice = null;
       let minTimeDiff = Infinity;
       
-      for (const price of prices) {
+      // Filter prices to only consider those within the visible date range
+      const visiblePrices = prices.filter(price => 
+        price.date >= startDate && price.date <= endDate
+      );
+      
+      for (const price of visiblePrices) {
         const timeDiff = Math.abs(price.date.getTime() - mouseDate.getTime());
         if (timeDiff < minTimeDiff) {
           minTimeDiff = timeDiff;
@@ -107,18 +138,20 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
       // Find signals for this price point
       let signals = [];
       if (data && data.signals) {
-        signals = data.signals.filter(signal => 
-          new Date(signal.date).toISOString() === closestPrice.date.toISOString()
-        );
+        signals = data.signals.filter(signal => {
+          const signalDate = new Date(signal.date);
+          return signalDate.toISOString() === closestPrice.date.toISOString();
+        });
       }
       
       // Find indicator values for this date
       const indicatorValues = {};
       if (data && data.indicators) {
         Object.entries(data.indicators).forEach(([name, values]) => {
-          const matchingIndicator = values.find(ind => 
-            new Date(ind.date).toISOString() === closestPrice.date.toISOString()
-          );
+          const matchingIndicator = values.find(ind => {
+            const indDate = new Date(ind.date);
+            return indDate.toISOString() === closestPrice.date.toISOString();
+          });
           if (matchingIndicator) {
             indicatorValues[name] = matchingIndicator.value;
           }
@@ -178,7 +211,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
   }, [zoomActive, updateTooltipData]);
   
   // Handle mouse up for zoom selection end
-  const handleMouseUp = useCallback((e) => {
+  const handleMouseUp = useCallback(() => {
     if (!zoomActive || !containerRef.current) {
       setZoomActive(false);
       return;
@@ -193,23 +226,45 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
       return;
     }
     
-    // Get start and end dates for zoom
-    const startRatio = Math.max(0, Math.min(zoomStart, zoomEnd)) / containerWidth;
-    const endRatio = Math.min(1, Math.max(zoomStart, zoomEnd)) / containerWidth;
+    // Ensure the date range is properly ordered
+    const [startDate, endDate] = currentDateRange[0] <= currentDateRange[1]
+      ? [currentDateRange[0], currentDateRange[1]]
+      : [currentDateRange[1], currentDateRange[0]];
+    
+    // Get start and end ratios for zoom based on mouse positions
+    const startRatio = zoomStart / containerWidth;
+    const endRatio =  zoomEnd / containerWidth;
     
     // Only apply zoom if selection is significant (more than 5% of width)
-    if (Math.abs(endRatio - startRatio) < 0.05) {
+    if (Math.abs(endRatio - startRatio) < 0.01) {
       setZoomActive(false);
       return;
     }
     
-    const totalTime = currentDateRange[1].getTime() - currentDateRange[0].getTime();
-    const newStartDate = new Date(currentDateRange[0].getTime() + startRatio * totalTime);
-    const newEndDate = new Date(currentDateRange[0].getTime() + endRatio * totalTime);
+    // Calculate the amount of time in the current view
+    const totalTime = endDate.getTime() - startDate.getTime();
     
-    // Apply zoom
-    setDateRange([newStartDate, newEndDate]);
+    // Calculate the new start and end dates based on the selection ratios
+    const newStartDate = new Date(startDate.getTime() + (startRatio * totalTime));
+    const newEndDate = new Date(startDate.getTime() + (endRatio * totalTime));
+    
+    console.log('Zoom selection', {
+      containerWidth,
+      zoomStart,
+      zoomEnd,
+      startRatio,
+      endRatio,
+      currentStartDate: startDate.toISOString(),
+      currentEndDate: endDate.toISOString(),
+      newStartDate: newStartDate.toISOString(),
+      newEndDate: newEndDate.toISOString()
+    });
+    
+    // First clear zoom active state
     setZoomActive(false);
+    
+    setDateRange([newStartDate, newEndDate]);
+    // Then apply zoom
   }, [zoomActive, zoomStart, zoomEnd, dateRange]);
   
   // Handle mouse leave
@@ -226,7 +281,9 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
   // Reset zoom to original date range
   const handleResetZoom = useCallback(() => {
     setDateRange(originalDateRange);
-  }, [originalDateRange]);
+    // Force a render after resetting zoom
+    setTimeout(triggerRerender, 50);
+  }, [originalDateRange, triggerRerender]);
   
   // Set up event handlers for crosshair, tooltip, and zoom
   useEffect(() => {
@@ -281,14 +338,36 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
     );
   };
   
-  // Format date for display
+  // Format date for display - FIXED FUNCTION
   const formatDate = (date) => {
-    if (!date) return '';
-    return date.toLocaleDateString(undefined, { 
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
+    if (!date || !(date instanceof Date) || isNaN(date.getTime())) return '';
+    
+    try {
+      return date.toLocaleDateString(undefined, { 
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch (error) {
+      console.warn('Error formatting date:', error);
+      // Fallback formatting
+      return date.toString().split('T')[0];
+    }
+  };
+  
+  // Ensure dateRange is properly ordered before passing to child components
+  const getOrderedDateRange = () => {
+    if (!dateRange || dateRange.length !== 2) return null;
+    
+    // Make sure both entries are valid Date objects
+    if (!(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date) || 
+        isNaN(dateRange[0].getTime()) || isNaN(dateRange[1].getTime())) {
+      return null;
+    }
+    
+    return dateRange[0] <= dateRange[1] 
+      ? dateRange 
+      : [dateRange[1], dateRange[0]];
   };
   
   return (
@@ -299,7 +378,9 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
           <button 
             className="zoom-reset-btn"
             onClick={handleResetZoom}
-            disabled={!dateRange || (originalDateRange && 
+            disabled={!dateRange || !originalDateRange || (
+              dateRange[0] instanceof Date && originalDateRange[0] instanceof Date &&
+              dateRange[1] instanceof Date && originalDateRange[1] instanceof Date &&
               dateRange[0].getTime() === originalDateRange[0].getTime() &&
               dateRange[1].getTime() === originalDateRange[1].getTime())}
           >
@@ -311,12 +392,13 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
         </div>
         
         {/* Show date range when zoomed */}
-        {dateRange && originalDateRange && (
+        {dateRange && originalDateRange && dateRange[0] instanceof Date && dateRange[1] instanceof Date && 
+         originalDateRange[0] instanceof Date && originalDateRange[1] instanceof Date && (
           dateRange[0].getTime() !== originalDateRange[0].getTime() ||
           dateRange[1].getTime() !== originalDateRange[1].getTime()
         ) && (
           <div className="zoom-range-display">
-            {formatDate(dateRange[0])} - {formatDate(dateRange[1])}
+            {formatDate(dateRange[0] <= dateRange[1] ? dateRange[0] : dateRange[1])} - {formatDate(dateRange[0] <= dateRange[1] ? dateRange[1] : dateRange[0])}
           </div>
         )}
       </div>
@@ -327,7 +409,8 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
           data={data} 
           width={getChartWidth()} 
           height={priceChartHeight} 
-          dateRange={dateRange}
+          dateRange={getOrderedDateRange()}
+          key={`price-${forceRender}`}
         />
         <Crosshair 
           show={showCrosshair} 
@@ -344,7 +427,8 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
           data={data} 
           width={getChartWidth()} 
           height={pnlChartHeight} 
-          dateRange={dateRange}
+          dateRange={getOrderedDateRange()}
+          key={`pnl-${forceRender}`}
         />
         <Crosshair 
           show={showCrosshair} 
@@ -360,7 +444,8 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
           data={data} 
           width={getChartWidth()} 
           height={indicatorChartHeight} 
-          dateRange={dateRange}
+          dateRange={getOrderedDateRange()}
+          key={`indicator-${forceRender}`}
         />
         <Crosshair 
           show={showCrosshair} 

@@ -6,7 +6,8 @@ import {
   drawGrid,
   drawDateAxis,
   drawIndicatorAxis,
-  drawIndicatorLine
+  drawIndicatorLine,
+  filterDataByDateRange
 } from '../../utils/ChartDrawingUtils';
 
 /**
@@ -93,13 +94,22 @@ const IndicatorChart = ({ data, width, height, dateRange }) => {
       // Just use the first indicator for simplicity
       const mainIndicator = indicatorNames[0]; 
       const indicatorData = indicators[mainIndicator];
-      const minMaxIndicator = findMinMaxValuesForIndicator(indicatorData);
       
-      // Draw chart components
-      drawGrid(ctx, width, height);
-      drawDateAxis(ctx, chartDateRange, width, height);
-      drawIndicatorAxis(ctx, minMaxIndicator, width, height, mainIndicator);
-      drawIndicatorLine(ctx, indicatorData, chartDateRange, minMaxIndicator, width, height);
+      // Filter indicator data to only those in current date range
+      const visibleIndicatorData = filterDataByDateRange(indicatorData, chartDateRange);
+      
+      if (visibleIndicatorData.length > 0) {
+        // Find min/max values for scaling using only visible indicator data
+        const minMaxIndicator = findMinMaxValuesForIndicator(visibleIndicatorData);
+        
+        // Draw chart components
+        drawGrid(ctx, width, height);
+        drawDateAxis(ctx, chartDateRange, width, height);
+        drawIndicatorAxis(ctx, minMaxIndicator, width, height, mainIndicator);
+        drawIndicatorLine(ctx, visibleIndicatorData, chartDateRange, minMaxIndicator, width, height);
+      } else {
+        drawNoDataMessage(ctx, width, height, "No indicator data in selected range");
+      }
     } else {
       drawNoDataMessage(ctx, width, height, "No indicator data available");
     }

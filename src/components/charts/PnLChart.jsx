@@ -6,7 +6,8 @@ import {
   drawGrid,
   drawDateAxis,
   drawPnLAxis,
-  drawIndividualTradeBars
+  drawIndividualTradeBars,
+  filterDataByDateRange
 } from '../../utils/ChartDrawingUtils';
 import { extractTradesFromSignals } from '../../utils/ChartDataUtils';
 
@@ -87,19 +88,29 @@ const PnLChart = ({ data, width, height, dateRange }) => {
       }
     }
     
+    // Filter signals to only those in current date range
+    const visibleSignals = filterDataByDateRange(signals, chartDateRange);
+    
     // Extract trades from signals
-    if (signals.length > 0) {
-      const trades = extractTradesFromSignals(signals);
+    if (visibleSignals.length > 0) {
+      const trades = extractTradesFromSignals(visibleSignals);
       
       if (trades.length > 0) {
-        // Find min/max PnL values for scaling
-        const minMaxPnL = findMinMaxTradeValues(trades);
+        // Filter trades to only those in current date range
+        const visibleTrades = trades.filter(trade => {
+          const closeDate = trade.closeDate instanceof Date ? trade.closeDate : new Date(trade.closeDate);
+          return closeDate >= chartDateRange[0] && closeDate <= chartDateRange[1];
+        });
+        
+        // Use visible trades for scaling, but fall back to all trades if none are visible
+        const tradesForScaling = visibleTrades.length > 0 ? visibleTrades : trades;
+        const minMaxPnL = findMinMaxTradeValues(tradesForScaling);
         
         // Draw chart components
         drawGrid(ctx, width, height);
         drawDateAxis(ctx, chartDateRange, width, height);
         drawPnLAxis(ctx, minMaxPnL, width, height);
-        drawIndividualTradeBars(ctx, trades, chartDateRange, minMaxPnL, width, height);
+        drawIndividualTradeBars(ctx, visibleTrades, chartDateRange, minMaxPnL, width, height);
       } else {
         drawNoDataMessage(ctx, width, height, "No completed trades available");
       }
