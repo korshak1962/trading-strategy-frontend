@@ -5,17 +5,20 @@ import StrategyConfig from './components/StrategyConfig';
 import DateRangePicker from './components/DateRangePicker';
 import ReporterStyleChart from './components/ReporterStyleChart';
 import StrategyResults from './components/StrategyResults';
-import { getAvailableStrategies, submitStrategies, formatStrategyConfig } from './api/strategyApi';
+import { getAvailableStrategies, getAvailableTickers, submitStrategies, formatStrategyConfig } from './api/strategyApi';
 
 const App = () => {
   // State for available strategies
   const [availableStrategies, setAvailableStrategies] = useState([]);
   
+  // State for available tickers
+  const [availableTickers, setAvailableTickers] = useState([]);
+  
   // State for selected strategies
   const [selectedStrategies, setSelectedStrategies] = useState({});
   
   // State for ticker and timeframe
-  const [ticker, setTicker] = useState('SPY');
+  const [ticker, setTicker] = useState('');
   const [timeFrame, setTimeFrame] = useState('DAY');
   
   // State for date range
@@ -27,19 +30,33 @@ const App = () => {
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
 
-  // Fetch available strategies on component mount
+  // Fetch available strategies and tickers on component mount
   useEffect(() => {
-    const fetchStrategies = async () => {
+    const fetchData = async () => {
       try {
+        // Fetch strategies
         const strategies = await getAvailableStrategies();
         setAvailableStrategies(strategies);
+        
+        // Fetch tickers
+        const tickers = await getAvailableTickers();
+        setAvailableTickers(tickers);
+        
+        // Set default ticker if available
+        if (tickers.length > 0) {
+          setTicker(tickers[0].ticker);
+          
+          // Update date range based on ticker data availability
+          setStartDate(new Date(tickers[0].minDate));
+          setEndDate(new Date(tickers[0].maxDate));
+        }
       } catch (err) {
-        setError('Failed to load available strategies');
+        setError('Failed to load initial data');
         console.error(err);
       }
     };
     
-    fetchStrategies();
+    fetchData();
   }, []);
 
   // Handle form submission
@@ -99,6 +116,37 @@ const App = () => {
       }
     }));
   };
+  
+  // Utility function to safely convert string date to Date object
+  const safeParseDate = (dateString, fallback) => {
+    try {
+      const date = new Date(dateString);
+      return isNaN(date.getTime()) ? fallback : date;
+    } catch (e) {
+      console.warn('Error parsing date:', e);
+      return fallback;
+    }
+  };
+
+  // Handle ticker change and update date range accordingly
+  const handleTickerChange = (event) => {
+    const selectedTicker = event.target.value;
+    setTicker(selectedTicker);
+    
+    // Find the corresponding ticker data
+    const tickerData = availableTickers.find(t => t.ticker === selectedTicker);
+    if (tickerData) {
+      // Update date range based on ticker data availability
+      const defaultStartDate = new Date();
+      defaultStartDate.setFullYear(defaultStartDate.getFullYear() - 1);
+      
+      const min = safeParseDate(tickerData.minDate, defaultStartDate);
+      const max = safeParseDate(tickerData.maxDate, new Date());
+      
+      setStartDate(min);
+      setEndDate(max);
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
@@ -112,13 +160,21 @@ const App = () => {
               {/* Ticker and TimeFrame */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Ticker</label>
-                <input
-                  type="text"
+                <select
                   value={ticker}
-                  onChange={(e) => setTicker(e.target.value)}
+                  onChange={handleTickerChange}
                   className="w-full p-2 border rounded"
                   required
-                />
+                >
+                  {availableTickers.length === 0 && (
+                    <option value="">Loading tickers...</option>
+                  )}
+                  {availableTickers.map((tickerData) => (
+                    <option key={tickerData.ticker} value={tickerData.ticker}>
+                      {tickerData.ticker}
+                    </option>
+                  ))}
+                </select>
               </div>
               
               <div className="mb-6">
@@ -142,6 +198,8 @@ const App = () => {
                 endDate={endDate}
                 onStartDateChange={setStartDate}
                 onEndDateChange={setEndDate}
+                minDate={availableTickers.find(t => t.ticker === ticker)?.minDate ? new Date(availableTickers.find(t => t.ticker === ticker).minDate) : null}
+                maxDate={availableTickers.find(t => t.ticker === ticker)?.maxDate ? new Date(availableTickers.find(t => t.ticker === ticker).maxDate) : null}
               />
               
               {/* Strategy Selector */}
@@ -168,7 +226,7 @@ const App = () => {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={loading || Object.keys(selectedStrategies).length === 0}
+                disabled={loading || Object.keys(selectedStrategies).length === 0 || !ticker}
                 className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 disabled:bg-gray-400"
               >
                 {loading ? 'Processing...' : 'Run Backtest'}

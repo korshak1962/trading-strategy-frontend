@@ -1,56 +1,70 @@
 /* DateRangePicker styles */
 .date-range-picker {
-    margin-bottom: 1.5rem;
-  }
-  
-  .date-range-title {
-    font-size: 1.125rem;
-    font-weight: 500;
-    color: #111827;
-    margin-bottom: 0.75rem;
-  }
-  
-  .date-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-  }
-  
-  .date-field {
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .date-label {
-    display: block;
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: #374151;
-    margin-bottom: 0.25rem;
-  }
-  
-  .date-input {
-    width: 100%;
-    padding: 0.5rem;
-    border: 1px solid #d1d5db;
-    border-radius: 0.25rem;
-  }
-  
-  .date-shortcuts {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 0.5rem;
-    margin-top: 0.75rem;
-  }
-  
-  .date-shortcut-btn {
-    font-size: 0.75rem;
-    background-color: #e5e7eb;
-    padding: 0.25rem;
-    border-radius: 0.25rem;
-    border: none;
-  }
-  
-  .date-shortcut-btn:hover {
-    background-color: #d1d5db;
-  }
+  margin-bottom: 1.5rem;
+}
+
+.date-range-title {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: #111827;
+  margin-bottom: 0.75rem;
+}
+
+.date-constraints-info {
+  margin-bottom: 0.75rem;
+}
+
+.date-constraints-text {
+  font-size: 0.875rem;
+  color: #4b5563;
+  font-style: italic;
+  background-color: #f3f4f6;
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  border-left: 3px solid #3b82f6;
+}
+
+.date-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.date-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.date-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.25rem;
+}
+
+.date-input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+}
+
+.date-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.date-shortcut-btn {
+  font-size: 0.75rem;
+  background-color: #e5e7eb;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  border: none;
+}
+
+.date-shortcut-btn:hover {
+  background-color: #d1d5db;
+}

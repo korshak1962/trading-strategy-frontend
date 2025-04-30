@@ -20,6 +20,23 @@ export const getAvailableStrategies = async () => {
 };
 
 /**
+ * Get available tickers from the server
+ * @returns {Promise<Array>} List of available tickers with date ranges
+ */
+export const getAvailableTickers = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/available-tickers`);
+    if (!response.ok) {
+      throw new Error(`Error: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to fetch available tickers:', error);
+    throw error;
+  }
+};
+
+/**
  * Submit strategies configuration to the server
  * @param {Object} config - Configuration object with ticker, timeFrame, dates, and strategy parameters
  * @returns {Promise<Object>} Strategy results
