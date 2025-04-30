@@ -10,12 +10,20 @@ const TradesTable = ({ data }) => {
     direction: 'asc'
   });
 
+  // Clear trades when new data comes in
   useEffect(() => {
-    if (!data || !data.signals || data.signals.length === 0) return;
-
+    if (!data) {
+      setTrades([]);
+      return;
+    }
+    
     // Extract trades from signals
-    const extractedTrades = extractTradesFromSignals(data.signals);
-    setTrades(extractedTrades);
+    if (data.signals && data.signals.length > 0) {
+      const extractedTrades = extractTradesFromSignals(data.signals);
+      setTrades(extractedTrades);
+    } else {
+      setTrades([]);
+    }
   }, [data]);
 
   const extractTradesFromSignals = (signals) => {
@@ -148,7 +156,7 @@ const TradesTable = ({ data }) => {
             </thead>
             <tbody>
               {getSortedTrades().map((trade) => (
-                <tr key={trade.id} className={trade.pnl >= 0 ? 'profitable-trade' : 'losing-trade'}>
+                <tr key={`${trade.id}-${trade.openDate}-${trade.closeDate}`} className={trade.pnl >= 0 ? 'profitable-trade' : 'losing-trade'}>
                   <td>{trade.id}</td>
                   <td className={trade.type === 'Long' ? 'long-trade' : 'short-trade'}>
                     {trade.type}

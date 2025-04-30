@@ -19,6 +19,26 @@ const TradeStatisticsTable = ({ results }) => {
     consecutiveLosses: 0
   });
 
+  // Reset stats when new results come in
+  useEffect(() => {
+    if (!results) return;
+    
+    setTradeStats({
+      total: 0,
+      profitable: 0,
+      losing: 0,
+      longTrades: 0,
+      shortTrades: 0,
+      avgDuration: 0,
+      avgProfit: 0,
+      avgLoss: 0,
+      maxProfit: 0,
+      maxLoss: 0,
+      consecutiveWins: 0,
+      consecutiveLosses: 0
+    });
+  }, [results]);
+
   const extractTradesFromSignals = useCallback((signals) => {
     const extractedTrades = [];
     const openSignals = {};
@@ -245,7 +265,7 @@ const TradeStatisticsTable = ({ results }) => {
           </thead>
           <tbody>
             {statistics.map((stat, index) => (
-              <tr key={index}>
+              <tr key={`${stat.label}-${index}`}>
                 <td className="metric-label">{stat.label}</td>
                 <td className={`metric-value ${stat.isPositive ? 'positive' : ''} ${stat.isNegative ? 'negative' : ''}`}>
                   {stat.formatted}

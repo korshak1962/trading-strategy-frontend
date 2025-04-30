@@ -1,11 +1,16 @@
 // src/components/StrategyResults.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import TradesTable from './TradesTable';
 import PerformanceMetricsTable from './PerformanceMetricsTable';
 import TradeStatisticsTable from './TradeStatisticsTable';
 
 const StrategyResults = ({ results }) => {
   const [activeTab, setActiveTab] = useState('summary');
+  
+  // Reset to summary tab when new results come in
+  useEffect(() => {
+    setActiveTab('summary');
+  }, [results]);
 
   return (
     <div>
@@ -94,14 +99,23 @@ const StrategyResults = ({ results }) => {
       {/* Performance Tab - Detailed metrics */}
       {activeTab === 'performance' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <PerformanceMetricsTable results={results} />
-          <TradeStatisticsTable results={results} />
+          <PerformanceMetricsTable 
+            results={results} 
+            key={`metrics-${JSON.stringify(results)}`} 
+          />
+          <TradeStatisticsTable 
+            results={results} 
+            key={`stats-${JSON.stringify(results)}`} 
+          />
         </div>
       )}
 
       {/* Trades Tab - Table of all trades */}
       {activeTab === 'trades' && (
-        <TradesTable data={results.chartDataDTO} />
+        <TradesTable 
+          data={results.chartDataDTO} 
+          key={`trades-${JSON.stringify(results.ticker)}-${results.profitableTradesCount + results.lostTradesCount}`} 
+        />
       )}
     </div>
   );
