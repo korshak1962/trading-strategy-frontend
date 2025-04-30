@@ -30,6 +30,17 @@ const App = () => {
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
 
+  // Utility function to safely convert string date to Date object
+  const safeParseDate = (dateString, fallback) => {
+    try {
+      const date = new Date(dateString);
+      return isNaN(date.getTime()) ? fallback : date;
+    } catch (e) {
+      console.warn('Error parsing date:', e);
+      return fallback;
+    }
+  };
+
   // Fetch available strategies and tickers on component mount
   useEffect(() => {
     const fetchData = async () => {
@@ -116,37 +127,6 @@ const App = () => {
       }
     }));
   };
-  
-  // Utility function to safely convert string date to Date object
-  const safeParseDate = (dateString, fallback) => {
-    try {
-      const date = new Date(dateString);
-      return isNaN(date.getTime()) ? fallback : date;
-    } catch (e) {
-      console.warn('Error parsing date:', e);
-      return fallback;
-    }
-  };
-
-  // Handle ticker change and update date range accordingly
-  const handleTickerChange = (event) => {
-    const selectedTicker = event.target.value;
-    setTicker(selectedTicker);
-    
-    // Find the corresponding ticker data
-    const tickerData = availableTickers.find(t => t.ticker === selectedTicker);
-    if (tickerData) {
-      // Update date range based on ticker data availability
-      const defaultStartDate = new Date();
-      defaultStartDate.setFullYear(defaultStartDate.getFullYear() - 1);
-      
-      const min = safeParseDate(tickerData.minDate, defaultStartDate);
-      const max = safeParseDate(tickerData.maxDate, new Date());
-      
-      setStartDate(min);
-      setEndDate(max);
-    }
-  };
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
@@ -160,21 +140,49 @@ const App = () => {
               {/* Ticker and TimeFrame */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Ticker</label>
-                <select
-                  value={ticker}
-                  onChange={handleTickerChange}
-                  className="w-full p-2 border rounded"
-                  required
-                >
-                  {availableTickers.length === 0 && (
-                    <option value="">Loading tickers...</option>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={ticker}
+                    onChange={(e) => {
+                      setTicker(e.target.value);
+                    }}
+                    onBlur={() => {
+                      // When user finishes typing, check if input matches a ticker
+                      const selectedTickerData = availableTickers.find(t => t.ticker === ticker);
+                      if (selectedTickerData) {
+                        const min = safeParseDate(selectedTickerData.minDate, startDate);
+                        const max = safeParseDate(selectedTickerData.maxDate, endDate);
+                        setStartDate(min);
+                        setEndDate(max);
+                      }
+                    }}
+                    className="w-full p-2 pr-8 border rounded"
+                    list="ticker-options"
+                    placeholder="Type to search tickers..."
+                    required
+                  />
+                  {ticker && (
+                    <button
+                      type="button"
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      onClick={() => setTicker('')}
+                      aria-label="Clear ticker"
+                    >
+                      ×
+                    </button>
                   )}
-                  {availableTickers.map((tickerData) => (
-                    <option key={tickerData.ticker} value={tickerData.ticker}>
-                      {tickerData.ticker}
-                    </option>
-                  ))}
-                </select>
+                  <datalist id="ticker-options">
+                    {availableTickers.map((tickerData) => (
+                      <option key={tickerData.ticker} value={tickerData.ticker} />
+                    ))}
+                  </datalist>
+                </div>
+                {ticker && !availableTickers.some(t => t.ticker === ticker) && (
+                  <p className="mt-1 text-sm text-red-600">
+                    Please select a valid ticker from the list
+                  </p>
+                )}
               </div>
               
               <div className="mb-6">
@@ -226,7 +234,12 @@ const App = () => {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={loading || Object.keys(selectedStrategies).length === 0 || !ticker}
+                disabled={
+                  loading || 
+                  Object.keys(selectedStrategies).length === 0 || 
+                  !ticker || 
+                  !availableTickers.some(t => t.ticker === ticker)
+                }
                 className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 disabled:bg-gray-400"
               >
                 {loading ? 'Processing...' : 'Run Backtest'}
