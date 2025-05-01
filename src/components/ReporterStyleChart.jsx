@@ -1,4 +1,4 @@
-// src/components/ReporterStyleChart.jsx
+// src/components/charts/ReporterStyleChart.jsx
 import { useEffect, useRef, useState, useCallback } from 'react';
 import './ReporterStyleChart.css';
 import PriceChart from './charts/PriceChart';
@@ -44,6 +44,15 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
     prices: [],
     dateRange: []
   });
+  
+  // Reset date range when data changes
+  useEffect(() => {
+    if (data && data.prices && data.prices.length > 0) {
+      // Reset date range to null to force recalculation based on new data
+      setDateRange(null);
+      setOriginalDateRange(null);
+    }
+  }, [data]);
   
   // Process and store data for tooltips and zoom
   useEffect(() => {
