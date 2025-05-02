@@ -1,8 +1,9 @@
 // src/components/StrategySelector.jsx
 import { useState } from 'react';
 import './StrategySelector.css';
+import CaseIdSelector from './CaseIdSelector';
 
-const StrategySelector = ({ availableStrategies, onAddStrategy }) => {
+const StrategySelector = ({ availableStrategies, onAddStrategy, onLoadCaseId }) => {
   const [selectedStrategy, setSelectedStrategy] = useState('');
 
   const handleAddStrategy = () => {
@@ -17,28 +18,32 @@ const StrategySelector = ({ availableStrategies, onAddStrategy }) => {
 
   return (
     <div className="strategy-selector">
-      <div className="strategy-selector-controls">
-        <select
-          value={selectedStrategy}
-          onChange={(e) => setSelectedStrategy(e.target.value)}
-          className="form-select strategy-selector-select"
-        >
-          <option value="">Select a strategy</option>
-          {availableStrategies.map((strategy) => (
-            <option key={strategy.name} value={strategy.name}>
-              {strategy.name}
-            </option>
-          ))}
-        </select>
-        
-        <button
-          type="button"
-          onClick={handleAddStrategy}
-          disabled={!selectedStrategy}
-          className="btn btn-success"
-        >
-          Add Strategy
-        </button>
+      <div className="strategy-selector-row">
+        <div className="strategy-selector-controls">
+          <select
+            value={selectedStrategy}
+            onChange={(e) => setSelectedStrategy(e.target.value)}
+            className="form-select strategy-selector-select"
+          >
+            <option value="">Select a strategy</option>
+            {availableStrategies.map((strategy) => (
+              <option key={strategy.name} value={strategy.name}>
+                {strategy.name}
+              </option>
+            ))}
+          </select>
+          
+          <button
+            type="button"
+            onClick={handleAddStrategy}
+            disabled={!selectedStrategy}
+            className="btn btn-success"
+          >
+            Add Strategy
+          </button>
+          
+          <CaseIdSelector onSelectCaseId={onLoadCaseId} />
+        </div>
       </div>
       
       {selectedStrategy && (

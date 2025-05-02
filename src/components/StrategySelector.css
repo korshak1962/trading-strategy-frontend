@@ -1,16 +1,32 @@
 /* StrategySelector.css */
 .strategy-selector {
-    margin-bottom: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .strategy-selector-row {
+    margin-bottom: 0.75rem;
   }
   
   .strategy-selector-controls {
     display: flex;
     gap: 0.5rem;
-    margin-bottom: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
   }
   
   .strategy-selector-select {
-    flex-grow: 1;
+    flex: 2;
+    min-width: 150px;
+  }
+  
+  .case-id-selector {
+    flex: 2;
+    min-width: 150px;
+  }
+  
+  .btn {
+    flex: 1;
+    min-width: 120px;
   }
   
   .strategy-info {
@@ -18,6 +34,7 @@
     padding: 0.75rem;
     border-radius: 0.25rem;
     border: 1px solid #e5e7eb;
+    margin-top: 0.75rem;
   }
   
   .strategy-name {

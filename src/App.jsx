@@ -5,7 +5,13 @@ import StrategyConfig from './components/StrategyConfig';
 import DateRangePicker from './components/DateRangePicker';
 import ReporterStyleChart from './components/ReporterStyleChart';
 import StrategyResults from './components/StrategyResults';
-import { getAvailableStrategies, getAvailableTickers, submitStrategies, formatStrategyConfig } from './api/strategyApi';
+import { 
+  getAvailableStrategies, 
+  getAvailableTickers, 
+  submitStrategies, 
+  formatStrategyConfig,
+  getParametersByCaseId
+} from './api/strategyApi';
 
 const App = () => {
   // State for available strategies
@@ -29,6 +35,9 @@ const App = () => {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
+  
+  // New state for case ID loading
+  const [loadingCaseId, setLoadingCaseId] = useState(false);
 
   // Utility function to safely convert string date to Date object
   const safeParseDate = (dateString, fallback) => {
@@ -127,6 +136,73 @@ const App = () => {
       }
     }));
   };
+  
+  // New function to handle loading parameters by case ID
+  const handleLoadCaseId = async (caseId) => {
+    if (!caseId) return;
+    
+    setLoadingCaseId(true);
+    setError(null);
+    
+    try {
+      const params = await getParametersByCaseId(caseId);
+      
+      if (!params || params.length === 0) {
+        setError(`No parameters found for case ID: ${caseId}`);
+        return;
+      }
+      
+      // Group parameters by strategy name
+      const strategiesByName = {};
+      const firstParam = params[0];
+      
+      // Set ticker and timeframe from the first parameter
+      if (firstParam.ticker) {
+        setTicker(firstParam.ticker);
+      }
+      
+      if (firstParam.timeframe) {
+        setTimeFrame(firstParam.timeframe);
+      }
+      
+      // Process parameters
+      params.forEach(param => {
+        if (!strategiesByName[param.strategy]) {
+          strategiesByName[param.strategy] = {};
+        }
+        
+        // Create a parameter object compatible with our app's state structure
+        const strategy = availableStrategies.find(s => s.name === param.strategy);
+        const paramTemplate = strategy?.parameters.find(p => p.paramName === param.paramName);
+        
+        if (paramTemplate) {
+          strategiesByName[param.strategy][param.paramName] = {
+            ...paramTemplate,
+            value: param.value,
+            valueString: param.valueString
+          };
+        }
+      });
+      
+      // Update selected strategies state
+      setSelectedStrategies(strategiesByName);
+      
+      // Find the ticker date range if we have a new ticker
+      if (firstParam.ticker) {
+        const tickerInfo = availableTickers.find(t => t.ticker === firstParam.ticker);
+        if (tickerInfo) {
+          // Update date range based on ticker data availability
+          setStartDate(new Date(tickerInfo.minDate));
+          setEndDate(new Date(tickerInfo.maxDate));
+        }
+      }
+      
+    } catch (err) {
+      setError(`Failed to load configuration: ${err.message}`);
+    } finally {
+      setLoadingCaseId(false);
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
@@ -210,14 +286,22 @@ const App = () => {
                 maxDate={availableTickers.find(t => t.ticker === ticker)?.maxDate ? new Date(availableTickers.find(t => t.ticker === ticker).maxDate) : null}
               />
               
-              {/* Strategy Selector */}
+              {/* Strategy Selector with Case ID Selector */}
               <div className="mb-6">
                 <h3 className="text-lg font-medium text-gray-900 mb-3">Strategies</h3>
                 <StrategySelector
                   availableStrategies={availableStrategies}
                   onAddStrategy={handleAddStrategy}
+                  onLoadCaseId={handleLoadCaseId}
                 />
               </div>
+              
+              {/* Loading indicator for case ID */}
+              {loadingCaseId && (
+                <div className="mb-4 p-2 bg-blue-50 text-blue-700 rounded text-center">
+                  Loading saved configuration...
+                </div>
+              )}
               
               {/* Selected Strategies Configuration */}
               {Object.keys(selectedStrategies).length > 0 && (
@@ -236,6 +320,7 @@ const App = () => {
                 type="submit"
                 disabled={
                   loading || 
+                  loadingCaseId ||
                   Object.keys(selectedStrategies).length === 0 || 
                   !ticker || 
                   !availableTickers.some(t => t.ticker === ticker)
