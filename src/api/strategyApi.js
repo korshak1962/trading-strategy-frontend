@@ -107,7 +107,7 @@ export const submitStrategies = async (config) => {
  */
 export const saveParameters = async (params) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/saveParameters`, {
+    const response = await fetch(`${API_BASE_URL}/save-parameters`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

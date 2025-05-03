@@ -10,7 +10,8 @@ import {
   getAvailableTickers, 
   submitStrategies, 
   formatStrategyConfig,
-  getParametersByCaseId
+  getParametersByCaseId,
+  saveParameters
 } from './api/strategyApi';
 
 const App = () => {
@@ -36,8 +37,13 @@ const App = () => {
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
   
-  // New state for case ID loading
+  // State for case ID loading
   const [loadingCaseId, setLoadingCaseId] = useState(false);
+  
+  // State for saving configuration
+  const [saveConfigCaseId, setSaveConfigCaseId] = useState('');
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Utility function to safely convert string date to Date object
   const safeParseDate = (dateString, fallback) => {
@@ -137,7 +143,7 @@ const App = () => {
     }));
   };
   
-  // New function to handle loading parameters by case ID
+  // Function to handle loading parameters by case ID
   const handleLoadCaseId = async (caseId) => {
     if (!caseId) return;
     
@@ -201,6 +207,58 @@ const App = () => {
       setError(`Failed to load configuration: ${err.message}`);
     } finally {
       setLoadingCaseId(false);
+    }
+  };
+
+  // New function to handle saving configurations
+  const handleSaveConfig = async (e) => {
+    e.preventDefault();
+    
+    if (!saveConfigCaseId.trim()) {
+      setError('Please enter a Case ID to save the configuration');
+      return;
+    }
+    
+    setSavingConfig(true);
+    setSaveSuccess(false);
+    setError(null);
+    
+    try {
+      // Prepare parameters to save
+      const params = [];
+      
+      // Convert selected strategies to parameter objects
+      Object.entries(selectedStrategies).forEach(([strategyName, strategyParams]) => {
+        Object.entries(strategyParams).forEach(([paramName, param]) => {
+          params.push({
+            ticker: ticker,
+            timeframe: timeFrame,
+            strategy: strategyName,
+            caseId: saveConfigCaseId.trim(),
+            paramName: paramName,
+            value: param.value,
+            valueString: param.valueString || param.value.toString(),
+            min: param.min,
+            max: param.max,
+            step: param.step,
+            strategyClass: param.strategyClass || ''
+          });
+        });
+      });
+      
+      // Save parameters to server
+      const savedCount = await saveParameters(params);
+      
+      setSaveSuccess(true);
+      console.log(`Successfully saved ${savedCount} parameters`);
+    } catch (err) {
+      setError(`Failed to save configuration: ${err.message}`);
+    } finally {
+      setSavingConfig(false);
+      // Clear the success message after a delay
+      if (saveSuccess) {
+        setTimeout(() => setSaveSuccess(false), 3000);
+      }
     }
   };
 
@@ -315,21 +373,57 @@ const App = () => {
                 </div>
               )}
               
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={
-                  loading || 
-                  loadingCaseId ||
-                  Object.keys(selectedStrategies).length === 0 || 
-                  !ticker || 
-                  !availableTickers.some(t => t.ticker === ticker)
-                }
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 disabled:bg-gray-400"
-              >
-                {loading ? 'Processing...' : 'Run Backtest'}
-              </button>
-              
+              {/* Submit and Save Buttons */}
+              <div className="flex flex-col gap-4 mb-6">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="submit"
+                    disabled={
+                      loading || 
+                      loadingCaseId ||
+                      Object.keys(selectedStrategies).length === 0 || 
+                      !ticker || 
+                      !availableTickers.some(t => t.ticker === ticker)
+                    }
+                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 disabled:bg-gray-400"
+                  >
+                    {loading ? 'Processing...' : 'Run Backtest'}
+                  </button>
+                </div>
+                
+                {/* Save Configuration Section */}
+                <div className="border-t pt-4 mt-2">
+                  <h3 className="text-lg font-medium text-gray-900 mb-3">Save Configuration</h3>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={saveConfigCaseId}
+                      onChange={(e) => setSaveConfigCaseId(e.target.value)}
+                      placeholder="Enter Case ID"
+                      className="flex-grow p-2 border rounded"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveConfig}
+                      disabled={
+                        savingConfig || 
+                        Object.keys(selectedStrategies).length === 0 || 
+                        !saveConfigCaseId.trim() ||
+                        !ticker
+                      }
+                      className="bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 disabled:bg-gray-400"
+                    >
+                      {savingConfig ? 'Saving...' : 'Save Config'}
+                    </button>
+                  </div>
+                  {saveSuccess && (
+                    <div className="mt-2 p-2 bg-green-100 text-green-700 rounded text-sm">
+                      Configuration saved successfully!
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {error && (
                 <div className="mt-4 p-3 bg-red-100 text-red-700 rounded">
                   {error}
