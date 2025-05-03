@@ -3,15 +3,42 @@ import { useState } from 'react';
 import './StrategySelector.css';
 import CaseIdSelector from './CaseIdSelector';
 
-const StrategySelector = ({ availableStrategies, onAddStrategy, onLoadCaseId }) => {
+const StrategySelector = ({ availableStrategies, onAddStrategy, onLoadCaseId, selectedStrategies }) => {
   const [selectedStrategy, setSelectedStrategy] = useState('');
+
+  // Helper function to generate a unique strategy name
+  const generateUniqueStrategyName = (originalName) => {
+    // If the strategy doesn't exist in the selected strategies, return the original name
+    if (!selectedStrategies[originalName]) {
+      return originalName;
+    }
+
+    // Strategy already exists, so we need to find a unique name
+    let counter = 1;
+    let newName = `${originalName}${counter}`;
+    
+    // Keep incrementing the counter until we find a name that doesn't exist
+    while (selectedStrategies[newName]) {
+      counter++;
+      newName = `${originalName}${counter}`;
+    }
+    
+    return newName;
+  };
 
   const handleAddStrategy = () => {
     if (!selectedStrategy) return;
     
     const strategy = availableStrategies.find(s => s.name === selectedStrategy);
     if (strategy) {
-      onAddStrategy(strategy);
+      // Create a copy of the strategy object to avoid modifying the original
+      const strategyCopy = { ...strategy };
+      
+      // Generate a unique name for the strategy if it already exists
+      strategyCopy.name = generateUniqueStrategyName(strategy.name);
+      
+      // Add the strategy with the potentially modified name
+      onAddStrategy(strategyCopy);
       setSelectedStrategy('');
     }
   };
