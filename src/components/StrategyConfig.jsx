@@ -19,6 +19,16 @@ const StrategyConfig = ({ selectedStrategies, onRemoveStrategy, onUpdateParam })
     }));
   };
 
+  // Handle parameter value change - validate only that it's a number
+  const handleParamChange = (strategyName, paramName, value) => {
+    // Check if it's a valid number
+    if (value === '' || !isNaN(value)) {
+      // Convert to number if it's a valid entry, otherwise use the original input
+      const numValue = value === '' ? value : Number(value);
+      onUpdateParam(strategyName, paramName, numValue);
+    }
+  };
+
   return (
     <div className="strategy-list">
       {Object.entries(selectedStrategies).map(([strategyName, params]) => (
@@ -56,21 +66,16 @@ const StrategyConfig = ({ selectedStrategies, onRemoveStrategy, onUpdateParam })
                 <div key={paramName} className="param-row">
                   <label className="param-label">{paramName}:</label>
                   <input
-                    type="number"
+                    type="text" // Changed from "number" to "text" for more flexible input
                     value={param.value}
-                    min={param.min}
-                    max={param.max}
-                    step={param.step}
-                    onChange={(e) => onUpdateParam(
+                    onChange={(e) => handleParamChange(
                       strategyName, 
                       paramName, 
                       e.target.value
                     )}
                     className="param-input"
                   />
-                  <div className="param-info">
-                    Min: {param.min}, Max: {param.max}, Step: {param.step}
-                  </div>
+                  {/* Removed the param-info div that showed min, max, and step values */}
                 </div>
               ))}
             </div>
