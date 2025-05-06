@@ -2,7 +2,14 @@
 import { useState } from 'react';
 import './StrategyConfig.css';
 
-const StrategyConfig = ({ selectedStrategies, onRemoveStrategy, onUpdateParam }) => {
+const StrategyConfig = ({ 
+  selectedStrategies, 
+  onRemoveStrategy, 
+  onUpdateParam, 
+  onRunOptimization, // New prop for optimization
+  optimizationMode,   // Move this to a prop from parent
+  setOptimizationMode // Function to toggle optimization mode
+}) => {
   // Track which strategy panels are expanded
   const [expandedStrategies, setExpandedStrategies] = useState(
     Object.keys(selectedStrategies).reduce((acc, name) => {
@@ -10,9 +17,6 @@ const StrategyConfig = ({ selectedStrategies, onRemoveStrategy, onUpdateParam })
       return acc;
     }, {})
   );
-  
-  // State for optimization mode
-  const [optimizationMode, setOptimizationMode] = useState(false);
   
   // Local state to track input values during editing
   const [inputValues, setInputValues] = useState({});
@@ -50,16 +54,28 @@ const StrategyConfig = ({ selectedStrategies, onRemoveStrategy, onUpdateParam })
   return (
     <div>
       <div className="strategy-header-with-checkbox">
-        <h3 className="config-title">Configure Strategies</h3>
-        <label className="optimization-mode-label">
-          <input
-            type="checkbox"
-            checked={optimizationMode}
-            onChange={() => setOptimizationMode(!optimizationMode)}
-            className="optimization-mode-checkbox"
-          />
-          Turn on optimization mode
-        </label>
+        <div className="optimization-controls">
+          <h3 className="config-title">Configure Strategies</h3>
+          <div className="optimization-actions">
+            <label className="optimization-mode-label">
+              <input
+                type="checkbox"
+                checked={optimizationMode}
+                onChange={() => setOptimizationMode(!optimizationMode)}
+                className="optimization-mode-checkbox"
+              />
+              Turn on optimization mode
+            </label>
+            <button
+              type="button"
+              onClick={onRunOptimization}
+              disabled={!optimizationMode}
+              className={`optimization-button ${!optimizationMode ? 'disabled' : ''}`}
+            >
+              Run Optimization
+            </button>
+          </div>
+        </div>
       </div>
       
       <div className="strategy-list">

@@ -174,3 +174,31 @@ export const formatStrategyConfig = (ticker, timeFrame, startDate, endDate, stra
     strategyNameToParams: formattedParams
   };
 };
+
+// Add this function to strategyApi.js
+
+/**
+ * Optimize strategies configuration
+ * @param {Object} config - Configuration object with ticker, timeFrame, dates, and strategy parameters
+ * @returns {Promise<Object>} Optimized strategy results
+ */
+export const optimizeStrategies = async (config) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/optimize-strategies`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(config),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Error: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to optimize strategies:', error);
+    throw error;
+  }
+};

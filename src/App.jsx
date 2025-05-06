@@ -9,6 +9,7 @@ import {
   getAvailableStrategies,
   getAvailableTickers,
   submitStrategies,
+  optimizeStrategies,
   formatStrategyConfig,
   getParametersByCaseId,
   saveParameters,
@@ -44,6 +45,9 @@ const App = () => {
   const [saveConfigCaseId, setSaveConfigCaseId] = useState("");
   const [savingConfig, setSavingConfig] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  
+  // State for optimization mode
+  const [optimizationMode, setOptimizationMode] = useState(false);
 
   // Utility function to safely convert string date to Date object
   const safeParseDate = (dateString, fallback) => {
@@ -108,6 +112,29 @@ const App = () => {
       setLoading(false);
     }
   };
+  
+  // Handle optimization
+  const handleRunOptimization = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const config = formatStrategyConfig(
+        ticker,
+        timeFrame,
+        startDate,
+        endDate,
+        selectedStrategies
+      );
+
+      const result = await optimizeStrategies(config);
+      setResults(result);
+    } catch (err) {
+      setError("Failed to run optimization: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Add strategy to selected strategies
   const handleAddStrategy = (strategy) => {
@@ -130,32 +157,32 @@ const App = () => {
   };
 
   // Update parameter for a strategy
-const handleUpdateParam = (strategyName, paramName, value, field = 'value') => {
-  setSelectedStrategies((prev) => {
-    const updatedStrategy = { ...prev[strategyName] };
-    const updatedParam = { ...updatedStrategy[paramName] };
-    
-    // Update the specified field (value, min, max, or step)
-    if (field === 'value') {
-      updatedParam.value = value;
-      // Also update valueString for API compatibility
-      updatedParam.valueString = value.toString();
-    } else if (field === 'min') {
-      updatedParam.min = value;
-    } else if (field === 'max') {
-      updatedParam.max = value;
-    } else if (field === 'step') {
-      updatedParam.step = value;
-    }
-    
-    updatedStrategy[paramName] = updatedParam;
-    
-    return {
-      ...prev,
-      [strategyName]: updatedStrategy
-    };
-  });
-};
+  const handleUpdateParam = (strategyName, paramName, value, field = 'value') => {
+    setSelectedStrategies((prev) => {
+      const updatedStrategy = { ...prev[strategyName] };
+      const updatedParam = { ...updatedStrategy[paramName] };
+      
+      // Update the specified field (value, min, max, or step)
+      if (field === 'value') {
+        updatedParam.value = value;
+        // Also update valueString for API compatibility
+        updatedParam.valueString = value.toString();
+      } else if (field === 'min') {
+        updatedParam.min = value;
+      } else if (field === 'max') {
+        updatedParam.max = value;
+      } else if (field === 'step') {
+        updatedParam.step = value;
+      }
+      
+      updatedStrategy[paramName] = updatedParam;
+      
+      return {
+        ...prev,
+        [strategyName]: updatedStrategy
+      };
+    });
+  };
 
   // Function to handle loading parameters by case ID
   const handleLoadCaseId = async (caseId) => {
@@ -418,13 +445,15 @@ const handleUpdateParam = (strategyName, paramName, value, field = 'value') => {
               )}
 
               {/* Selected Strategies Configuration */}
-              {/* Selected Strategies Configuration */}
               {Object.keys(selectedStrategies).length > 0 && (
                 <div className="mb-6">
                   <StrategyConfig
                     selectedStrategies={selectedStrategies}
                     onRemoveStrategy={handleRemoveStrategy}
                     onUpdateParam={handleUpdateParam}
+                    onRunOptimization={handleRunOptimization}
+                    optimizationMode={optimizationMode}
+                    setOptimizationMode={setOptimizationMode}
                   />
                 </div>
               )}
