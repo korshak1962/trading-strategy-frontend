@@ -48,6 +48,9 @@ const App = () => {
   
   // State for optimization mode
   const [optimizationMode, setOptimizationMode] = useState(false);
+  
+  // State for tracking parameter updates
+  const [updatedParamHighlight, setUpdatedParamHighlight] = useState({});
 
   // Utility function to safely convert string date to Date object
   const safeParseDate = (dateString, fallback) => {
@@ -129,6 +132,83 @@ const App = () => {
 
       const result = await optimizeStrategies(config);
       setResults(result);
+      
+      // Track which parameters were updated for highlighting
+      const updatedParams = {};
+      
+      // Update parameters with optimized values if available
+      if (result.paramsDTO && result.paramsDTO.length > 0) {
+        // Group parameters by strategy
+        const optimizedParams = {};
+        
+        result.paramsDTO.forEach(param => {
+          if (!param.strategy) return;
+          
+          // Initialize strategy if it doesn't exist
+          if (!optimizedParams[param.strategy]) {
+            optimizedParams[param.strategy] = {};
+          }
+          
+          // Store parameter
+          optimizedParams[param.strategy][param.paramName] = param;
+        });
+        
+        // Update the selectedStrategies state with optimized values
+        setSelectedStrategies(prevStrategies => {
+          const updatedStrategies = { ...prevStrategies };
+          
+          // For each strategy in our current selection
+          Object.keys(updatedStrategies).forEach(strategyName => {
+            // If we have optimized params for this strategy
+            if (optimizedParams[strategyName]) {
+              const optimizedStrategyParams = optimizedParams[strategyName];
+              
+              // Update each parameter with its optimized value
+              Object.keys(updatedStrategies[strategyName]).forEach(paramName => {
+                if (optimizedStrategyParams[paramName]) {
+                  const optimizedParam = optimizedStrategyParams[paramName];
+                  const oldValue = updatedStrategies[strategyName][paramName].value;
+                  
+                  // Only mark as updated if the value actually changed
+                  if (oldValue !== optimizedParam.value) {
+                    updatedParams[`${strategyName}-${paramName}`] = {
+                      oldValue,
+                      newValue: optimizedParam.value
+                    };
+                  }
+                  
+                  // Update value and valueString, preserve min/max/step
+                  updatedStrategies[strategyName][paramName] = {
+                    ...updatedStrategies[strategyName][paramName],
+                    value: optimizedParam.value,
+                    valueString: optimizedParam.valueString || optimizedParam.value.toString()
+                  };
+                }
+              });
+            }
+          });
+          
+          return updatedStrategies;
+        });
+        
+        // Set the highlighted parameters
+        if (Object.keys(updatedParams).length > 0) {
+          setUpdatedParamHighlight(updatedParams);
+          
+          // Clear the highlight after 3 seconds
+          setTimeout(() => {
+            setUpdatedParamHighlight({});
+          }, 3000);
+        }
+        
+        // Show success message
+        if (Object.keys(updatedParams).length > 0) {
+          setError(null); // Clear any previous errors
+          setSaveSuccess(true); // Reuse the save success state
+          setTimeout(() => setSaveSuccess(false), 3000);
+          console.log(`Successfully updated ${Object.keys(updatedParams).length} parameters with optimized values`);
+        }
+      }
     } catch (err) {
       setError("Failed to run optimization: " + err.message);
     } finally {
@@ -454,6 +534,8 @@ const App = () => {
                     onRunOptimization={handleRunOptimization}
                     optimizationMode={optimizationMode}
                     setOptimizationMode={setOptimizationMode}
+                    updatedParamHighlight={updatedParamHighlight}
+                    saveSuccess={saveSuccess}
                   />
                 </div>
               )}

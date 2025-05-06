@@ -1,14 +1,16 @@
 // src/components/StrategyConfig.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './StrategyConfig.css';
 
 const StrategyConfig = ({ 
   selectedStrategies, 
   onRemoveStrategy, 
   onUpdateParam, 
-  onRunOptimization, // New prop for optimization
-  optimizationMode,   // Move this to a prop from parent
-  setOptimizationMode // Function to toggle optimization mode
+  onRunOptimization, // Prop for optimization
+  optimizationMode,   // State for optimization mode
+  setOptimizationMode, // Function to toggle optimization mode
+  updatedParamHighlight = {}, // Prop for highlighting updated parameters
+  saveSuccess = false // Prop for showing success message
 }) => {
   // Track which strategy panels are expanded
   const [expandedStrategies, setExpandedStrategies] = useState(
@@ -51,6 +53,18 @@ const StrategyConfig = ({
     return inputValues[key] !== undefined ? inputValues[key] : defaultValue;
   };
 
+  // Update expanded states when strategies change
+  useEffect(() => {
+    // Add any new strategies to the expanded state
+    const newExpandedState = { ...expandedStrategies };
+    Object.keys(selectedStrategies).forEach(name => {
+      if (newExpandedState[name] === undefined) {
+        newExpandedState[name] = true; // Default to expanded
+      }
+    });
+    setExpandedStrategies(newExpandedState);
+  }, [selectedStrategies, expandedStrategies]); // Add expandedStrategies to dependency array
+
   return (
     <div>
       <div className="strategy-header-with-checkbox">
@@ -75,6 +89,13 @@ const StrategyConfig = ({
               Run Optimization
             </button>
           </div>
+          
+          {/* Add notification for parameter updates */}
+          {saveSuccess && optimizationMode && (
+            <div className="param-update-notification">
+              Parameters updated with optimized values!
+            </div>
+          )}
         </div>
       </div>
       
@@ -122,7 +143,7 @@ const StrategyConfig = ({
                         'value',
                         e.target.value
                       )}
-                      className="param-input"
+                      className={`param-input ${updatedParamHighlight[`${strategyName}-${paramName}`] ? 'param-updated' : ''}`}
                     />
                     
                     {/* Optimization fields - only visible when optimization mode is on */}
