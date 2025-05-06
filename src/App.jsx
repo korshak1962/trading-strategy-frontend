@@ -130,18 +130,32 @@ const App = () => {
   };
 
   // Update parameter for a strategy
-  const handleUpdateParam = (strategyName, paramName, value) => {
-    setSelectedStrategies((prev) => ({
+const handleUpdateParam = (strategyName, paramName, value, field = 'value') => {
+  setSelectedStrategies((prev) => {
+    const updatedStrategy = { ...prev[strategyName] };
+    const updatedParam = { ...updatedStrategy[paramName] };
+    
+    // Update the specified field (value, min, max, or step)
+    if (field === 'value') {
+      updatedParam.value = value;
+      // Also update valueString for API compatibility
+      updatedParam.valueString = value.toString();
+    } else if (field === 'min') {
+      updatedParam.min = value;
+    } else if (field === 'max') {
+      updatedParam.max = value;
+    } else if (field === 'step') {
+      updatedParam.step = value;
+    }
+    
+    updatedStrategy[paramName] = updatedParam;
+    
+    return {
       ...prev,
-      [strategyName]: {
-        ...prev[strategyName],
-        [paramName]: {
-          ...prev[strategyName][paramName],
-          value: Number(value),
-        },
-      },
-    }));
-  };
+      [strategyName]: updatedStrategy
+    };
+  });
+};
 
   // Function to handle loading parameters by case ID
   const handleLoadCaseId = async (caseId) => {
@@ -404,11 +418,9 @@ const App = () => {
               )}
 
               {/* Selected Strategies Configuration */}
+              {/* Selected Strategies Configuration */}
               {Object.keys(selectedStrategies).length > 0 && (
                 <div className="mb-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-3">
-                    Configure Strategies
-                  </h3>
                   <StrategyConfig
                     selectedStrategies={selectedStrategies}
                     onRemoveStrategy={handleRemoveStrategy}

@@ -1,81 +1,180 @@
 /* Strategy Config styles */
 .strategy-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
-  
-  .strategy-item {
-    border: 1px solid #d1d5db;
-    border-radius: 0.25rem;
-    background-color: white;
-    overflow: hidden;
-  }
-  
-  .strategy-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.75rem;
-    background-color: #f3f4f6;
-    cursor: pointer;
-  }
-  
-  .strategy-name {
-    font-weight: 500;
-  }
-  
-  .strategy-actions {
-    display: flex;
-    align-items: center;
-  }
-  
-  .strategy-remove-btn {
-    color: #dc2626;
-    margin-right: 0.5rem;
-    background: none;
-    border: none;
-    padding: 0.25rem;
-    font-size: 0.875rem;
-  }
-  
-  .strategy-remove-btn:hover {
-    color: #b91c1c;
-  }
-  
-  .strategy-toggle {
-    color: #4b5563;
-  }
-  
-  .strategy-params {
-    padding: 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-  
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.strategy-item {
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+  background-color: white;
+  overflow: hidden;
+}
+
+.strategy-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background-color: #f3f4f6;
+  cursor: pointer;
+}
+
+.strategy-name {
+  font-weight: 500;
+}
+
+.strategy-actions {
+  display: flex;
+  align-items: center;
+}
+
+.strategy-remove-btn {
+  color: #dc2626;
+  margin-right: 0.5rem;
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.strategy-remove-btn:hover {
+  color: #b91c1c;
+}
+
+.strategy-toggle {
+  color: #4b5563;
+}
+
+.strategy-params {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Header with checkbox styles */
+.strategy-header-with-checkbox {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.config-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.optimization-mode-label {
+  display: flex;
+  align-items: center;
+  font-size: 0.875rem;
+  cursor: pointer;
+  color: #4b5563;
+}
+
+.optimization-mode-checkbox {
+  margin-right: 0.5rem;
+}
+
+/* Parameter row - single row layout */
+.param-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.param-label {
+  width: 100px;
+  min-width: 100px;
+  font-size: 0.875rem;
+  color: #4b5563;
+}
+
+.param-input {
+  width: 150px;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.param-optimization-label {
+  width: 40px;
+  min-width: 40px;
+  font-size: 0.875rem;
+  color: #4b5563;
+  text-align: right;
+  margin-left: 1rem;
+}
+
+.param-optimization-input {
+  width: 100px;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.step-label {
+  width: 40px;
+  min-width: 40px;
+  font-size: 0.875rem;
+  color: #4b5563;
+  text-align: right;
+  margin-left: 1rem;
+}
+
+.step-input {
+  width: 100px;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
   .param-row {
-    display: grid;
-    grid-template-columns: repeat(12, 1fr);
+    flex-wrap: wrap;
+  }
+  
+  .param-optimization-label {
+    margin-left: 0;
+  }
+  
+  .step-label {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .param-row {
+    flex-direction: column;
+    align-items: flex-start;
     gap: 0.5rem;
-    align-items: center;
   }
   
   .param-label {
-    grid-column: span 4;
-    font-size: 0.875rem;
+    width: 100%;
   }
   
-  .param-input {
-    grid-column: span 4;
-    padding: 0.25rem;
-    border: 1px solid #d1d5db;
-    border-radius: 0.25rem;
-    font-size: 0.875rem;
+  .param-input,
+  .param-optimization-input,
+  .step-input {
+    width: 100%;
   }
   
-  .param-info {
-    grid-column: span 4;
-    font-size: 0.75rem;
-    color: #6b7280;
+  .param-optimization-label,
+  .step-label {
+    width: 100%;
+    text-align: left;
+    margin-top: 0.5rem;
   }
+}
