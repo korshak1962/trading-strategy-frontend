@@ -1,9 +1,10 @@
 // src/components/TradesTable.jsx
 import { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import './TradesTable.css';
 import { formatNumber, formatDate } from '../utils/formatters';
 
-const TradesTable = ({ data }) => {
+const TradesTable = ({ data, fileContext }) => {
   const [trades, setTrades] = useState([]);
   const [sortConfig, setSortConfig] = useState({
     key: 'openDate',
@@ -110,9 +111,70 @@ const TradesTable = ({ data }) => {
     return sortConfig.key === name ? sortConfig.direction : undefined;
   };
 
+  const exportToExcel = () => {
+    const sortedTrades = getSortedTrades();
+    const totalPnl = sortedTrades.reduce((sum, t) => sum + t.pnl, 0);
+    const winRate = sortedTrades.length > 0
+      ? `${Math.round((sortedTrades.filter(t => t.pnl > 0).length / sortedTrades.length) * 100)}%`
+      : '0%';
+
+    // Build data rows
+    const rows = sortedTrades.map(trade => ({
+      '#':           trade.id,
+      'Type':        trade.type,
+      'Open Date':   formatDate(trade.openDate, false),
+      'Close Date':  formatDate(trade.closeDate, false),
+      'Open Price':  trade.openPrice,
+      'Close Price': trade.closePrice,
+      'P&L':         parseFloat(trade.pnl.toFixed(2)),
+      'Comment':     trade.comment || '',
+    }));
+
+    // Append summary footer rows
+    rows.push({});
+    rows.push({ '#': 'Total P&L', 'Open Price': '', 'Close Price': '', 'P&L': parseFloat(totalPnl.toFixed(2)) });
+    rows.push({ '#': 'Win Rate',  'Open Price': '', 'Close Price': '', 'P&L': winRate });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+
+    // Auto-fit column widths
+    const colWidths = Object.keys(rows[0] || {}).map(key => ({
+      wch: Math.max(key.length, ...rows.map(r => String(r[key] ?? '').length))
+    }));
+    ws['!cols'] = colWidths;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Trade History');
+
+    // Build a meaningful filename: Strategies_Ticker_Timeframe_Params_Date
+    const sanitize = (s) => String(s).replace(/[^a-zA-Z0-9._+-]/g, '');
+    const { ticker = '', timeFrame = '', selectedStrategies = {}, startDate, endDate } = fileContext || {};
+
+    const strategyPart = Object.keys(selectedStrategies).map(sanitize).join('+') || 'trades';
+
+    const paramPart = Object.entries(selectedStrategies)
+      .flatMap(([, params]) =>
+        Object.entries(params).map(([name, p]) => `${sanitize(name)}-${sanitize(p.value ?? '')}`)
+      )
+      .join('_');
+
+    const fmtDate = (d) => d ? new Date(d).toISOString().slice(0, 10) : '';
+    const datePart = [fmtDate(startDate), fmtDate(endDate)].filter(Boolean).join('_');
+
+    const parts = [strategyPart, sanitize(ticker), sanitize(timeFrame), paramPart, datePart].filter(Boolean);
+    XLSX.writeFile(wb, `${parts.join('_')}.xlsx`);
+  };
+
   return (
     <div className="trades-table-container">
-      <h3 className="trades-table-title">Trade History</h3>
+      <div className="trades-table-header">
+        <h3 className="trades-table-title">Trade History</h3>
+        {trades.length > 0 && (
+          <button className="export-excel-btn" onClick={exportToExcel} title="Export to Excel">
+            ⬇ Export to Excel
+          </button>
+        )}
+      </div>
       
       {trades.length > 0 ? (
         <div className="trades-table-wrapper">

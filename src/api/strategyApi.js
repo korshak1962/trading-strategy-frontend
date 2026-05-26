@@ -19,28 +19,32 @@ export const getAvailableStrategies = async () => {
   }
 };
 
-/**
- * Submit strategies configuration to the server
- * @param {Object} config - Configuration object with ticker, timeFrame, dates, and strategy parameters
- * @returns {Promise<Object>} Strategy results
- */
 export const submitStrategies = async (config) => {
   try {
     const response = await fetch(`${API_BASE_URL}/submitStrategies`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config),
     });
-    
-    if (!response.ok) {
-      throw new Error(`Error: ${response.status}`);
-    }
-    
+    if (!response.ok) throw new Error(`Error: ${response.status}`);
     return await response.json();
   } catch (error) {
     console.error('Failed to submit strategies:', error);
+    throw error;
+  }
+};
+
+export const optimizeStrategies = async (config) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/optimize-strategies`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+    if (!response.ok) throw new Error(`Error: ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to optimize strategies:', error);
     throw error;
   }
 };

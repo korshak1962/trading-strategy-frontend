@@ -1,15 +1,16 @@
 // src/components/EnhancedResultChart.jsx
 import { useEffect, useState } from 'react';
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer, 
-  ReferenceLine, 
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  ReferenceLine,
+  ReferenceDot,
   ComposedChart,
   Bar,
   Rectangle,
@@ -426,31 +427,12 @@ const EnhancedResultChart = ({ data, height = 400 }) => {
     }
   };
 
-  // Custom dot component for signals
-  const renderSignalDot = (props) => {
-    const { cx, cy, payload } = props;
-    if (!payload.signals || payload.signals.length === 0) return null;
-    
-    return payload.signals.map((signal, idx) => {
-      let color = 'gray';
-      
-      if (signal.type === 'LongOpen') color = 'green';
-      else if (signal.type === 'LongClose') color = 'red';
-      else if (signal.type === 'ShortOpen') color = 'blue';
-      else if (signal.type === 'ShortClose') color = 'orange';
-      
-      return (
-        <circle 
-          key={`${cx}-${cy}-${idx}`} 
-          cx={cx} 
-          cy={cy} 
-          r={6} 
-          fill={color} 
-          stroke="white" 
-          strokeWidth={2}
-        />
-      );
-    });
+  const signalColor = (type) => {
+    if (type === 'LongOpen') return 'green';
+    if (type === 'LongClose') return 'red';
+    if (type === 'ShortOpen') return 'blue';
+    if (type === 'ShortClose') return 'orange';
+    return 'gray';
   };
 
   const getSignalMarker = (entry, dataIndex) => {
@@ -521,8 +503,10 @@ const EnhancedResultChart = ({ data, height = 400 }) => {
 
       {/* Main Price Chart */}
       <div className="price-chart">
+        {chartData.length === 0 ? null : (
         <ResponsiveContainer width="100%" height={chartHeight}>
           <ComposedChart
+            key={chartData.length}
             data={chartData}
             margin={{ top: 10, right: 30, left: 10, bottom: 5 }}
             syncId={syncId}
@@ -562,39 +546,46 @@ const EnhancedResultChart = ({ data, height = 400 }) => {
             <Legend />
             
             {/* Price Line */}
-            <Line 
-              type="linear" 
-              dataKey="close" 
-              stroke="#ff0000" 
+            <Line
+              type="linear"
+              dataKey="close"
+              stroke="#ff0000"
               dot={false}
+              activeDot={{ r: 4 }}
               yAxisId="price"
               name="Price"
-              isAnimationActive={false} // Disable animation for better synchronization
+              isAnimationActive={false}
             />
-            
+
+            {/* Signal dots — ReferenceDot uses the chart's own xScale/yScale */}
+            {chartData.flatMap((entry, i) =>
+              (entry.signals || []).map((signal, j) => (
+                <ReferenceDot
+                  key={`sig-${i}-${j}`}
+                  x={entry.date}
+                  y={entry.close}
+                  yAxisId="price"
+                  r={6}
+                  fill={signalColor(signal.type)}
+                  stroke="white"
+                  strokeWidth={2}
+                />
+              ))
+            )}
+
             {/* Dynamic indicator lines */}
             {selectedIndicators.map(indicator => (
-              <Line 
+              <Line
                 key={indicator}
-                type="monotone" 
-                dataKey={indicator} 
-                stroke={getChartColor(indicator)} 
+                type="monotone"
+                dataKey={indicator}
+                stroke={getChartColor(indicator)}
                 dot={false}
                 yAxisId="indicator"
                 name={indicator}
-                isAnimationActive={false} // Disable animation for better synchronization
+                isAnimationActive={false}
               />
             ))}
-            
-            {/* Render signals */}
-            <Line 
-              dataKey="close"
-              stroke="transparent"
-              dot={renderSignalDot}
-              yAxisId="price"
-              name="Signals"
-              isAnimationActive={false} // Disable animation for better synchronization
-            />
             
             {chartData.map((entry, index) => getSignalMarker(entry, index))}
             
@@ -609,8 +600,9 @@ const EnhancedResultChart = ({ data, height = 400 }) => {
             />
           </ComposedChart>
         </ResponsiveContainer>
+        )}
       </div>
-      
+
       {/* Trade PnL Chart */}
       {showPnLChart && (
         <div className="pnl-chart">

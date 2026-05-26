@@ -1,26 +1,26 @@
 // src/components/StrategySelector.jsx
-import { useState } from 'react';
 import './StrategySelector.css';
 
 const StrategySelector = ({ availableStrategies, onAddStrategy }) => {
-  const [selectedStrategy, setSelectedStrategy] = useState('');
 
-  const handleAddStrategy = () => {
-    if (!selectedStrategy) return;
-    
-    const strategy = availableStrategies.find(s => s.name === selectedStrategy);
+  const handleChange = (e) => {
+    const name = e.target.value;
+    if (!name) return;
+
+    const strategy = availableStrategies.find(s => s.name === name);
     if (strategy) {
       onAddStrategy(strategy);
-      setSelectedStrategy('');
     }
+    // Reset dropdown so the same strategy can be added again if needed
+    e.target.value = '';
   };
 
   return (
     <div className="strategy-selector">
       <div className="strategy-selector-controls">
         <select
-          value={selectedStrategy}
-          onChange={(e) => setSelectedStrategy(e.target.value)}
+          defaultValue=""
+          onChange={handleChange}
           className="form-select strategy-selector-select"
         >
           <option value="">Select a strategy</option>
@@ -30,25 +30,7 @@ const StrategySelector = ({ availableStrategies, onAddStrategy }) => {
             </option>
           ))}
         </select>
-        
-        <button
-          type="button"
-          onClick={handleAddStrategy}
-          disabled={!selectedStrategy}
-          className="btn btn-success"
-        >
-          Add Strategy
-        </button>
       </div>
-      
-      {selectedStrategy && (
-        <div className="strategy-info">
-          <h4 className="strategy-name">{availableStrategies.find(s => s.name === selectedStrategy)?.name}</h4>
-          <p className="strategy-description">
-            {availableStrategies.find(s => s.name === selectedStrategy)?.description}
-          </p>
-        </div>
-      )}
     </div>
   );
 };

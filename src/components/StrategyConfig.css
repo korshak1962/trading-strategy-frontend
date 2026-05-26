@@ -56,26 +56,82 @@
   
   .param-row {
     display: grid;
-    grid-template-columns: repeat(12, 1fr);
+    grid-template-columns: 1fr 80px 80px;
     gap: 0.5rem;
     align-items: center;
   }
-  
+
   .param-label {
-    grid-column: span 4;
     font-size: 0.875rem;
   }
-  
+
   .param-input {
-    grid-column: span 4;
     padding: 0.25rem;
     border: 1px solid #d1d5db;
     border-radius: 0.25rem;
     font-size: 0.875rem;
+    text-align: right;
   }
-  
-  .param-info {
-    grid-column: span 4;
+
+  .param-timeframe {
+    padding: 0.25rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.25rem;
     font-size: 0.75rem;
+    background-color: white;
+    color: #374151;
+    cursor: pointer;
+  }
+
+  .param-timeframe:focus {
+    outline: none;
+    border-color: #6366f1;
+  }
+
+  .param-optimize-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 8px 10px;
+    background: #f9fafb;
+  }
+
+  .param-optimize-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 6px;
+  }
+
+  .param-optimize-fields {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .param-optimize-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .param-optimize-field-label {
+    font-size: 0.65rem;
     color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+
+  .param-optimize-input {
+    width: 100%;
+    padding: 3px 5px;
+    border: 1px solid #d1d5db;
+    border-radius: 3px;
+    font-size: 0.8rem;
+    text-align: right;
+  }
+
+  .param-optimize-input:focus {
+    outline: none;
+    border-color: #6366f1;
   }
