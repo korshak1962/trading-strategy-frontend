@@ -10,11 +10,13 @@ import StrategyResults from './components/StrategyResults';
 import TradesTable from './components/TradesTable';
 import PerformanceMetricsTable from './components/PerformanceMetricsTable';
 import TradeStatisticsTable from './components/TradeStatisticsTable';
-import { getAvailableStrategies, submitStrategies, optimizeStrategies, formatStrategyConfig } from './api/strategyApi';
+import { getAvailableStrategies, getAvailableTickers, submitStrategies, optimizeStrategies, formatStrategyConfig } from './api/strategyApi';
+import TickerCombobox from './components/TickerCombobox';
 
 const App = () => {
   // State for available strategies
   const [availableStrategies, setAvailableStrategies] = useState([]);
+  const [availableTickers, setAvailableTickers] = useState([]);
   
   // State for selected strategies
   const [selectedStrategies, setSelectedStrategies] = useState({});
@@ -46,8 +48,18 @@ const App = () => {
         console.error(err);
       }
     };
-    
+
+    const fetchTickers = async () => {
+      try {
+        const tickers = await getAvailableTickers();
+        setAvailableTickers(tickers);
+      } catch (err) {
+        console.error('Failed to load tickers:', err);
+      }
+    };
+
     fetchStrategies();
+    fetchTickers();
   }, []);
 
   const handleSubmit = async (e) => {
@@ -144,12 +156,10 @@ const App = () => {
               {/* Ticker and TimeFrame */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Ticker</label>
-                <input
-                  type="text"
+                <TickerCombobox
                   value={ticker}
-                  onChange={(e) => setTicker(e.target.value)}
-                  className="w-full p-2 border rounded"
-                  required
+                  onChange={(val) => { setTicker(val); setResults(null); }}
+                  tickers={availableTickers}
                 />
               </div>
               

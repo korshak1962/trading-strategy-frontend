@@ -6,6 +6,18 @@ const API_BASE_URL = '/api/strategy';
  * Get available strategies from the server
  * @returns {Promise<Array>} List of available strategies
  */
+export const getAvailableTickers = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/available-tickers`);
+    if (!response.ok) throw new Error(`Error: ${response.status}`);
+    const data = await response.json();
+    return data.map(item => item.ticker).filter(Boolean);
+  } catch (error) {
+    console.error('Failed to fetch available tickers:', error);
+    throw error;
+  }
+};
+
 export const getAvailableStrategies = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/available-strategies`);
