@@ -12,8 +12,14 @@ import PerformanceMetricsTable from './components/PerformanceMetricsTable';
 import TradeStatisticsTable from './components/TradeStatisticsTable';
 import { getAvailableStrategies, getAvailableTickers, submitStrategies, optimizeStrategies, formatStrategyConfig } from './api/strategyApi';
 import TickerCombobox from './components/TickerCombobox';
+import ChannelExplorer from './components/channelExplorer/ChannelExplorer';
 
 const App = () => {
+  // Top-level tab: 'backtest' (existing strategy configure/run/results flow) or 'channels'
+  // (the relocated analyzer-frontend channel-exploration UI) — the two are functionally
+  // independent and don't share state, they just live in the same app now.
+  const [activeTab, setActiveTab] = useState('backtest');
+
   // State for available strategies
   const [availableStrategies, setAvailableStrategies] = useState([]);
   const [availableTickers, setAvailableTickers] = useState([]);
@@ -119,8 +125,13 @@ const App = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      <Header />
-      
+      <Header activeTab={activeTab} onChangeTab={setActiveTab} />
+
+      {activeTab === 'channels' ? (
+        <main className="flex-grow w-full px-4 py-8">
+          <ChannelExplorer />
+        </main>
+      ) : (
       <main className="flex-grow container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Configuration Panel */}
@@ -299,7 +310,8 @@ const App = () => {
           </div>
         </div>
       </main>
-      
+      )}
+
       <footer className="py-4 bg-gray-800 text-white text-center">
         <p>Strategy Backtesting Tool &copy; {new Date().getFullYear()}</p>
       </footer>

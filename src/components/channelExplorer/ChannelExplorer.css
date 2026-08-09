@@ -1,0 +1,466 @@
+/* Dark-themed self-contained card — analyzer-frontend's Trend Analyzer ran full-page on its own
+   dark background (#0f111a via App.css); here it's one tab inside trading-strategy-frontend's
+   light-themed page, so the dark theme is scoped to this wrapper instead of the whole app. */
+.channel-explorer {
+  background: #0f111a;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+/* Form row + shared base classes — originally analyzer-frontend's DrawdownForm.css/App.css,
+   shared across its screens; relocated here since only this screen came along. */
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  background: #161b2e;
+  border: 1px solid #2a2e39;
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.form-group label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #787b86;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.form-group input {
+  background: #1e2230;
+  border: 1px solid #2a2e39;
+  color: #d1d4dc;
+  border-radius: 4px;
+  padding: 6px 9px;
+  font-size: 13px;
+  height: 32px;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.15s;
+}
+
+.form-group input:focus {
+  border-color: #2962ff;
+}
+
+.form-group input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.6);
+  cursor: pointer;
+}
+
+.find-btn {
+  background: #2962ff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0 20px;
+  height: 32px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  transition: background 0.15s;
+  align-self: flex-end;
+}
+
+.find-btn:hover:not(:disabled) {
+  background: #1e53e5;
+}
+
+.find-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.error-banner {
+  background: #2d1b1b;
+  border: 1px solid #e53e3e;
+  color: #fc8181;
+  padding: 10px 16px;
+  border-radius: 4px;
+  margin: 12px 0;
+  font-size: 13px;
+}
+
+.status-msg {
+  text-align: center;
+  color: #787b86;
+  padding: 40px;
+  font-size: 14px;
+}
+
+.empty-state {
+  text-align: center;
+  color: #787b86;
+  padding: 60px 24px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.empty-state strong {
+  color: #d1d4dc;
+}
+
+/* "Show only last actual channels" checkbox */
+.ta-last-actual-group {
+  justify-content: flex-end;
+}
+
+.ta-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #d1d4dc;
+  cursor: pointer;
+  white-space: nowrap;
+  height: 32px;
+}
+
+.ta-checkbox-label input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: #2962ff;
+  cursor: pointer;
+}
+
+/* form action row: Find Channels + Params toggle */
+.ta-form-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.ta-params-toggle {
+  background: #1e2230;
+  border: 1px solid #2a2e39;
+  color: #787b86;
+  border-radius: 4px;
+  padding: 0 12px;
+  height: 32px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.ta-params-toggle:hover,
+.ta-params-toggle--open {
+  color: #d1d4dc;
+  border-color: #2962ff;
+}
+
+/* Parameters panel */
+.ta-params-panel {
+  background: #161b2e;
+  border: 1px solid #2a2e39;
+  border-radius: 6px;
+  padding: 14px 16px 10px;
+  margin-bottom: 14px;
+}
+
+.ta-params-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px 20px;
+  margin-bottom: 10px;
+}
+
+.ta-param-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ta-param-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #787b86;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.ta-param-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ta-param-input {
+  background: #1e2230;
+  border: 1px solid #2a2e39;
+  color: #d1d4dc;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+  height: 28px;
+  width: 70px;
+  outline: none;
+  flex-shrink: 0;
+  transition: border-color 0.15s;
+}
+
+.ta-param-input:focus {
+  border-color: #2962ff;
+}
+
+.ta-param-select {
+  width: 100%;
+  cursor: pointer;
+}
+
+.ta-param-slider {
+  flex: 1;
+  accent-color: #2962ff;
+  height: 4px;
+  cursor: pointer;
+}
+
+.ta-param-hint {
+  font-size: 10px;
+  color: #4a4e5a;
+}
+
+/* Tooltip on the ? badge next to param labels */
+.ta-tooltip-anchor {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #2a2e39;
+  color: #787b86;
+  font-size: 9px;
+  font-weight: 700;
+  margin-left: 5px;
+  cursor: help;
+  position: relative;
+  vertical-align: middle;
+}
+
+.ta-tooltip-anchor::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e2230;
+  border: 1px solid #3a3e4a;
+  color: #c7cad4;
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: 1.5;
+  padding: 8px 12px;
+  border-radius: 5px;
+  width: 260px;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 200;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* Arrow pointing down */
+.ta-tooltip-anchor::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #3a3e4a;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 201;
+}
+
+.ta-tooltip-anchor:hover::after,
+.ta-tooltip-anchor:hover::before {
+  opacity: 1;
+}
+
+.ta-params-reset {
+  background: transparent;
+  border: 1px solid #2a2e39;
+  color: #787b86;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.ta-params-reset:hover {
+  color: #d1d4dc;
+  border-color: #787b86;
+}
+
+.ta-params-footer {
+  display: flex;
+  gap: 8px;
+}
+
+.ta-params-advanced {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #2a2e39;
+}
+
+.ta-tf-group {
+  min-width: 220px;
+}
+
+.ta-tf-toggles {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.ta-tf-btn {
+  background: #1e2230;
+  border: 1px solid #2a2e39;
+  color: #787b86;
+  border-radius: 4px;
+  padding: 0 10px;
+  height: 32px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.ta-tf-btn:hover {
+  color: #d1d4dc;
+  border-color: #2962ff;
+}
+
+.ta-tf-btn--active {
+  background: #2962ff;
+  border-color: #2962ff;
+  color: #fff;
+}
+
+.ta-tf-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #2a2e39;
+  margin-bottom: 12px;
+}
+
+.ta-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #787b86;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ta-tab:hover {
+  color: #d1d4dc;
+}
+
+.ta-tab--active {
+  color: #2962ff;
+  border-bottom-color: #2962ff;
+  font-weight: 600;
+}
+
+.ta-tab-count {
+  background: #1e2230;
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 11px;
+  color: #787b86;
+}
+
+.ta-tab--active .ta-tab-count {
+  background: #1a3a8f;
+  color: #93c5fd;
+}
+
+/* Line-width swatch showing how thick this timeframe's channel lines are
+   drawn on the combined chart. */
+.ta-tab-width-swatch {
+  display: inline-block;
+  width: 14px;
+  border-radius: 2px;
+  background: #787b86;
+  flex-shrink: 0;
+}
+
+.ta-tab--active .ta-tab-width-swatch {
+  background: #2962ff;
+}
+
+.ta-ch-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ta-ch-card {
+  background: #161b2e;
+  border: 1px solid #2a2e39;
+  border-radius: 4px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 200px;
+  max-width: 280px;
+  flex: 1;
+}
+
+.ta-ch-dir {
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ta-ch-tf {
+  background: #1e2230;
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #787b86;
+  letter-spacing: 0.4px;
+}
+
+.ta-ch-meta {
+  font-size: 11px;
+  color: #787b86;
+}
+
+.ta-ch-dates {
+  font-size: 11px;
+  color: #4a4e5a;
+}

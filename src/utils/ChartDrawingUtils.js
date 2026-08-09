@@ -382,6 +382,49 @@ export const findMinMaxPriceRange = (prices) => {
     });
   };
   
+  export const drawChannels = (ctx, channels, dateRange, minMax, width, height) => {
+    // Guard against undefined or incomplete dateRange
+    if (!dateRange || !dateRange[0] || !dateRange[1] ||
+        !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) {
+      return; // Skip drawing if no valid date range
+    }
+
+    const [startDate, endDate] = dateRange;
+    const { min, max } = minMax;
+    const totalMs = endDate.getTime() - startDate.getTime();
+
+    const toXY = (point) => {
+      const date = new Date(point.date);
+      const x = ((date.getTime() - startDate.getTime()) / totalMs) * width;
+      const y = height - ((point.price - min) / (max - min)) * height;
+      return { x, y };
+    };
+
+    const drawPolyline = (points) => {
+      if (!points || points.length === 0) return;
+      ctx.beginPath();
+      points.forEach((p, i) => {
+        const { x, y } = toXY(p);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    };
+
+    ctx.strokeStyle = 'rgba(33, 150, 243, 0.5)'; // distinct from candlesticks (green/red),
+    ctx.lineWidth = 1.5;                          // signals (green/red/blue/orange), and the
+                                                   // indicator line (purple)
+    (channels || []).forEach(channel => {
+      // Skip channels entirely outside the visible date range - same filtering intent as
+      // drawSignals' visibleSignals check, just applied to a span instead of a point.
+      const channelStart = new Date(channel.upperPoints?.[0]?.date ?? channel.startDate);
+      const channelEnd = new Date(channel.upperPoints?.[channel.upperPoints.length - 1]?.date ?? channel.endDate);
+      if (channelEnd < startDate || channelStart > endDate) return;
+
+      drawPolyline(channel.upperPoints);
+      drawPolyline(channel.lowerPoints);
+    });
+  };
+
   export const drawIndividualTradeBars = (ctx, trades, dateRange, minMax, width, height) => {
     // Guard against undefined or incomplete dateRange
     if (!dateRange || !dateRange[0] || !dateRange[1] || 

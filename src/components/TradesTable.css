@@ -133,10 +133,9 @@
   }
   
   .comment-cell {
-    max-width: 200px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    max-width: 420px;
+    white-space: normal;
+    word-break: break-word;
   }
   
   .no-trades-message {

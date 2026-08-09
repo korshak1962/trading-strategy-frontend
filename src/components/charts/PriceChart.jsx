@@ -7,6 +7,7 @@ import {
   drawDateAxis,
   drawPriceAxis,
   drawPriceCandlesticks,
+  drawChannels,
   drawSignals
 } from '../../utils/ChartDrawingUtils';
 
@@ -54,6 +55,7 @@ const PriceChart = ({ data, width, height, dateRange }) => {
     // Extract data
     const prices = data.prices;
     const signals = data.signals || [];
+    const channels = data.channels || [];
     
     // Use passed dateRange if provided and valid, otherwise calculate it
     let chartDateRange = dateRange;
@@ -121,7 +123,10 @@ const PriceChart = ({ data, width, height, dateRange }) => {
     
     // Draw price candlesticks with the calculated width
     drawPriceCandlesticks(ctx, prices, chartDateRange, minMaxPrice, width, height, candleWidth);
-    
+
+    // Draw channel lines (if any) behind signal markers, in front of candlesticks
+    drawChannels(ctx, channels, chartDateRange, minMaxPrice, width, height);
+
     // Draw signals that are within the date range
     if (signals.length > 0) {
       const visibleSignals = signals.filter(signal => {

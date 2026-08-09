@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@rollup/rollup-win32-x64-msvc": "^4.40.0",
+    "lightweight-charts": "^4.2.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^2.15.3",

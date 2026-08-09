@@ -219,7 +219,7 @@ const TradesTable = ({ data, fileContext }) => {
                   <td className={`pnl-cell ${trade.pnl >= 0 ? 'positive' : 'negative'}`}>
                     {formatNumber(trade.pnl)}
                   </td>
-                  <td className="comment-cell">{trade.comment}</td>
+                  <td className="comment-cell" title={trade.comment}>{trade.comment}</td>
                 </tr>
               ))}
             </tbody>

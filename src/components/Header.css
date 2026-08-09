@@ -16,3 +16,40 @@
     color: #bfdbfe;
     margin: 0;
   }
+
+  .header-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .header-nav {
+    display: flex;
+    gap: 4px;
+  }
+
+  .header-tab {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #bfdbfe;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+
+  .header-tab:hover {
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+  }
+
+  .header-tab--active {
+    background: #fff;
+    border-color: #fff;
+    color: #1e40af;
+  }

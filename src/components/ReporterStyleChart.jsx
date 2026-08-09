@@ -193,20 +193,23 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
       return;
     }
     
-    // Get start and end dates for zoom
-    const startRatio = Math.max(0, Math.min(zoomStart, zoomEnd)) / containerWidth;
-    const endRatio = Math.min(1, Math.max(zoomStart, zoomEnd)) / containerWidth;
-    
+    // Get start and end dates for zoom. Divide by containerWidth BEFORE clamping to [0, 1] -
+    // clamping the raw pixel offset against the literal bound 1 (instead of the ratio) collapsed
+    // endRatio to ~1/containerWidth on virtually every drag, since zoomStart/zoomEnd are pixel
+    // values almost always greater than 1.
+    const startRatio = Math.max(0, Math.min(zoomStart, zoomEnd) / containerWidth);
+    const endRatio = Math.min(1, Math.max(zoomStart, zoomEnd) / containerWidth);
+
     // Only apply zoom if selection is significant (more than 5% of width)
     if (Math.abs(endRatio - startRatio) < 0.05) {
       setZoomActive(false);
       return;
     }
-    
+
     const totalTime = currentDateRange[1].getTime() - currentDateRange[0].getTime();
     const newStartDate = new Date(currentDateRange[0].getTime() + startRatio * totalTime);
     const newEndDate = new Date(currentDateRange[0].getTime() + endRatio * totalTime);
-    
+
     // Apply zoom
     setDateRange([newStartDate, newEndDate]);
     setZoomActive(false);
