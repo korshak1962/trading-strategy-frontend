@@ -7,6 +7,13 @@ const DIRECTION_COLOR = { 1: '#26a69a', '-1': '#ef5350', 0: '#787b86' };
 const SELECTED_COLOR = '#ffd54f';
 const HIT_TEST_PX = 8;
 
+// Hierarchy highlighting: the selection's ancestors (Up) or descendants (Down) are tinted
+// violet, with DEPTH CARRIED BY ALPHA rather than by line width — width is already spoken for
+// by TF_LINE_WIDTH (timeframe coarseness), so grading it here would collide with that meaning.
+// Alpha floors at 0.35 so a deep node stays visible against the #131722 background.
+const hierarchyColor = (depth) =>
+  `rgba(179, 136, 255, ${Math.max(0.35, 1 - 0.18 * (depth - 1)).toFixed(3)})`;
+
 // Line width scales with timeframe coarseness so multiple timeframes' channels
 // can be distinguished on one combined chart (color still encodes direction).
 export const TF_LINE_WIDTH = { MIN5: 1, HOUR: 1, DAY: 2, WEEK: 3, MONTH: 4 };
@@ -121,6 +128,28 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
   // ([prices, channels, zoomChannels, runId]) doesn't include this state, so setting it only
   // re-renders the lightweight JSX below, never re-runs the chart-building effect itself.
   const [selectedChannel, setSelectedChannel] = useState(null);
+
+  // Hierarchy highlight mode: 'off' | 'up' | 'down'. Deliberately owned HERE and not passed in
+  // as a prop — a parent-owned value would have to enter the chart-building effect's dependency
+  // array, so every toggle would tear down and rebuild the chart, discarding the user's zoom,
+  // pan, selection and any extended channels. The ref is what the effect's own closures read
+  // (they are created once per build and would otherwise capture a stale mode), and repaintRef
+  // is the effect's repaint function published outward so the toggle can recolour the existing
+  // series in place instead of rebuilding anything.
+  const [hierarchyMode, setHierarchyModeState] = useState('up');
+  const hierarchyModeRef = useRef('up');
+  const repaintRef = useRef(() => {});
+
+  const setHierarchyMode = (mode) => {
+    hierarchyModeRef.current = mode;   // ref first: repaint reads the ref, not the state
+    setHierarchyModeState(mode);
+    repaintRef.current();
+  };
+
+  // The backend emits `id`/`parentId` on every channel; an older backend (or any response
+  // lacking them) leaves the tree unexpressible, so the control hides itself and the walks
+  // below degrade to no-ops rather than throwing.
+  const hierarchyAvailable = (channels || []).some(c => c && c.id);
 
   // Native Fullscreen API: gets Escape-to-exit for free (the browser handles it), rather
   // than reimplementing a CSS-only "fake fullscreen" plus our own keydown listener.
@@ -347,17 +376,100 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
       entry.extendedEndIdx = extendedEndIdx;
     }
 
-    function applyHighlight(entry, selected) {
-      const opts = selected
-        ? { color: SELECTED_COLOR, lineWidth: Math.min(entry.baseWidth + 2, 4) }
-        : { color: entry.color, lineWidth: entry.baseWidth };
-      entry.upperSeries.applyOptions(opts);
-      entry.lowerSeries.applyOptions(opts);
-    }
-
     function findEntry(key) {
       return channelEntries.find(e => e.key === key) || null;
     }
+
+    // Derived fresh on each repaint rather than cached, so a channel deleted with
+    // Delete/Backspace (which splices channelEntries) drops out of the tree automatically —
+    // there is no second structure that could go stale and leave us calling applyOptions on a
+    // series that has already been removed from the chart. O(n) like the repaint it feeds.
+    function buildHierarchyIndex() {
+      const byId = new Map();
+      const childrenOf = new Map();
+      for (const e of channelEntries) {
+        const id = e.ch?.id;
+        if (id && !byId.has(id)) byId.set(id, e);
+      }
+      for (const e of channelEntries) {
+        const pid = e.ch?.parentId ?? null;
+        if (!pid || !e.ch?.id || !byId.has(pid)) continue;
+        if (!childrenOf.has(pid)) childrenOf.set(pid, []);
+        childrenOf.get(pid).push(e);
+      }
+      return { byId, childrenOf };
+    }
+
+    // Walks the recursion tree from the selected channel and returns entryKey -> depth (1 =
+    // immediate parent/child). The result is the walk INTERSECTED WITH WHAT THE RESPONSE
+    // ACTUALLY RETURNED: an id that resolves to nothing simply ends the chain. That is the
+    // normal case under the "last actual channels" filter, where descendants are legitimately
+    // absent — it is correct behaviour, not an error, and needs no warning or disabling.
+    // `visited` is seeded with the selection's own id and shared by both directions, so a
+    // malformed self- or cyclic parent link terminates instead of looping forever.
+    function computeHierarchySet(entry, mode) {
+      const out = new Map();
+      if (!entry || mode === 'off' || !entry.ch?.id) return out;
+      const { byId, childrenOf } = buildHierarchyIndex();
+      const visited = new Set([entry.ch.id]);
+
+      if (mode === 'up') {
+        let cur = entry;
+        let depth = 1;
+        for (;;) {
+          const pid = cur.ch?.parentId ?? null;
+          if (!pid || visited.has(pid)) break;
+          const parent = byId.get(pid);
+          if (!parent) break;
+          visited.add(pid);
+          out.set(parent.key, depth++);
+          cur = parent;
+        }
+      } else {
+        let frontier = [entry];
+        let depth = 1;
+        while (frontier.length > 0) {
+          const next = [];
+          for (const node of frontier) {
+            for (const child of childrenOf.get(node.ch.id) || []) {
+              if (!child.ch?.id || visited.has(child.ch.id)) continue;
+              visited.add(child.ch.id);
+              out.set(child.key, depth);
+              next.push(child);
+            }
+          }
+          frontier = next;
+          depth++;
+        }
+      }
+      return out;
+    }
+
+    // Recomputes EVERY entry's colour from (selection, mode). This replaced a per-entry
+    // applyHighlight(entry, selected): mutating only the entries whose selected-ness changed
+    // left previously-tinted hierarchy lines violet after a deselect, a new selection, or a
+    // drag. The explicit else-branch resetting to entry.color/baseWidth is what makes stale
+    // colour structurally impossible. Selection is tested BEFORE hierarchy membership so a
+    // degenerate self-referencing id can never paint the selection itself violet.
+    function repaintHighlights() {
+      const selectedKey = selectedKeyRef.current;
+      const hier = computeHierarchySet(findEntry(selectedKey), hierarchyModeRef.current);
+      for (const entry of channelEntries) {
+        let opts;
+        if (entry.key === selectedKey) {
+          opts = { color: SELECTED_COLOR, lineWidth: Math.min(entry.baseWidth + 2, 4) };
+        } else if (hier.has(entry.key)) {
+          // +1 (vs the selection's +2), both capped at 4, so a hierarchy line can never
+          // outgrow the selection even at MONTH's baseWidth of 4.
+          opts = { color: hierarchyColor(hier.get(entry.key)), lineWidth: Math.min(entry.baseWidth + 1, 4) };
+        } else {
+          opts = { color: entry.color, lineWidth: entry.baseWidth };
+        }
+        entry.upperSeries.applyOptions(opts);
+        entry.lowerSeries.applyOptions(opts);
+      }
+    }
+    repaintRef.current = repaintHighlights;
 
     // Channel lines — built directly from the backend's upperPoints/lowerPoints polylines
     // (real dates, no bar-index arithmetic), so overlaying channels whose own native
@@ -437,11 +549,11 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
     }
 
     function selectChannel(key) {
-      const prevEntry = findEntry(selectedKeyRef.current);
-      if (prevEntry) applyHighlight(prevEntry, false);
       selectedKeyRef.current = key;
       const entry = findEntry(key);
-      if (entry) applyHighlight(entry, true);
+      // Full repaint, not a two-entry swap: the outgoing selection's hierarchy has to be
+      // cleared and the incoming one's painted, and those are different sets of lines.
+      repaintHighlights();
       updateHandle();
       setSelectedChannel(entry ? entry.ch : null);
     }
@@ -508,7 +620,9 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
       setChannelData(entry, extension);
       markersByKey.set(entry.key, crossingsForEntry(entry));
       refreshMarkers();
-      applyHighlight(entry, true);
+      // setChannelData's setData() doesn't touch series options, but repaint here anyway so a
+      // drag can never be the one path that leaves the tiers inconsistent.
+      repaintHighlights();
       updateHandle();
     }
     function onWindowMouseUp() {
@@ -539,6 +653,10 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
       markersByKey.delete(key);
       refreshMarkers();
       selectedKeyRef.current = null;
+      // The deleted node is already out of channelEntries, so the index rebuilt inside this
+      // repaint no longer contains it — any chain that ran through it now ends there instead
+      // of pointing at a removed series.
+      repaintHighlights();
       updateHandle();
       setSelectedChannel(null);
     }
@@ -668,10 +786,9 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
 
     chart.timeScale().subscribeVisibleLogicalRangeChange(updateHandle);
 
-    if (selectedKeyRef.current) {
-      const entry = findEntry(selectedKeyRef.current);
-      if (entry) applyHighlight(entry, true);
-    }
+    // Restores all three tiers after a rebuild (e.g. toggling a timeframe's visibility), not
+    // just the selection — the hierarchy tint has to come back too.
+    repaintHighlights();
     updateHandle();
 
     chart.timeScale().fitContent();
@@ -706,6 +823,9 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
     }
 
     return () => {
+      // Drop the published repaint before the chart is torn down, so a mode toggle racing a
+      // rebuild can't call applyOptions on series belonging to a removed chart.
+      repaintRef.current = () => {};
       window.removeEventListener('mousemove', onWindowMouseMove);
       window.removeEventListener('mouseup', onWindowMouseUp);
       window.removeEventListener('mousemove', onPlotMouseMove);
@@ -737,6 +857,29 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
       >
         {isFullscreen ? '✕' : '⛶'}
       </button>
+      {hierarchyAvailable && (
+        <div className="ch-hierarchy-toggle" role="group" aria-label="Hierarchy highlight">
+          <span className="ch-hierarchy-label">Hierarchy</span>
+          {[['off', 'Off'], ['up', 'Up'], ['down', 'Down']].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={`ch-hierarchy-btn${hierarchyMode === value ? ' ch-hierarchy-btn--active' : ''}`}
+              aria-pressed={hierarchyMode === value}
+              onClick={() => setHierarchyMode(value)}
+              title={
+                value === 'off'
+                  ? 'No hierarchy highlighting'
+                  : value === 'up'
+                    ? "Tint the selected channel's parent channels"
+                    : "Tint the selected channel's child channels"
+              }
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="ch-chart-container" ref={containerRef} />
       <div className="ch-chart-hint">
         {selectedChannel && typeof selectedChannel.widthPct === 'number' && (
@@ -749,6 +892,7 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
         · ▲/▼ arrows mark where a close price crossed a channel boundary
         · drag the chart to pan, scroll over the price axis to zoom vertically, double-click it to reset
         · ⛶ for full screen, Esc to exit
+        {hierarchyAvailable && " · Hierarchy Up/Down tints the selection's parents/children violet, fading with distance"}
       </div>
     </div>
   );

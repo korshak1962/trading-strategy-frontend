@@ -90,3 +90,53 @@
   border-radius: 6px;
   margin-bottom: 12px;
 }
+
+/* Hierarchy highlight control — sits in the same top-left overlay row as the fullscreen
+   button (see that rule's comment for why the left corner, not the right: the right edge is
+   the price scale's auto-sizing label column). Offset by the button's 28px width + gaps. */
+.ch-hierarchy-toggle {
+  position: absolute;
+  top: 8px;
+  left: 44px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+  padding: 0 4px;
+  background: rgba(19, 23, 34, 0.85);
+  border: 1px solid #2a2e39;
+  border-radius: 4px;
+}
+
+.ch-hierarchy-label {
+  color: #787b86;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0 4px;
+  user-select: none;
+}
+
+.ch-hierarchy-btn {
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: #d1d4dc;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  padding: 5px 8px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.ch-hierarchy-btn:hover {
+  background: #1e2230;
+}
+
+/* Tinted with the same violet the highlighting itself paints, so the active segment states
+   which colour it is about to apply rather than using a generic accent. */
+.ch-hierarchy-btn--active {
+  background: rgba(179, 136, 255, 0.18);
+  color: #b388ff;
+}
