@@ -125,6 +125,19 @@
   border-radius: 4px;
 }
 
+/* The backend's own reason text for a clicked signal (plus a note when the channel that produced
+   it ends well before the signal itself) - see ReporterStyleChart's getSignalReasonText. Neutral
+   info styling, not a warning: this shows for every selection, not just unusual ones. */
+.signal-reason-note {
+  font-size: 0.8rem;
+  color: #1e3a5f;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
 /* Animation for tooltip */
 @keyframes fadeIn {
   from { opacity: 0; }

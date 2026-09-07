@@ -1,0 +1,35 @@
+/* Chart fullscreen mode - styles for the ref target in App.jsx that wraps the chart-view tabs
+   + whichever chart tab is active. Kept in its own file (not App.css, which nothing in this
+   project actually imports) so this feature doesn't risk reactivating App.css's other,
+   currently-dormant rules (.btn, .card, .form-control, etc.) that several other components'
+   classNames already coincidentally match. */
+
+.chart-fullscreen-active {
+  /* A fullscreened element with no background lets the browser's default black ::backdrop
+     show through wherever nothing else opaque covers it. */
+  background-color: #ffffff;
+}
+
+.chart-fullscreen-active:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  padding: 1rem;
+  box-sizing: border-box;
+  overflow: auto;
+}
+
+.fullscreen-toggle-btn {
+  margin-left: 0.75rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  background-color: white;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+.fullscreen-toggle-btn:hover {
+  background-color: #f3f4f6;
+}

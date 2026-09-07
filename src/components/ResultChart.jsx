@@ -1,6 +1,7 @@
 // src/components/ResultChart.jsx
 import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
+import './ResultChart.css';
 
 const ResultChart = ({ data }) => {
   const [chartData, setChartData] = useState([]);
@@ -66,10 +67,11 @@ const ResultChart = ({ data }) => {
         : (signal.type === 'ShortOpen' ? 'blue' : 'orange');
         
       return (
-        <ReferenceLine 
-          key={`signal-${idx}`}
-          x={entry.date} 
-          stroke={color} 
+        <ReferenceLine
+          key={`signal-${entry.date}-${idx}`}
+          yAxisId="price"
+          x={entry.date}
+          stroke={color}
           strokeDasharray="3 3"
           label={{
             value: signal.type,
@@ -83,13 +85,13 @@ const ResultChart = ({ data }) => {
   };
 
   return (
-    <div className="h-96">
-      <div className="mb-4">
-        <label className="mr-2">Indicator:</label>
+    <div className="chart-container">
+      <div className="chart-controls">
+        <label className="chart-label">Indicator:</label>
         <select
           value={selectedIndicator}
           onChange={(e) => setSelectedIndicator(e.target.value)}
-          className="p-1 border rounded"
+          className="chart-select"
         >
           <option value="">None</option>
           {availableIndicators.map(indicator => (

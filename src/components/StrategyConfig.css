@@ -9,15 +9,19 @@
     border: 1px solid #d1d5db;
     border-radius: 0.25rem;
     background-color: white;
-    overflow: hidden;
+    /* No overflow:hidden here (used to clip the header's square corners to the panel's
+       rounded ones) - it would also clip the floating param tooltips below. The header
+       gets its own top corner radius instead so the rounded look is unaffected. */
   }
-  
+
   .strategy-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 0.75rem;
     background-color: #f3f4f6;
+    border-top-left-radius: 0.25rem;
+    border-top-right-radius: 0.25rem;
     cursor: pointer;
   }
   
@@ -63,6 +67,78 @@
 
   .param-label {
     font-size: 0.875rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  /* Floating parameter tooltips: an "i" icon that reveals a description box on hover/focus. */
+  .param-tooltip-anchor {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .param-info-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background-color: #e5e7eb;
+    color: #4b5563;
+    font-size: 0.65rem;
+    font-style: italic;
+    font-weight: 700;
+    line-height: 1;
+    cursor: help;
+    user-select: none;
+  }
+
+  .param-info-icon:hover,
+  .param-info-icon:focus {
+    background-color: #6366f1;
+    color: white;
+    outline: none;
+  }
+
+  .param-tooltip {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    width: max-content;
+    max-width: 260px;
+    padding: 0.5rem 0.6rem;
+    background-color: #1f2937;
+    color: #f9fafb;
+    font-size: 0.7rem;
+    font-weight: 400;
+    line-height: 1.4;
+    text-align: left;
+    border-radius: 0.35rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+    pointer-events: none;
+  }
+
+  .param-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-bottom-color: #1f2937;
+  }
+
+  .param-info-icon:hover + .param-tooltip,
+  .param-info-icon:focus + .param-tooltip {
+    visibility: visible;
+    opacity: 1;
   }
 
   .param-input {
@@ -100,6 +176,9 @@
     font-weight: 600;
     color: #374151;
     margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
   }
 
   .param-optimize-fields {
@@ -120,6 +199,14 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .param-optimize-field-label .param-tooltip {
+    text-transform: none;
+    letter-spacing: normal;
   }
 
   .param-optimize-input {

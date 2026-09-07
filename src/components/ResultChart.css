@@ -1,6 +1,8 @@
 /* ResultChart styles */
 .chart-container {
-    height: 24rem;
+    /* Fills whatever height the wrapping div (App.jsx) gives it - 24rem normally, and a larger
+       computed height in fullscreen mode. */
+    height: 100%;
   }
   
   .chart-controls {

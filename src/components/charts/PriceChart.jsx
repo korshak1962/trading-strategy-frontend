@@ -1,6 +1,6 @@
 // src/components/charts/PriceChart.jsx
 import { useEffect, useRef } from 'react';
-import { 
+import {
   findMinMaxPriceRange,
   drawNoDataMessage,
   drawGrid,
@@ -18,9 +18,12 @@ import {
  * @param {number} props.width - Chart width
  * @param {number} props.height - Chart height
  * @param {Object} props.dateRange - Date range [startDate, endDate]
+ * @param {number|null} [props.highlightTradeIndex] - When set, that trade's channels/signals are
+ *   emphasized and everything else is dimmed (see ReporterStyleChart's click-to-select).
+ * @param {Map} [props.signalTradeIndex] - signalKey -> tradeIndex, from deriveSignalTradeIndex.
  * @returns {JSX.Element}
  */
-const PriceChart = ({ data, width, height, dateRange }) => {
+const PriceChart = ({ data, width, height, dateRange, highlightTradeIndex = null, signalTradeIndex = null }) => {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -125,7 +128,7 @@ const PriceChart = ({ data, width, height, dateRange }) => {
     drawPriceCandlesticks(ctx, prices, chartDateRange, minMaxPrice, width, height, candleWidth);
 
     // Draw channel lines (if any) behind signal markers, in front of candlesticks
-    drawChannels(ctx, channels, chartDateRange, minMaxPrice, width, height);
+    drawChannels(ctx, channels, chartDateRange, minMaxPrice, width, height, highlightTradeIndex);
 
     // Draw signals that are within the date range
     if (signals.length > 0) {
@@ -133,9 +136,12 @@ const PriceChart = ({ data, width, height, dateRange }) => {
         const signalDate = new Date(signal.date);
         return signalDate >= chartDateRange[0] && signalDate <= chartDateRange[1];
       });
-      
+
       if (visibleSignals.length > 0) {
-        drawSignals(ctx, visibleSignals, chartDateRange, minMaxPrice, width, height);
+        drawSignals(
+          ctx, visibleSignals, chartDateRange, minMaxPrice, width, height,
+          highlightTradeIndex, signalTradeIndex
+        );
       }
     }
     
@@ -146,7 +152,7 @@ const PriceChart = ({ data, width, height, dateRange }) => {
         ctx.clearRect(0, 0, width, height);
       }
     };
-  }, [data, width, height, dateRange]);
+  }, [data, width, height, dateRange, highlightTradeIndex, signalTradeIndex]);
 
   return (
     <div className="chart-wrapper">

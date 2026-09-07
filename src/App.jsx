@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useFullscreen } from './hooks/useFullscreen';
+import { useElementSize } from './hooks/useElementSize';
+import './ChartFullscreen.css';
 import Header from './components/Header';
 import StrategySelector from './components/StrategySelector';
 import StrategyConfig from './components/StrategyConfig';
@@ -42,6 +45,17 @@ const App = () => {
   const [error, setError] = useState(null);
 
   const [chartView, setChartView] = useState('enhanced'); // 'enhanced' | 'reporter' | 'simple'
+
+  // Fullscreen mode: fullscreens whichever chart tab is currently active, rather than each
+  // of the 3 chart components implementing its own fullscreen handling separately.
+  // A callback-ref (state), not useRef: this element only mounts once `results` is set, and a
+  // plain ref's effects wouldn't re-run to notice that later mount.
+  const [chartAreaNode, setChartAreaNode] = useState(null);
+  const { isFullscreen, toggleFullscreen } = useFullscreen(chartAreaNode);
+  const chartAreaSize = useElementSize(chartAreaNode);
+  // 90px reserved for the tab/toggle row above the chart itself.
+  const fullscreenChartHeight = Math.max(400, chartAreaSize.height - 90);
+  const fullscreenChartWidth = Math.max(600, chartAreaSize.width - 20);
 
   // Fetch available strategies on component mount
   useEffect(() => {
@@ -247,50 +261,67 @@ const App = () => {
                 </h2>
                 
                 {/* Chart View Toggle */}
+                <div ref={setChartAreaNode} className={isFullscreen ? 'chart-fullscreen-active' : ''}>
                 <div className="flex mb-4 border-b">
-                  <button 
+                  <button
                     className={`py-2 px-4 font-medium border-b-2 ${
-                      chartView === 'enhanced' 
-                        ? 'border-blue-500 text-blue-600' 
+                      chartView === 'enhanced'
+                        ? 'border-blue-500 text-blue-600'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
                     onClick={() => setChartView('enhanced')}
                   >
                     Enhanced Chart
                   </button>
-                  <button 
+                  <button
                     className={`py-2 px-4 font-medium border-b-2 ${
-                      chartView === 'reporter' 
-                        ? 'border-blue-500 text-blue-600' 
+                      chartView === 'reporter'
+                        ? 'border-blue-500 text-blue-600'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
                     onClick={() => setChartView('reporter')}
                   >
                     Reporter-Style Chart
                   </button>
-                  <button 
+                  <button
                     className={`py-2 px-4 font-medium border-b-2 ${
-                      chartView === 'simple' 
-                        ? 'border-blue-500 text-blue-600' 
+                      chartView === 'simple'
+                        ? 'border-blue-500 text-blue-600'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
                     onClick={() => setChartView('simple')}
                   >
                     Simple Chart
                   </button>
+                  <button
+                    type="button"
+                    className="fullscreen-toggle-btn"
+                    onClick={toggleFullscreen}
+                    title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                  >
+                    {isFullscreen ? '⤢ Exit Fullscreen' : '⛶ Fullscreen'}
+                  </button>
                 </div>
-                
+
                 {/* Chart */}
                 <div className="mb-6">
                   {chartView === 'enhanced' ? (
-                    <EnhancedResultChart data={results.chartDataDTO} />
+                    <EnhancedResultChart
+                      data={results.chartDataDTO}
+                      height={isFullscreen ? fullscreenChartHeight : 400}
+                    />
                   ) : chartView === 'reporter' ? (
-                    <ReporterStyleChart data={results.chartDataDTO} />
+                    <ReporterStyleChart
+                      data={results.chartDataDTO}
+                      width={isFullscreen ? fullscreenChartWidth : 1200}
+                      height={isFullscreen ? fullscreenChartHeight : 600}
+                    />
                   ) : (
-                    <div style={{ height: '400px' }}>
+                    <div style={{ height: isFullscreen ? `${fullscreenChartHeight}px` : '400px' }}>
                       <ResultChart data={results.chartDataDTO} />
                     </div>
                   )}
+                </div>
                 </div>
                 
                 {/* Results Summary */}
