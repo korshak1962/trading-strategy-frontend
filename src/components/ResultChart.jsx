@@ -2,14 +2,55 @@
 import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 import './ResultChart.css';
+import { buildDateLookup } from '../utils/indicatorSeries';
 
-const ResultChart = ({ data }) => {
+// Tooltip listing OHLC plus only the currently visible indicator series (with their colours).
+const SimpleTooltip = ({ active, payload, label, visibleSeries = [] }) => {
+  if (!active || !payload || !payload.length) return null;
+  const row = payload[0].payload;
+  return (
+    <div className="simple-tooltip">
+      <p className="simple-tooltip__date">Date: {label}</p>
+      <p><span>Close Price:</span> <span>{Number(row.close).toFixed(2)}</span></p>
+      {visibleSeries
+        .filter(series => typeof row[series.id] === 'number')
+        .map(series => (
+          <p key={series.id}>
+            <span className="simple-tooltip__name">
+              <span className="simple-tooltip__swatch" style={{ backgroundColor: series.color }} />
+              {series.name}:
+            </span>
+            <span>{Number(row[series.id]).toFixed(2)}</span>
+          </p>
+        ))}
+    </div>
+  );
+};
+
+/**
+ * Simple line chart of close price + signal markers + indicator lines.
+ * @param {Object} props
+ * @param {Object} props.data - chartDataDTO
+ * @param {Array<{id, name, kind, color}>} [props.visibleSeries] - series to draw (already
+ *   filtered by the shared IndicatorPicker). `kind === 'price'` draws on the price axis,
+ *   `kind === 'sub'` on the right-hand axis.
+ */
+const ResultChart = ({ data, visibleSeries = [] }) => {
   const [chartData, setChartData] = useState([]);
-  const [selectedIndicator, setSelectedIndicator] = useState('');
-  const [availableIndicators, setAvailableIndicators] = useState([]);
 
   useEffect(() => {
     if (!data) return;
+
+    // One raw-date-string lookup per series of both maps, keyed by series id.
+    const seriesLookups = [];
+    const priceIndicators = data.priceIndicators || {};
+    const subIndicators = data.indicators || {};
+    Object.keys(priceIndicators).forEach(name => {
+      seriesLookups.push({ id: `price:${name}`, lookup: buildDateLookup(priceIndicators[name]) });
+    });
+    Object.keys(subIndicators).forEach(name => {
+      seriesLookups.push({ id: `sub:${name}`, lookup: buildDateLookup(subIndicators[name]) });
+    });
 
     // Process data for the chart
     const processed = data.prices.map((price) => {
@@ -18,18 +59,13 @@ const ResultChart = ({ data }) => {
         signal => signal.date === price.date
       );
 
-      // Find indicator values for this date
       const indicatorValues = {};
-      if (data.indicators) {
-        Object.entries(data.indicators).forEach(([indicatorName, indicatorData]) => {
-          const matchingIndicator = indicatorData.find(
-            indicator => indicator.date === price.date
-          );
-          if (matchingIndicator) {
-            indicatorValues[indicatorName] = matchingIndicator.value;
-          }
-        });
-      }
+      seriesLookups.forEach(({ id, lookup }) => {
+        const value = lookup.get(price.date);
+        if (typeof value === 'number' && !Number.isNaN(value)) {
+          indicatorValues[id] = value;
+        }
+      });
 
       return {
         date: new Date(price.date).toLocaleDateString(),
@@ -48,24 +84,16 @@ const ResultChart = ({ data }) => {
     });
 
     setChartData(processed);
-
-    // Extract available indicators
-    if (data.indicators) {
-      setAvailableIndicators(Object.keys(data.indicators));
-      if (Object.keys(data.indicators).length > 0) {
-        setSelectedIndicator(Object.keys(data.indicators)[0]);
-      }
-    }
   }, [data]);
 
   const getSignalMarker = (entry) => {
     if (!entry.signals || entry.signals.length === 0) return null;
 
     return entry.signals.map((signal, idx) => {
-      const color = signal.type.includes('Long') 
+      const color = signal.type.includes('Long')
         ? (signal.type === 'LongOpen' ? 'green' : 'red')
         : (signal.type === 'ShortOpen' ? 'blue' : 'orange');
-        
+
       return (
         <ReferenceLine
           key={`signal-${entry.date}-${idx}`}
@@ -84,92 +112,78 @@ const ResultChart = ({ data }) => {
     });
   };
 
+  const subSeries = visibleSeries.filter(series => series.kind === 'sub');
+  const hasSubSeries = subSeries.length > 0;
+
   return (
     <div className="chart-container">
-      <div className="chart-controls">
-        <label className="chart-label">Indicator:</label>
-        <select
-          value={selectedIndicator}
-          onChange={(e) => setSelectedIndicator(e.target.value)}
-          className="chart-select"
-        >
-          <option value="">None</option>
-          {availableIndicators.map(indicator => (
-            <option key={indicator} value={indicator}>
-              {indicator}
-            </option>
-          ))}
-        </select>
-      </div>
-
       <ResponsiveContainer width="100%" height="100%">
         <LineChart
           data={chartData}
           margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
         >
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis 
-            dataKey="date" 
+          <XAxis
+            dataKey="date"
             tick={{ fontSize: 10 }}
             interval="preserveStartEnd"
           />
-          <YAxis 
+          <YAxis
             yAxisId="price"
             domain={['auto', 'auto']}
             tick={{ fontSize: 10 }}
-            label={{ 
-              value: 'Price', 
-              angle: -90, 
+            label={{
+              value: 'Price',
+              angle: -90,
               position: 'insideLeft',
               style: { textAnchor: 'middle' },
               fontSize: 12
             }}
           />
-          
-          {selectedIndicator && (
-            <YAxis 
+
+          {hasSubSeries && (
+            <YAxis
               yAxisId="indicator"
               orientation="right"
               domain={['auto', 'auto']}
               tick={{ fontSize: 10 }}
-              label={{ 
-                value: selectedIndicator, 
-                angle: 90, 
+              label={{
+                value: subSeries.map(series => series.name).join(', '),
+                angle: 90,
                 position: 'insideRight',
                 style: { textAnchor: 'middle' },
                 fontSize: 12
               }}
             />
           )}
-          
-          <Tooltip 
-            formatter={(value, name) => {
-              return [Number(value).toFixed(2), name];
-            }}
-            labelFormatter={(label) => `Date: ${label}`}
-          />
+
+          <Tooltip content={<SimpleTooltip visibleSeries={visibleSeries} />} />
           <Legend />
-          
-          <Line 
-            type="monotone" 
-            dataKey="close" 
-            stroke="#1E40AF" 
+
+          <Line
+            type="monotone"
+            dataKey="close"
+            stroke="#1E40AF"
             dot={false}
             yAxisId="price"
             name="Close Price"
           />
-          
-          {selectedIndicator && (
-            <Line 
-              type="monotone" 
-              dataKey={selectedIndicator} 
-              stroke="#10B981" 
+
+          {visibleSeries.map(series => (
+            <Line
+              key={series.id}
+              type="monotone"
+              dataKey={series.id}
+              stroke={series.color}
+              strokeWidth={1.5}
               dot={false}
-              yAxisId="indicator"
-              name={selectedIndicator}
+              connectNulls
+              yAxisId={series.kind === 'price' ? 'price' : 'indicator'}
+              name={series.name}
+              isAnimationActive={false}
             />
-          )}
-          
+          ))}
+
           {chartData.map(entry => getSignalMarker(entry))}
         </LineChart>
       </ResponsiveContainer>

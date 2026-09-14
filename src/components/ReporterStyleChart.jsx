@@ -7,17 +7,25 @@ import IndicatorChart from './charts/IndicatorChart';
 import ChartTooltip from './charts/ChartTooltip';
 import Crosshair from './charts/Crosshair';
 import { findMinMaxPriceRange, deriveSignalTradeIndex, signalKey } from '../utils/ChartDrawingUtils';
+import { pointsForSeries } from '../utils/indicatorSeries';
 
 /**
  * ReporterStyleChart component - Main container for financial charts with synchronized zoom
  * @param {Object} props - Component props
- * @param {Object} props.data - Chart data including prices, signals, indicators
+ * @param {Object} props.data - Chart data including prices, signals, indicators, priceIndicators
  * @param {number} props.width - Chart width
  * @param {number} props.height - Chart height
+ * @param {Array<{id, name, kind, color}>} [props.visibleSeries] - indicator series to draw, from
+ *   the shared IndicatorPicker. 'price' kind overlays the candles, 'sub' kind goes to the
+ *   indicator pane (rendered only while at least one sub series is visible).
  * @returns {JSX.Element}
  */
-const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
+const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = [] }) => {
   const containerRef = useRef(null);
+
+  // Split once per selection change - PriceChart / IndicatorChart key their draw effects on these.
+  const priceSeries = useMemo(() => visibleSeries.filter(series => series.kind === 'price'), [visibleSeries]);
+  const subSeries = useMemo(() => visibleSeries.filter(series => series.kind === 'sub'), [visibleSeries]);
   
   // State for crosshair position
   const [crosshairPosition, setCrosshairPosition] = useState({ x: 0, y: 0 });
@@ -122,18 +130,17 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
         );
       }
       
-      // Find indicator values for this date
-      const indicatorValues = {};
-      if (data && data.indicators) {
-        Object.entries(data.indicators).forEach(([name, values]) => {
-          const matchingIndicator = values.find(ind => 
-            new Date(ind.date).toISOString() === closestPrice.date.toISOString()
-          );
-          if (matchingIndicator) {
-            indicatorValues[name] = matchingIndicator.value;
-          }
-        });
-      }
+      // Indicator values at this bar - only the visible series, in picker order, with colour
+      const closestIso = closestPrice.date.toISOString();
+      const indicatorValues = [];
+      visibleSeries.forEach(series => {
+        const matchingIndicator = pointsForSeries(data, series).find(ind =>
+          new Date(ind.date).toISOString() === closestIso
+        );
+        if (matchingIndicator && typeof matchingIndicator.value === 'number' && !Number.isNaN(matchingIndicator.value)) {
+          indicatorValues.push({ name: series.name, value: matchingIndicator.value, color: series.color });
+        }
+      });
       
       setTooltipData({
         price: closestPrice,
@@ -142,7 +149,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
         position: { x: mouseX, y: mouseY }
       });
     }
-  }, [data, dateRange]);
+  }, [data, dateRange, visibleSeries]);
 
   // A signal marker is only ~7px (its drawn triangle half-size); nobody clicks that precisely by
   // eye, so the hit target needs to be considerably more forgiving than the marker itself.
@@ -359,7 +366,6 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
     // Calculate current date at mouse position
     const totalTime = currentDateRange[1].getTime() - currentDateRange[0].getTime();
     const pivotTime = currentDateRange[0].getTime() + mouseRatio * totalTime;
-    const pivotDate = new Date(pivotTime);
     
     // Determine zoom direction and factor
     // Normalize wheel delta across browsers
@@ -377,10 +383,6 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
     const pivotRatio = (pivotTime - currentDateRange[0].getTime()) / totalTime;
     const newStartTime = pivotTime - (pivotRatio * newTimespan);
     const newEndTime = newStartTime + newTimespan;
-    
-    // Create new date objects
-    const newStartDate = new Date(newStartTime);
-    const newEndDate = new Date(newEndTime);
     
     // Apply bounds checking against original date range
     const originalRange = originalDateRange || chartData.current.dateRange;
@@ -550,6 +552,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
           dateRange={dateRange}
           highlightTradeIndex={selectedTradeIndex}
           signalTradeIndex={signalTradeIndexMap}
+          priceSeries={priceSeries}
         />
         <Crosshair 
           show={showCrosshair} 
@@ -576,21 +579,27 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600 }) => {
         />
       </div>
       
-      <h3 className="chart-title">Indicator Chart</h3>
-      <div className="chart-wrapper position-relative">
-        <IndicatorChart 
-          data={data} 
-          width={getChartWidth()} 
-          height={indicatorChartHeight} 
-          dateRange={dateRange}
-        />
-        <Crosshair 
-          show={showCrosshair} 
-          position={crosshairPosition} 
-          horizontal={false} 
-          vertical={true}
-        />
-      </div>
+      {/* Sub-pane indicators - only while some sub series is selected in the picker */}
+      {subSeries.length > 0 && (
+        <>
+          <h3 className="chart-title">Indicator Chart</h3>
+          <div className="chart-wrapper position-relative">
+            <IndicatorChart 
+              data={data} 
+              width={getChartWidth()} 
+              height={indicatorChartHeight} 
+              dateRange={dateRange}
+              subSeries={subSeries}
+            />
+            <Crosshair 
+              show={showCrosshair} 
+              position={crosshairPosition} 
+              horizontal={false} 
+              vertical={true}
+            />
+          </div>
+        </>
+      )}
       
       {/* Render tooltip if data available */}
       <ChartTooltip tooltipData={tooltipData} />

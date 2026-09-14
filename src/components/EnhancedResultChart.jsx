@@ -1,5 +1,5 @@
 // src/components/EnhancedResultChart.jsx
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import {
   LineChart,
   Line,
@@ -18,13 +18,15 @@ import {
   Brush
 } from 'recharts';
 import './EnhancedResultChart.css';
+import { buildDateLookup } from '../utils/indicatorSeries';
 
-// Custom tooltip for price chart
-const CustomTooltip = ({ active, payload, label }) => {
+// Custom tooltip for price chart. Lists only the currently visible indicator series (by id),
+// never the "any numeric key on the row" heuristic - rows carry every series the DTO exposes.
+const CustomTooltip = ({ active, payload, label, visibleSeries = [] }) => {
   if (!active || !payload || !payload.length) return null;
-  
+
   const data = payload[0].payload;
-  
+
   return (
     <div className="custom-tooltip">
       <p className="tooltip-date">{label}</p>
@@ -53,20 +55,17 @@ const CustomTooltip = ({ active, payload, label }) => {
         </div>
       )}
       
-      {Object.entries(data).filter(([key, value]) => 
-        key !== 'date' && 
-        key !== 'open' && 
-        key !== 'high' && 
-        key !== 'low' && 
-        key !== 'close' && 
-        key !== 'volume' && 
-        key !== 'signals' &&
-        typeof value === 'number'
-      ).map(([key, value]) => (
-        <p key={key} className="tooltip-indicator">
-          {key}: <span>{Number(value).toFixed(2)}</span>
-        </p>
-      ))}
+      {visibleSeries
+        .filter(series => typeof data[series.id] === 'number')
+        .map(series => (
+          <p key={series.id} className="tooltip-indicator">
+            <span className="tooltip-indicator-name">
+              <span className="tooltip-swatch" style={{ backgroundColor: series.color }} />
+              {series.name}:
+            </span>
+            <span>{Number(data[series.id]).toFixed(2)}</span>
+          </p>
+        ))}
     </div>
   );
 };
@@ -117,8 +116,35 @@ const TradeTooltip = ({ active, payload }) => {
   return null;
 };
 
+const signalColor = (type) => {
+  if (type === 'LongOpen') return 'green';
+  if (type === 'LongClose') return 'red';
+  if (type === 'ShortOpen') return 'blue';
+  if (type === 'ShortClose') return 'orange';
+  return 'gray';
+};
+
 // Enhanced PnL Chart with synchronized timelines and trade rectangles
-const SynchronizedPnLChart = ({ data, trades, height, syncId }) => {
+// memo + useMemo matter here: the parent re-renders on every Brush drag event (controlled
+// brush), and if this chart received a freshly-built `data` array each time, recharts'
+// getDerivedStateFromProps would treat it as new data and reset the synced zoom range.
+const SynchronizedPnLChart = memo(({ data, trades, height, syncId }) => {
+  // Prepare chart data with cumulative profit information (single pass, O(n + trades))
+  const chartData = useMemo(() => {
+    if (!data || !trades) return [];
+    const profitAtIndex = new Array(data.length).fill(0);
+    trades.forEach(trade => {
+      if (trade.closeIndex >= 0 && trade.closeIndex < data.length) {
+        profitAtIndex[trade.closeIndex] += trade.profit;
+      }
+    });
+    let running = 0;
+    return data.map((point, index) => {
+      running += profitAtIndex[index];
+      return { ...point, cumulativeProfit: running };
+    });
+  }, [data, trades]);
+
   if (!data || !trades || trades.length === 0) {
     return (
       <div className="no-data-message">
@@ -126,25 +152,6 @@ const SynchronizedPnLChart = ({ data, trades, height, syncId }) => {
       </div>
     );
   }
-  
-  // Prepare chart data with cumulative profit information
-  const chartData = data.map((point, index) => {
-    // Calculate cumulative profit based on completed trades
-    const completedTrades = trades.filter(trade => 
-      trade.closeIndex <= index
-    );
-    
-    const cumulativeProfit = completedTrades.reduce(
-      (sum, trade) => sum + trade.profit, 
-      0
-    );
-    
-    // Map trades that are active at this point for rendering
-    return {
-      ...point,
-      cumulativeProfit
-    };
-  });
 
   // Find min/max PnL for proper scaling
   const maxProfit = Math.max(...trades.map(t => Math.abs(t.profit)), 1);
@@ -249,14 +256,16 @@ const SynchronizedPnLChart = ({ data, trades, height, syncId }) => {
       </ComposedChart>
     </ResponsiveContainer>
   );
-};
+});
+SynchronizedPnLChart.displayName = 'SynchronizedPnLChart';
 
-const EnhancedResultChart = ({ data, height = 400 }) => {
+const EnhancedResultChart = ({ data, height = 400, visibleSeries = [] }) => {
   const [chartData, setChartData] = useState([]);
-  const [selectedIndicators, setSelectedIndicators] = useState([]);
-  const [availableIndicators, setAvailableIndicators] = useState([]);
   const [showPnLChart, setShowPnLChart] = useState(true);
   const [trades, setTrades] = useState([]);
+  // Controlled Brush window. Owned here so that parent re-renders can never reset the zoom;
+  // it is only re-initialised when the `data` prop identity changes (new backtest result).
+  const [brushRange, setBrushRange] = useState({ startIndex: 0, endIndex: 0 });
   const chartHeight = height; 
   const pnlHeight = 200;
   const syncId = "trading-charts-sync";
@@ -270,27 +279,38 @@ const EnhancedResultChart = ({ data, height = 400 }) => {
       return new Date(dateStr).toISOString().split('T')[0];
     };
 
+    // One lookup (raw date string -> value) per series of BOTH maps, keyed by series id
+    // ('price:<name>' / 'sub:<name>'). Built here, in the data effect, so that toggling series
+    // later never rebuilds rows (which would reset the controlled Brush).
+    // Raw-string alignment is exact on every timeframe (HOUR/MIN5 included), unlike the
+    // day-only key used for the row's own `date`.
+    const seriesLookups = [];
+    const priceIndicators = data.priceIndicators || {};
+    const subIndicators = data.indicators || {};
+    Object.keys(priceIndicators).forEach(name => {
+      seriesLookups.push({ id: `price:${name}`, lookup: buildDateLookup(priceIndicators[name]) });
+    });
+    Object.keys(subIndicators).forEach(name => {
+      seriesLookups.push({ id: `sub:${name}`, lookup: buildDateLookup(subIndicators[name]) });
+    });
+
     // Process data for the chart with standardized dates
     const processed = data.prices.map((price, index) => {
       const priceDate = standardizeDateFormat(price.date);
-      
+
       // Find signals that occurred on this price's date
-      const matchingSignals = data.signals.filter(signal => 
+      const matchingSignals = data.signals.filter(signal =>
         standardizeDateFormat(signal.date) === priceDate
       );
 
-      // Find indicator values for this date
+      // Indicator values for this bar, under the series id keys (no collision with open/close/...)
       const indicatorValues = {};
-      if (data.indicators) {
-        Object.entries(data.indicators).forEach(([indicatorName, indicatorData]) => {
-          const matchingIndicator = indicatorData.find(indicator => 
-            standardizeDateFormat(indicator.date) === priceDate
-          );
-          if (matchingIndicator) {
-            indicatorValues[indicatorName] = matchingIndicator.value;
-          }
-        });
-      }
+      seriesLookups.forEach(({ id, lookup }) => {
+        const value = lookup.get(price.date);
+        if (typeof value === 'number' && !Number.isNaN(value)) {
+          indicatorValues[id] = value;
+        }
+      });
 
       // Use same date format throughout for synchronization
       return {
@@ -313,20 +333,11 @@ const EnhancedResultChart = ({ data, height = 400 }) => {
     });
 
     setChartData(processed);
+    setBrushRange({ startIndex: 0, endIndex: Math.max(0, processed.length - 1) });
 
     // Extract trades from signals with proper date handling
     const extractedTrades = extractTradesFromSignals(processed, data.signals);
     setTrades(extractedTrades);
-
-    // Extract available indicators
-    if (data.indicators) {
-      const indicators = Object.keys(data.indicators);
-      setAvailableIndicators(indicators);
-      if (indicators.length > 0) {
-        // Initially select the first indicator
-        setSelectedIndicators([indicators[0]]);
-      }
-    }
   }, [data]);
 
   // Function to extract trades from signals with improved date handling
@@ -419,75 +430,39 @@ const EnhancedResultChart = ({ data, height = 400 }) => {
     return extractedTrades;
   };
 
-  const toggleIndicator = (indicator) => {
-    if (selectedIndicators.includes(indicator)) {
-      setSelectedIndicators(selectedIndicators.filter(i => i !== indicator));
-    } else {
-      setSelectedIndicators([...selectedIndicators, indicator]);
+// Only build ReferenceDots for signals inside the current brush window — dots outside the
+  // visible category domain render nothing anyway, so skipping them keeps brush drags cheap.
+  const visibleSignalDots = useMemo(() => {
+    const start = Math.max(0, brushRange.startIndex);
+    const end = Math.min(chartData.length - 1, brushRange.endIndex);
+    const dots = [];
+    for (let i = start; i <= end; i++) {
+      const entry = chartData[i];
+      if (!entry || !entry.signals || entry.signals.length === 0) continue;
+      entry.signals.forEach((signal, j) => {
+        dots.push(
+          <ReferenceDot
+            key={`sig-${i}-${j}`}
+            x={entry.date}
+            y={entry.close}
+            yAxisId="price"
+            r={6}
+            fill={signalColor(signal.type)}
+            stroke="white"
+            strokeWidth={2}
+          />
+        );
+      });
     }
-  };
+    return dots;
+  }, [chartData, brushRange]);
 
-  const signalColor = (type) => {
-    if (type === 'LongOpen') return 'green';
-    if (type === 'LongClose') return 'red';
-    if (type === 'ShortOpen') return 'blue';
-    if (type === 'ShortClose') return 'orange';
-    return 'gray';
-  };
-
-  const getSignalMarker = (entry, dataIndex) => {
-    if (!entry.signals || entry.signals.length === 0) return null;
-
-    return entry.signals.map((signal, idx) => {
-      let color = 'gray';
-      
-      if (signal.type === 'LongOpen') {
-        color = 'green';
-      } else if (signal.type === 'LongClose') {
-        color = 'red';
-      } else if (signal.type === 'ShortOpen') {
-        color = 'blue';
-      } else if (signal.type === 'ShortClose') {
-        color = 'orange';
-      }
-      
-      return (
-        <ReferenceLine 
-          key={`signal-${dataIndex}-${idx}`}
-          x={entry.date} 
-          stroke={color}
-          yAxisId="price" 
-          strokeDasharray="3 3"
-        />
-      );
-    });
-  };
-  
-  const getChartColor = (indicator) => {
-    // Simple color algorithm based on the indicator name
-    const colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'];
-    const hash = indicator.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return colors[hash % colors.length];
-  };
+  // The right-hand axis only exists while some sub-pane series is drawn on it.
+  const hasVisibleSubSeries = visibleSeries.some(series => series.kind === 'sub');
 
   return (
     <div className="enhanced-chart-container">
       <div className="chart-controls">
-        <div className="indicator-toggles">
-          <label className="control-label">Indicators:</label>
-          <div className="indicator-buttons">
-            {availableIndicators.map(indicator => (
-              <button
-                key={indicator}
-                className={`indicator-button ${selectedIndicators.includes(indicator) ? 'active' : ''}`}
-                onClick={() => toggleIndicator(indicator)}
-              >
-                {indicator}
-              </button>
-            ))}
-          </div>
-        </div>
-        
         <div className="chart-options">
           <label className="control-label">Charts:</label>
           <div className="chart-option-buttons">
@@ -506,7 +481,6 @@ const EnhancedResultChart = ({ data, height = 400 }) => {
         {chartData.length === 0 ? null : (
         <ResponsiveContainer width="100%" height={chartHeight}>
           <ComposedChart
-            key={chartData.length}
             data={chartData}
             margin={{ top: 10, right: 30, left: 10, bottom: 5 }}
             syncId={syncId}
@@ -533,16 +507,16 @@ const EnhancedResultChart = ({ data, height = 400 }) => {
               }}
             />
             
-            {selectedIndicators.length > 0 && (
-              <YAxis 
+            {hasVisibleSubSeries && (
+              <YAxis
                 yAxisId="indicator"
                 orientation="right"
                 domain={['auto', 'auto']}
                 tick={{ fontSize: 10 }}
               />
             )}
-            
-            <Tooltip content={<CustomTooltip />} />
+
+            <Tooltip content={<CustomTooltip visibleSeries={visibleSeries} />} />
             <Legend />
             
             {/* Price Line */}
@@ -558,36 +532,23 @@ const EnhancedResultChart = ({ data, height = 400 }) => {
             />
 
             {/* Signal dots — ReferenceDot uses the chart's own xScale/yScale */}
-            {chartData.flatMap((entry, i) =>
-              (entry.signals || []).map((signal, j) => (
-                <ReferenceDot
-                  key={`sig-${i}-${j}`}
-                  x={entry.date}
-                  y={entry.close}
-                  yAxisId="price"
-                  r={6}
-                  fill={signalColor(signal.type)}
-                  stroke="white"
-                  strokeWidth={2}
-                />
-              ))
-            )}
+            {visibleSignalDots}
 
-            {/* Dynamic indicator lines */}
-            {selectedIndicators.map(indicator => (
+            {/* Indicator lines - price overlays on the price axis, sub series on the right axis */}
+            {visibleSeries.map(series => (
               <Line
-                key={indicator}
+                key={series.id}
                 type="monotone"
-                dataKey={indicator}
-                stroke={getChartColor(indicator)}
+                dataKey={series.id}
+                stroke={series.color}
+                strokeWidth={1.5}
                 dot={false}
-                yAxisId="indicator"
-                name={indicator}
+                connectNulls
+                yAxisId={series.kind === 'price' ? 'price' : 'indicator'}
+                name={series.name}
                 isAnimationActive={false}
               />
             ))}
-            
-            {chartData.map((entry, index) => getSignalMarker(entry, index))}
             
             {/* Synchronization brush */}
             <Brush 
@@ -597,6 +558,13 @@ const EnhancedResultChart = ({ data, height = 400 }) => {
               fill="#f5f5f5"
               travellerWidth={10}
               gap={5}
+              startIndex={brushRange.startIndex}
+              endIndex={brushRange.endIndex}
+              onChange={({ startIndex, endIndex }) => {
+                if (startIndex !== brushRange.startIndex || endIndex !== brushRange.endIndex) {
+                  setBrushRange({ startIndex, endIndex });
+                }
+              }}
             />
           </ComposedChart>
         </ResponsiveContainer>

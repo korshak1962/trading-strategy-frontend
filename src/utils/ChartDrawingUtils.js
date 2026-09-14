@@ -315,7 +315,7 @@ export const findMinMaxPriceRange = (prices) => {
     });
   };
   
-  export const drawIndicatorLine = (ctx, indicators, dateRange, minMax, width, height) => {
+  export const drawIndicatorLine = (ctx, indicators, dateRange, minMax, width, height, color = 'purple') => {
     // Guard against undefined or incomplete dateRange
     if (!dateRange || !dateRange[0] || !dateRange[1] || 
         !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) {
@@ -326,23 +326,110 @@ export const findMinMaxPriceRange = (prices) => {
     const { min, max } = minMax;
     const totalMs = endDate.getTime() - startDate.getTime();
     
-    ctx.strokeStyle = 'purple';
+    ctx.strokeStyle = color;
     ctx.lineWidth = 1;
     ctx.beginPath();
     
-    indicators.forEach((indicator, i) => {
+    // NaN / non-numeric values break the polyline rather than drawing a bogus segment.
+    let started = false;
+    indicators.forEach((indicator) => {
+      if (typeof indicator.value !== 'number' || Number.isNaN(indicator.value)) {
+        started = false;
+        return;
+      }
       const date = new Date(indicator.date);
       const x = ((date.getTime() - startDate.getTime()) / totalMs) * width;
       const y = height - ((indicator.value - min) / (max - min)) * height;
       
-      if (i === 0) {
+      if (!started) {
         ctx.moveTo(x, y);
+        started = true;
       } else {
         ctx.lineTo(x, y);
       }
     });
     
     ctx.stroke();
+  };
+
+  /**
+   * Draws price-axis indicator overlays (moving averages, bands, ...) on the price chart, using
+   * exactly the same x/y mapping as drawChannels / drawPriceCandlesticks so the lines sit on the
+   * candles they belong to.
+   *
+   * `minMax` is deliberately NOT widened by the overlays: the price axis stays candle-driven, so
+   * a series that leaves the candle range (e.g. a wide Bollinger band) clips at the canvas edge.
+   *
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {Object<string, Array<{date: string, value: number}>>} priceIndicators - the DTO map
+   * @param {Array<{name: string, color: string}>} series - the visible price-kind series
+   * @param {[Date, Date]} dateRange
+   * @param {{min: number, max: number}} minMax - the candle-derived price range
+   * @param {number} width
+   * @param {number} height
+   */
+  export const drawPriceOverlays = (ctx, priceIndicators, series, dateRange, minMax, width, height) => {
+    if (!priceIndicators || !series || series.length === 0) return;
+    // Guard against undefined or incomplete dateRange
+    if (!dateRange || !dateRange[0] || !dateRange[1] ||
+        !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) {
+      return; // Skip drawing if no valid date range
+    }
+
+    const [startDate, endDate] = dateRange;
+    const { min, max } = minMax;
+    const totalMs = endDate.getTime() - startDate.getTime();
+    if (totalMs <= 0 || max === min) return;
+    const startMs = startDate.getTime();
+    const endMs = endDate.getTime();
+
+    const toXY = (ms, value) => ({
+      x: ((ms - startMs) / totalMs) * width,
+      y: height - ((value - min) / (max - min)) * height,
+    });
+
+    series.forEach(entry => {
+      const points = priceIndicators[entry.name];
+      if (!points || points.length === 0) return;
+
+      // Keep the points inside dateRange plus one point of overhang on each side so the line
+      // runs to the canvas edges instead of stopping at the first/last visible bar.
+      let firstVisible = -1;
+      let lastVisible = -1;
+      const timestamps = points.map(point => new Date(point.date).getTime());
+      for (let i = 0; i < points.length; i++) {
+        const ms = timestamps[i];
+        if (ms >= startMs && ms <= endMs) {
+          if (firstVisible === -1) firstVisible = i;
+          lastVisible = i;
+        }
+      }
+      if (firstVisible === -1) return; // nothing of this series in view
+      const from = Math.max(0, firstVisible - 1);
+      const to = Math.min(points.length - 1, lastVisible + 1);
+
+      ctx.save();
+      ctx.strokeStyle = entry.color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      let started = false;
+      for (let i = from; i <= to; i++) {
+        const value = points[i].value;
+        if (typeof value !== 'number' || Number.isNaN(value) || Number.isNaN(timestamps[i])) {
+          started = false; // break the line across gaps
+          continue;
+        }
+        const { x, y } = toXY(timestamps[i], value);
+        if (!started) {
+          ctx.moveTo(x, y);
+          started = true;
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+      ctx.stroke();
+      ctx.restore();
+    });
   };
   
   // Identifies a signal for the {@link signalTradeIndex}/click-hit-testing maps - date+type+price

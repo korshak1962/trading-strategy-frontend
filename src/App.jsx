@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useFullscreen } from './hooks/useFullscreen';
 import { useElementSize } from './hooks/useElementSize';
+import { useIndicatorSelection } from './hooks/useIndicatorSelection';
 import './ChartFullscreen.css';
+import './ResultsTabs.css';
 import Header from './components/Header';
 import StrategySelector from './components/StrategySelector';
 import StrategyConfig from './components/StrategyConfig';
@@ -10,6 +12,7 @@ import EnhancedResultChart from './components/EnhancedResultChart';
 import ReporterStyleChart from './components/ReporterStyleChart';
 import ResultChart from './components/ResultChart';
 import StrategyResults from './components/StrategyResults';
+import IndicatorPicker from './components/IndicatorPicker';
 import TradesTable from './components/TradesTable';
 import PerformanceMetricsTable from './components/PerformanceMetricsTable';
 import TradeStatisticsTable from './components/TradeStatisticsTable';
@@ -33,7 +36,10 @@ const App = () => {
   // State for ticker and timeframe
   const [ticker, setTicker] = useState('SPY');
   const [timeFrame, setTimeFrame] = useState('DAY');
-  
+  // Long-only evaluation: backend skips the short leg entirely. Sent with both
+  // backtest and optimize requests via formatStrategyConfig.
+  const [longOnly, setLongOnly] = useState(false);
+
   // State for date range
   const [startDate, setStartDate] = useState(new Date(2023, 0, 1));
   const [endDate, setEndDate] = useState(new Date());
@@ -46,6 +52,17 @@ const App = () => {
 
   const [chartView, setChartView] = useState('enhanced'); // 'enhanced' | 'reporter' | 'simple'
 
+  // Unified indicator selection (master toggle + per-series checkboxes), shared by all three
+  // chart tabs and reset to "all on" whenever a new result arrives.
+  const {
+    seriesList: indicatorSeriesList,
+    showIndicators,
+    setShowIndicators,
+    selectedIds: selectedIndicatorIds,
+    toggleSeries: toggleIndicatorSeries,
+    visibleSeries: visibleIndicatorSeries,
+  } = useIndicatorSelection(results?.chartDataDTO);
+
   // Fullscreen mode: fullscreens whichever chart tab is currently active, rather than each
   // of the 3 chart components implementing its own fullscreen handling separately.
   // A callback-ref (state), not useRef: this element only mounts once `results` is set, and a
@@ -53,8 +70,10 @@ const App = () => {
   const [chartAreaNode, setChartAreaNode] = useState(null);
   const { isFullscreen, toggleFullscreen } = useFullscreen(chartAreaNode);
   const chartAreaSize = useElementSize(chartAreaNode);
-  // 90px reserved for the tab/toggle row above the chart itself.
-  const fullscreenChartHeight = Math.max(400, chartAreaSize.height - 90);
+  // 90px reserved for the tab/toggle row above the chart itself, plus the indicator picker row
+  // when it is shown (it sits inside the fullscreened element too).
+  const pickerReservedHeight = indicatorSeriesList.length > 0 ? 60 : 0;
+  const fullscreenChartHeight = Math.max(400, chartAreaSize.height - 90 - pickerReservedHeight);
   const fullscreenChartWidth = Math.max(600, chartAreaSize.width - 20);
 
   // Fetch available strategies on component mount
@@ -88,7 +107,7 @@ const App = () => {
     setError(null);
 
     try {
-      const config = formatStrategyConfig(ticker, timeFrame, startDate, endDate, selectedStrategies);
+      const config = formatStrategyConfig(ticker, timeFrame, startDate, endDate, selectedStrategies, longOnly);
       const result = mode === 'optimize'
         ? await optimizeStrategies(config)
         : await submitStrategies(config);
@@ -202,7 +221,21 @@ const App = () => {
                   <option value="MONTH">Month</option>
                 </select>
               </div>
-              
+
+              {/* Long only toggle */}
+              <div className="mb-6">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={longOnly}
+                    onChange={(e) => { setLongOnly(e.target.checked); setResults(null); }}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Long only
+                </label>
+                <p className="mt-1 text-xs text-gray-500">Ignore short signals; only the long leg is evaluated.</p>
+              </div>
+
               {/* Date Range Picker */}
               <DateRangePicker
                 startDate={startDate}
@@ -262,33 +295,24 @@ const App = () => {
                 
                 {/* Chart View Toggle */}
                 <div ref={setChartAreaNode} className={isFullscreen ? 'chart-fullscreen-active' : ''}>
-                <div className="flex mb-4 border-b">
+                <div className="results-tab-strip">
                   <button
-                    className={`py-2 px-4 font-medium border-b-2 ${
-                      chartView === 'enhanced'
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
+                    type="button"
+                    className={`chart-view-tab${chartView === 'enhanced' ? ' chart-view-tab--active' : ''}`}
                     onClick={() => setChartView('enhanced')}
                   >
                     Enhanced Chart
                   </button>
                   <button
-                    className={`py-2 px-4 font-medium border-b-2 ${
-                      chartView === 'reporter'
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
+                    type="button"
+                    className={`chart-view-tab${chartView === 'reporter' ? ' chart-view-tab--active' : ''}`}
                     onClick={() => setChartView('reporter')}
                   >
                     Reporter-Style Chart
                   </button>
                   <button
-                    className={`py-2 px-4 font-medium border-b-2 ${
-                      chartView === 'simple'
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
+                    type="button"
+                    className={`chart-view-tab${chartView === 'simple' ? ' chart-view-tab--active' : ''}`}
                     onClick={() => setChartView('simple')}
                   >
                     Simple Chart
@@ -303,22 +327,33 @@ const App = () => {
                   </button>
                 </div>
 
+                {/* Indicator picker - same place for every tab, also inside fullscreen */}
+                <IndicatorPicker
+                  seriesList={indicatorSeriesList}
+                  showIndicators={showIndicators}
+                  onToggleShow={setShowIndicators}
+                  selectedIds={selectedIndicatorIds}
+                  onToggleSeries={toggleIndicatorSeries}
+                />
+
                 {/* Chart */}
                 <div className="mb-6">
                   {chartView === 'enhanced' ? (
                     <EnhancedResultChart
                       data={results.chartDataDTO}
                       height={isFullscreen ? fullscreenChartHeight : 400}
+                      visibleSeries={visibleIndicatorSeries}
                     />
                   ) : chartView === 'reporter' ? (
                     <ReporterStyleChart
                       data={results.chartDataDTO}
                       width={isFullscreen ? fullscreenChartWidth : 1200}
                       height={isFullscreen ? fullscreenChartHeight : 600}
+                      visibleSeries={visibleIndicatorSeries}
                     />
                   ) : (
                     <div style={{ height: isFullscreen ? `${fullscreenChartHeight}px` : '400px' }}>
-                      <ResultChart data={results.chartDataDTO} />
+                      <ResultChart data={results.chartDataDTO} visibleSeries={visibleIndicatorSeries} />
                     </div>
                   )}
                 </div>

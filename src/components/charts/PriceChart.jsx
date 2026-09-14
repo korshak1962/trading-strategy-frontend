@@ -8,6 +8,7 @@ import {
   drawPriceAxis,
   drawPriceCandlesticks,
   drawChannels,
+  drawPriceOverlays,
   drawSignals
 } from '../../utils/ChartDrawingUtils';
 
@@ -21,9 +22,13 @@ import {
  * @param {number|null} [props.highlightTradeIndex] - When set, that trade's channels/signals are
  *   emphasized and everything else is dimmed (see ReporterStyleChart's click-to-select).
  * @param {Map} [props.signalTradeIndex] - signalKey -> tradeIndex, from deriveSignalTradeIndex.
+ * @param {Array<{name, color}>} [props.priceSeries] - visible price-axis indicator series
+ *   (from the shared IndicatorPicker); values come from data.priceIndicators[name].
  * @returns {JSX.Element}
  */
-const PriceChart = ({ data, width, height, dateRange, highlightTradeIndex = null, signalTradeIndex = null }) => {
+const PriceChart = ({
+  data, width, height, dateRange, highlightTradeIndex = null, signalTradeIndex = null, priceSeries = []
+}) => {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -127,6 +132,10 @@ const PriceChart = ({ data, width, height, dateRange, highlightTradeIndex = null
     // Draw price candlesticks with the calculated width
     drawPriceCandlesticks(ctx, prices, chartDateRange, minMaxPrice, width, height, candleWidth);
 
+    // Price-axis indicator overlays (MAs, bands) over the candles, under channels and signals.
+    // The axis range stays candle-driven (minMaxPrice is not widened by the overlays).
+    drawPriceOverlays(ctx, data.priceIndicators || {}, priceSeries, chartDateRange, minMaxPrice, width, height);
+
     // Draw channel lines (if any) behind signal markers, in front of candlesticks
     drawChannels(ctx, channels, chartDateRange, minMaxPrice, width, height, highlightTradeIndex);
 
@@ -152,7 +161,7 @@ const PriceChart = ({ data, width, height, dateRange, highlightTradeIndex = null
         ctx.clearRect(0, 0, width, height);
       }
     };
-  }, [data, width, height, dateRange, highlightTradeIndex, signalTradeIndex]);
+  }, [data, width, height, dateRange, highlightTradeIndex, signalTradeIndex, priceSeries]);
 
   return (
     <div className="chart-wrapper">

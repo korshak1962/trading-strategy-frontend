@@ -10,15 +10,18 @@ import {
 } from '../../utils/ChartDrawingUtils';
 
 /**
- * IndicatorChart component renders technical indicators
+ * IndicatorChart component renders the sub-pane technical indicators (data.indicators) - every
+ * visible series in its own colour over one shared min/max of the visible points.
  * @param {Object} props - Component props
  * @param {Object} props.data - Chart data
  * @param {number} props.width - Chart width
  * @param {number} props.height - Chart height
  * @param {Object} props.dateRange - Date range [startDate, endDate]
+ * @param {Array<{name, color}>} [props.subSeries] - visible sub-pane series (from the shared
+ *   IndicatorPicker); values come from data.indicators[name].
  * @returns {JSX.Element}
  */
-const IndicatorChart = ({ data, width, height, dateRange }) => {
+const IndicatorChart = ({ data, width, height, dateRange, subSeries = [] }) => {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -86,29 +89,33 @@ const IndicatorChart = ({ data, width, height, dateRange }) => {
       }
     }
     
-    // Draw indicators if available
-    const indicatorNames = Object.keys(indicators);
-    
-    if (indicatorNames.length > 0) {
-      // Just use the first indicator for simplicity
-      const mainIndicator = indicatorNames[0]; 
-      const indicatorData = indicators[mainIndicator];
-      
-      // Filter indicator data to only show values within the date range
-      const visibleIndicatorData = indicatorData.filter(item => {
-        const itemDate = new Date(item.date);
-        return itemDate >= chartDateRange[0] && itemDate <= chartDateRange[1];
-      });
-      
-      if (visibleIndicatorData.length > 0) {
-        // Calculate min/max based on the visible indicator data
-        const minMaxIndicator = findMinMaxValuesForIndicator(visibleIndicatorData);
-        
+    // Visible points of every selected sub series, in the current date range
+    const visibleBySeries = subSeries
+      .map(series => ({
+        series,
+        points: (indicators[series.name] || []).filter(item => {
+          if (typeof item.value !== 'number' || Number.isNaN(item.value)) return false;
+          const itemDate = new Date(item.date);
+          return itemDate >= chartDateRange[0] && itemDate <= chartDateRange[1];
+        })
+      }))
+      .filter(entry => entry.points.length > 0);
+
+    if (subSeries.length > 0) {
+      if (visibleBySeries.length > 0) {
+        // One shared min/max across all visible series so they are comparable in the pane
+        const minMaxIndicator = findMinMaxValuesForIndicator(
+          visibleBySeries.flatMap(entry => entry.points)
+        );
+        const axisLabel = visibleBySeries.map(entry => entry.series.name).join(', ');
+
         // Draw chart components
         drawGrid(ctx, width, height);
         drawDateAxis(ctx, chartDateRange, width, height);
-        drawIndicatorAxis(ctx, minMaxIndicator, width, height, mainIndicator);
-        drawIndicatorLine(ctx, visibleIndicatorData, chartDateRange, minMaxIndicator, width, height);
+        drawIndicatorAxis(ctx, minMaxIndicator, width, height, axisLabel);
+        visibleBySeries.forEach(({ series, points }) => {
+          drawIndicatorLine(ctx, points, chartDateRange, minMaxIndicator, width, height, series.color);
+        });
       } else {
         drawNoDataMessage(ctx, width, height, "No indicator data in current range");
       }
@@ -123,7 +130,7 @@ const IndicatorChart = ({ data, width, height, dateRange }) => {
         ctx.clearRect(0, 0, width, height);
       }
     };
-  }, [data, width, height, dateRange]);
+  }, [data, width, height, dateRange, subSeries]);
 
   return (
     <div className="chart-wrapper">

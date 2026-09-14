@@ -3,21 +3,33 @@ import { useState } from 'react';
 import TradesTable from './TradesTable';
 import PerformanceMetricsTable from './PerformanceMetricsTable';
 import TradeStatisticsTable from './TradeStatisticsTable';
+import '../ResultsTabs.css';
 
 const StrategyResults = ({ results, mode, fileContext }) => {
   const [activeTab, setActiveTab] = useState(mode === 'optimize' ? 'best-params' : 'summary');
   const hasParams = results.paramsDTO && results.paramsDTO.length > 0;
 
-  const tabClass = (tab) =>
-    `py-2 px-4 font-medium border-b-2 ${activeTab === tab
-      ? 'border-blue-500 text-blue-600'
-      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`;
+  // Summary-card values. `?? 0` keeps older responses (without the short-side fields) rendering.
+  // `longOnly` comes from the response itself so a stale result is never shown against a toggled checkbox.
+  const isLongOnly = results.longOnly === true;
+  const longPnL = results.longPnL ?? 0;
+  const shortPnL = results.shortPnL ?? 0;
+  const actualYield = results.actualYield ?? 0;
+  const actualYieldShort = results.actualYieldShort ?? 0;
+  const complexYield = results.complexYield ?? 0;
+  const profitableLong = results.profitableTradesCount ?? 0;
+  const longTrades = profitableLong + (results.lostTradesCount ?? 0);
+  const profitableShort = results.profitableShortTradesCount ?? 0;
+  const shortTrades = profitableShort + (results.lostShortTradesCount ?? 0);
+  const winRateLabel = (wins, total) => (total > 0 ? `${Math.round((wins / total) * 100)}%` : '0%');
+
+  const tabClass = (tab) => `chart-view-tab${activeTab === tab ? ' chart-view-tab--active' : ''}`;
 
   return (
     <div>
       {/* Tabs */}
-      <div className="border-b mb-4">
-        <nav className="flex -mb-px">
+      <div>
+        <nav className="results-tab-strip">
           {mode === 'optimize' && hasParams && (
             <button className={tabClass('best-params')} onClick={() => setActiveTab('best-params')}>
               Best Parameters
@@ -68,37 +80,62 @@ const StrategyResults = ({ results, mode, fileContext }) => {
           <div className="bg-white p-4 rounded-lg shadow">
             <h3 className="text-lg font-medium text-gray-900 mb-3">Strategy Performance Summary</h3>
             
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {/* Quick metrics */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {/* Long side */}
               <div className="bg-blue-50 p-3 rounded">
-                <div className="text-sm text-blue-700 font-medium">Total PnL</div>
-                <div className={`text-xl font-bold ${(results.longPnL + results.shortPnL) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {(results.longPnL + results.shortPnL).toFixed(2)}
+                <div className="text-sm text-blue-700 font-medium">Long PnL</div>
+                <div className={`text-xl font-bold ${longPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {longPnL.toFixed(2)}
                 </div>
               </div>
-              
+
               <div className="bg-blue-50 p-3 rounded">
-                <div className="text-sm text-blue-700 font-medium">Win Rate</div>
-                <div className="text-xl font-bold">
-                  {results.profitableTradesCount + results.lostTradesCount > 0 
-                    ? `${Math.round((results.profitableTradesCount / (results.profitableTradesCount + results.lostTradesCount)) * 100)}%` 
-                    : '0%'}
-                </div>
+                <div className="text-sm text-blue-700 font-medium">Long Trades</div>
+                <div className="text-xl font-bold">{longTrades}</div>
+                <div className="text-xs text-blue-400 mt-1">win rate {winRateLabel(profitableLong, longTrades)}</div>
               </div>
-              
+
               <div className="bg-blue-50 p-3 rounded">
-                <div className="text-sm text-blue-700 font-medium">Total Trades</div>
-                <div className="text-xl font-bold">
-                  {results.profitableTradesCount + results.lostTradesCount}
+                <div className="text-sm text-blue-700 font-medium">Long Yield</div>
+                <div className={`text-xl font-bold ${actualYield >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {actualYield.toFixed(2)}%
                 </div>
+                <div className="text-xs text-blue-400 mt-1">annualized over time in long position</div>
               </div>
-              
+
               <div className="bg-blue-50 p-3 rounded">
-                <div className="text-sm text-blue-700 font-medium">Annual Return</div>
-                <div className={`text-xl font-bold ${results.annualPercentageReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {(results.annualPercentageReturn).toFixed(2)}%
+                <div className="text-sm text-blue-700 font-medium">Complex Yield</div>
+                <div className={`text-xl font-bold ${complexYield >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {complexYield.toFixed(2)}%
                 </div>
+                <div className="text-xs text-blue-400 mt-1">long-only view; 4%/yr treasury while out of market</div>
               </div>
+
+              {/* Short side — omitted entirely when the result was evaluated long-only */}
+              {!isLongOnly && (
+                <>
+                  <div className="bg-purple-50 p-3 rounded">
+                    <div className="text-sm text-purple-700 font-medium">Short PnL</div>
+                    <div className={`text-xl font-bold ${shortPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {shortPnL.toFixed(2)}
+                    </div>
+                  </div>
+
+                  <div className="bg-purple-50 p-3 rounded">
+                    <div className="text-sm text-purple-700 font-medium">Short Trades</div>
+                    <div className="text-xl font-bold">{shortTrades}</div>
+                    <div className="text-xs text-purple-400 mt-1">win rate {winRateLabel(profitableShort, shortTrades)}</div>
+                  </div>
+
+                  <div className="bg-purple-50 p-3 rounded">
+                    <div className="text-sm text-purple-700 font-medium">Short Yield</div>
+                    <div className={`text-xl font-bold ${actualYieldShort >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {actualYieldShort.toFixed(2)}%
+                    </div>
+                    <div className="text-xs text-purple-400 mt-1">annualized over time in short position</div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Drawdown comparison */}

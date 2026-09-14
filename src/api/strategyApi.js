@@ -68,9 +68,11 @@ export const optimizeStrategies = async (config) => {
  * @param {Date} startDate - Start date for backtest
  * @param {Date} endDate - End date for backtest
  * @param {Object} strategyParams - Map of strategy names to parameter maps
+ * @param {boolean} [longOnly=false] - When true the backend evaluates only the long leg
+ *   (short signals are ignored); applies to both backtest and optimize requests
  * @returns {Object} Formatted configuration object
  */
-export const formatStrategyConfig = (ticker, timeFrame, startDate, endDate, strategyParams) => {
+export const formatStrategyConfig = (ticker, timeFrame, startDate, endDate, strategyParams, longOnly = false) => {
   // Convert JavaScript dates to LocalDateTime format expected by Java backend
   const formatDate = (date) => {
     return date.toISOString().replace('Z', '');
@@ -81,6 +83,7 @@ export const formatStrategyConfig = (ticker, timeFrame, startDate, endDate, stra
     timeFrame,
     startDate: formatDate(startDate),
     endDate: formatDate(endDate),
-    strategyNameToParams: strategyParams
+    strategyNameToParams: strategyParams,
+    longOnly
   };
 };

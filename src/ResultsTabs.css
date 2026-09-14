@@ -1,0 +1,40 @@
+/* Tab strips in the Strategy Backtester results area:
+   - App.jsx chart-view tabs (Enhanced / Reporter-Style / Simple Chart)
+   - StrategyResults.jsx tabs (Best Parameters / Summary / Performance / Trades)
+   Tailwind is not installed in this project, so the active state needs real CSS.
+   Visual weight matches .fullscreen-toggle-btn in ChartFullscreen.css. */
+
+.results-tab-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.chart-view-tab {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #6b7280;
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-bottom: 3px solid transparent;
+  border-radius: 0.25rem 0.25rem 0 0;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.chart-view-tab:hover {
+  color: #374151;
+  background-color: #f3f4f6;
+}
+
+.chart-view-tab--active,
+.chart-view-tab--active:hover {
+  color: #111827;
+  font-weight: 700;
+  background-color: #e5e7eb;
+  border-bottom-color: #3b82f6;
+}

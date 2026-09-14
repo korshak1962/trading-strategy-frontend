@@ -1,0 +1,87 @@
+/* IndicatorPicker - shared indicator toggle + per-series chips rendered under the chart-view
+   tab strip (see App.jsx). Colours follow the grey/blue theme used by EnhancedResultChart.css
+   (.chart-option-button) and ResultsTabs.css. */
+
+.indicator-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.75rem;
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.25rem;
+}
+
+.indicator-picker__master {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.indicator-picker__chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.indicator-picker__chips--disabled {
+  opacity: 0.45;
+}
+
+.indicator-picker__chips--disabled .indicator-chip {
+  cursor: not-allowed;
+}
+
+.indicator-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  color: #374151;
+  background-color: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+  user-select: none;
+}
+
+.indicator-chip:hover {
+  background-color: #e5e7eb;
+}
+
+.indicator-chip--checked {
+  background-color: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.indicator-chip input[type="checkbox"] {
+  margin: 0;
+}
+
+.indicator-chip__swatch {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 2px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.indicator-chip__name {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.indicator-chip__kind {
+  color: #6b7280;
+  font-size: 0.6875rem;
+}

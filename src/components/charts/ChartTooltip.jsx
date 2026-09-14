@@ -7,7 +7,8 @@ import React from 'react';
  * @param {Object} props.tooltipData - Data to display in tooltip
  * @param {Object} props.tooltipData.price - Price data
  * @param {Array} props.tooltipData.signals - Signals at this point
- * @param {Object} props.tooltipData.indicators - Indicator values
+ * @param {Array<{name: string, value: number, color: string}>} props.tooltipData.indicators -
+ *   visible indicator values at this point, in picker order
  * @param {Object} props.tooltipData.position - {x, y} position
  * @returns {JSX.Element|null}
  */
@@ -35,10 +36,21 @@ const ChartTooltip = ({ tooltipData }) => {
       <div>Close: <span style={{ float: 'right' }}>{price.close.toFixed(2)}</span></div>
       <div>Volume: <span style={{ float: 'right' }}>{price.volume.toLocaleString()}</span></div>
       
-      {/* Show indicator values if available */}
-      {Object.entries(indicators).map(([name, value]) => (
-        <div key={name}>
-          {name}: <span style={{ float: 'right' }}>{value.toFixed(2)}</span>
+      {/* Visible indicator values, each with the same colour dot as its line / picker chip */}
+      {(indicators || []).map(({ name, value, color }, index) => (
+        <div key={`${name}-${index}`}>
+          <span
+            style={{
+              display: 'inline-block',
+              width: 8,
+              height: 8,
+              borderRadius: 2,
+              backgroundColor: color,
+              marginRight: 5,
+              verticalAlign: 'middle'
+            }}
+          />
+          {name}: <span style={{ float: 'right' }}>{Number(value).toFixed(2)}</span>
         </div>
       ))}
       
