@@ -1,8 +1,51 @@
 // src/components/ResultChart.jsx
 import { useEffect, useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import './ResultChart.css';
 import { buildDateLookup } from '../utils/indicatorSeries';
+
+// Signal markers are drawn as custom dots on the close-price line: a small triangle per signal.
+// A labelled ReferenceLine per signal (the previous approach) turned a busy strategy into a wall
+// of dashes, and a Scatter series per type took minutes to render on ~900 bars.
+const SIGNAL_STYLES = {
+  LongOpen: { color: 'green', up: true },
+  LongClose: { color: 'red', up: false },
+  ShortOpen: { color: 'blue', up: false },
+  ShortClose: { color: 'orange', up: true }
+};
+
+const trianglePoints = (cx, cy, up) => {
+  const h = 5;
+  return up
+    ? `${cx},${cy - h} ${cx - h},${cy + h} ${cx + h},${cy + h}`
+    : `${cx},${cy + h} ${cx - h},${cy - h} ${cx + h},${cy - h}`;
+};
+
+// Recharts `dot` renderer for the close line: nothing for ordinary bars, one triangle per
+// signal on the bars that have them (drawn at the close, which is where these signals fire).
+const renderSignalDot = ({ cx, cy, payload, index }) => {
+  const signals = payload?.signals;
+  if (!signals || signals.length === 0 || typeof cx !== 'number' || typeof cy !== 'number') {
+    return null;
+  }
+  return (
+    <g key={`signal-dot-${index}`}>
+      {signals.map((signal, idx) => {
+        const style = SIGNAL_STYLES[signal.type];
+        if (!style) return null;
+        return (
+          <polygon
+            key={idx}
+            points={trianglePoints(cx, cy, style.up)}
+            fill={style.color}
+            stroke="white"
+            strokeWidth={0.5}
+          />
+        );
+      })}
+    </g>
+  );
+};
 
 // Tooltip listing OHLC plus only the currently visible indicator series (with their colours).
 const SimpleTooltip = ({ active, payload, label, visibleSeries = [] }) => {
@@ -12,6 +55,11 @@ const SimpleTooltip = ({ active, payload, label, visibleSeries = [] }) => {
     <div className="simple-tooltip">
       <p className="simple-tooltip__date">Date: {label}</p>
       <p><span>Close Price:</span> <span>{Number(row.close).toFixed(2)}</span></p>
+      {(row.signals || []).map((signal, idx) => (
+        <p key={idx} style={{ color: SIGNAL_STYLES[signal.type]?.color }}>
+          <span>{signal.type}:</span> <span>{Number(signal.price).toFixed(2)}</span>
+        </p>
+      ))}
       {visibleSeries
         .filter(series => typeof row[series.id] === 'number')
         .map(series => (
@@ -86,32 +134,6 @@ const ResultChart = ({ data, visibleSeries = [] }) => {
     setChartData(processed);
   }, [data]);
 
-  const getSignalMarker = (entry) => {
-    if (!entry.signals || entry.signals.length === 0) return null;
-
-    return entry.signals.map((signal, idx) => {
-      const color = signal.type.includes('Long')
-        ? (signal.type === 'LongOpen' ? 'green' : 'red')
-        : (signal.type === 'ShortOpen' ? 'blue' : 'orange');
-
-      return (
-        <ReferenceLine
-          key={`signal-${entry.date}-${idx}`}
-          yAxisId="price"
-          x={entry.date}
-          stroke={color}
-          strokeDasharray="3 3"
-          label={{
-            value: signal.type,
-            position: 'insideBottomRight',
-            fill: color,
-            fontSize: 10
-          }}
-        />
-      );
-    });
-  };
-
   const subSeries = visibleSeries.filter(series => series.kind === 'sub');
   const hasSubSeries = subSeries.length > 0;
 
@@ -164,9 +186,10 @@ const ResultChart = ({ data, visibleSeries = [] }) => {
             type="monotone"
             dataKey="close"
             stroke="#1E40AF"
-            dot={false}
+            dot={renderSignalDot}
             yAxisId="price"
             name="Close Price"
+            isAnimationActive={false}
           />
 
           {visibleSeries.map(series => (
@@ -184,7 +207,6 @@ const ResultChart = ({ data, visibleSeries = [] }) => {
             />
           ))}
 
-          {chartData.map(entry => getSignalMarker(entry))}
         </LineChart>
       </ResponsiveContainer>
     </div>
