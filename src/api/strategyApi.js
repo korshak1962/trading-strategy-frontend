@@ -73,16 +73,18 @@ export const optimizeStrategies = async (config) => {
  * @returns {Object} Formatted configuration object
  */
 export const formatStrategyConfig = (ticker, timeFrame, startDate, endDate, strategyParams, longOnly = false) => {
-  // Convert JavaScript dates to LocalDateTime format expected by Java backend
-  const formatDate = (date) => {
-    return date.toISOString().replace('Z', '');
-  };
+  // Convert JavaScript dates to the LocalDateTime format expected by the Java backend. The
+  // pickers hand us calendar days, so the range is inclusive of both ends: start at 00:00:00,
+  // end at 23:59:59. (toISOString() would give the end day's midnight and drop its bars.)
+  const pad = (n) => String(n).padStart(2, '0');
+  const formatDate = (date, time) =>
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${time}`;
   
   return {
     ticker,
     timeFrame,
-    startDate: formatDate(startDate),
-    endDate: formatDate(endDate),
+    startDate: formatDate(startDate, '00:00:00'),
+    endDate: formatDate(endDate, '23:59:59'),
     strategyNameToParams: strategyParams,
     longOnly
   };

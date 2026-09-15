@@ -47,6 +47,36 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
   const [selectedSignalReason, setSelectedSignalReason] = useState(null);
   const signalTradeIndexMap = useMemo(() => deriveSignalTradeIndex(data?.signals), [data]);
   const [originalDateRange, setOriginalDateRange] = useState(null);
+
+  // Drawable width of the chart wrappers (container content box minus the wrapper border).
+  // Measured with a ResizeObserver so the canvases always fill the wrapper exactly: drawing at
+  // the raw `width` prop (1200) inside a narrower `overflow: hidden` wrapper silently clips the
+  // most recent bars off the right edge.
+  const [measuredWidth, setMeasuredWidth] = useState(null);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const measure = () => {
+      const style = window.getComputedStyle(el);
+      const padding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+      const inner = Math.floor(el.clientWidth - padding - 2); // 2 = chart-wrapper border
+      // Only commit real changes: a state update per observer tick would re-render (and redraw
+      // three canvases) on every no-op notification.
+      if (inner > 0) setMeasuredWidth(prev => (prev === inner ? prev : inner));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Bounding rect of the price canvas - the single source of truth for mouse -> date mapping.
+  // The container is wider than the canvas (padding, borders), so using its rect skews the
+  // tooltip/zoom by a few bars.
+  const getPlotRect = useCallback(() => {
+    const canvas = containerRef.current?.querySelector('.price-chart-canvas');
+    return canvas ? canvas.getBoundingClientRect() : null;
+  }, []);
   
   // Calculate sub-chart heights
   const priceChartHeight = height * 0.6;
@@ -99,12 +129,10 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
     const prices = chartData.current.prices;
     const currentDateRange = dateRange || chartData.current.dateRange;
     
-    if (prices.length > 0 && currentDateRange.length === 2 && containerRef.current) {
-      // Calculate container width
-      const containerWidth = containerRef.current.clientWidth;
-      
+    const plotRect = getPlotRect();
+    if (prices.length > 0 && currentDateRange.length === 2 && plotRect && plotRect.width > 0) {
       // Calculate date at mouse position
-      const mouseRatio = mouseX / containerWidth;
+      const mouseRatio = mouseX / plotRect.width;
       const totalTime = currentDateRange[1].getTime() - currentDateRange[0].getTime();
       const mouseDate = new Date(currentDateRange[0].getTime() + mouseRatio * totalTime);
       
@@ -149,7 +177,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
         position: { x: mouseX, y: mouseY }
       });
     }
-  }, [data, dateRange, visibleSeries]);
+  }, [data, dateRange, visibleSeries, getPlotRect]);
 
   // A signal marker is only ~7px (its drawn triangle half-size); nobody clicks that precisely by
   // eye, so the hit target needs to be considerably more forgiving than the marker itself.
@@ -241,28 +269,28 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
     // Only activate zoom with left mouse button
     if (e.button !== 0) return;
     
-    // Get container position
-    const containerRect = containerRef.current.getBoundingClientRect();
+    const plotRect = getPlotRect();
+    if (!plotRect) return;
     
-    // Get mouse position relative to container
-    const x = e.clientX - containerRect.left;
+    // Get mouse position relative to the plot
+    const x = e.clientX - plotRect.left;
     
     // Start zoom selection
     setZoomActive(true);
     setZoomStart(x);
     setZoomEnd(x);
-  }, []);
+  }, [getPlotRect]);
   
   // Handle mouse move for zoom selection
   const handleMouseMove = useCallback((e) => {
     if (!containerRef.current) return;
     
-    // Get container position
-    const containerRect = containerRef.current.getBoundingClientRect();
+    const plotRect = getPlotRect();
+    if (!plotRect) return;
     
-    // Get mouse position relative to container
-    const x = e.clientX - containerRect.left;
-    const y = e.clientY - containerRect.top;
+    // Get mouse position relative to the plot
+    const x = e.clientX - plotRect.left;
+    const y = e.clientY - plotRect.top;
     
     // Update crosshair position
     setCrosshairPosition({ x, y });
@@ -284,7 +312,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
       const canvas = containerRef.current.querySelector('.price-chart-canvas');
       if (canvas) canvas.style.cursor = hovering ? 'pointer' : '';
     }
-  }, [zoomActive, updateTooltipData, findNearestSignal]);
+  }, [zoomActive, updateTooltipData, findNearestSignal, getPlotRect]);
 
   // Handle mouse up for zoom selection end
   const handleMouseUp = useCallback((e) => {
@@ -294,7 +322,8 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
     }
 
     // Calculate zoom range
-    const containerWidth = containerRef.current.clientWidth;
+    const plotRect = getPlotRect();
+    const containerWidth = plotRect ? plotRect.width : containerRef.current.clientWidth;
     const currentDateRange = dateRange || chartData.current.dateRange;
 
     if (!currentDateRange || currentDateRange.length !== 2) {
@@ -342,7 +371,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
     setZoomActive(false);
   }, [
     zoomActive, zoomStart, zoomEnd, dateRange, findClickedSignal, signalTradeIndexMap,
-    selectedTradeIndex, getSignalReasonText
+    selectedTradeIndex, getSignalReasonText, getPlotRect
   ]);
   
   // Handle mouse wheel for zoom in/out
@@ -355,13 +384,12 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
     
     if (!currentDateRange || currentDateRange.length !== 2) return;
     
-    // Get container position
-    const containerRect = containerRef.current.getBoundingClientRect();
+    const plotRect = getPlotRect();
+    if (!plotRect || plotRect.width === 0) return;
     
-    // Get mouse position relative to container width
-    const mouseX = e.clientX - containerRect.left;
-    const containerWidth = containerRect.width;
-    const mouseRatio = mouseX / containerWidth;
+    // Get mouse position relative to the plot width
+    const mouseX = e.clientX - plotRect.left;
+    const mouseRatio = mouseX / plotRect.width;
     
     // Calculate current date at mouse position
     const totalTime = currentDateRange[1].getTime() - currentDateRange[0].getTime();
@@ -405,7 +433,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
     const boundedEnd = new Date(Math.min(newEndTime, maxEndTime));
     
     setDateRange([boundedStart, boundedEnd]);
-  }, [dateRange, originalDateRange]);
+  }, [dateRange, originalDateRange, getPlotRect]);
   
   // Handle mouse leave
   const handleMouseLeave = useCallback(() => {
@@ -456,11 +484,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
   }, [handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave, handleMouseWheel]);
   
   // Calculate chart width based on container
-  const getChartWidth = () => {
-    if (!containerRef.current) return width;
-    const containerWidth = containerRef.current.clientWidth;
-    return Math.min(containerWidth - 20, width); // 20px padding
-  };
+  const getChartWidth = () => measuredWidth ?? width;
   
   // Render zoom selection overlay
   const renderZoomSelection = () => {

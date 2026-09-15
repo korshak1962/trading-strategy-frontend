@@ -286,7 +286,7 @@ const App = () => {
           </div>
           
           {/* Results Panel */}
-          <div className="lg:col-span-8">
+          <div className="lg:col-span-8 min-w-0">
             {results ? (
               <div className="bg-white p-6 rounded-lg shadow">
                 <h2 className="text-xl font-bold mb-4">

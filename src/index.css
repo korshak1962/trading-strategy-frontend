@@ -79,6 +79,12 @@ button:disabled {
   gap: 1rem;
 }
 
+/* Grid/flex items default to min-width:auto, which lets a track grow to fit wide content
+   (a canvas sized from its own container would then feed back on itself). */
+.min-w-0 {
+  min-width: 0;
+}
+
 /* Basic responsive breakpoints */
 @media (min-width: 640px) {
   .container {
