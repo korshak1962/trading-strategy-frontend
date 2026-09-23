@@ -12,18 +12,17 @@ const InfoTooltip = ({ text }) => (
   </span>
 );
 
-const StrategyConfig = ({ selectedStrategies, onRemoveStrategy, onUpdateParam, mode }) => {
-  // Track which strategy panels are expanded
-  const [expandedStrategies, setExpandedStrategies] = useState(
-    Object.keys(selectedStrategies).reduce((acc, name) => {
-      acc[name] = true; // Start with all expanded
-      return acc;
-    }, {})
-  );
+const StrategyConfig = ({ selectedStrategies, onRemoveStrategy, onUpdateParam, mode, timeFrame }) => {
+  // Holds only explicit collapses, not the full strategy set: a strategy absent from this map
+  // counts as expanded (see isExpanded). Seeding it from selectedStrategies instead would freeze
+  // the set at mount, so a strategy added later would have no entry and render collapsed.
+  const [collapsedStrategies, setCollapsedStrategies] = useState({});
+
+  const isExpanded = (strategyName) => !collapsedStrategies[strategyName];
 
   // Toggle expansion state for a strategy
   const toggleExpand = (strategyName) => {
-    setExpandedStrategies(prev => ({
+    setCollapsedStrategies(prev => ({
       ...prev,
       [strategyName]: !prev[strategyName]
     }));
@@ -54,13 +53,13 @@ const StrategyConfig = ({ selectedStrategies, onRemoveStrategy, onUpdateParam, m
                 Remove
               </button>
               <span className="strategy-toggle">
-                {expandedStrategies[strategyName] ? '▼' : '►'}
+                {isExpanded(strategyName) ? '▼' : '►'}
               </span>
             </div>
           </div>
           
           {/* Parameters */}
-          {expandedStrategies[strategyName] && (
+          {isExpanded(strategyName) && (
             <div className="strategy-params">
               {Object.entries(params).map(([paramName, param]) => (
                 mode === 'optimize' ? (
@@ -109,7 +108,10 @@ const StrategyConfig = ({ selectedStrategies, onRemoveStrategy, onUpdateParam, m
                       className="param-input"
                     />
                     <select
-                      value={param.timeframe || 'DAY'}
+                      // App keeps every param's timeframe equal to the global timeFrame
+                      // (handleTimeFrameChange); timeFrame is only the fallback for a param that
+                      // somehow arrived without one.
+                      value={param.timeframe || timeFrame}
                       onChange={(e) => onUpdateParam(strategyName, paramName, 'timeframe', e.target.value)}
                       className="param-timeframe"
                     >

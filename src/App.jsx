@@ -119,13 +119,39 @@ const App = () => {
     }
   };
 
+  // Rewrites every param's timeframe in a selectedStrategies map to `tf`.
+  // The backend runs all sub-strategies on the global timeFrame (Reporter.configureMerger passes
+  // config.getTimeFrame() into addStrategyToMerger), so the per-param timeframe must mirror it
+  // rather than drift. Per-param timeframes are a future feature; until then these stay in sync.
+  const withTimeframe = (strategies, tf) =>
+    Object.fromEntries(
+      Object.entries(strategies).map(([name, params]) => [
+        name,
+        Object.fromEntries(
+          Object.entries(params).map(([paramName, param]) => [
+            paramName,
+            { ...param, timeframe: tf },
+          ])
+        ),
+      ])
+    );
+
+  const handleTimeFrameChange = (tf) => {
+    setTimeFrame(tf);
+    setResults(null);
+    setSelectedStrategies(prev => withTimeframe(prev, tf));
+  };
+
   // Add strategy to selected strategies
   const handleAddStrategy = (strategy) => {
     setResults(null);
     setSelectedStrategies(prev => ({
       ...prev,
+      // available-strategies advertises params with timeframe == null
+      // (StrategyProviderImpl builds them as new ParamVO(name, class, null)), so stamp the
+      // current global timeFrame on them instead of letting the UI fall back to 'DAY'.
       [strategy.name]: strategy.parameters.reduce((acc, param) => {
-        acc[param.paramName] = param;
+        acc[param.paramName] = { ...param, timeframe: timeFrame };
         return acc;
       }, {})
     }));
@@ -211,7 +237,7 @@ const App = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Time Frame</label>
                 <select
                   value={timeFrame}
-                  onChange={(e) => { setTimeFrame(e.target.value); setResults(null); }}
+                  onChange={(e) => handleTimeFrameChange(e.target.value)}
                   className="w-full p-2 border rounded"
                 >
                   <option value="MIN5">5 Minutes</option>
@@ -262,6 +288,7 @@ const App = () => {
                     onRemoveStrategy={handleRemoveStrategy}
                     onUpdateParam={handleUpdateParam}
                     mode={mode}
+                    timeFrame={timeFrame}
                   />
                 </div>
               )}
