@@ -12,6 +12,7 @@ const PerformanceMetricsTable = ({ results }) => {
   const relativePerformance = totalPnL - results.buyAndHoldPnL;
   const actualYield = results.actualYield ?? 0;
   const actualYieldShort = results.actualYieldShort ?? 0;
+  const buyAndHoldAnnualYield = results.buyAndHoldAnnualYield ?? 0;
   const longWinRate = calculateWinRate(results.profitableTradesCount ?? 0, results.lostTradesCount ?? 0);
   const shortWinRate = calculateWinRate(results.profitableShortTradesCount ?? 0, results.lostShortTradesCount ?? 0);
 
@@ -43,9 +44,15 @@ const PerformanceMetricsTable = ({ results }) => {
       label: 'Buy & Hold PnL', 
       value: results.buyAndHoldPnL, 
       formatted: formatNumber(results.buyAndHoldPnL),
-      isPositive: results.buyAndHoldPnL >= 0 
+      isPositive: results.buyAndHoldPnL >= 0
     },
-    { 
+    {
+      label: 'Buy & Hold Annual Yield',
+      value: buyAndHoldAnnualYield,
+      formatted: formatPercent(buyAndHoldAnnualYield / 100),
+      isPositive: buyAndHoldAnnualYield >= 0
+    },
+    {
       label: 'vs. Buy & Hold', 
       value: relativePerformance, 
       formatted: formatNumber(relativePerformance),
