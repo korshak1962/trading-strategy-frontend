@@ -3,11 +3,26 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import './ReporterStyleChart.css';
 import PriceChart from './charts/PriceChart';
 import PnLChart from './charts/PnLChart';
+import CumulativePnLChart from './charts/CumulativePnLChart';
 import IndicatorChart from './charts/IndicatorChart';
 import ChartTooltip from './charts/ChartTooltip';
 import Crosshair from './charts/Crosshair';
 import { findMinMaxPriceRange, deriveSignalTradeIndex, signalKey } from '../utils/ChartDrawingUtils';
 import { pointsForSeries } from '../utils/indicatorSeries';
+import { extractTradesFromSignals, cumulativeClosedPnLByBar, barIndexAtOrAfter } from '../utils/ChartDataUtils';
+
+// Pane canvases, top to bottom - used to tell which pane the cursor is over.
+const PANE_CANVASES = [
+  { pane: 'price', selector: '.price-chart-canvas' },
+  { pane: 'trade', selector: '.pnl-chart-canvas' },
+  { pane: 'cumulative', selector: '.cumulative-pnl-chart-canvas' },
+  { pane: 'indicator', selector: '.indicator-chart-canvas' },
+];
+
+// Extra hit width (px, each side) around a trade bar - a 1-2 bar trade is only a few px wide.
+const TRADE_HIT_SLOP_PX = 4;
+// Past this distance from the container's right edge the tooltip opens to the left of the cursor.
+const TOOLTIP_FLIP_MARGIN_PX = 270;
 
 /**
  * ReporterStyleChart component - Main container for financial charts with synchronized zoom
@@ -18,17 +33,42 @@ import { pointsForSeries } from '../utils/indicatorSeries';
  * @param {Array<{id, name, kind, color}>} [props.visibleSeries] - indicator series to draw, from
  *   the shared IndicatorPicker. 'price' kind overlays the candles, 'sub' kind goes to the
  *   indicator pane (rendered only while at least one sub series is visible).
+ * @param {boolean} [props.longLegOnly] - true when the result is NOT long-only: the chart data
+ *   carries the long leg's signals only, so the PnL pane titles say "(long leg)".
  * @returns {JSX.Element}
  */
-const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = [] }) => {
+const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = [], longLegOnly = false }) => {
   const containerRef = useRef(null);
+  const legSuffix = longLegOnly ? ' (long leg)' : '';
+
+  // Closed trades, paired once and shared by the trade pane, the cumulative pane and the tooltip.
+  const trades = useMemo(() => extractTradesFromSignals(data?.signals || []), [data]);
+
+  // Realized cumulative PnL per price bar - the same computation the Enhanced chart uses
+  // (cumulativeClosedPnLByBar): each trade's PnL is booked on the bar it closed on (the first bar
+  // at/after its close date) and carried forward.
+  const cumulativePoints = useMemo(() => {
+    const prices = data?.prices || [];
+    if (prices.length === 0) return [];
+    const barTimes = prices.map(price => new Date(price.date).getTime());
+    const closes = trades.map(trade => {
+      const index = barIndexAtOrAfter(barTimes, trade.closeDate.getTime());
+      return { index: index === -1 ? barTimes.length - 1 : index, pnl: trade.pnl };
+    });
+    const cumulative = cumulativeClosedPnLByBar(barTimes.length, closes);
+    // Running count of closed trades per bar, for the tooltip ("N closed trades so far")
+    const closedCount = cumulativeClosedPnLByBar(barTimes.length, closes.map(({ index }) => ({ index, pnl: 1 })));
+    return barTimes.map((ms, i) => ({ date: new Date(ms), value: cumulative[i], closedCount: closedCount[i] }));
+  }, [data, trades]);
 
   // Split once per selection change - PriceChart / IndicatorChart key their draw effects on these.
   const priceSeries = useMemo(() => visibleSeries.filter(series => series.kind === 'price'), [visibleSeries]);
   const subSeries = useMemo(() => visibleSeries.filter(series => series.kind === 'sub'), [visibleSeries]);
   
   // State for crosshair position
+  // x: relative to the plot (all panes share it); y: relative to the hovered pane's canvas
   const [crosshairPosition, setCrosshairPosition] = useState({ x: 0, y: 0 });
+  const [hoverPane, setHoverPane] = useState(null);
   const [showCrosshair, setShowCrosshair] = useState(false);
   const [tooltipData, setTooltipData] = useState(null);
   
@@ -79,9 +119,12 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
   }, []);
   
   // Calculate sub-chart heights
-  const priceChartHeight = height * 0.6;
-  const pnlChartHeight = height * 0.2;
-  const indicatorChartHeight = height * 0.2;
+  // Shares add up to 1.0 with every pane shown, so the fullscreen layout (which passes the
+  // available height) still fits after the cumulative pane was added.
+  const priceChartHeight = height * 0.55;
+  const pnlChartHeight = height * 0.15;
+  const cumulativeChartHeight = height * 0.15;
+  const indicatorChartHeight = height * 0.15;
   
   // Store data for tooltip
   const chartData = useRef({
@@ -120,36 +163,82 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
     }
   }, [data, dateRange]);
   
-  // Function to update tooltip data based on mouse position
-  const updateTooltipData = useCallback((mouseX, mouseY) => {
+  // Which pane canvas contains the pointer ('price' | 'trade' | 'cumulative' | 'indicator'),
+  // plus the pointer's y within it. Null between panes (titles, gaps).
+  const getHoveredPane = useCallback((clientY) => {
+    const container = containerRef.current;
+    if (!container) return null;
+    for (const { pane, selector } of PANE_CANVASES) {
+      const canvas = container.querySelector(selector);
+      if (!canvas) continue;
+      const rect = canvas.getBoundingClientRect();
+      if (clientY >= rect.top && clientY <= rect.bottom) return { pane, y: clientY - rect.top };
+    }
+    return null;
+  }, []);
+
+  // Function to update tooltip data based on mouse position.
+  // mouseX is plot-relative (drives the date); tooltipPos is container-relative (placement - the
+  // container is the tooltip's offset parent, so price-canvas coordinates put it too high on
+  // the lower panes).
+  const updateTooltipData = useCallback((mouseX, pane, tooltipPos) => {
     // Skip if we don't have prices
     if (!chartData.current.prices || chartData.current.prices.length === 0) return;
-    
+
     // Find price data at mouse position
     const prices = chartData.current.prices;
     const currentDateRange = dateRange || chartData.current.dateRange;
-    
+
     const plotRect = getPlotRect();
     if (prices.length > 0 && currentDateRange.length === 2 && plotRect && plotRect.width > 0) {
       // Calculate date at mouse position
       const mouseRatio = mouseX / plotRect.width;
       const totalTime = currentDateRange[1].getTime() - currentDateRange[0].getTime();
-      const mouseDate = new Date(currentDateRange[0].getTime() + mouseRatio * totalTime);
-      
+      const mouseMs = currentDateRange[0].getTime() + mouseRatio * totalTime;
+      const containerWidth = containerRef.current?.clientWidth ?? plotRect.width;
+      const placement = {
+        position: tooltipPos,
+        flip: tooltipPos.x > containerWidth - TOOLTIP_FLIP_MARGIN_PX
+      };
+
+      // Individual Trade PnL pane: the trade(s) whose bar spans the cursor - not prices.
+      if (pane === 'trade') {
+        const slopMs = (TRADE_HIT_SLOP_PX / plotRect.width) * totalTime;
+        const hits = trades.filter(trade =>
+          trade.openDate.getTime() - slopMs <= mouseMs && mouseMs <= trade.closeDate.getTime() + slopMs
+        );
+        setTooltipData({ kind: 'trade', date: new Date(mouseMs), trades: hits, legLabel: legSuffix, ...placement });
+        return;
+      }
+
       // Find closest price point
-      let closestPrice = null;
+      let closestIndex = -1;
       let minTimeDiff = Infinity;
-      
-      for (const price of prices) {
-        const timeDiff = Math.abs(price.date.getTime() - mouseDate.getTime());
+      prices.forEach((price, index) => {
+        const timeDiff = Math.abs(price.date.getTime() - mouseMs);
         if (timeDiff < minTimeDiff) {
           minTimeDiff = timeDiff;
-          closestPrice = price;
+          closestIndex = index;
         }
-      }
-      
+      });
+      const closestPrice = prices[closestIndex];
       if (!closestPrice) return;
-      
+
+      // Cumulative PnL pane: the realized total at this bar.
+      if (pane === 'cumulative') {
+        const point = cumulativePoints[closestIndex];
+        if (!point) return;
+        setTooltipData({
+          kind: 'cumulative',
+          date: closestPrice.date,
+          value: point.value,
+          closedCount: point.closedCount,
+          legLabel: legSuffix,
+          ...placement
+        });
+        return;
+      }
+
       // Find signals for this price point
       let signals = [];
       if (data && data.signals) {
@@ -171,13 +260,14 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
       });
       
       setTooltipData({
+        kind: 'price',
         price: closestPrice,
         signals,
         indicators: indicatorValues,
-        position: { x: mouseX, y: mouseY }
+        ...placement
       });
     }
-  }, [data, dateRange, visibleSeries, getPlotRect]);
+  }, [data, dateRange, visibleSeries, getPlotRect, trades, cumulativePoints, legSuffix]);
 
   // A signal marker is only ~7px (its drawn triangle half-size); nobody clicks that precisely by
   // eye, so the hit target needs to be considerably more forgiving than the marker itself.
@@ -290,14 +380,23 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
     
     // Get mouse position relative to the plot
     const x = e.clientX - plotRect.left;
-    const y = e.clientY - plotRect.top;
-    
-    // Update crosshair position
-    setCrosshairPosition({ x, y });
+    const hovered = getHoveredPane(e.clientY);
+
+    // Update crosshair position (horizontal line only on the pane under the cursor)
+    setCrosshairPosition({ x, y: hovered ? hovered.y : 0 });
+    setHoverPane(hovered ? hovered.pane : null);
     setShowCrosshair(true);
-    
-    // Find tooltip data
-    updateTooltipData(x, y);
+
+    // Find tooltip data - its body depends on the pane under the cursor
+    if (hovered) {
+      const containerRect = containerRef.current.getBoundingClientRect();
+      updateTooltipData(x, hovered.pane, {
+        x: e.clientX - containerRect.left,
+        y: e.clientY - containerRect.top
+      });
+    } else {
+      setTooltipData(null);
+    }
 
     // Update zoom selection if active
     if (zoomActive) {
@@ -312,7 +411,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
       const canvas = containerRef.current.querySelector('.price-chart-canvas');
       if (canvas) canvas.style.cursor = hovering ? 'pointer' : '';
     }
-  }, [zoomActive, updateTooltipData, findNearestSignal, getPlotRect]);
+  }, [zoomActive, updateTooltipData, findNearestSignal, getPlotRect, getHoveredPane]);
 
   // Handle mouse up for zoom selection end
   const handleMouseUp = useCallback((e) => {
@@ -438,6 +537,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
   // Handle mouse leave
   const handleMouseLeave = useCallback(() => {
     setShowCrosshair(false);
+    setHoverPane(null);
     setTooltipData(null);
     
     // Cancel zoom if active
@@ -581,24 +681,42 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
         <Crosshair 
           show={showCrosshair} 
           position={crosshairPosition} 
-          horizontal={true} 
+          horizontal={hoverPane === 'price'}
           vertical={true}
         />
         {renderZoomSelection()}
       </div>
-      
-      <h3 className="chart-title">Individual Trade PnL</h3>
+
+      <h3 className="chart-title">Individual Trade PnL{legSuffix}</h3>
       <div className="chart-wrapper position-relative">
-        <PnLChart 
-          data={data} 
-          width={getChartWidth()} 
-          height={pnlChartHeight} 
+        <PnLChart
+          data={data}
+          width={getChartWidth()}
+          height={pnlChartHeight}
+          dateRange={dateRange}
+          trades={trades}
+        />
+        <Crosshair
+          show={showCrosshair}
+          position={crosshairPosition}
+          horizontal={hoverPane === 'trade'}
+          vertical={true}
+        />
+      </div>
+
+      <h3 className="chart-title">Cumulative PnL (closed trades{longLegOnly ? ', long leg' : ''})</h3>
+      <div className="chart-wrapper position-relative">
+        <CumulativePnLChart
+          points={cumulativePoints}
+          hasTrades={trades.length > 0}
+          width={getChartWidth()}
+          height={cumulativeChartHeight}
           dateRange={dateRange}
         />
-        <Crosshair 
-          show={showCrosshair} 
-          position={crosshairPosition} 
-          horizontal={false} 
+        <Crosshair
+          show={showCrosshair}
+          position={crosshairPosition}
+          horizontal={hoverPane === 'cumulative'}
           vertical={true}
         />
       </div>
@@ -618,7 +736,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
             <Crosshair 
               show={showCrosshair} 
               position={crosshairPosition} 
-              horizontal={false} 
+              horizontal={hoverPane === 'indicator'}
               vertical={true}
             />
           </div>

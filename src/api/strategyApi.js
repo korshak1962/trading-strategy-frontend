@@ -38,7 +38,10 @@ export const submitStrategies = async (config) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config),
     });
-    if (!response.ok) throw new Error(`Error: ${response.status}`);
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.message || `Error: ${response.status}`);
+    }
     return await response.json();
   } catch (error) {
     console.error('Failed to submit strategies:', error);
@@ -53,7 +56,10 @@ export const optimizeStrategies = async (config) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config),
     });
-    if (!response.ok) throw new Error(`Error: ${response.status}`);
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.message || `Error: ${response.status}`);
+    }
     return await response.json();
   } catch (error) {
     console.error('Failed to optimize strategies:', error);

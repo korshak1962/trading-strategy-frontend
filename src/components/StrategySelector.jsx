@@ -21,7 +21,7 @@ const StrategySelector = ({ availableStrategies, onAddStrategy }) => {
         <select
           defaultValue=""
           onChange={handleChange}
-          className="form-select strategy-selector-select"
+          className="strategy-selector-select block w-full max-w-full min-w-0 p-2 border rounded bg-white"
         >
           <option value="">Select a strategy</option>
           {availableStrategies.map((strategy) => (

@@ -17,9 +17,12 @@ import { extractTradesFromSignals } from '../../utils/ChartDataUtils';
  * @param {number} props.width - Chart width
  * @param {number} props.height - Chart height
  * @param {Object} props.dateRange - Date range [startDate, endDate]
+ * @param {Array} [props.trades] - trades already paired from the signals (the parent shares them
+ *   with its tooltip / cumulative pane); paired here from data.signals when omitted
+ * @param {string} [props.axisTitle] - value-axis title
  * @returns {JSX.Element}
  */
-const PnLChart = ({ data, width, height, dateRange }) => {
+const PnLChart = ({ data, width, height, dateRange, trades, axisTitle }) => {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -89,7 +92,7 @@ const PnLChart = ({ data, width, height, dateRange }) => {
     
     // Extract trades from signals
     if (signals.length > 0) {
-      const allTrades = extractTradesFromSignals(signals);
+      const allTrades = trades ?? extractTradesFromSignals(signals);
       
       if (allTrades.length > 0) {
         // Filter trades to only show those within the date range
@@ -111,9 +114,10 @@ const PnLChart = ({ data, width, height, dateRange }) => {
           
           // Draw chart components
           drawGrid(ctx, width, height);
-          drawDateAxis(ctx, chartDateRange, width, height);
-          drawPnLAxis(ctx, minMaxPnL, width, height);
           drawIndividualTradeBars(ctx, visibleTrades, chartDateRange, minMaxPnL, width, height);
+          // Axes last, so their labels sit on top of the bars
+          drawDateAxis(ctx, chartDateRange, width, height);
+          drawPnLAxis(ctx, minMaxPnL, width, height, axisTitle);
         } else {
           drawNoDataMessage(ctx, width, height, "No trades visible in current range");
         }
@@ -131,7 +135,7 @@ const PnLChart = ({ data, width, height, dateRange }) => {
         ctx.clearRect(0, 0, width, height);
       }
     };
-  }, [data, width, height, dateRange]);
+  }, [data, width, height, dateRange, trades, axisTitle]);
 
   return (
     <div className="chart-wrapper">

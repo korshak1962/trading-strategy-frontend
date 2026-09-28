@@ -111,11 +111,12 @@ const IndicatorChart = ({ data, width, height, dateRange, subSeries = [] }) => {
 
         // Draw chart components
         drawGrid(ctx, width, height);
-        drawDateAxis(ctx, chartDateRange, width, height);
-        drawIndicatorAxis(ctx, minMaxIndicator, width, height, axisLabel);
         visibleBySeries.forEach(({ series, points }) => {
           drawIndicatorLine(ctx, points, chartDateRange, minMaxIndicator, width, height, series.color);
         });
+        // Axes last, so their labels sit on top of the lines
+        drawDateAxis(ctx, chartDateRange, width, height);
+        drawIndicatorAxis(ctx, minMaxIndicator, width, height, axisLabel);
       } else {
         drawNoDataMessage(ctx, width, height, "No indicator data in current range");
       }

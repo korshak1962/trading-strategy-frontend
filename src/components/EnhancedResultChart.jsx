@@ -19,6 +19,7 @@ import {
 } from 'recharts';
 import './EnhancedResultChart.css';
 import { buildDateLookup } from '../utils/indicatorSeries';
+import { cumulativeClosedPnLByBar } from '../utils/ChartDataUtils';
 
 // Custom tooltip for price chart. Lists only the currently visible indicator series (by id),
 // never the "any numeric key on the row" heuristic - rows carry every series the DTO exposes.
@@ -132,17 +133,11 @@ const SynchronizedPnLChart = memo(({ data, trades, height, syncId }) => {
   // Prepare chart data with cumulative profit information (single pass, O(n + trades))
   const chartData = useMemo(() => {
     if (!data || !trades) return [];
-    const profitAtIndex = new Array(data.length).fill(0);
-    trades.forEach(trade => {
-      if (trade.closeIndex >= 0 && trade.closeIndex < data.length) {
-        profitAtIndex[trade.closeIndex] += trade.profit;
-      }
-    });
-    let running = 0;
-    return data.map((point, index) => {
-      running += profitAtIndex[index];
-      return { ...point, cumulativeProfit: running };
-    });
+    const cumulative = cumulativeClosedPnLByBar(
+      data.length,
+      trades.map(trade => ({ index: trade.closeIndex, pnl: trade.profit }))
+    );
+    return data.map((point, index) => ({ ...point, cumulativeProfit: cumulative[index] }));
   }, [data, trades]);
 
   if (!data || !trades || trades.length === 0) {

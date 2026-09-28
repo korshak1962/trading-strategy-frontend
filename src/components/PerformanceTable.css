@@ -52,6 +52,11 @@
     font-weight: 500;
     color: #334155;
   }
+
+  .metric-label[title] {
+    cursor: help;
+    text-decoration: underline dotted;
+  }
   
   .metric-value {
     font-weight: 600;
@@ -85,4 +90,7 @@
       padding: 0.75rem;
       font-size: 1rem;
     }
+  }
+  .metric-value.neutral {
+    color: #334155;
   }

@@ -60,7 +60,9 @@
   
   .param-row {
     display: grid;
-    grid-template-columns: 1fr 80px 80px;
+    /* minmax(0,1fr): a long param name must not widen the label track and push the
+       value/timeframe columns out of line - the name truncates instead (full name in title). */
+    grid-template-columns: minmax(0, 1fr) 80px 80px;
     gap: 0.5rem;
     align-items: center;
   }
@@ -70,6 +72,20 @@
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
+    min-width: 0;
+  }
+
+  .param-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .param-no-params {
+    font-size: 0.8rem;
+    color: #6b7280;
+    font-style: italic;
   }
 
   /* Floating parameter tooltips: an "i" icon that reveals a description box on hover/focus. */
@@ -142,6 +158,8 @@
   }
 
   .param-input {
+    width: 100%;
+    min-width: 0;
     padding: 0.25rem;
     border: 1px solid #d1d5db;
     border-radius: 0.25rem;
@@ -150,6 +168,8 @@
   }
 
   .param-timeframe {
+    width: 100%;
+    min-width: 0;
     padding: 0.25rem;
     border: 1px solid #d1d5db;
     border-radius: 0.25rem;

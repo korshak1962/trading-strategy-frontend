@@ -19,6 +19,7 @@ import TradeStatisticsTable from './components/TradeStatisticsTable';
 import { getAvailableStrategies, getAvailableTickers, submitStrategies, optimizeStrategies, formatStrategyConfig } from './api/strategyApi';
 import TickerCombobox from './components/TickerCombobox';
 import ChannelExplorer from './components/channelExplorer/ChannelExplorer';
+import { calendarDayKey } from './utils/dates';
 
 const App = () => {
   // Top-level tab: 'backtest' (existing strategy configure/run/results flow) or 'channels'
@@ -103,6 +104,20 @@ const App = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Client-side validation. Every error clears the previous result so a stale result is
+    // never shown next to an error message.
+    if (!ticker || !ticker.trim()) {
+      setResults(null);
+      setError('Ticker is required');
+      return;
+    }
+    // Compare calendar days, not instants: a start and end on the same day are valid
+    // (formatStrategyConfig sends T00:00:00 and T23:59:59).
+    if (calendarDayKey(startDate) > calendarDayKey(endDate)) {
+      setResults(null);
+      setError('Start date must be on or before end date');
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -113,6 +128,7 @@ const App = () => {
         : await submitStrategies(config);
       setResults(result);
     } catch (err) {
+      setResults(null);
       setError((mode === 'optimize' ? 'Optimization failed: ' : 'Backtest failed: ') + err.message);
     } finally {
       setLoading(false);
@@ -222,11 +238,12 @@ const App = () => {
               )}
             </div>
 
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} noValidate>
               {/* Ticker and TimeFrame */}
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Ticker</label>
+                <label htmlFor="ticker-input" className="block text-sm font-medium text-gray-700 mb-2">Ticker</label>
                 <TickerCombobox
+                  id="ticker-input"
                   value={ticker}
                   onChange={(val) => { setTicker(val); setResults(null); }}
                   tickers={availableTickers}
@@ -305,7 +322,7 @@ const App = () => {
               </button>
               
               {error && (
-                <div className="mt-4 p-3 bg-red-100 text-red-700 rounded">
+                <div className="form-error" role="alert">
                   {error}
                 </div>
               )}
@@ -377,6 +394,7 @@ const App = () => {
                       width={isFullscreen ? fullscreenChartWidth : 1200}
                       height={isFullscreen ? fullscreenChartHeight : 600}
                       visibleSeries={visibleIndicatorSeries}
+                      longLegOnly={results.longOnly !== true}
                     />
                   ) : (
                     <div style={{ height: isFullscreen ? `${fullscreenChartHeight}px` : '400px' }}>

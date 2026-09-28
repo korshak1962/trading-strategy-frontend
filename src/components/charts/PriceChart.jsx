@@ -126,8 +126,6 @@ const PriceChart = ({
     
     // Draw chart components
     drawGrid(ctx, width, height);
-    drawDateAxis(ctx, chartDateRange, width, height);
-    drawPriceAxis(ctx, minMaxPrice, width, height);
     
     // Draw price candlesticks with the calculated width
     drawPriceCandlesticks(ctx, prices, chartDateRange, minMaxPrice, width, height, candleWidth);
@@ -153,6 +151,10 @@ const PriceChart = ({
         );
       }
     }
+
+    // Axes last, so their labels sit on top of candles / overlays / signals
+    drawDateAxis(ctx, chartDateRange, width, height);
+    drawPriceAxis(ctx, minMaxPrice, width, height);
     
     // Clean up function
     return () => {

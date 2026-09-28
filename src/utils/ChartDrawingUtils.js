@@ -120,53 +120,73 @@ export const findMinMaxPriceRange = (prices) => {
       
       // Format date as YYYY-MM-DD
       const dateString = date.toISOString().split('T')[0];
-      
-      ctx.fillText(dateString, x, height - 5);
+
+      // Edge labels are anchored inward: centred on x=0 / x=width they were half cut off.
+      ctx.textAlign = i === 0 ? 'left' : i === numLabels ? 'right' : 'center';
+      const labelX = i === 0 ? 2 : i === numLabels ? width - 2 : x;
+      // Light backing so the dates stay legible over bars / lines running along the bottom
+      const textWidth = ctx.measureText(dateString).width;
+      const boxLeft = i === 0 ? labelX : i === numLabels ? labelX - textWidth : labelX - textWidth / 2;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.fillRect(boxLeft - 2, height - 14, textWidth + 4, 12);
+      ctx.fillStyle = '#333';
+      ctx.fillText(dateString, labelX, height - 5);
     }
-  };
-  
-  export const drawPriceAxis = (ctx, minMax, width, height) => {
-    const { min, max } = minMax;
-    
-    ctx.fillStyle = '#333';
-    ctx.font = '10px Arial';
-    ctx.textAlign = 'right';
-    
-    // Draw price labels
-    const numLabels = 5;
-    for (let i = 0; i <= numLabels; i++) {
-      const y = height - (i / numLabels) * height;
-      const price = min + (i / numLabels) * (max - min);
-      
-      ctx.fillText(price.toFixed(2), 40, y);
-    }
-    
-    // Draw axis label
-    ctx.save();
-    ctx.translate(15, height / 2);
-    ctx.rotate(-Math.PI / 2);
     ctx.textAlign = 'center';
-    ctx.fillText('Price', 0, 0);
+  };
+
+  // Height reserved at the bottom of every pane for the date axis labels (see drawDateAxis).
+  const DATE_AXIS_BAND = 18;
+  const VALUE_LABEL_X = 18; // right of the rotated axis title centred at x=8
+  const MIN_LABEL_GAP = 12;
+
+  /**
+   * Shared value-axis renderer for the price / trade-PnL / indicator / cumulative panes.
+   * Labels are left-aligned just right of the rotated axis title (they used to be right-aligned
+   * at x=40 and ran into it), kept inside the canvas vertically (the top one was clipped), kept
+   * clear of the date-axis band (the bottom one collided with the first date), and drawn on a
+   * light backing so they stay readable over candles/bars.
+   */
+  const drawValueAxis = (ctx, min, max, height, axisTitle, format = (v) => v.toFixed(2)) => {
+    ctx.save();
+    ctx.font = '10px Arial';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+
+    const numLabels = height < 120 ? 4 : 5; // short panes: fewer, less crowded labels
+    const top = 7;
+    const bottom = height - DATE_AXIS_BAND - 6;
+    let lastY = -Infinity;
+    for (let i = numLabels; i >= 0; i--) { // top-down so the gap check keeps the upper labels
+      const rawY = height - (i / numLabels) * height;
+      const y = Math.min(bottom, Math.max(top, rawY));
+      if (y - lastY < MIN_LABEL_GAP) continue;
+      lastY = y;
+      const text = format(min + (i / numLabels) * (max - min));
+      const textWidth = ctx.measureText(text).width;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.fillRect(VALUE_LABEL_X - 2, y - 6, textWidth + 4, 12);
+      ctx.fillStyle = '#333';
+      ctx.fillText(text, VALUE_LABEL_X, y);
+    }
+
+    if (axisTitle) {
+      ctx.translate(8, (height - DATE_AXIS_BAND) / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#555';
+      ctx.fillText(axisTitle, 0, 0);
+    }
     ctx.restore();
   };
   
-  export const drawPnLAxis = (ctx, minMax, width, height) => {
+  export const drawPriceAxis = (ctx, minMax, width, height) => {
+    drawValueAxis(ctx, minMax.min, minMax.max, height, 'Price');
+  };
+  
+  export const drawPnLAxis = (ctx, minMax, width, height, axisTitle = 'Trade PnL') => {
     const { min, max } = minMax;
-    
-    ctx.fillStyle = '#333';
-    ctx.font = '10px Arial';
-    ctx.textAlign = 'right';
-    
-    // Draw PnL labels
-    const numLabels = 5;
-    for (let i = 0; i <= numLabels; i++) {
-      const y = height - (i / numLabels) * height;
-      const pnl = min + (i / numLabels) * (max - min);
-      
-      ctx.fillText(pnl.toFixed(2), 40, y);
-    }
-    
-    // Draw zero line
+    // Zero line first so the labels' backing sits on top of it
     const zeroY = height - ((0 - min) / (max - min)) * height;
     ctx.strokeStyle = '#666';
     ctx.lineWidth = 1;
@@ -174,40 +194,12 @@ export const findMinMaxPriceRange = (prices) => {
     ctx.moveTo(0, zeroY);
     ctx.lineTo(width, zeroY);
     ctx.stroke();
-    
-    // Draw axis label
-    ctx.save();
-    ctx.translate(15, height / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#333';
-    ctx.fillText('Trade PnL', 0, 0);
-    ctx.restore();
+
+    drawValueAxis(ctx, min, max, height, axisTitle);
   };
   
   export const drawIndicatorAxis = (ctx, minMax, width, height, indicatorName) => {
-    const { min, max } = minMax;
-    
-    ctx.fillStyle = '#333';
-    ctx.font = '10px Arial';
-    ctx.textAlign = 'right';
-    
-    // Draw indicator labels
-    const numLabels = 5;
-    for (let i = 0; i <= numLabels; i++) {
-      const y = height - (i / numLabels) * height;
-      const value = min + (i / numLabels) * (max - min);
-      
-      ctx.fillText(value.toFixed(2), 40, y);
-    }
-    
-    // Draw axis label
-    ctx.save();
-    ctx.translate(15, height / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.textAlign = 'center';
-    ctx.fillText(indicatorName, 0, 0);
-    ctx.restore();
+    drawValueAxis(ctx, minMax.min, minMax.max, height, indicatorName);
   };
   
   // Helper functions for drawing shapes
@@ -671,4 +663,96 @@ export const findMinMaxPriceRange = (prices) => {
         ctx.fillText(trade.pnl.toFixed(2), openX + barWidth / 2, y + barHeight / 2 + 3);
       }
     });
+  };
+
+  /**
+   * Symmetric-ish value range for the cumulative PnL pane: always includes zero, 10% padding.
+   * @param {number[]} values
+   */
+  export const findMinMaxCumulative = (values) => {
+    let min = 0;
+    let max = 0;
+    (values || []).forEach(v => {
+      if (v < min) min = v;
+      if (v > max) max = v;
+    });
+    if (min === max) return { min: -1, max: 1 };
+    const padding = (max - min) * 0.1;
+    return { min: min - padding, max: max + padding };
+  };
+
+  /**
+   * Realized cumulative PnL as a step line (value changes on each trade's close bar) with a
+   * green/red fill against zero. Uses the same time->x mapping as every other pane.
+   * @param {Array<{date: Date, value: number}>} points - one per bar, ascending
+   */
+  export const drawCumulativePnLLine = (ctx, points, dateRange, minMax, width, height) => {
+    if (!dateRange || !dateRange[0] || !dateRange[1] ||
+        !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) {
+      return;
+    }
+    if (!points || points.length === 0) return;
+    const [startDate, endDate] = dateRange;
+    const startMs = startDate.getTime();
+    const endMs = endDate.getTime();
+    const totalMs = endMs - startMs;
+    const { min, max } = minMax;
+    if (totalMs <= 0 || max === min) return;
+
+    // Visible bars plus one of overhang each side so the line reaches the canvas edges.
+    let from = points.findIndex(p => p.date.getTime() >= startMs);
+    if (from === -1) return;
+    from = Math.max(0, from - 1);
+    let to = from;
+    while (to < points.length - 1 && points[to].date.getTime() <= endMs) to++;
+
+    const xOf = (ms) => ((ms - startMs) / totalMs) * width;
+    const yOf = (v) => height - ((v - min) / (max - min)) * height;
+    const zeroY = yOf(0);
+
+    // One step path, reused for the stroke and (closed down to zero) for the fill
+    const line = new Path2D();
+    const area = new Path2D();
+    const firstX = xOf(points[from].date.getTime());
+    area.moveTo(firstX, zeroY);
+    let prevY = null;
+    let lastX = firstX;
+    for (let i = from; i <= to; i++) {
+      const x = xOf(points[i].date.getTime());
+      const y = yOf(points[i].value);
+      if (prevY === null) {
+        line.moveTo(x, y);
+      } else {
+        line.lineTo(x, prevY); // step: hold the previous total until this bar
+        area.lineTo(x, prevY);
+        line.lineTo(x, y);
+      }
+      area.lineTo(x, y);
+      prevY = y;
+      lastX = x;
+    }
+    area.lineTo(lastX, zeroY);
+    area.closePath();
+
+    ctx.save();
+    // Fill between the curve and zero: green above, red below
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, width, zeroY);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(0, 128, 0, 0.15)';
+    ctx.fill(area);
+    ctx.restore();
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, zeroY, width, height - zeroY);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(255, 0, 0, 0.15)';
+    ctx.fill(area);
+    ctx.restore();
+
+    ctx.strokeStyle = '#2196F3';
+    ctx.lineWidth = 2;
+    ctx.stroke(line);
+    ctx.restore();
   };

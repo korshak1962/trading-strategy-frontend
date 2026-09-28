@@ -30,8 +30,17 @@
   position: relative;
 }
 
+/* Each pane component (PriceChart, PnLChart, ...) renders its own inner .chart-wrapper inside
+   the bordered one here. The inner border shrank the content box by 2px while the canvas is sized
+   to the outer one, so `overflow: hidden` clipped the right edge (last date label cut off). */
+.chart-wrapper .chart-wrapper {
+  border: none;
+  border-radius: 0;
+}
+
 .price-chart-canvas,
 .pnl-chart-canvas,
+.cumulative-pnl-chart-canvas,
 .indicator-chart-canvas {
   width: 100%;
   background-color: white;
@@ -70,11 +79,23 @@
   pointer-events: none;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   z-index: 1000;
+  /* max-content: when flipped left of the cursor near the right edge the tooltip must not
+     shrink-to-fit the little space left before the container edge */
+  width: max-content;
   max-width: 250px;
 }
 
 .chart-tooltip > div {
   margin-bottom: 3px;
+}
+
+.chart-tooltip-positive { color: #15803d; }
+.chart-tooltip-negative { color: #dc2626; }
+.chart-tooltip-muted { color: #666; font-size: 11px; }
+.chart-tooltip-section {
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid #eee;
 }
 
 /* Chart controls for zoom */

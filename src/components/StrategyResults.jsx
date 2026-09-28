@@ -3,6 +3,7 @@ import { useState } from 'react';
 import TradesTable from './TradesTable';
 import PerformanceMetricsTable from './PerformanceMetricsTable';
 import TradeStatisticsTable from './TradeStatisticsTable';
+import { formatNumber, formatPercent, formatSigned, formatSignedPercent } from '../utils/formatters';
 import '../ResultsTabs.css';
 
 const StrategyResults = ({ results, mode, fileContext }) => {
@@ -22,6 +23,29 @@ const StrategyResults = ({ results, mode, fileContext }) => {
   const profitableShort = results.profitableShortTradesCount ?? 0;
   const shortTrades = profitableShort + (results.lostShortTradesCount ?? 0);
   const winRateLabel = (wins, total) => (total > 0 ? `${Math.round((wins / total) * 100)}%` : '0%');
+  // Open position is excluded from the win/loss counts (closed trades only) and shown separately.
+  const hasOpenPosition = results.hasOpenPosition === true;
+  const openPositionPnL = results.openPositionPnL ?? 0;
+  const hasOpenShortPosition = results.hasOpenShortPosition === true;
+  const openShortPositionPnL = results.openShortPositionPnL ?? 0;
+  // Percent fields (percent units, 8.47 = 8.47%). When an older backend omits a field the
+  // % part is simply not rendered, so these stay undefined rather than defaulting to 0.
+  const longPnLPercent = results.longPnLPercent;
+  const shortPnLPercent = results.shortPnLPercent;
+  const openPositionPnLPercent = results.openPositionPnLPercent;
+  const openShortPositionPnLPercent = results.openShortPositionPnLPercent;
+  const maxDrawdown = results.maxDrawdown ?? 0;
+  const buyAndHoldMaxDrawdown = results.buyAndHoldMaxDrawdown ?? 0;
+  const maxDrawdownPercent = results.maxDrawdownPercent;
+  const buyAndHoldMaxDrawdownPercent = results.buyAndHoldMaxDrawdownPercent;
+  const hasNum = (v) => typeof v === 'number' && Number.isFinite(v);
+  // Signed "% of first entry" line / "(+x%)" suffix; empty when the field is absent.
+  const pctSuffix = (pct) => (hasNum(pct) ? `, ${formatSignedPercent(pct / 100)}` : '');
+  const openLabel = (pnl, pct) => ` · 1 open (${formatSigned(pnl)}${pctSuffix(pct)})`;
+  // Drawdowns are always <= 0 and carry their own "-": not signed (rule D6).
+  // Same formatting as the Performance tab: "-1,234.56 (-4.63%)", 0 shows as "0.00".
+  const ddValue = (dd) => formatNumber(dd);
+  const ddPct = (pct) => (hasNum(pct) ? ` (${formatPercent(pct / 100)})` : '');
 
   const tabClass = (tab) => `chart-view-tab${activeTab === tab ? ' chart-view-tab--active' : ''}`;
 
@@ -85,14 +109,22 @@ const StrategyResults = ({ results, mode, fileContext }) => {
               <div className="bg-blue-50 p-3 rounded">
                 <div className="text-sm text-blue-700 font-medium">Long PnL</div>
                 <div className={`text-xl font-bold ${longPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {longPnL.toFixed(2)}
+                  {formatSigned(longPnL)}
                 </div>
+                {hasNum(longPnLPercent) && (
+                  <div className="text-xs text-blue-400 mt-1">
+                    {formatSignedPercent(longPnLPercent / 100)} of first entry
+                  </div>
+                )}
               </div>
 
               <div className="bg-blue-50 p-3 rounded">
                 <div className="text-sm text-blue-700 font-medium">Long Trades</div>
                 <div className="text-xl font-bold">{longTrades}</div>
-                <div className="text-xs text-blue-400 mt-1">win rate {winRateLabel(profitableLong, longTrades)}</div>
+                <div className="text-xs text-blue-400 mt-1">
+                  win rate {winRateLabel(profitableLong, longTrades)}
+                  {hasOpenPosition && openLabel(openPositionPnL, openPositionPnLPercent)}
+                </div>
               </div>
 
               <div className="bg-blue-50 p-3 rounded">
@@ -100,7 +132,7 @@ const StrategyResults = ({ results, mode, fileContext }) => {
                 <div className={`text-xl font-bold ${actualYield >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {actualYield.toFixed(2)}%
                 </div>
-                <div className="text-xs text-blue-400 mt-1">annualized over time in long position</div>
+                <div className="text-xs text-blue-400 mt-1">annualized over time in long position · simple, not compounded</div>
               </div>
 
               <div className="bg-blue-50 p-3 rounded">
@@ -108,7 +140,7 @@ const StrategyResults = ({ results, mode, fileContext }) => {
                 <div className={`text-xl font-bold ${complexYield >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {complexYield.toFixed(2)}%
                 </div>
-                <div className="text-xs text-blue-400 mt-1">long-only view; 4%/yr treasury while out of market</div>
+                <div className="text-xs text-blue-400 mt-1">long-only view; 4%/yr treasury while out of market · simple, not compounded</div>
               </div>
 
               {/* Short side — omitted entirely when the result was evaluated long-only */}
@@ -117,14 +149,22 @@ const StrategyResults = ({ results, mode, fileContext }) => {
                   <div className="bg-purple-50 p-3 rounded">
                     <div className="text-sm text-purple-700 font-medium">Short PnL</div>
                     <div className={`text-xl font-bold ${shortPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {shortPnL.toFixed(2)}
+                      {formatSigned(shortPnL)}
                     </div>
+                    {hasNum(shortPnLPercent) && (
+                      <div className="text-xs text-purple-400 mt-1">
+                        {formatSignedPercent(shortPnLPercent / 100)} of first entry
+                      </div>
+                    )}
                   </div>
 
                   <div className="bg-purple-50 p-3 rounded">
                     <div className="text-sm text-purple-700 font-medium">Short Trades</div>
                     <div className="text-xl font-bold">{shortTrades}</div>
-                    <div className="text-xs text-purple-400 mt-1">win rate {winRateLabel(profitableShort, shortTrades)}</div>
+                    <div className="text-xs text-purple-400 mt-1">
+                      win rate {winRateLabel(profitableShort, shortTrades)}
+                      {hasOpenShortPosition && openLabel(openShortPositionPnL, openShortPositionPnLPercent)}
+                    </div>
                   </div>
 
                   <div className="bg-purple-50 p-3 rounded">
@@ -132,7 +172,7 @@ const StrategyResults = ({ results, mode, fileContext }) => {
                     <div className={`text-xl font-bold ${actualYieldShort >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {actualYieldShort.toFixed(2)}%
                     </div>
-                    <div className="text-xs text-purple-400 mt-1">annualized over time in short position</div>
+                    <div className="text-xs text-purple-400 mt-1">annualized over time in short position · simple, not compounded</div>
                   </div>
                 </>
               )}
@@ -141,18 +181,23 @@ const StrategyResults = ({ results, mode, fileContext }) => {
             {/* Drawdown comparison */}
             <div className="mt-4 grid grid-cols-2 gap-4">
               <div className="bg-red-50 border border-red-100 p-3 rounded">
-                <div className="text-sm text-red-700 font-medium">Strategy Max Drawdown</div>
-                <div className="text-xl font-bold text-red-600">
-                  {(results.maxDrawdown ?? 0) === 0 ? '0' : (results.maxDrawdown).toFixed(2)}
+                <div className="text-sm text-red-700 font-medium">
+                  Strategy Max Drawdown{!isLongOnly && ' (long leg)'}
                 </div>
-                <div className="text-xs text-red-400 mt-1">worst cumulative loss</div>
+                <div className="text-xl font-bold text-red-600">
+                  {ddValue(maxDrawdown)}{ddPct(maxDrawdownPercent)}
+                </div>
+                <div className="text-xs text-red-400 mt-1">
+                  peak-to-trough, marked to market · $/share and % of account at peak
+                  {!isLongOnly && ' · short leg not included'}
+                </div>
               </div>
               <div className="bg-orange-50 border border-orange-100 p-3 rounded">
                 <div className="text-sm text-orange-700 font-medium">Buy &amp; Hold Max Drawdown</div>
                 <div className="text-xl font-bold text-orange-600">
-                  {(results.buyAndHoldMaxDrawdown ?? 0) === 0 ? '0' : (results.buyAndHoldMaxDrawdown).toFixed(2)}
+                  {ddValue(buyAndHoldMaxDrawdown)}{ddPct(buyAndHoldMaxDrawdownPercent)}
                 </div>
-                <div className="text-xs text-orange-400 mt-1">worst cumulative loss</div>
+                <div className="text-xs text-orange-400 mt-1">peak-to-trough, marked to market · $/share and % of account at peak</div>
               </div>
             </div>
 
@@ -167,13 +212,20 @@ const StrategyResults = ({ results, mode, fileContext }) => {
       {activeTab === 'performance' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <PerformanceMetricsTable results={results} />
-          <TradeStatisticsTable results={results} />
+          <TradeStatisticsTable results={results} longLegOnly={!isLongOnly} />
         </div>
       )}
 
       {/* Trades Tab - Table of all trades */}
       {activeTab === 'trades' && (
-        <TradesTable data={results.chartDataDTO} fileContext={fileContext} />
+        <TradesTable
+          data={results.chartDataDTO}
+          fileContext={fileContext}
+          hasOpenPosition={hasOpenPosition}
+          openPositionPnL={openPositionPnL}
+          openPositionPnLPercent={openPositionPnLPercent}
+          longLegOnly={!isLongOnly}
+        />
       )}
     </div>
   );

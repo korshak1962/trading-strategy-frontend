@@ -61,6 +61,9 @@ const StrategyConfig = ({ selectedStrategies, onRemoveStrategy, onUpdateParam, m
           {/* Parameters */}
           {isExpanded(strategyName) && (
             <div className="strategy-params">
+              {Object.keys(params).length === 0 && (
+                <p className="param-no-params">No parameters</p>
+              )}
               {Object.entries(params).map(([paramName, param]) => (
                 mode === 'optimize' ? (
                   <div key={paramName} className="param-optimize-card">
@@ -91,7 +94,7 @@ const StrategyConfig = ({ selectedStrategies, onRemoveStrategy, onUpdateParam, m
                 ) : (
                   <div key={paramName} className="param-row">
                     <label className="param-label">
-                      {paramName}:
+                      <span className="param-name" title={paramName}>{paramName}:</span>
                       <InfoTooltip text={getParamDescription(strategyName, paramName)} />
                     </label>
                     <input

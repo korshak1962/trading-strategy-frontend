@@ -78,3 +78,32 @@ export const formatNumber = (num, decimalPlaces = 2) => {
     const date = new Date(dateTimeString);
     return formatDate(date, includeTime);
   };
+
+/**
+ * Format a number with an explicit sign ("+1.23", "-1.23", "0.00").
+ * Used for P&L amounts only (rule D6), not for yields, drawdowns, prices or ratios.
+ * @param {number} num
+ * @param {number} [dp=2]
+ * @returns {string}
+ */
+export const formatSigned = (num, dp = 2) =>
+  new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: dp,
+    maximumFractionDigits: dp,
+    signDisplay: 'exceptZero'
+  }).format(num);
+
+/**
+ * Format a fraction as a signed percentage ("+8.47%"). Same input convention as
+ * formatPercent: pass pct / 100. Used for P&L percentages only (rule D6).
+ * @param {number} fraction
+ * @param {number} [dp=2]
+ * @returns {string}
+ */
+export const formatSignedPercent = (fraction, dp = 2) =>
+  new Intl.NumberFormat('en-US', {
+    style: 'percent',
+    minimumFractionDigits: dp,
+    maximumFractionDigits: dp,
+    signDisplay: 'exceptZero'
+  }).format(fraction);

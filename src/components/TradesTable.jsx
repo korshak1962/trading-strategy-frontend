@@ -2,9 +2,26 @@
 import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import './TradesTable.css';
-import { formatNumber, formatDate } from '../utils/formatters';
+import { formatNumber, formatDate, formatSigned, formatSignedPercent } from '../utils/formatters';
 
-const TradesTable = ({ data, fileContext }) => {
+const TradesTable = ({
+  data,
+  fileContext,
+  hasOpenPosition = false,
+  openPositionPnL = 0,
+  openPositionPnLPercent,
+  // True when the result is not long-only: the chart data carries long signals only, so this
+  // table shows the long leg alone and says so. The open short position is on Summary/Performance.
+  longLegOnly = false,
+}) => {
+  const legLabel = longLegOnly ? 'long leg, ' : '';
+  const totalQualifiers = [longLegOnly && 'long leg', hasOpenPosition && 'closed'].filter(Boolean);
+  const totalLabel = `Total P&L${totalQualifiers.length ? ` (${totalQualifiers.join(', ')})` : ''}`;
+  // Open-position % comes from the backend; blank when an older backend omits it.
+  const pctOrBlank = (pct) =>
+    (typeof pct === 'number' && Number.isFinite(pct) ? formatSignedPercent(pct / 100) : '');
+  // Per-trade % on the trade's own entry price. The short pnl is already sign-reversed.
+  const tradePnlPercent = (pnl, openPrice) => (openPrice ? (pnl / openPrice) * 100 : 0);
   const [trades, setTrades] = useState([]);
   const [sortConfig, setSortConfig] = useState({
     key: 'openDate',
@@ -46,6 +63,7 @@ const TradesTable = ({ data, fileContext }) => {
           openPrice: openSignal.price,
           closePrice: signal.price,
           pnl: profit,
+          pnlPercent: tradePnlPercent(profit, openSignal.price),
           comment: openSignal.comment || signal.comment
         });
         
@@ -69,6 +87,7 @@ const TradesTable = ({ data, fileContext }) => {
           openPrice: openSignal.price,
           closePrice: signal.price,
           pnl: profit,
+          pnlPercent: tradePnlPercent(profit, openSignal.price),
           comment: openSignal.comment || signal.comment
         });
         
@@ -127,6 +146,7 @@ const TradesTable = ({ data, fileContext }) => {
       'Open Price':  trade.openPrice,
       'Close Price': trade.closePrice,
       'P&L':         parseFloat(trade.pnl.toFixed(2)),
+      'P&L %':       parseFloat(trade.pnlPercent.toFixed(2)),
       'Comment':     trade.comment || '',
     }));
 
@@ -168,7 +188,7 @@ const TradesTable = ({ data, fileContext }) => {
   return (
     <div className="trades-table-container">
       <div className="trades-table-header">
-        <h3 className="trades-table-title">Trade History</h3>
+        <h3 className="trades-table-title">Trade History{longLegOnly && ' (long leg)'}</h3>
         {trades.length > 0 && (
           <button className="export-excel-btn" onClick={exportToExcel} title="Export to Excel">
             ⬇ Export to Excel
@@ -202,6 +222,9 @@ const TradesTable = ({ data, fileContext }) => {
                 <th onClick={() => requestSort('pnl')} className={getClassNamesFor('pnl')}>
                   P&L <span className="sort-icon"></span>
                 </th>
+                <th onClick={() => requestSort('pnlPercent')} className={getClassNamesFor('pnlPercent')}>
+                  P&L % <span className="sort-icon"></span>
+                </th>
                 <th>Comment</th>
               </tr>
             </thead>
@@ -217,7 +240,10 @@ const TradesTable = ({ data, fileContext }) => {
                   <td>{formatNumber(trade.openPrice)}</td>
                   <td>{formatNumber(trade.closePrice)}</td>
                   <td className={`pnl-cell ${trade.pnl >= 0 ? 'positive' : 'negative'}`}>
-                    {formatNumber(trade.pnl)}
+                    {formatSigned(trade.pnl)}
+                  </td>
+                  <td className={`pnl-cell ${trade.pnl >= 0 ? 'positive' : 'negative'}`}>
+                    {formatSignedPercent(trade.pnlPercent / 100)}
                   </td>
                   <td className="comment-cell" title={trade.comment}>{trade.comment}</td>
                 </tr>
@@ -225,22 +251,37 @@ const TradesTable = ({ data, fileContext }) => {
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan="6" className="summary-label">Total P&L:</td>
+                <td colSpan="6" className="summary-label">{totalLabel}:</td>
                 <td className={`pnl-cell ${
                   trades.reduce((sum, trade) => sum + trade.pnl, 0) >= 0 ? 'positive' : 'negative'
                 }`}>
-                  {formatNumber(trades.reduce((sum, trade) => sum + trade.pnl, 0))}
+                  {formatSigned(trades.reduce((sum, trade) => sum + trade.pnl, 0))}
                 </td>
+                {/* A sum of per-trade % is not meaningful: the % cell stays blank. */}
+                <td></td>
                 <td></td>
               </tr>
+              {hasOpenPosition && (
+                <tr>
+                  <td colSpan="6" className="summary-label">Open long position (unrealized):</td>
+                  <td className={`pnl-cell ${openPositionPnL >= 0 ? 'positive' : 'negative'}`}>
+                    {formatSigned(openPositionPnL)}
+                  </td>
+                  <td className={`pnl-cell ${openPositionPnL >= 0 ? 'positive' : 'negative'}`}>
+                    {pctOrBlank(openPositionPnLPercent)}
+                  </td>
+                  <td></td>
+                </tr>
+              )}
               <tr>
-                <td colSpan="6" className="summary-label">Win Rate:</td>
+                <td colSpan="6" className="summary-label">Win Rate ({legLabel}closed):</td>
                 <td>
                   {trades.length > 0 
                     ? `${Math.round((trades.filter(t => t.pnl > 0).length / trades.length) * 100)}%`
                     : '0%'
                   }
                 </td>
+                <td></td>
                 <td></td>
               </tr>
             </tfoot>

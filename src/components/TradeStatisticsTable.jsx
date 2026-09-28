@@ -3,7 +3,10 @@ import { useEffect, useState, useCallback } from 'react';
 import { formatNumber, formatPercent } from '../utils/formatters';
 import './PerformanceTable.css';
 
-const TradeStatisticsTable = ({ results }) => {
+// longLegOnly: set when the run was not long-only. The signals this table is built from carry
+// the long leg only (same as TradesTable, R2), so the title says so and the always-zero
+// "Short Trades" row is hidden instead of contradicting the Summary's short-trade count.
+const TradeStatisticsTable = ({ results, longLegOnly = false }) => {
   const [tradeStats, setTradeStats] = useState({
     total: 0,
     profitable: 0,
@@ -173,7 +176,7 @@ const TradeStatisticsTable = ({ results }) => {
       isNegative: true
     },
     { 
-      label: 'Win Rate', 
+      label: 'Win Rate (closed)',
       value: tradeStats.total ? tradeStats.profitable / tradeStats.total : 0, 
       formatted: formatPercent(tradeStats.total ? tradeStats.profitable / tradeStats.total : 0),
       isPositive: (tradeStats.profitable / tradeStats.total) >= 0.5
@@ -186,7 +189,8 @@ const TradeStatisticsTable = ({ results }) => {
     { 
       label: 'Short Trades', 
       value: tradeStats.shortTrades, 
-      formatted: tradeStats.shortTrades.toString()
+      formatted: tradeStats.shortTrades.toString(),
+      hidden: longLegOnly
     },
     { 
       label: 'Avg. Trade Duration', 
@@ -229,11 +233,11 @@ const TradeStatisticsTable = ({ results }) => {
       formatted: tradeStats.consecutiveLosses.toString(),
       isNegative: true
     }
-  ];
+  ].filter(stat => !stat.hidden);
 
   return (
     <div className="performance-table-container">
-      <h3 className="performance-table-title">Trade Statistics</h3>
+      <h3 className="performance-table-title">Trade Statistics{longLegOnly && ' (long leg)'}</h3>
       
       <div className="performance-table-wrapper">
         <table className="performance-table">

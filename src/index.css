@@ -1,99 +1,98 @@
-/* Base reset */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@import "tailwindcss";
+
+/* App-wide element defaults. They live in the base layer so Tailwind utilities on an element
+   (p-2, border-gray-300, bg-blue-600, text-lg, ...) override them; elements without utility
+   classes (Channel Explorer inputs, legacy headings) keep the look they had before Tailwind.
+   Tailwind's preflight already provides the margin/padding reset, box-sizing and
+   font-family inheritance for form controls, so those rules were dropped here. */
+@layer base {
+  :root {
+    font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+    color: #213547;
+    background-color: #f9fafb;
+  }
+
+  body {
+    min-width: 320px;
+    min-height: 100vh;
+  }
+
+  /* Typography */
+  h1, h2, h3, h4, h5, h6 {
+    margin-bottom: 0.5em;
+    line-height: 1.2;
+  }
+
+  h1 {
+    font-size: 2rem;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+  }
+
+  h3 {
+    font-size: 1.25rem;
+  }
+
+  p {
+    margin-bottom: 1rem;
+  }
+
+  /* Form elements */
+  input, select, button, textarea {
+    font-size: 1rem;
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.25rem;
+  }
+
+  button {
+    cursor: pointer;
+    background-color: #f9f9f9;
+    transition: background-color 0.2s;
+  }
+
+  button:hover {
+    background-color: #e5e7eb;
+  }
+
+  button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 }
 
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  color: #213547;
-  background-color: #f9fafb;
-}
-
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-/* Typography */
-h1, h2, h3, h4, h5, h6 {
-  margin-bottom: 0.5em;
-  line-height: 1.2;
-}
-
-h1 {
-  font-size: 2rem;
-}
-
-h2 {
-  font-size: 1.5rem;
-}
-
-h3 {
-  font-size: 1.25rem;
-}
-
-p {
-  margin-bottom: 1rem;
-}
-
-/* Form elements */
-input, select, button, textarea {
-  font-family: inherit;
-  font-size: 1rem;
-  padding: 0.5rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.25rem;
-}
-
-button {
-  cursor: pointer;
-  background-color: #f9f9f9;
-  transition: background-color 0.2s;
-}
-
-button:hover {
-  background-color: #e5e7eb;
-}
-
-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-/* Layout utilities */
+/* Page width: capped at 1280px with responsive gutters. Kept unlayered on purpose so it
+   overrides Tailwind's own `container` utility (which would widen to 1536px).
+   Horizontal only, so vertical utilities such as py-8 still apply. */
 .container {
   width: 100%;
   max-width: 1280px;
-  margin: 0 auto;
-  padding: 0 1rem;
+  margin-inline: auto;
+  padding-inline: 1rem;
 }
 
-/* Grid system */
-.grid {
-  display: grid;
-  gap: 1rem;
-}
-
-/* Grid/flex items default to min-width:auto, which lets a track grow to fit wide content
-   (a canvas sized from its own container would then feed back on itself). */
-.min-w-0 {
-  min-width: 0;
-}
-
-/* Basic responsive breakpoints */
 @media (min-width: 640px) {
   .container {
-    padding: 0 1.5rem;
+    padding-inline: 1.5rem;
   }
 }
 
 @media (min-width: 1024px) {
   .container {
-    padding: 0 2rem;
+    padding-inline: 2rem;
   }
+}
+
+/* Form error box used by the strategy form. */
+.form-error {
+  margin-top: 1rem;
+  padding: .75rem;
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  border-radius: .25rem;
 }

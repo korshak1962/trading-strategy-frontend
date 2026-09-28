@@ -2,14 +2,22 @@
 import './DateRangePicker.css';
 
 const DateRangePicker = ({ startDate, endDate, onStartDateChange, onEndDateChange }) => {
-  // Format date for input
+  // Format date for input as local YYYY-MM-DD (toISOString() would use UTC and can shift the day)
+  const pad = (n) => String(n).padStart(2, '0');
   const formatDateForInput = (date) => {
-    return date.toISOString().split('T')[0];
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   };
 
-  // Parse date from input
+  // Parse 'YYYY-MM-DD' as local midnight (new Date('YYYY-MM-DD') would parse it as UTC midnight)
   const parseInputDate = (dateString) => {
-    return new Date(dateString);
+    const [y, m, d] = dateString.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  };
+
+  // Ignore an empty value (cleared field) so state never holds an Invalid Date
+  const handleChange = (onChange) => (e) => {
+    if (!e.target.value) return;
+    onChange(parseInputDate(e.target.value));
   };
 
   return (
@@ -22,7 +30,7 @@ const DateRangePicker = ({ startDate, endDate, onStartDateChange, onEndDateChang
           <input
             type="date"
             value={formatDateForInput(startDate)}
-            onChange={(e) => onStartDateChange(parseInputDate(e.target.value))}
+            onChange={handleChange(onStartDateChange)}
             max={formatDateForInput(endDate)}
             className="date-input"
           />
@@ -33,9 +41,8 @@ const DateRangePicker = ({ startDate, endDate, onStartDateChange, onEndDateChang
           <input
             type="date"
             value={formatDateForInput(endDate)}
-            onChange={(e) => onEndDateChange(parseInputDate(e.target.value))}
+            onChange={handleChange(onEndDateChange)}
             min={formatDateForInput(startDate)}
-            max={formatDateForInput(new Date())}
             className="date-input"
           />
         </div>
