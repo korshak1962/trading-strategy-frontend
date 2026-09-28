@@ -534,16 +534,18 @@ const EnhancedResultChart = ({ data, height = 400, visibleSeries = [] }) => {
             {/* Signal dots — ReferenceDot uses the chart's own xScale/yScale */}
             {visibleSignalDots}
 
-            {/* Indicator lines - price overlays on the price axis, sub series on the right axis */}
+            {/* Indicator lines - price overlays on the price axis, sub series on the right axis.
+                Price overlays (support/resistance/stop levels) jump discretely and are absent where
+                no level exists, so they are drawn as steps with gaps; sub series stay connected. */}
             {visibleSeries.map(series => (
               <Line
                 key={series.id}
-                type="monotone"
+                type={series.kind === 'price' ? 'stepAfter' : 'linear'}
                 dataKey={series.id}
                 stroke={series.color}
                 strokeWidth={1.5}
                 dot={false}
-                connectNulls
+                connectNulls={series.kind !== 'price'}
                 yAxisId={series.kind === 'price' ? 'price' : 'indicator'}
                 name={series.name}
                 isAnimationActive={false}
