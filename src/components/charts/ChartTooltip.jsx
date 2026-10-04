@@ -1,5 +1,9 @@
 // src/components/charts/ChartTooltip.jsx
 import { formatDate, formatSigned, formatSignedPercent } from '../../utils/formatters';
+import { fmtExchangeIntl } from '../../utils/dates';
+
+// Bar timestamp in the exchange wall clock (decision 0.18): price.date is a UTC-faked Date.
+const TOOLTIP_TS_FORMAT = { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' };
 
 const pnlClass = (value) => (value >= 0 ? 'chart-tooltip-positive' : 'chart-tooltip-negative');
 const shortDate = (date) => formatDate(date, false);
@@ -98,7 +102,7 @@ const ChartTooltip = ({ tooltipData }) => {
   return (
     <div className="chart-tooltip" style={style}>
       <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
-        {price.date.toLocaleString()}
+        {fmtExchangeIntl(price.date, TOOLTIP_TS_FORMAT)}
       </div>
       <div>Open: <span style={{ float: 'right' }}>{price.open.toFixed(2)}</span></div>
       <div>High: <span style={{ float: 'right' }}>{price.high.toFixed(2)}</span></div>

@@ -1,7 +1,10 @@
 // src/components/DateRangePicker.jsx
 import './DateRangePicker.css';
+import { exchangeTodayLocalDate, US_ZONE } from '../utils/dates';
 
-const DateRangePicker = ({ startDate, endDate, onStartDateChange, onEndDateChange }) => {
+// `zone`: the selected ticker's exchange zone. Presets end on the EXCHANGE's today
+// (decision 0.18), not the browser's.
+const DateRangePicker = ({ startDate, endDate, onStartDateChange, onEndDateChange, zone = US_ZONE }) => {
   // Format date for input as local YYYY-MM-DD (toISOString() would use UTC and can shift the day)
   const pad = (n) => String(n).padStart(2, '0');
   const formatDateForInput = (date) => {
@@ -53,8 +56,8 @@ const DateRangePicker = ({ startDate, endDate, onStartDateChange, onEndDateChang
         <button
           type="button"
           onClick={() => {
-            const end = new Date();
-            const start = new Date();
+            const end = exchangeTodayLocalDate(zone);
+            const start = new Date(end);
             start.setMonth(end.getMonth() - 1);
             onStartDateChange(start);
             onEndDateChange(end);
@@ -67,8 +70,8 @@ const DateRangePicker = ({ startDate, endDate, onStartDateChange, onEndDateChang
         <button
           type="button"
           onClick={() => {
-            const end = new Date();
-            const start = new Date();
+            const end = exchangeTodayLocalDate(zone);
+            const start = new Date(end);
             start.setMonth(end.getMonth() - 3);
             onStartDateChange(start);
             onEndDateChange(end);
@@ -81,8 +84,8 @@ const DateRangePicker = ({ startDate, endDate, onStartDateChange, onEndDateChang
         <button
           type="button"
           onClick={() => {
-            const end = new Date();
-            const start = new Date();
+            const end = exchangeTodayLocalDate(zone);
+            const start = new Date(end);
             start.setFullYear(end.getFullYear() - 1);
             onStartDateChange(start);
             onEndDateChange(end);
@@ -95,8 +98,8 @@ const DateRangePicker = ({ startDate, endDate, onStartDateChange, onEndDateChang
         <button
           type="button"
           onClick={() => {
-            const end = new Date();
-            const start = new Date();
+            const end = exchangeTodayLocalDate(zone);
+            const start = new Date(end);
             start.setFullYear(end.getFullYear() - 3);
             onStartDateChange(start);
             onEndDateChange(end);

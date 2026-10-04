@@ -20,6 +20,7 @@ import {
 import './EnhancedResultChart.css';
 import { buildDateLookup } from '../utils/indicatorSeries';
 import { cumulativeClosedPnLByBar } from '../utils/ChartDataUtils';
+import { parseExchangeTs, fmtExchangeDate, fmtExchangeIntl } from '../utils/dates';
 
 // Custom tooltip for price chart. Lists only the currently visible indicator series (by id),
 // never the "any numeric key on the row" heuristic - rows carry every series the DTO exposes.
@@ -271,7 +272,7 @@ const EnhancedResultChart = ({ data, height = 400, visibleSeries = [] }) => {
     // Create a proper date scale - convert all dates to same format for consistency
     const standardizeDateFormat = (dateStr) => {
       // Ensure consistent ISO-style date format for comparison
-      return new Date(dateStr).toISOString().split('T')[0];
+      return fmtExchangeDate(dateStr);
     };
 
     // One lookup (raw date string -> value) per series of BOTH maps, keyed by series id
@@ -310,7 +311,7 @@ const EnhancedResultChart = ({ data, height = 400, visibleSeries = [] }) => {
       // Use same date format throughout for synchronization
       return {
         date: priceDate,
-        displayDate: new Date(price.date).toLocaleDateString(), // For display purposes
+        displayDate: fmtExchangeIntl(price.date), // For display purposes
         rawDate: price.date, // Keep the raw date for processing
         open: price.open,
         high: price.high,
@@ -348,7 +349,7 @@ const EnhancedResultChart = ({ data, height = 400, visibleSeries = [] }) => {
 
     // Sort signals chronologically
     const sortedSignals = [...signals].sort((a, b) => 
-      new Date(a.date) - new Date(b.date)
+      parseExchangeTs(a.date) - parseExchangeTs(b.date)
     );
     
     // Keep track of active trades to avoid duplicates and ensure proper pairing
@@ -356,7 +357,7 @@ const EnhancedResultChart = ({ data, height = 400, visibleSeries = [] }) => {
     
     // Process signals to extract complete trades
     sortedSignals.forEach(signal => {
-      const signalDateStr = new Date(signal.date).toISOString().split('T')[0];
+      const signalDateStr = fmtExchangeDate(signal.date);
       const signalIndex = dateToIndexMap[signalDateStr];
       
       // Skip signals that don't match any price data point
@@ -390,11 +391,11 @@ const EnhancedResultChart = ({ data, height = 400, visibleSeries = [] }) => {
           }
           
           // Ensure open and close dates are in sequence
-          const openIsBefore = new Date(openTrade.signal.date) < new Date(signal.date);
+          const openIsBefore = parseExchangeTs(openTrade.signal.date) < parseExchangeTs(signal.date);
           if (openIsBefore) {
             extractedTrades.push({
-              openDate: new Date(openTrade.signal.date).toLocaleDateString(),
-              closeDate: new Date(signal.date).toLocaleDateString(),
+              openDate: fmtExchangeIntl(openTrade.signal.date),
+              closeDate: fmtExchangeIntl(signal.date),
               openPrice: openTrade.signal.price,
               closePrice: signal.price,
               profit: profit,
@@ -406,8 +407,8 @@ const EnhancedResultChart = ({ data, height = 400, visibleSeries = [] }) => {
               closeSignal: signal,
               // Add a trade object with all data for the tooltip
               trade: {
-                openDate: new Date(openTrade.signal.date).toLocaleDateString(),
-                closeDate: new Date(signal.date).toLocaleDateString(),
+                openDate: fmtExchangeIntl(openTrade.signal.date),
+                closeDate: fmtExchangeIntl(signal.date),
                 openPrice: openTrade.signal.price,
                 closePrice: signal.price,
                 profit: profit,
@@ -488,7 +489,7 @@ const EnhancedResultChart = ({ data, height = 400, visibleSeries = [] }) => {
               type="category"
               scale="point"
               // Ensure consistent tick formatting
-              tickFormatter={(value) => new Date(value).toLocaleDateString()}
+              tickFormatter={(value) => fmtExchangeIntl(value)}
             />
             <YAxis 
               yAxisId="price"

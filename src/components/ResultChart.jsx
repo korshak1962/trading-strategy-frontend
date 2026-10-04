@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import './ResultChart.css';
 import { buildDateLookup } from '../utils/indicatorSeries';
+import { fmtExchangeIntl } from '../utils/dates';
 
 // Signal markers are drawn as custom dots on the close-price line: a small triangle per signal.
 // A labelled ReferenceLine per signal (the previous approach) turned a busy strategy into a wall
@@ -116,7 +117,7 @@ const ResultChart = ({ data, visibleSeries = [] }) => {
       });
 
       return {
-        date: new Date(price.date).toLocaleDateString(),
+        date: fmtExchangeIntl(price.date),
         open: price.open,
         high: price.high,
         low: price.low,

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import './TradesTable.css';
 import { formatNumber, formatDate, formatSigned, formatSignedPercent } from '../utils/formatters';
+import { parseExchangeTs, toLocalIsoDate } from '../utils/dates';
 
 const TradesTable = ({
   data,
@@ -42,7 +43,7 @@ const TradesTable = ({
 
     // Sort signals by date
     const sortedSignals = [...signals].sort((a, b) => 
-      new Date(a.date) - new Date(b.date)
+      parseExchangeTs(a.date) - parseExchangeTs(b.date)
     );
 
     sortedSignals.forEach(signal => {
@@ -58,8 +59,8 @@ const TradesTable = ({
         extractedTrades.push({
           id: extractedTrades.length + 1,
           type: 'Long',
-          openDate: new Date(openSignal.date),
-          closeDate: new Date(signal.date),
+          openDate: parseExchangeTs(openSignal.date),
+          closeDate: parseExchangeTs(signal.date),
           openPrice: openSignal.price,
           closePrice: signal.price,
           pnl: profit,
@@ -82,8 +83,8 @@ const TradesTable = ({
         extractedTrades.push({
           id: extractedTrades.length + 1,
           type: 'Short',
-          openDate: new Date(openSignal.date),
-          closeDate: new Date(signal.date),
+          openDate: parseExchangeTs(openSignal.date),
+          closeDate: parseExchangeTs(signal.date),
           openPrice: openSignal.price,
           closePrice: signal.price,
           pnl: profit,
@@ -178,7 +179,8 @@ const TradesTable = ({
       )
       .join('_');
 
-    const fmtDate = (d) => d ? new Date(d).toISOString().slice(0, 10) : '';
+    // User-picked range (local Dates): their literal calendar day, never toISOString() (UTC shift).
+    const fmtDate = (d) => (d instanceof Date ? toLocalIsoDate(d) : d ? String(d).slice(0, 10) : '');
     const datePart = [fmtDate(startDate), fmtDate(endDate)].filter(Boolean).join('_');
 
     const parts = [strategyPart, sanitize(ticker), sanitize(timeFrame), paramPart, datePart].filter(Boolean);

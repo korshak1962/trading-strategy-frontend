@@ -9,6 +9,7 @@ import {
   drawIndividualTradeBars
 } from '../../utils/ChartDrawingUtils';
 import { extractTradesFromSignals } from '../../utils/ChartDataUtils';
+import { parseExchangeTs, exchangeToday } from '../../utils/dates';
 
 /**
  * PnLChart component renders the profit/loss chart for trades
@@ -66,25 +67,25 @@ const PnLChart = ({ data, width, height, dateRange, trades, axisTitle }) => {
       try {
         // Try to extract date range from prices
         chartDateRange = [
-          new Date(prices[0].date),
-          new Date(prices[prices.length - 1].date)
+          parseExchangeTs(prices[0].date),
+          parseExchangeTs(prices[prices.length - 1].date)
         ];
         
         // Validate the calculated date range
         if (isNaN(chartDateRange[0].getTime()) || isNaN(chartDateRange[1].getTime())) {
           // If dates are invalid, create a fallback range
-          const now = new Date();
+          const now = parseExchangeTs(exchangeToday()); // UTC-faked exchange today (decision 0.18)
           chartDateRange = [
-            new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30),
+            new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
             now
           ];
         }
       } catch (e) {
         // Fallback to a default range if all else fails
         console.warn('Error creating date range from prices:', e);
-        const now = new Date();
+        const now = parseExchangeTs(exchangeToday()); // UTC-faked exchange today (decision 0.18)
         chartDateRange = [
-          new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30),
+          new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
           now
         ];
       }
@@ -97,8 +98,8 @@ const PnLChart = ({ data, width, height, dateRange, trades, axisTitle }) => {
       if (allTrades.length > 0) {
         // Filter trades to only show those within the date range
         const visibleTrades = allTrades.filter(trade => {
-          const openDate = trade.openDate instanceof Date ? trade.openDate : new Date(trade.openDate);
-          const closeDate = trade.closeDate instanceof Date ? trade.closeDate : new Date(trade.closeDate);
+          const openDate = trade.openDate instanceof Date ? trade.openDate : parseExchangeTs(trade.openDate);
+          const closeDate = trade.closeDate instanceof Date ? trade.closeDate : parseExchangeTs(trade.closeDate);
           
           // Include trade if any part of it is in the visible range
           return (

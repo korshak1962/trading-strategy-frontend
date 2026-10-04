@@ -1,4 +1,5 @@
 // src/utils/formatters.js
+import { parseExchangeTs } from './dates';
 
 /**
  * Format a number with commas and specified decimal places
@@ -28,16 +29,20 @@ export const formatNumber = (num, decimalPlaces = 2) => {
   };
   
   /**
-   * Format a date for display
+   * Format an exchange timestamp for display (decision 0.18: exchange wall clock, no
+   * conversion). A string is an API LocalDateTime; a Date must be UTC-faked (utils/dates.js
+   * parseExchangeTs) — it is formatted with timeZone 'UTC' so the browser zone never applies.
    * @param {string|Date} dateInput - Date to format
    * @param {boolean} [includeTime=true] - Whether to include time
    * @returns {string} Formatted date
    */
   export const formatDate = (dateInput, includeTime = true) => {
-    const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    const date = parseExchangeTs(dateInput);
+    if (Number.isNaN(date.getTime())) return '';
     
     if (includeTime) {
       return new Intl.DateTimeFormat('en-US', {
+        timeZone: 'UTC',
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -48,6 +53,7 @@ export const formatNumber = (num, decimalPlaces = 2) => {
     }
     
     return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'UTC',
       year: 'numeric',
       month: 'short',
       day: 'numeric'
@@ -74,9 +80,8 @@ export const formatNumber = (num, decimalPlaces = 2) => {
   export const formatLocalDateTime = (dateTimeString, includeTime = true) => {
     if (!dateTimeString) return '';
     
-    // Java LocalDateTime has format like: "2023-04-21T14:30:00"
-    const date = new Date(dateTimeString);
-    return formatDate(date, includeTime);
+    // Java LocalDateTime has format like: "2023-04-21T14:30:00" (exchange-local wall clock)
+    return formatDate(dateTimeString, includeTime);
   };
 
 /**

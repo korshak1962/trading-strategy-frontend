@@ -3,6 +3,7 @@ import { detectChannels, fetchPrices } from '../../api/channelApi';
 import { getAvailableTickers } from '../../api/strategyApi';
 import ChannelExplorerChart, { TF_LINE_WIDTH } from './ChannelExplorerChart';
 import RecursiveParamsPanel, { RECURSIVE_DEFAULT_PARAMS } from './RecursiveParamsPanel';
+import { exchangeToday, exchangeZoneForTicker, addYearsIso } from '../../utils/dates';
 import './ChannelExplorer.css';
 
 const TIMEFRAMES = [
@@ -25,15 +26,16 @@ const finestTf = (tfs) =>
 const DIRECTION_LABEL = { 1: '▲ Ascending', '-1': '▼ Descending', 0: '→ Flat' };
 const DIRECTION_COLOR = { 1: '#26a69a', '-1': '#ef5350', 0: '#787b86' };
 
-const today = new Date().toISOString().substring(0, 10);
-const twoYearsAgo = new Date(new Date().setFullYear(new Date().getFullYear() - 2))
-  .toISOString().substring(0, 10);
+// Decision 0.18: default range in the EXCHANGE's calendar (the default ticker SPY trades in
+// New York), never toISOString() (UTC) or the browser's date. Computed per mount.
+const defaultTo = () => exchangeToday(exchangeZoneForTicker('SPY'));
+const defaultFrom = () => addYearsIso(defaultTo(), -2);
 
 export default function ChannelExplorer() {
   const [ticker, setTicker] = useState('SPY');
   const [tickers, setTickers] = useState([]);
-  const [from, setFrom] = useState(twoYearsAgo);
-  const [to, setTo] = useState(today);
+  const [from, setFrom] = useState(defaultFrom);
+  const [to, setTo] = useState(defaultTo);
   const [selectedTfs, setSelectedTfs] = useState(['DAY']);
   const [visibleTfs, setVisibleTfs] = useState(new Set(['DAY']));
 

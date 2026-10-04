@@ -1,4 +1,5 @@
 // src/utils/ChartDrawingUtils.js
+import { parseExchangeTs } from './dates';
 
 // Helper functions for finding min/max values
 export const findMinMaxPriceRange = (prices) => {
@@ -118,7 +119,8 @@ export const findMinMaxPriceRange = (prices) => {
       const ms = (i / numLabels) * totalMs;
       const date = new Date(startDate.getTime() + ms);
       
-      // Format date as YYYY-MM-DD
+      // Format date as YYYY-MM-DD. Dates here are UTC-faked exchange wall clock (utils/dates.js,
+      // decision 0.18), so toISOString() yields the exchange calendar day in every browser zone.
       const dateString = date.toISOString().split('T')[0];
 
       // Edge labels are anchored inward: centred on x=0 / x=width they were half cut off.
@@ -253,12 +255,12 @@ export const findMinMaxPriceRange = (prices) => {
     
     // Filter to only show prices within the date range
     const visiblePrices = prices.filter(price => {
-      const priceDate = new Date(price.date);
+      const priceDate = parseExchangeTs(price.date);
       return priceDate >= startDate && priceDate <= endDate;
     });
     
     visiblePrices.forEach((price) => {
-      const date = new Date(price.date);
+      const date = parseExchangeTs(price.date);
       const x = ((date.getTime() - startDate.getTime()) / totalMs) * width;
       
       // Calculate y coordinates for the price components
@@ -329,7 +331,7 @@ export const findMinMaxPriceRange = (prices) => {
         started = false;
         return;
       }
-      const date = new Date(indicator.date);
+      const date = parseExchangeTs(indicator.date);
       const x = ((date.getTime() - startDate.getTime()) / totalMs) * width;
       const y = height - ((indicator.value - min) / (max - min)) * height;
       
@@ -388,7 +390,7 @@ export const findMinMaxPriceRange = (prices) => {
       // runs to the canvas edges instead of stopping at the first/last visible bar.
       let firstVisible = -1;
       let lastVisible = -1;
-      const timestamps = points.map(point => new Date(point.date).getTime());
+      const timestamps = points.map(point => parseExchangeTs(point.date).getTime());
       for (let i = 0; i < points.length; i++) {
         const ms = timestamps[i];
         if (ms >= startMs && ms <= endMs) {
@@ -441,7 +443,7 @@ export const findMinMaxPriceRange = (prices) => {
    */
   export const deriveSignalTradeIndex = (signals) => {
     const map = new Map();
-    const sorted = [...(signals || [])].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const sorted = [...(signals || [])].sort((a, b) => parseExchangeTs(a.date) - parseExchangeTs(b.date));
     const openSignals = {}; // 'Long' | 'Short' -> signal
     const trades = []; // {open, close|null}, in the order each trade closed
 
@@ -482,7 +484,7 @@ export const findMinMaxPriceRange = (prices) => {
     const totalMs = endDate.getTime() - startDate.getTime();
 
     signals.forEach(signal => {
-      const date = new Date(signal.date);
+      const date = parseExchangeTs(signal.date);
       const x = ((date.getTime() - startDate.getTime()) / totalMs) * width;
       const y = height - ((signal.price - min) / (max - min)) * height;
 
@@ -563,7 +565,7 @@ export const findMinMaxPriceRange = (prices) => {
     const totalMs = endDate.getTime() - startDate.getTime();
 
     const toXY = (point) => {
-      const date = new Date(point.date);
+      const date = parseExchangeTs(point.date);
       const x = ((date.getTime() - startDate.getTime()) / totalMs) * width;
       const y = height - ((point.price - min) / (max - min)) * height;
       return { x, y };
@@ -587,8 +589,8 @@ export const findMinMaxPriceRange = (prices) => {
       .filter(({ channel }) => {
         // Skip channels entirely outside the visible date range - same filtering intent as
         // drawSignals' visibleSignals check, just applied to a span instead of a point.
-        const channelStart = new Date(channel.upperPoints?.[0]?.date ?? channel.startDate);
-        const channelEnd = new Date(channel.upperPoints?.[channel.upperPoints.length - 1]?.date ?? channel.endDate);
+        const channelStart = parseExchangeTs(channel.upperPoints?.[0]?.date ?? channel.startDate);
+        const channelEnd = parseExchangeTs(channel.upperPoints?.[channel.upperPoints.length - 1]?.date ?? channel.endDate);
         return !(channelEnd < startDate || channelStart > endDate);
       })
       .forEach(({ channel, tradeIndex }) => {
@@ -615,8 +617,8 @@ export const findMinMaxPriceRange = (prices) => {
     // Draw individual trade bars
     trades.forEach(trade => {
       // Ensure trade dates are properly processed as Date objects
-      const openDate = trade.openDate instanceof Date ? trade.openDate : new Date(trade.openDate);
-      const closeDate = trade.closeDate instanceof Date ? trade.closeDate : new Date(trade.closeDate);
+      const openDate = trade.openDate instanceof Date ? trade.openDate : parseExchangeTs(trade.openDate);
+      const closeDate = trade.closeDate instanceof Date ? trade.closeDate : parseExchangeTs(trade.closeDate);
       
       // Calculate x positions for open and close dates
       const openX = ((openDate.getTime() - startDate.getTime()) / totalMs) * width;

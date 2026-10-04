@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createChart } from 'lightweight-charts';
 import { formatPct } from './format';
+import { exchangeTsSeconds } from '../../utils/dates';
 import './ChannelExplorerChart.css';
 
 const DIRECTION_COLOR = { 1: '#26a69a', '-1': '#ef5350', 0: '#787b86' };
@@ -20,17 +21,14 @@ export const TF_LINE_WIDTH = { MIN5: 1, HOUR: 1, DAY: 2, WEEK: 3, MONTH: 4 };
 
 // Always return Unix timestamp in seconds so intraday bars (HOUR/MIN5) don't
 // collapse to the same YYYY-MM-DD key and break lightweight-charts.
-const toTs = (dt) => {
-  if (!dt) return null;
-  if (Array.isArray(dt)) {
-    const [y, m, d, h = 0, min = 0, s = 0] = dt;
-    return Math.floor(new Date(y, m - 1, d, h, min, s).getTime() / 1000);
-  }
-  const str = String(dt);
-  // Append seconds if missing so Date() parses as local time (not UTC)
-  const normalized = str.length === 16 ? str + ':00' : str.length === 10 ? str + 'T00:00:00' : str;
-  return Math.floor(new Date(normalized).getTime() / 1000);
-};
+//
+// Decision 0.18 (exchange time, no conversion): these are "UTC-faked exchange-local"
+// timestamps. The API's zone-less wall clock ("2026-10-02T09:30:00", New York for US, Moscow
+// for _MOEX) is encoded as if it were UTC (Date.UTC, see utils/dates.js parseExchangeTs), and
+// lightweight-charts renders Unix times in UTC — so the axis and crosshair show exactly
+// 09:30 on 2026-10-02 in every browser zone. Do NOT switch to new Date(str)/local-time parsing:
+// that would shift every bar by the browser's UTC offset.
+const toTs = (dt) => (dt ? exchangeTsSeconds(dt) : null);
 
 // Finds the candle whose timestamp matches `targetTs`, or the nearest one if the
 // channel's own timeframe doesn't exactly match the displayed candles (e.g. an HOUR

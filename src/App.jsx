@@ -19,12 +19,13 @@ import TradeStatisticsTable from './components/TradeStatisticsTable';
 import { getAvailableStrategies, getAvailableTickers, submitStrategies, optimizeStrategies, formatStrategyConfig } from './api/strategyApi';
 import TickerCombobox from './components/TickerCombobox';
 import ChannelExplorer from './components/channelExplorer/ChannelExplorer';
-import { calendarDayKey } from './utils/dates';
+import DownloaderPanel from './components/downloader/DownloaderPanel';
+import { calendarDayKey, exchangeTodayLocalDate, exchangeZoneForTicker } from './utils/dates';
 
 const App = () => {
-  // Top-level tab: 'backtest' (existing strategy configure/run/results flow) or 'channels'
-  // (the relocated analyzer-frontend channel-exploration UI) — the two are functionally
-  // independent and don't share state, they just live in the same app now.
+  // Top-level tab: 'backtest' (strategy configure/run/results flow), 'channels' (channel
+  // explorer) or 'downloader' (price download + indicator recalc jobs). The tabs are
+  // functionally independent and don't share state.
   const [activeTab, setActiveTab] = useState('backtest');
 
   // State for available strategies
@@ -43,7 +44,8 @@ const App = () => {
 
   // State for date range
   const [startDate, setStartDate] = useState(new Date(2023, 0, 1));
-  const [endDate, setEndDate] = useState(new Date());
+  // Decision 0.18: default end = the exchange's today (US default ticker), not the browser's.
+  const [endDate, setEndDate] = useState(() => exchangeTodayLocalDate());
   
   // State for mode, loading and results
   const [mode, setMode] = useState('backtest'); // 'backtest' | 'optimize'
@@ -198,15 +200,22 @@ const App = () => {
     }));
   };
 
-  return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      <Header activeTab={activeTab} onChangeTab={setActiveTab} />
-
-      {activeTab === 'channels' ? (
-        <main className="flex-grow w-full px-4 py-8">
-          <ChannelExplorer />
-        </main>
-      ) : (
+  const renderMain = () => {
+    switch (activeTab) {
+      case 'channels':
+        return (
+          <main className="flex-grow w-full px-4 py-8">
+            <ChannelExplorer />
+          </main>
+        );
+      case 'downloader':
+        return (
+          <main className="flex-grow w-full px-4 py-8">
+            <DownloaderPanel />
+          </main>
+        );
+      default:
+        return (
       <main className="flex-grow container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Configuration Panel */}
@@ -285,6 +294,7 @@ const App = () => {
                 endDate={endDate}
                 onStartDateChange={setStartDate}
                 onEndDateChange={setEndDate}
+                zone={exchangeZoneForTicker(ticker)}
               />
               
               {/* Strategy Selector */}
@@ -421,7 +431,15 @@ const App = () => {
           </div>
         </div>
       </main>
-      )}
+        );
+    }
+  };
+
+  return (
+    <div className="flex flex-col min-h-screen bg-gray-50">
+      <Header activeTab={activeTab} onChangeTab={setActiveTab} />
+
+      {renderMain()}
 
       <footer className="py-4 bg-gray-800 text-white text-center">
         <p>Strategy Backtesting Tool &copy; {new Date().getFullYear()}</p>

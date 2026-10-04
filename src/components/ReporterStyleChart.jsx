@@ -10,6 +10,7 @@ import Crosshair from './charts/Crosshair';
 import { findMinMaxPriceRange, deriveSignalTradeIndex, signalKey } from '../utils/ChartDrawingUtils';
 import { pointsForSeries } from '../utils/indicatorSeries';
 import { extractTradesFromSignals, cumulativeClosedPnLByBar, barIndexAtOrAfter } from '../utils/ChartDataUtils';
+import { parseExchangeTs, fmtExchangeIntl } from '../utils/dates';
 
 // Pane canvases, top to bottom - used to tell which pane the cursor is over.
 const PANE_CANVASES = [
@@ -50,7 +51,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
   const cumulativePoints = useMemo(() => {
     const prices = data?.prices || [];
     if (prices.length === 0) return [];
-    const barTimes = prices.map(price => new Date(price.date).getTime());
+    const barTimes = prices.map(price => parseExchangeTs(price.date).getTime());
     const closes = trades.map(trade => {
       const index = barIndexAtOrAfter(barTimes, trade.closeDate.getTime());
       return { index: index === -1 ? barTimes.length - 1 : index, pnl: trade.pnl };
@@ -138,7 +139,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
     
     // Store processed price data
     chartData.current.prices = data.prices.map(price => ({
-      date: new Date(price.date),
+      date: parseExchangeTs(price.date),
       open: price.open,
       high: price.high,
       low: price.low,
@@ -149,8 +150,8 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
     // Store date range
     if (data.prices.length > 0) {
       const range = [
-        new Date(data.prices[0].date),
-        new Date(data.prices[data.prices.length - 1].date)
+        parseExchangeTs(data.prices[0].date),
+        parseExchangeTs(data.prices[data.prices.length - 1].date)
       ];
       
       chartData.current.dateRange = range;
@@ -243,16 +244,16 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
       let signals = [];
       if (data && data.signals) {
         signals = data.signals.filter(signal => 
-          new Date(signal.date).toISOString() === closestPrice.date.toISOString()
+          parseExchangeTs(signal.date).getTime() === closestPrice.date.getTime()
         );
       }
       
       // Indicator values at this bar - only the visible series, in picker order, with colour
-      const closestIso = closestPrice.date.toISOString();
+      const closestMs = closestPrice.date.getTime();
       const indicatorValues = [];
       visibleSeries.forEach(series => {
         const matchingIndicator = pointsForSeries(data, series).find(ind =>
-          new Date(ind.date).toISOString() === closestIso
+          parseExchangeTs(ind.date).getTime() === closestMs
         );
         if (matchingIndicator && typeof matchingIndicator.value === 'number' && !Number.isNaN(matchingIndicator.value)) {
           indicatorValues.push({ name: series.name, value: matchingIndicator.value, color: series.color });
@@ -300,7 +301,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
     let closest = null;
     let closestDist = Infinity;
     data.signals.forEach(signal => {
-      const sDate = new Date(signal.date);
+      const sDate = parseExchangeTs(signal.date);
       if (sDate < startDate || sDate > endDate) return;
       const x = ((sDate.getTime() - startDate.getTime()) / totalMs) * rect.width;
       const y = rect.height - ((signal.price - minMax.min) / (minMax.max - minMax.min)) * rect.height;
@@ -340,8 +341,8 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
     const relevantChannel = (data?.channels || [])
       .find(g => g.tradeIndex === tradeIndex && g.role === relevantRole);
     if (relevantChannel) {
-      const channelEnd = new Date(relevantChannel.channel.endDate).getTime();
-      const gapDays = Math.round((new Date(signal.date).getTime() - channelEnd) / (1000 * 60 * 60 * 24));
+      const channelEnd = parseExchangeTs(relevantChannel.channel.endDate).getTime();
+      const gapDays = Math.round((parseExchangeTs(signal.date).getTime() - channelEnd) / (1000 * 60 * 60 * 24));
       if (gapDays > 3) {
         const why = isOpen
           ? 'the strategy only looks for a new entry once the previous position closes, so an already-confirmed pattern can sit unclaimed for a while'
@@ -613,7 +614,8 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, visibleSeries = 
   // Format date for display
   const formatDate = (date) => {
     if (!date) return '';
-    return date.toLocaleDateString(undefined, { 
+    // UTC-faked exchange wall clock (decision 0.18) — never the browser zone.
+    return fmtExchangeIntl(date, { 
       year: 'numeric',
       month: 'short',
       day: 'numeric'

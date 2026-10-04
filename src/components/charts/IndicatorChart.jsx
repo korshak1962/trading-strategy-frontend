@@ -8,6 +8,7 @@ import {
   drawIndicatorAxis,
   drawIndicatorLine
 } from '../../utils/ChartDrawingUtils';
+import { parseExchangeTs, exchangeToday } from '../../utils/dates';
 
 /**
  * IndicatorChart component renders the sub-pane technical indicators (data.indicators) - every
@@ -65,25 +66,25 @@ const IndicatorChart = ({ data, width, height, dateRange, subSeries = [] }) => {
       try {
         // Try to extract date range from prices
         chartDateRange = [
-          new Date(prices[0].date),
-          new Date(prices[prices.length - 1].date)
+          parseExchangeTs(prices[0].date),
+          parseExchangeTs(prices[prices.length - 1].date)
         ];
         
         // Validate the calculated date range
         if (isNaN(chartDateRange[0].getTime()) || isNaN(chartDateRange[1].getTime())) {
           // If dates are invalid, create a fallback range
-          const now = new Date();
+          const now = parseExchangeTs(exchangeToday()); // UTC-faked exchange today (decision 0.18)
           chartDateRange = [
-            new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30),
+            new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
             now
           ];
         }
       } catch (e) {
         // Fallback to a default range if all else fails
         console.warn('Error creating date range from prices:', e);
-        const now = new Date();
+        const now = parseExchangeTs(exchangeToday()); // UTC-faked exchange today (decision 0.18)
         chartDateRange = [
-          new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30),
+          new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
           now
         ];
       }
@@ -95,7 +96,7 @@ const IndicatorChart = ({ data, width, height, dateRange, subSeries = [] }) => {
         series,
         points: (indicators[series.name] || []).filter(item => {
           if (typeof item.value !== 'number' || Number.isNaN(item.value)) return false;
-          const itemDate = new Date(item.date);
+          const itemDate = parseExchangeTs(item.date);
           return itemDate >= chartDateRange[0] && itemDate <= chartDateRange[1];
         })
       }))

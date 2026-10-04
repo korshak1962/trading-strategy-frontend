@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { formatNumber, formatPercent } from '../utils/formatters';
 import './PerformanceTable.css';
+import { parseExchangeTs } from '../utils/dates';
 
 // longLegOnly: set when the run was not long-only. The signals this table is built from carry
 // the long leg only (same as TradesTable, R2), so the title says so and the always-zero
@@ -28,7 +29,7 @@ const TradeStatisticsTable = ({ results, longLegOnly = false }) => {
 
     // Sort signals by date
     const sortedSignals = [...signals].sort((a, b) => 
-      new Date(a.date) - new Date(b.date)
+      parseExchangeTs(a.date) - parseExchangeTs(b.date)
     );
 
     sortedSignals.forEach(signal => {
@@ -94,8 +95,8 @@ const TradeStatisticsTable = ({ results, longLegOnly = false }) => {
     
     // Calculate trade durations in days
     const tradeDurations = trades.map(t => {
-      const openDate = new Date(t.openDate);
-      const closeDate = new Date(t.closeDate);
+      const openDate = parseExchangeTs(t.openDate);
+      const closeDate = parseExchangeTs(t.closeDate);
       return Math.ceil((closeDate - openDate) / (1000 * 60 * 60 * 24)); // Days
     });
     

@@ -6,11 +6,14 @@
 // gone: windowed detection was deleted server-side, and channel-recursive is no longer a
 // separately-deployed service, so there is exactly one algorithm and one backend to call.
 
+import { toLocalIsoDate } from '../utils/dates';
+
 const API_BASE_URL = '/api/channels';
 
 const fmtDt = (val) => {
   if (!val) return '';
-  if (val instanceof Date) return val.toISOString().substring(0, 10) + 'T00:00:00';
+  // A user-picked Date → its literal calendar day (decision 0.18; toISOString() would shift it to UTC).
+  if (val instanceof Date) return toLocalIsoDate(val) + 'T00:00:00';
   return val.length === 10 ? `${val}T00:00:00` : String(val).substring(0, 19);
 };
 

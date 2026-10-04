@@ -1,4 +1,5 @@
 // src/utils/ChartDataUtils.js
+import { parseExchangeTs } from './dates';
 
 // Extract trades from signals
 export const extractTradesFromSignals = (signals) => {
@@ -7,7 +8,7 @@ export const extractTradesFromSignals = (signals) => {
   
     // Sort signals by date
     const sortedSignals = [...signals].sort((a, b) => 
-      new Date(a.date) - new Date(b.date)
+      parseExchangeTs(a.date) - parseExchangeTs(b.date)
     );
   
     sortedSignals.forEach(signal => {
@@ -22,8 +23,8 @@ export const extractTradesFromSignals = (signals) => {
         
         extractedTrades.push({
           type: 'Long',
-          openDate: new Date(openSignal.date),
-          closeDate: new Date(signal.date),
+          openDate: parseExchangeTs(openSignal.date),
+          closeDate: parseExchangeTs(signal.date),
           openPrice: openSignal.price,
           closePrice: signal.price,
           pnl: profit
@@ -43,8 +44,8 @@ export const extractTradesFromSignals = (signals) => {
         
         extractedTrades.push({
           type: 'Short',
-          openDate: new Date(openSignal.date),
-          closeDate: new Date(signal.date),
+          openDate: parseExchangeTs(openSignal.date),
+          closeDate: parseExchangeTs(signal.date),
           openPrice: openSignal.price,
           closePrice: signal.price,
           pnl: profit

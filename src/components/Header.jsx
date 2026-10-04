@@ -24,6 +24,13 @@ const Header = ({ activeTab, onChangeTab }) => {
           >
             Channel Explorer
           </button>
+          <button
+            type="button"
+            className={`header-tab${activeTab === 'downloader' ? ' header-tab--active' : ''}`}
+            onClick={() => onChangeTab('downloader')}
+          >
+            Downloader
+          </button>
         </nav>
       </div>
     </header>

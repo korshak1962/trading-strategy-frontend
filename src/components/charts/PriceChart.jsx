@@ -11,6 +11,7 @@ import {
   drawPriceOverlays,
   drawSignals
 } from '../../utils/ChartDrawingUtils';
+import { parseExchangeTs, exchangeToday } from '../../utils/dates';
 
 /**
  * PriceChart component renders the price candlestick chart with signals
@@ -73,25 +74,25 @@ const PriceChart = ({
       try {
         // Try to extract date range from prices
         chartDateRange = [
-          new Date(prices[0].date),
-          new Date(prices[prices.length - 1].date)
+          parseExchangeTs(prices[0].date),
+          parseExchangeTs(prices[prices.length - 1].date)
         ];
         
         // Validate the calculated date range
         if (isNaN(chartDateRange[0].getTime()) || isNaN(chartDateRange[1].getTime())) {
           // If dates are invalid, create a fallback range
-          const now = new Date();
+          const now = parseExchangeTs(exchangeToday()); // UTC-faked exchange today (decision 0.18)
           chartDateRange = [
-            new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30),
+            new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
             now
           ];
         }
       } catch (e) {
         // Fallback to a default range if all else fails
         console.warn('Error creating date range from prices:', e);
-        const now = new Date();
+        const now = parseExchangeTs(exchangeToday()); // UTC-faked exchange today (decision 0.18)
         chartDateRange = [
-          new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30),
+          new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
           now
         ];
       }
@@ -99,7 +100,7 @@ const PriceChart = ({
 
     // Filter to only show prices within the date range
     const visiblePrices = prices.filter(price => {
-      const priceDate = new Date(price.date);
+      const priceDate = parseExchangeTs(price.date);
       return priceDate >= chartDateRange[0] && priceDate <= chartDateRange[1];
     });
     
@@ -140,7 +141,7 @@ const PriceChart = ({
     // Draw signals that are within the date range
     if (signals.length > 0) {
       const visibleSignals = signals.filter(signal => {
-        const signalDate = new Date(signal.date);
+        const signalDate = parseExchangeTs(signal.date);
         return signalDate >= chartDateRange[0] && signalDate <= chartDateRange[1];
       });
 
