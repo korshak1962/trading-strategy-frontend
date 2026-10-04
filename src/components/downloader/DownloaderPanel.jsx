@@ -11,6 +11,7 @@ import {
 } from '../../api/downloaderApi';
 import { exchangeZoneForMarket, exchangeToday, exchangeStartOfYear, daysAgoIso } from '../../utils/dates';
 import TickerChips from './TickerChips';
+import PortfolioCombobox from './PortfolioCombobox';
 import DownloadJobTable, { StatusBadge } from './DownloadJobTable';
 import DataCheckPanel from './DataCheckPanel';
 
@@ -308,18 +309,14 @@ export default function DownloaderPanel() {
               {/* Portfolio */}
               <div className="mb-4">
                 <label htmlFor="dl-portfolio" className="block text-sm font-medium text-gray-700 mb-2">Portfolio</label>
-                <select
+                <PortfolioCombobox
                   id="dl-portfolio"
                   value={portfolio}
-                  onChange={(e) => handlePortfolioChange(e.target.value)}
-                  className="w-full p-2 border rounded"
+                  onChange={handlePortfolioChange}
+                  portfolios={portfolios}
                   disabled={optionsLoading || portfolios.length === 0}
-                >
-                  {portfolios.length === 0 && <option value="">{optionsLoading ? 'Loading…' : 'No portfolios'}</option>}
-                  {portfolios.map((p) => (
-                    <option key={p.name} value={p.name}>{p.name} ({(p.tickers || []).length})</option>
-                  ))}
-                </select>
+                  placeholder={optionsLoading ? 'Loading…' : (portfolios.length === 0 ? 'No portfolios' : '')}
+                />
               </div>
 
               {/* Tickers */}
