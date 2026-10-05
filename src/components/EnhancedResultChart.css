@@ -75,16 +75,6 @@
   margin: 0.5rem 0 0.5rem 1rem;
 }
 
-/* Trade rectangles styles */
-.trade-rectangle {
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.trade-rectangle:hover {
-  opacity: 0.8;
-}
-
 /* Custom tooltip styling */
 .custom-tooltip {
   background-color: rgba(255, 255, 255, 0.95);
