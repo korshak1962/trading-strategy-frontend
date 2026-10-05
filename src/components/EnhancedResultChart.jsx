@@ -20,7 +20,29 @@ import {
 import './EnhancedResultChart.css';
 import { buildDateLookup } from '../utils/indicatorSeries';
 import { cumulativeClosedPnLByBar } from '../utils/ChartDataUtils';
-import { parseExchangeTs, fmtExchangeDate, fmtExchangeIntl } from '../utils/dates';
+import { parseExchangeTs, fmtExchangeDate, fmtExchangeDateTime, fmtExchangeIntl } from '../utils/dates';
+
+// X-axis tick label for a row key (see barKeyFn): 'YYYY-MM-DD' keys show the date only,
+// intraday 'YYYY-MM-DD HH:mm' keys show a short date + time.
+const INTRADAY_TICK_FORMAT = { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
+// Row key function for a price series. Daily-and-coarser bars may carry a non-midnight time
+// (e.g. 09:00), so intraday is decided from the data: some calendar day holds more than one bar.
+// Intraday -> 'YYYY-MM-DD HH:mm' (unique per bar); otherwise the day-only 'YYYY-MM-DD'.
+const barKeyFn = (prices) => {
+  const days = new Set();
+  const intraday = (prices || []).some(price => {
+    const day = fmtExchangeDate(price.date);
+    if (days.has(day)) return true;
+    days.add(day);
+    return false;
+  });
+  return intraday ? fmtExchangeDateTime : fmtExchangeDate;
+};
+
+const formatAxisTick = (value) =>
+  (typeof value === 'string' && value.length > 10
+    ? fmtExchangeIntl(value, INTRADAY_TICK_FORMAT)
+    : fmtExchangeIntl(value));
 
 // Custom tooltip for price chart. Lists only the currently visible indicator series (by id),
 // never the "any numeric key on the row" heuristic - rows carry every series the DTO exposes.
@@ -219,6 +241,7 @@ const SynchronizedPnLChart = memo(({ data, trades, height, syncId }) => {
           height={20}
           scale="point"
           type="category"
+          tickFormatter={formatAxisTick}
         />
         <YAxis 
           domain={[-maxProfit * 1.1, maxProfit * 1.1]}
@@ -269,17 +292,22 @@ const EnhancedResultChart = ({ data, height = 400, visibleSeries = [] }) => {
   useEffect(() => {
     if (!data) return;
 
-    // Create a proper date scale - convert all dates to same format for consistency
-    const standardizeDateFormat = (dateStr) => {
-      // Ensure consistent ISO-style date format for comparison
-      return fmtExchangeDate(dateStr);
-    };
+    // One key function for rows, the signal map and trade extraction, so they cannot diverge.
+    // A day-only key on intraday data would collapse HOUR/MIN5 bars onto duplicate x categories.
+    const standardizeDateFormat = barKeyFn(data.prices);
+
+    // Signals grouped by bar key, so each bar looks its signals up in O(1)
+    const signalsByDate = new Map();
+    data.signals.forEach(signal => {
+      const key = standardizeDateFormat(signal.date);
+      if (!signalsByDate.has(key)) signalsByDate.set(key, []);
+      signalsByDate.get(key).push(signal);
+    });
 
     // One lookup (raw date string -> value) per series of BOTH maps, keyed by series id
     // ('price:<name>' / 'sub:<name>'). Built here, in the data effect, so that toggling series
     // later never rebuilds rows (which would reset the controlled Brush).
-    // Raw-string alignment is exact on every timeframe (HOUR/MIN5 included), unlike the
-    // day-only key used for the row's own `date`.
+    // Raw-string alignment is exact on every timeframe (HOUR/MIN5 included).
     const seriesLookups = [];
     const priceIndicators = data.priceIndicators || {};
     const subIndicators = data.indicators || {};
@@ -294,10 +322,8 @@ const EnhancedResultChart = ({ data, height = 400, visibleSeries = [] }) => {
     const processed = data.prices.map((price, index) => {
       const priceDate = standardizeDateFormat(price.date);
 
-      // Find signals that occurred on this price's date
-      const matchingSignals = data.signals.filter(signal =>
-        standardizeDateFormat(signal.date) === priceDate
-      );
+      // Signals that occurred on this bar
+      const matchingSignals = signalsByDate.get(priceDate) || [];
 
       // Indicator values for this bar, under the series id keys (no collision with open/close/...)
       const indicatorValues = {};
@@ -332,12 +358,12 @@ const EnhancedResultChart = ({ data, height = 400, visibleSeries = [] }) => {
     setBrushRange({ startIndex: 0, endIndex: Math.max(0, processed.length - 1) });
 
     // Extract trades from signals with proper date handling
-    const extractedTrades = extractTradesFromSignals(processed, data.signals);
+    const extractedTrades = extractTradesFromSignals(processed, data.signals, standardizeDateFormat);
     setTrades(extractedTrades);
   }, [data]);
 
   // Function to extract trades from signals with improved date handling
-  const extractTradesFromSignals = (processedData, signals) => {
+  const extractTradesFromSignals = (processedData, signals, toBarKey) => {
     const extractedTrades = [];
     
     // Create a map of standardized dates to indices for quick lookup
@@ -357,7 +383,7 @@ const EnhancedResultChart = ({ data, height = 400, visibleSeries = [] }) => {
     
     // Process signals to extract complete trades
     sortedSignals.forEach(signal => {
-      const signalDateStr = fmtExchangeDate(signal.date);
+      const signalDateStr = toBarKey(signal.date);
       const signalIndex = dateToIndexMap[signalDateStr];
       
       // Skip signals that don't match any price data point
@@ -489,7 +515,7 @@ const EnhancedResultChart = ({ data, height = 400, visibleSeries = [] }) => {
               type="category"
               scale="point"
               // Ensure consistent tick formatting
-              tickFormatter={(value) => fmtExchangeIntl(value)}
+              tickFormatter={formatAxisTick}
             />
             <YAxis 
               yAxisId="price"
