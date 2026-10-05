@@ -11,9 +11,9 @@ import {
   ResponsiveContainer,
   ReferenceLine,
   ReferenceDot,
+  ReferenceArea,
   ComposedChart,
   Bar,
-  Rectangle,
   Cell,
   Brush
 } from 'recharts';
@@ -94,50 +94,42 @@ const CustomTooltip = ({ active, payload, label, visibleSeries = [] }) => {
   );
 };
 
-// Custom tooltip for trade rectangles
-const TradeTooltip = ({ active, payload }) => {
+// Tooltip for the P&L pane: cumulative P&L at the hovered bar, plus the details of every trade
+// whose open..close span covers that bar (ReferenceArea rects are not tooltip items themselves).
+const TradeTooltip = ({ active, payload, trades = [] }) => {
   if (!active || !payload || !payload.length) return null;
-  
-  // Check if we're hovering over a trade rectangle
-  if (payload[0] && payload[0].name && payload[0].name.startsWith("Trade ")) {
-    // Find the trade object from the payload
-    const tradeObj = payload[0].payload.trade;
-    if (!tradeObj) return null;
-    
-    return (
-      <div className="custom-tooltip">
-        <p className="tooltip-trade-header">
-          {tradeObj.type} Trade {tradeObj.profit >= 0 ? '(Profit)' : '(Loss)'}
-        </p>
-        <p className="tooltip-trade-detail">
-          Open: {tradeObj.openDate} at {Number(tradeObj.openPrice).toFixed(2)}
-        </p>
-        <p className="tooltip-trade-detail">
-          Close: {tradeObj.closeDate} at {Number(tradeObj.closePrice).toFixed(2)}
-        </p>
-        <p className={`tooltip-trade-profit ${tradeObj.profit >= 0 ? 'positive' : 'negative'}`}>
-          P&L: {Number(tradeObj.profit).toFixed(2)}
-        </p>
-      </div>
-    );
-  }
-  
-  // Handle cumulative profit line (default case)
+
   const data = payload[0].payload;
-  if (data.cumulativeProfit !== undefined) {
-    return (
-      <div className="custom-tooltip">
-        <p className="tooltip-date">{data.displayDate || data.date}</p>
-        <p className="tooltip-trade-detail">
-          Cumulative P&L: <span className={data.cumulativeProfit >= 0 ? "positive" : "negative"}>
-            {Number(data.cumulativeProfit).toFixed(2)}
-          </span>
-        </p>
-      </div>
-    );
-  }
-  
-  return null;
+  if (data.cumulativeProfit === undefined) return null;
+
+  const barTrades = trades.filter(t => t.openIndex <= data.index && data.index <= t.closeIndex);
+
+  return (
+    <div className="custom-tooltip">
+      <p className="tooltip-date">{data.displayDate || data.date}</p>
+      <p className="tooltip-trade-detail">
+        Cumulative P&L: <span className={data.cumulativeProfit >= 0 ? "positive" : "negative"}>
+          {Number(data.cumulativeProfit).toFixed(2)}
+        </span>
+      </p>
+      {barTrades.map((trade, i) => (
+        <div key={i}>
+          <p className="tooltip-trade-header">
+            {trade.type} Trade {trade.profit >= 0 ? '(Profit)' : '(Loss)'}
+          </p>
+          <p className="tooltip-trade-detail">
+            Open: {trade.openDate} at {Number(trade.openPrice).toFixed(2)}
+          </p>
+          <p className="tooltip-trade-detail">
+            Close: {trade.closeDate} at {Number(trade.closePrice).toFixed(2)}
+          </p>
+          <p className={`tooltip-trade-profit ${trade.profit >= 0 ? 'positive' : 'negative'}`}>
+            P&L: {Number(trade.profit).toFixed(2)}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
 };
 
 const signalColor = (type) => {
@@ -152,7 +144,9 @@ const signalColor = (type) => {
 // memo + useMemo matter here: the parent re-renders on every Brush drag event (controlled
 // brush), and if this chart received a freshly-built `data` array each time, recharts'
 // getDerivedStateFromProps would treat it as new data and reset the synced zoom range.
-const SynchronizedPnLChart = memo(({ data, trades, height, syncId }) => {
+// The visible window (startIndex/endIndex, primitives) IS passed in, so this re-renders on
+// each Brush drag - that is safe, because chartData keeps its identity across those renders.
+const SynchronizedPnLChart = memo(({ data, trades, height, syncId, startIndex, endIndex }) => {
   // Prepare chart data with cumulative profit information (single pass, O(n + trades))
   const chartData = useMemo(() => {
     if (!data || !trades) return [];
@@ -174,59 +168,40 @@ const SynchronizedPnLChart = memo(({ data, trades, height, syncId }) => {
   // Find min/max PnL for proper scaling
   const maxProfit = Math.max(...trades.map(t => Math.abs(t.profit)), 1);
   
-  // Create labels for the chart's Legend
-  const tradeItems = {};
-  trades.forEach((trade, i) => {
-    tradeItems[`trade-${i}`] = {
-      value: `${trade.type} Trade ${i+1} (${trade.profit >= 0 ? '+' : ''}${trade.profit.toFixed(2)})`,
-      type: 'rect',
-      color: trade.profit >= 0 ? '#4caf50' : '#f44336'
-    };
+  // Trade rectangles, drawn on the chart's own scales: one ReferenceArea per trade spanning
+  // open bar..close bar on x and 0..profit on y. The x axis is a category point scale whose
+  // domain is only the visible (brushed) bars, and a category outside it makes ReferenceArea
+  // discard the whole rect - so clamp each trade to the visible window and skip trades fully
+  // outside it. A trade collapsed to a single bar is widened to a neighbouring bar so it stays
+  // visible.
+  const lastIndex = chartData.length - 1;
+  const visStart = Math.max(0, Math.min(startIndex ?? 0, lastIndex));
+  const visEnd = Math.max(visStart, Math.min(endIndex ?? lastIndex, lastIndex));
+  const tradeAreas = trades.map((trade, i) => {
+    if (trade.closeIndex < visStart || trade.openIndex > visEnd) return null;
+    let from = Math.max(trade.openIndex, visStart);
+    let to = Math.min(trade.closeIndex, visEnd);
+    if (from === to) {
+      if (to < visEnd) to += 1;
+      else if (from > visStart) from -= 1;
+    }
+    const profitable = trade.profit >= 0;
+    return (
+      <ReferenceArea
+        key={`trade-${i}`}
+        x1={chartData[from].date}
+        x2={chartData[to].date}
+        y1={0}
+        y2={trade.profit}
+        fill={profitable ? "#4caf50" : "#f44336"}
+        fillOpacity={0.6}
+        stroke={profitable ? "#388e3c" : "#d32f2f"}
+        strokeWidth={1}
+        className="trade-rectangle"
+      />
+    );
   });
-  
-  // Define rendering for trade rectangles
-  const renderTradeRectangles = () => {
-    return trades.map((trade, i) => {
-      // Find the data points at open and close for proper positioning
-      const openPoint = data[trade.openIndex];
-      const closePoint = data[trade.closeIndex];
-      
-      if (!openPoint || !closePoint) return null;
-      
-      // Calculate X position and width based on indices in the data array
-      const xPercent = 100 * trade.openIndex / (data.length - 1);
-      const widthPercent = 100 * (trade.closeIndex - trade.openIndex) / (data.length - 1);
-      
-      // Calculate height and Y position based on profit/loss
-      // Center at 50% height for zero profit
-      const zeroLineY = 50;
-      // Scale by profit to determine rectangle height
-      const heightPercent = 100 * Math.abs(trade.profit) / (maxProfit * 2);
-      // Position either above or below zero line based on profit
-      const yPercent = trade.profit >= 0 
-        ? zeroLineY - heightPercent 
-        : zeroLineY;
-      
-      return (
-        <Rectangle
-          key={`trade-${i}`}
-          x={`${xPercent}%`}
-          y={`${yPercent}%`}
-          width={`${Math.max(0.5, widthPercent)}%`} // Ensure minimum visibility
-          height={`${heightPercent}%`}
-          fill={trade.profit >= 0 ? "#4caf50" : "#f44336"}
-          fillOpacity={0.6}
-          stroke={trade.profit >= 0 ? "#388e3c" : "#d32f2f"}
-          strokeWidth={1}
-          rx={2}
-          ry={2}
-          name={`Trade ${i+1}`}
-          className="trade-rectangle"
-        />
-      );
-    });
-  };
-  
+
   return (
     <ResponsiveContainer width="100%" height={height}>
       <ComposedChart 
@@ -253,10 +228,13 @@ const SynchronizedPnLChart = memo(({ data, trades, height, syncId }) => {
             fontSize: 12 
           }}
         />
-        <Tooltip content={<TradeTooltip />} />
+        <Tooltip content={<TradeTooltip trades={trades} />} />
         <Legend />
         <ReferenceLine y={0} stroke="#666" strokeWidth={1} />
-        
+
+        {/* Trade rectangles (behind the cumulative line) */}
+        {tradeAreas}
+
         {/* Cumulative Profit Line */}
         <Line
           type="monotone"
@@ -267,11 +245,6 @@ const SynchronizedPnLChart = memo(({ data, trades, height, syncId }) => {
           dot={false}
           isAnimationActive={false}
         />
-        
-        {/* Custom layer for trade rectangles */}
-        <g className="trade-rectangles-layer">
-          {renderTradeRectangles()}
-        </g>
       </ComposedChart>
     </ResponsiveContainer>
   );
@@ -430,16 +403,7 @@ const EnhancedResultChart = ({ data, height = 400, visibleSeries = [] }) => {
               closeIndex: signalIndex,
               // Store the signal objects for reference
               openSignal: openTrade.signal,
-              closeSignal: signal,
-              // Add a trade object with all data for the tooltip
-              trade: {
-                openDate: fmtExchangeIntl(openTrade.signal.date),
-                closeDate: fmtExchangeIntl(signal.date),
-                openPrice: openTrade.signal.price,
-                closePrice: signal.price,
-                profit: profit,
-                type: tradeKey
-              }
+              closeSignal: signal
             });
           }
           
@@ -602,8 +566,10 @@ const EnhancedResultChart = ({ data, height = 400, visibleSeries = [] }) => {
           <SynchronizedPnLChart 
             data={chartData} 
             trades={trades} 
-            height={pnlHeight} 
+            height={pnlHeight}
             syncId={syncId}
+            startIndex={brushRange.startIndex}
+            endIndex={brushRange.endIndex}
           />
         </div>
       )}

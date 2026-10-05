@@ -76,10 +76,6 @@
 }
 
 /* Trade rectangles styles */
-.trade-rectangles-layer {
-  pointer-events: all;
-}
-
 .trade-rectangle {
   cursor: pointer;
   transition: opacity 0.2s;
@@ -200,11 +196,6 @@
 .signal-ShortClose {
   color: #ea580c;
   font-weight: 500;
-}
-
-/* Recharts svg element overrides */
-.recharts-rectangle.trade-rectangle {
-  pointer-events: all !important;
 }
 
 /* No data message */
