@@ -8,9 +8,7 @@ import Header from './components/Header';
 import StrategySelector from './components/StrategySelector';
 import StrategyConfig from './components/StrategyConfig';
 import DateRangePicker from './components/DateRangePicker';
-import EnhancedResultChart from './components/EnhancedResultChart';
 import ReporterStyleChart from './components/ReporterStyleChart';
-import ResultChart from './components/ResultChart';
 import StrategyResults from './components/StrategyResults';
 import IndicatorPicker from './components/IndicatorPicker';
 import TradesTable from './components/TradesTable';
@@ -21,6 +19,9 @@ import TickerCombobox from './components/TickerCombobox';
 import ChannelExplorer from './components/channelExplorer/ChannelExplorer';
 import DownloaderPanel from './components/downloader/DownloaderPanel';
 import { calendarDayKey, exchangeTodayLocalDate, exchangeZoneForTicker } from './utils/dates';
+
+// .chart-toolbar bottom margin (see fullscreenChartHeight).
+const CHART_TOOLBAR_MARGIN_PX = 16;
 
 const App = () => {
   // Top-level tab: 'backtest' (strategy configure/run/results flow), 'channels' (channel
@@ -53,10 +54,8 @@ const App = () => {
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
 
-  const [chartView, setChartView] = useState('enhanced'); // 'enhanced' | 'reporter' | 'simple'
-
-  // Unified indicator selection (master toggle + per-series checkboxes), shared by all three
-  // chart tabs and reset to "all on" whenever a new result arrives.
+  // Unified indicator selection (master toggle + per-series checkboxes) for the result chart,
+  // reset to "all on" whenever a new result arrives.
   const {
     seriesList: indicatorSeriesList,
     showIndicators,
@@ -66,17 +65,24 @@ const App = () => {
     visibleSeries: visibleIndicatorSeries,
   } = useIndicatorSelection(results?.chartDataDTO);
 
-  // Fullscreen mode: fullscreens whichever chart tab is currently active, rather than each
-  // of the 3 chart components implementing its own fullscreen handling separately.
-  // A callback-ref (state), not useRef: this element only mounts once `results` is set, and a
+  // Fullscreen mode: fullscreens the whole results area - toolbar, charts and the
+  // StrategyResults tabs below them. The charts fill the first screen; the element scrolls
+  // vertically down to the result tabs, which then span the full screen width.
+  // Callback-refs (state), not useRef: these elements only mount once `results` is set, and a
   // plain ref's effects wouldn't re-run to notice that later mount.
   const [chartAreaNode, setChartAreaNode] = useState(null);
+  const [chartToolbarNode, setChartToolbarNode] = useState(null);
   const { isFullscreen, toggleFullscreen } = useFullscreen(chartAreaNode);
   const chartAreaSize = useElementSize(chartAreaNode);
-  // 90px reserved for the tab/toggle row above the chart itself, plus the indicator picker row
-  // when it is shown (it sits inside the fullscreened element too).
-  const pickerReservedHeight = indicatorSeriesList.length > 0 ? 60 : 0;
-  const fullscreenChartHeight = Math.max(400, chartAreaSize.height - 90 - pickerReservedHeight);
+  // Toolbar (indicator picker + fullscreen button) height is measured, since the picker wraps.
+  const chartToolbarSize = useElementSize(chartToolbarNode);
+  // Chart block height = the fullscreen content box (viewport minus padding) minus the toolbar
+  // row and its margin. ReporterStyleChart (fitHeight) fits its panes, titles and slider into it,
+  // so the charts exactly fill the first screen and the StrategyResults tabs start just below.
+  const fullscreenChartHeight = Math.max(
+    400,
+    Math.floor(chartAreaSize.height - chartToolbarSize.height - CHART_TOOLBAR_MARGIN_PX)
+  );
   const fullscreenChartWidth = Math.max(600, chartAreaSize.width - 20);
 
   // Fetch available strategies on component mount
@@ -216,10 +222,13 @@ const App = () => {
         );
       default:
         return (
-      <main className="flex-grow container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      // Full page width (like the other tabs): a fixed-width parameters column flush at the
+      // left gutter, results take all the remaining width. Single column below lg. 410px is the
+      // narrowest width (measured) at which the DateRangePicker quick-range buttons stay on one line.
+      <main className="flex-grow w-full px-4 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-[410px_minmax(0,1fr)] gap-6">
           {/* Configuration Panel */}
-          <div className="lg:col-span-4 bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-6 rounded-lg shadow">
             {/* Mode Toggle */}
             <div className="mb-6">
               <div className="flex border-2 border-blue-600 rounded overflow-hidden">
@@ -340,86 +349,55 @@ const App = () => {
           </div>
           
           {/* Results Panel */}
-          <div className="lg:col-span-8 min-w-0">
+          <div className="min-w-0">
             {results ? (
               <div className="bg-white p-6 rounded-lg shadow">
                 <h2 className="text-xl font-bold mb-4">
                   {mode === 'optimize' ? 'Optimization Results' : 'Results'} for {results.ticker}
                 </h2>
                 
-                {/* Chart View Toggle */}
+                {/* Results area - the element fullscreened by the toggle. In fullscreen the charts
+                    fill the first screen and StrategyResults follows below at full width. */}
                 <div ref={setChartAreaNode} className={isFullscreen ? 'chart-fullscreen-active' : ''}>
-                <div className="results-tab-strip">
-                  <button
-                    type="button"
-                    className={`chart-view-tab${chartView === 'enhanced' ? ' chart-view-tab--active' : ''}`}
-                    onClick={() => setChartView('enhanced')}
-                  >
-                    Enhanced Chart
-                  </button>
-                  <button
-                    type="button"
-                    className={`chart-view-tab${chartView === 'reporter' ? ' chart-view-tab--active' : ''}`}
-                    onClick={() => setChartView('reporter')}
-                  >
-                    Reporter-Style Chart
-                  </button>
-                  <button
-                    type="button"
-                    className={`chart-view-tab${chartView === 'simple' ? ' chart-view-tab--active' : ''}`}
-                    onClick={() => setChartView('simple')}
-                  >
-                    Simple Chart
-                  </button>
-                  <button
-                    type="button"
-                    className="fullscreen-toggle-btn"
-                    onClick={toggleFullscreen}
-                    title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-                  >
-                    {isFullscreen ? '⤢ Exit Fullscreen' : '⛶ Fullscreen'}
-                  </button>
-                </div>
-
-                {/* Indicator picker - same place for every tab, also inside fullscreen */}
-                <IndicatorPicker
-                  seriesList={indicatorSeriesList}
-                  showIndicators={showIndicators}
-                  onToggleShow={setShowIndicators}
-                  selectedIds={selectedIndicatorIds}
-                  onToggleSeries={toggleIndicatorSeries}
-                />
-
-                {/* Chart */}
-                <div className="mb-6">
-                  {chartView === 'enhanced' ? (
-                    <EnhancedResultChart
-                      data={results.chartDataDTO}
-                      height={isFullscreen ? fullscreenChartHeight : 400}
-                      visibleSeries={visibleIndicatorSeries}
+                  {/* Toolbar: indicator picker + fullscreen toggle (also inside fullscreen) */}
+                  <div ref={setChartToolbarNode} className="chart-toolbar">
+                    <IndicatorPicker
+                      seriesList={indicatorSeriesList}
+                      showIndicators={showIndicators}
+                      onToggleShow={setShowIndicators}
+                      selectedIds={selectedIndicatorIds}
+                      onToggleSeries={toggleIndicatorSeries}
                     />
-                  ) : chartView === 'reporter' ? (
+                    <button
+                      type="button"
+                      className="fullscreen-toggle-btn"
+                      onClick={toggleFullscreen}
+                      title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                    >
+                      {isFullscreen ? '⤢ Exit Fullscreen' : '⛶ Fullscreen'}
+                    </button>
+                  </div>
+
+                  {/* Chart */}
+                  <div className="mb-6">
                     <ReporterStyleChart
                       data={results.chartDataDTO}
                       width={isFullscreen ? fullscreenChartWidth : 1200}
                       height={isFullscreen ? fullscreenChartHeight : 600}
+                      fitHeight={isFullscreen}
                       visibleSeries={visibleIndicatorSeries}
-                      longLegOnly={results.longOnly !== true}
+                      longLegOnly={results.longOnly !== true && results.chartDataDTO?.includesShortSignals !== true}
                     />
-                  ) : (
-                    <div style={{ height: isFullscreen ? `${fullscreenChartHeight}px` : '400px' }}>
-                      <ResultChart data={results.chartDataDTO} visibleSeries={visibleIndicatorSeries} />
-                    </div>
-                  )}
+                  </div>
+
+                  {/* Results Summary - same element position in and out of fullscreen, so its
+                      active tab survives the toggle */}
+                  <StrategyResults
+                    results={results}
+                    mode={mode}
+                    fileContext={{ ticker, timeFrame, selectedStrategies, startDate, endDate }}
+                  />
                 </div>
-                </div>
-                
-                {/* Results Summary */}
-                <StrategyResults
-                  results={results}
-                  mode={mode}
-                  fileContext={{ ticker, timeFrame, selectedStrategies, startDate, endDate }}
-                />
               </div>
             ) : (
               <div className="bg-white p-6 rounded-lg shadow flex items-center justify-center h-64">

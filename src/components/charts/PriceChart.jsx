@@ -19,7 +19,12 @@ import { parseExchangeTs, exchangeToday } from '../../utils/dates';
  * @param {Object} props.data - Chart data
  * @param {number} props.width - Chart width
  * @param {number} props.height - Chart height
- * @param {Object} props.dateRange - Date range [startDate, endDate]
+ * @param {Object} props.dateRange - Date range [startDate, endDate] the x axis spans - the plot
+ *   range (plotDateRange), i.e. the zoom window plus half a candle slot each side
+ * @param {[Date, Date]} [props.visibleRange] - the logical zoom window: which candles and signals
+ *   are drawn (defaults to dateRange). Kept apart from dateRange because with uneven bar spacing
+ *   (weekends, overnight gaps) a neighbouring bar can fall inside the half-slot margin, and it
+ *   would be drawn cut in half at the edge.
  * @param {number|null} [props.highlightTradeIndex] - When set, that trade's channels/signals are
  *   emphasized and everything else is dimmed (see ReporterStyleChart's click-to-select).
  * @param {Map} [props.signalTradeIndex] - signalKey -> tradeIndex, from deriveSignalTradeIndex.
@@ -28,7 +33,8 @@ import { parseExchangeTs, exchangeToday } from '../../utils/dates';
  * @returns {JSX.Element}
  */
 const PriceChart = ({
-  data, width, height, dateRange, highlightTradeIndex = null, signalTradeIndex = null, priceSeries = []
+  data, width, height, dateRange, visibleRange = null, highlightTradeIndex = null, signalTradeIndex = null,
+  priceSeries = []
 }) => {
   const canvasRef = useRef(null);
 
@@ -98,16 +104,19 @@ const PriceChart = ({
       }
     }
 
-    // Filter to only show prices within the date range
+    // Filter to only show prices within the logical window (see visibleRange)
+    const shownRange = visibleRange || chartDateRange;
     const visiblePrices = prices.filter(price => {
       const priceDate = parseExchangeTs(price.date);
-      return priceDate >= chartDateRange[0] && priceDate <= chartDateRange[1];
+      return priceDate >= shownRange[0] && priceDate <= shownRange[1];
     });
     
     // Calculate how many candles we're displaying in the current view
     const visibleCandleCount = visiblePrices.length;
     
-    // Calculate optimal candle width based on zoom level
+    // Calculate optimal candle width based on zoom level. dateRange is the plot range
+    // (plotDateRange), whose half-slot margins make width / count exactly one slot per candle,
+    // so the 80% body fits whole even at the edges.
     const candleWidthRatio = 0.8; // 80% of available space per candle
     const candleSpacing = width / Math.max(visibleCandleCount, 1);
     const candleWidth = Math.min(
@@ -129,7 +138,7 @@ const PriceChart = ({
     drawGrid(ctx, width, height);
     
     // Draw price candlesticks with the calculated width
-    drawPriceCandlesticks(ctx, prices, chartDateRange, minMaxPrice, width, height, candleWidth);
+    drawPriceCandlesticks(ctx, visiblePrices, chartDateRange, minMaxPrice, width, height, candleWidth);
 
     // Price-axis indicator overlays (MAs, bands) over the candles, under channels and signals.
     // The axis range stays candle-driven (minMaxPrice is not widened by the overlays).
@@ -142,7 +151,7 @@ const PriceChart = ({
     if (signals.length > 0) {
       const visibleSignals = signals.filter(signal => {
         const signalDate = parseExchangeTs(signal.date);
-        return signalDate >= chartDateRange[0] && signalDate <= chartDateRange[1];
+        return signalDate >= shownRange[0] && signalDate <= shownRange[1];
       });
 
       if (visibleSignals.length > 0) {
@@ -164,7 +173,7 @@ const PriceChart = ({
         ctx.clearRect(0, 0, width, height);
       }
     };
-  }, [data, width, height, dateRange, highlightTradeIndex, signalTradeIndex, priceSeries]);
+  }, [data, width, height, dateRange, visibleRange, highlightTradeIndex, signalTradeIndex, priceSeries]);
 
   return (
     <div className="chart-wrapper">

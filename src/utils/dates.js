@@ -125,24 +125,6 @@ export const exchangeTsSeconds = (v) => {
   return Number.isNaN(ms) ? null : Math.floor(ms / 1000);
 };
 
-/** UTC-faked Date / API string → 'YYYY-MM-DD' (exchange calendar day). */
-export const fmtExchangeDate = (v) => {
-  const d = parseExchangeTs(v);
-  return !Number.isNaN(d.getTime()) ? d.toISOString().substring(0, 10) : '';
-};
-
-/**
- * UTC-faked Date / API string → 'YYYY-MM-DD HH:mm' (exchange wall clock); the time part is
- * dropped when it is exactly midnight (daily and coarser bars).
- */
-export const fmtExchangeDateTime = (v) => {
-  const d = parseExchangeTs(v);
-  if (Number.isNaN(d.getTime())) return '';
-  const iso = d.toISOString();
-  const hm = iso.substring(11, 16);
-  return hm === '00:00' ? iso.substring(0, 10) : `${iso.substring(0, 10)} ${hm}`;
-};
-
 /** Intl formatting of a UTC-faked Date in the exchange wall clock (timeZone forced to 'UTC'). */
 export const fmtExchangeIntl = (v, options = {}, locale = undefined) => {
   const d = parseExchangeTs(v);

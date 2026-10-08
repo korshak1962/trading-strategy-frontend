@@ -2,7 +2,7 @@
 import './IndicatorPicker.css';
 
 /**
- * Unified indicator picker shared by the Enhanced / Reporter-Style / Simple result charts.
+ * Indicator picker for the Strategy Backtester result chart (ReporterStyleChart).
  *
  * Row 1: master "Show indicators" checkbox.
  * Row 2: one chip per series - colour swatch + name + checkbox + axis hint. Chips are disabled

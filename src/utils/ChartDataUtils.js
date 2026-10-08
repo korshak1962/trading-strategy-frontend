@@ -61,8 +61,7 @@ export const extractTradesFromSignals = (signals) => {
 
 /**
  * Realized cumulative PnL per bar: each closed trade's PnL is booked on the bar it closed on
- * and carried forward. Shared by the Enhanced chart (Recharts line) and the Reporter-style
- * chart (canvas pane) so both show the exact same curve.
+ * and carried forward. Feeds the Reporter-style chart's cumulative PnL pane.
  * @param {number} length - number of bars
  * @param {Array<{index: number, pnl: number}>} closes - bar index each trade closed on + its PnL
  * @returns {number[]} running total, one value per bar

@@ -54,6 +54,40 @@ export const findMinMaxPriceRange = (prices) => {
     return { min: -absMax - padding, max: absMax + padding };
   };
   
+  /**
+   * The drawing ("plot") date range for a logical, zoomed dateRange: the same window widened by
+   * half a candle slot on each side, so the first and last candles - centred on their own date -
+   * are drawn whole instead of half cut off at x=0 / x=width.
+   *
+   * Every pane draws with, and every mouse <-> time mapping uses, this one range, so the panes,
+   * crosshair, tooltip, signals and zoom stay aligned; the logical range (zoom state, slider,
+   * zoom badge) is left as is. A slot is the average bar spacing inside the window, which is the
+   * same `width / visibleCandleCount` the price pane sizes its candles from.
+   *
+   * @param {[Date, Date]|null} dateRange - the logical range
+   * @param {number[]} barTimes - every bar's epoch ms, ascending
+   * @returns {[Date, Date]|null}
+   */
+  export const plotDateRange = (dateRange, barTimes) => {
+    if (!dateRange || !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) return dateRange;
+    const startMs = dateRange[0].getTime();
+    const endMs = dateRange[1].getTime();
+    const times = barTimes || [];
+    let count = 0;
+    times.forEach(ms => { if (ms >= startMs && ms <= endMs) count++; });
+
+    let slotMs;
+    if (count >= 2 && endMs > startMs) {
+      slotMs = (endMs - startMs) / (count - 1);
+    } else if (times.length >= 2) {
+      // 0-1 bars in view: fall back to the whole series' average bar spacing
+      slotMs = (times[times.length - 1] - times[0]) / (times.length - 1);
+    } else {
+      slotMs = 24 * 60 * 60 * 1000; // a lone bar: any non-zero width centres it
+    }
+    return [new Date(startMs - slotMs / 2), new Date(endMs + slotMs / 2)];
+  };
+
   // Canvas drawing functions
   export const drawNoDataMessage = (ctx, width, height, message = "No data available") => {
     ctx.fillStyle = '#888';
@@ -232,7 +266,7 @@ export const findMinMaxPriceRange = (prices) => {
     ctx.stroke();
   };
   
-  // Chart element drawing functions
+  // Chart element drawing functions. Callers pass the plot range (see plotDateRange) as dateRange.
   export const drawPriceCandlesticks = (ctx, prices, dateRange, minMax, width, height, candleWidth) => {
     // Guard against undefined or incomplete dateRange
     if (!dateRange || !dateRange[0] || !dateRange[1] || 
@@ -470,6 +504,34 @@ export const findMinMaxPriceRange = (prices) => {
     return map;
   };
 
+  // Short signal markers: stroke-only triangles, a little larger than the filled 7px long ones.
+  const SHORT_MARKER_SIZE = 9;
+
+  const traceUpTriangle = (ctx, x, y, size) => {
+    ctx.beginPath();
+    ctx.moveTo(x, y - size);
+    ctx.lineTo(x - size, y + size);
+    ctx.lineTo(x + size, y + size);
+    ctx.closePath();
+  };
+
+  const traceDownTriangle = (ctx, x, y, size) => {
+    ctx.beginPath();
+    ctx.moveTo(x, y + size);
+    ctx.lineTo(x - size, y - size);
+    ctx.lineTo(x + size, y - size);
+    ctx.closePath();
+  };
+
+  const strokeShortMarker = (ctx, color, trace) => {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    trace();
+    ctx.stroke();
+    ctx.restore();
+  };
+
   export const drawSignals = (
     ctx, signals, dateRange, minMax, width, height, highlightTradeIndex = null, signalTradeIndex = null
   ) => {
@@ -507,11 +569,13 @@ export const findMinMaxPriceRange = (prices) => {
         ctx.fillStyle = 'red';
         drawDownTriangle(ctx, x, y, 7); // Down triangle for close signals
       } else if (signal.type === 'ShortOpen') {
-        ctx.fillStyle = 'blue';
-        drawUpTriangle(ctx, x, y, 7); // Up triangle for open signals
+        // Sell to open: down triangle. Short markers are outlined and larger than the filled long
+        // ones, so on a reversal bar (LongClose + ShortOpen at the same date/price) both stay
+        // visible - the outline rings the filled marker - and the hit-test point is unchanged.
+        strokeShortMarker(ctx, 'blue', () => traceDownTriangle(ctx, x, y, SHORT_MARKER_SIZE));
       } else if (signal.type === 'ShortClose') {
-        ctx.fillStyle = 'orange';
-        drawDownTriangle(ctx, x, y, 7); // Down triangle for close signals
+        // Buy to cover: up triangle (rings a same-point LongOpen on a short->long reversal).
+        strokeShortMarker(ctx, 'orange', () => traceUpTriangle(ctx, x, y, SHORT_MARKER_SIZE));
       } else {
         // Default for unknown signal types
         ctx.fillStyle = 'gray';

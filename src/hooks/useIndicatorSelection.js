@@ -3,11 +3,11 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { buildSeriesList, visibleSeriesOf } from '../utils/indicatorSeries';
 
 /**
- * Lifted indicator-selection state shared by all three result chart tabs.
+ * Lifted indicator-selection state for the result chart (owned by App, rendered by IndicatorPicker).
  *
  * Owns the master "Show indicators" toggle plus a Set of selected series ids. Every time a new
  * chartDataDTO arrives (new backtest / optimize result) the selection resets to "all on";
- * switching chart tabs does not touch it and nothing is persisted.
+ * entering/leaving fullscreen does not touch it and nothing is persisted.
  *
  * `visibleSeries` is memoised so charts wrapped in memo / effects keyed on it do not re-run on
  * unrelated App re-renders.

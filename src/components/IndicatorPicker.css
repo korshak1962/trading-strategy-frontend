@@ -1,6 +1,5 @@
-/* IndicatorPicker - shared indicator toggle + per-series chips rendered under the chart-view
-   tab strip (see App.jsx). Colours follow the grey/blue theme used by EnhancedResultChart.css
-   (.chart-option-button) and ResultsTabs.css. */
+/* IndicatorPicker - indicator toggle + per-series chips rendered in the chart toolbar above the
+   result chart (see App.jsx). Colours follow the grey/blue theme used by ResultsTabs.css. */
 
 .indicator-picker {
   display: flex;

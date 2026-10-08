@@ -1,5 +1,5 @@
-/* Chart fullscreen mode - styles for the ref target in App.jsx that wraps the chart-view tabs
-   + whichever chart tab is active. Kept in its own file (not App.css, which nothing in this
+/* Chart fullscreen mode - styles for the ref target in App.jsx that wraps the chart toolbar
+   (indicator picker + fullscreen toggle), the result chart and the StrategyResults tabs. Kept in its own file (not App.css, which nothing in this
    project actually imports) so this feature doesn't risk reactivating App.css's other,
    currently-dormant rules (.btn, .card, .form-control, etc.) that several other components'
    classNames already coincidentally match. */
@@ -15,11 +15,30 @@
   height: 100vh;
   padding: 1rem;
   box-sizing: border-box;
-  overflow: auto;
+  /* Charts fill the first screen; scroll down to the StrategyResults tabs below them. */
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Toolbar above the chart: indicator picker (grows) + fullscreen toggle (right-aligned). The
+   picker renders nothing when there are no indicator series - the button stays right-aligned. */
+.chart-toolbar {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.chart-toolbar .indicator-picker {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-bottom: 0;
 }
 
 .fullscreen-toggle-btn {
-  margin-left: 0.75rem;
+  margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
   font-weight: 500;

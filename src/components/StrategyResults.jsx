@@ -13,13 +13,17 @@ const StrategyResults = ({ results, mode, fileContext }) => {
   // Summary-card values. `?? 0` keeps older responses (without the short-side fields) rendering.
   // `longOnly` comes from the response itself so a stale result is never shown against a toggled checkbox.
   const isLongOnly = results.longOnly === true;
+  // A newer backend merges the short leg's signals into chartDataDTO.signals and says so with
+  // includesShortSignals; an older one (flag absent) sends the long leg only. Only then do the
+  // trade views carry "(long leg)" labels. Drawdown stays long-only on the backend either way.
+  const includesShortSignals = results.chartDataDTO?.includesShortSignals === true;
+  const longLegOnly = !isLongOnly && !includesShortSignals;
   const longPnL = results.longPnL ?? 0;
   const shortPnL = results.shortPnL ?? 0;
   const actualYield = results.actualYield ?? 0;
   const actualYieldShort = results.actualYieldShort ?? 0;
   const complexYield = results.complexYield ?? 0;
-  const profitableLong = results.profitableTradesCount ?? 0;
-  const longTrades = profitableLong + (results.lostTradesCount ?? 0);
+  const buyAndHoldPnL = results.buyAndHoldPnL ?? 0;
   const profitableShort = results.profitableShortTradesCount ?? 0;
   const shortTrades = profitableShort + (results.lostShortTradesCount ?? 0);
   const winRateLabel = (wins, total) => (total > 0 ? `${Math.round((wins / total) * 100)}%` : '0%');
@@ -34,6 +38,7 @@ const StrategyResults = ({ results, mode, fileContext }) => {
   const shortPnLPercent = results.shortPnLPercent;
   const openPositionPnLPercent = results.openPositionPnLPercent;
   const openShortPositionPnLPercent = results.openShortPositionPnLPercent;
+  const buyAndHoldPnLPercent = results.buyAndHoldPnLPercent;
   const maxDrawdown = results.maxDrawdown ?? 0;
   const buyAndHoldMaxDrawdown = results.buyAndHoldMaxDrawdown ?? 0;
   const maxDrawdownPercent = results.maxDrawdownPercent;
@@ -116,15 +121,25 @@ const StrategyResults = ({ results, mode, fileContext }) => {
                     {formatSignedPercent(longPnLPercent / 100)} of first entry
                   </div>
                 )}
+                {/* Open long position (excluded from closed-trade counts); moved here from the
+                    former Long Trades card. */}
+                {hasOpenPosition && (
+                  <div className="text-xs text-blue-400 mt-1">
+                    1 open position ({formatSigned(openPositionPnL)}{pctSuffix(openPositionPnLPercent)})
+                  </div>
+                )}
               </div>
 
               <div className="bg-blue-50 p-3 rounded">
-                <div className="text-sm text-blue-700 font-medium">Long Trades</div>
-                <div className="text-xl font-bold">{longTrades}</div>
-                <div className="text-xs text-blue-400 mt-1">
-                  win rate {winRateLabel(profitableLong, longTrades)}
-                  {hasOpenPosition && openLabel(openPositionPnL, openPositionPnLPercent)}
+                <div className="text-sm text-blue-700 font-medium">Buy &amp; Hold PnL</div>
+                <div className={`text-xl font-bold ${buyAndHoldPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatSigned(buyAndHoldPnL)}
                 </div>
+                {hasNum(buyAndHoldPnLPercent) && (
+                  <div className="text-xs text-blue-400 mt-1">
+                    {formatSignedPercent(buyAndHoldPnLPercent / 100)} of first close · 1 share
+                  </div>
+                )}
               </div>
 
               <div className="bg-blue-50 p-3 rounded">
@@ -212,7 +227,7 @@ const StrategyResults = ({ results, mode, fileContext }) => {
       {activeTab === 'performance' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <PerformanceMetricsTable results={results} />
-          <TradeStatisticsTable results={results} longLegOnly={!isLongOnly} />
+          <TradeStatisticsTable results={results} longLegOnly={longLegOnly} />
         </div>
       )}
 
@@ -224,7 +239,10 @@ const StrategyResults = ({ results, mode, fileContext }) => {
           hasOpenPosition={hasOpenPosition}
           openPositionPnL={openPositionPnL}
           openPositionPnLPercent={openPositionPnLPercent}
-          longLegOnly={!isLongOnly}
+          hasOpenShortPosition={!isLongOnly && includesShortSignals && hasOpenShortPosition}
+          openShortPositionPnL={openShortPositionPnL}
+          openShortPositionPnLPercent={openShortPositionPnLPercent}
+          longLegOnly={longLegOnly}
         />
       )}
     </div>

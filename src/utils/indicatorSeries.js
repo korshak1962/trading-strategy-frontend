@@ -52,22 +52,6 @@ export const buildSeriesList = (chartDataDTO) => {
 };
 
 /**
- * Map from raw backend date string -> value, for exact alignment against `prices[].date`
- * (both come from the same LocalDateTime serialisation, so the strings match on every timeframe).
- * @param {Array<{date: string, value: number}>|null|undefined} points
- * @returns {Map<string, number>}
- */
-export const buildDateLookup = (points) => {
-  const lookup = new Map();
-  (points || []).forEach(point => {
-    if (point && point.date !== undefined && point.date !== null) {
-      lookup.set(point.date, point.value);
-    }
-  });
-  return lookup;
-};
-
-/**
  * Returns the point list backing a series entry from the DTO's two maps.
  * @param {Object|null|undefined} chartDataDTO
  * @param {{name: string, kind: 'price'|'sub'}} series

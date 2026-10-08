@@ -133,9 +133,21 @@
   }
   
   .comment-cell {
-    max-width: 420px;
+    max-width: 320px;
+    min-width: 140px;
     white-space: normal;
     word-break: break-word;
+  }
+
+  /* Clamp on an inner block, not on the <td>: -webkit-box on a table cell breaks the table
+     layout. Full text stays in the cell's title tooltip. */
+  .comment-clamp {
+    max-width: 320px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
   
   .no-trades-message {
