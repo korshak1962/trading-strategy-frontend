@@ -8,10 +8,14 @@ import {
   drawPriceAxis,
   drawPriceCandlesticks,
   drawChannels,
+  drawLevelZones,
   drawPriceOverlays,
-  drawSignals
+  drawSignals,
+  DATE_AXIS_BAND
 } from '../../utils/ChartDrawingUtils';
 import { parseExchangeTs, exchangeToday } from '../../utils/dates';
+
+const EMPTY_RUNS = [];
 
 /**
  * PriceChart component renders the price candlestick chart with signals
@@ -30,11 +34,15 @@ import { parseExchangeTs, exchangeToday } from '../../utils/dates';
  * @param {Map} [props.signalTradeIndex] - signalKey -> tradeIndex, from deriveSignalTradeIndex.
  * @param {Array<{name, color}>} [props.priceSeries] - visible price-axis indicator series
  *   (from the shared IndicatorPicker); values come from data.priceIndicators[name].
+ * @param {Array} [props.levelZoneRuns] - level zone bands to draw (LevelBreakoutRetest), already
+ *   selected and merged by utils/levelZones.js buildLevelZoneRuns; empty for other strategies.
+ * @param {{min: number, max: number}|null} [props.priceRange] - manual price-axis range (vertical
+ *   zoom, see ReporterStyleChart); null = auto-fit to the visible candles.
  * @returns {JSX.Element}
  */
 const PriceChart = ({
   data, width, height, dateRange, visibleRange = null, highlightTradeIndex = null, signalTradeIndex = null,
-  priceSeries = []
+  priceSeries = [], levelZoneRuns = EMPTY_RUNS, priceRange = null
 }) => {
   const canvasRef = useRef(null);
 
@@ -124,9 +132,12 @@ const PriceChart = ({
       20 // Maximum width in pixels
     );
     
-    // Find min/max values only for visible prices (for vertical scaling)
+    // Find min/max values only for visible prices (for vertical scaling), unless the price axis
+    // was zoomed manually (priceRange)
     let minMaxPrice;
-    if (visiblePrices.length > 0) {
+    if (priceRange && priceRange.max > priceRange.min) {
+      minMaxPrice = priceRange;
+    } else if (visiblePrices.length > 0) {
       // Calculate min/max only for the visible price range
       minMaxPrice = findMinMaxPriceRange(visiblePrices);
     } else {
@@ -136,6 +147,18 @@ const PriceChart = ({
     
     // Draw chart components
     drawGrid(ctx, width, height);
+
+    // With a manual (vertically zoomed) price range, bars / lines / zones / markers outside it
+    // would run over the date labels and past the top: clip all series drawing to the plot area
+    // above the date-axis band. Auto-fit keeps the full canvas (its padding keeps data clear of it).
+    const manualRange = minMaxPrice === priceRange;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, width, manualRange ? Math.max(0, height - DATE_AXIS_BAND) : height);
+    ctx.clip();
+
+    // Level zone bands (if any) under the candles, so the candles stay readable over them
+    drawLevelZones(ctx, levelZoneRuns, chartDateRange, minMaxPrice, width, height);
     
     // Draw price candlesticks with the calculated width
     drawPriceCandlesticks(ctx, visiblePrices, chartDateRange, minMaxPrice, width, height, candleWidth);
@@ -162,6 +185,8 @@ const PriceChart = ({
       }
     }
 
+    ctx.restore(); // end of the plot-area clip
+
     // Axes last, so their labels sit on top of candles / overlays / signals
     drawDateAxis(ctx, chartDateRange, width, height);
     drawPriceAxis(ctx, minMaxPrice, width, height);
@@ -173,7 +198,7 @@ const PriceChart = ({
         ctx.clearRect(0, 0, width, height);
       }
     };
-  }, [data, width, height, dateRange, visibleRange, highlightTradeIndex, signalTradeIndex, priceSeries]);
+  }, [data, width, height, dateRange, visibleRange, highlightTradeIndex, signalTradeIndex, priceSeries, levelZoneRuns, priceRange]);
 
   return (
     <div className="chart-wrapper">

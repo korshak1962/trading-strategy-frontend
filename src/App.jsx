@@ -386,6 +386,13 @@ const App = () => {
                       height={isFullscreen ? fullscreenChartHeight : 600}
                       fitHeight={isFullscreen}
                       visibleSeries={visibleIndicatorSeries}
+                      indicatorSelection={{
+                        seriesList: indicatorSeriesList,
+                        showIndicators,
+                        setShowIndicators,
+                        selectedIds: selectedIndicatorIds,
+                        toggleSeries: toggleIndicatorSeries,
+                      }}
                       longLegOnly={results.longOnly !== true && results.chartDataDTO?.includesShortSignals !== true}
                     />
                   </div>

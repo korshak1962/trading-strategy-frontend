@@ -8,10 +8,16 @@ import IndicatorChart from './charts/IndicatorChart';
 import ChartTooltip from './charts/ChartTooltip';
 import Crosshair from './charts/Crosshair';
 import RangeSlider, { RANGE_SLIDER_HEIGHT, RANGE_SLIDER_DATES_HEIGHT } from './charts/RangeSlider';
-import { findMinMaxPriceRange, deriveSignalTradeIndex, signalKey, plotDateRange } from '../utils/ChartDrawingUtils';
+import {
+  findMinMaxPriceRange, deriveSignalTradeIndex, signalKey, plotDateRange, DATE_AXIS_BAND
+} from '../utils/ChartDrawingUtils';
 import { pointsForSeries } from '../utils/indicatorSeries';
 import { extractTradesFromSignals, cumulativeClosedPnLByBar, barIndexAtOrAfter } from '../utils/ChartDataUtils';
 import { parseExchangeTs, fmtExchangeIntl } from '../utils/dates';
+import { useElementSize } from '../hooks/useElementSize';
+import {
+  buildLevelZoneRuns, hasLevelZones, clampNearestN, LEVEL_ZONES_MAX_N, LEVEL_ZONES_DEFAULT_SETTINGS
+} from '../utils/levelZones';
 
 // Pane canvases, top to bottom - used to tell which pane the cursor is over.
 const PANE_CANVASES = [
@@ -31,6 +37,12 @@ const RANGE_SLIDER_BLOCK_PX = RANGE_SLIDER_HEIGHT + 2 + RANGE_SLIDER_DATES_HEIGH
 // Mouse events inside the range slider belong to the slider (recharts Brush), not to the
 // container's drag-zoom / crosshair handlers.
 const isInRangeSlider = (target) => Boolean(target?.closest?.('.reporter-range-slider'));
+// Likewise the level zone controls: clicking a checkbox / scrolling the N field must not start a
+// drag-zoom, clear the signal selection or wheel-zoom the chart.
+const isInLevelZoneControls = (target) => Boolean(target?.closest?.('.level-zones-controls'));
+// Same for the price legend's toggles and the controls row's buttons: a click on them is not a
+// click on the chart (it would otherwise clear the selected signal).
+const isInChartUi = (target) => Boolean(target?.closest?.('.price-legend, .chart-controls'));
 // fitHeight mode: initial guess for the chart's non-pane chrome (controls row, pane titles, flex
 // gaps, padding, wrapper borders); replaced by the measured value after the first layout.
 const DEFAULT_FIT_CHROME_PX = 250;
@@ -39,6 +51,46 @@ const DEFAULT_FIT_CHROME_PX = 250;
 // (0.15 * 400). On a short screen the block then grows past the first screen and the fullscreen
 // container scrolls; on a tall screen the budget is above it and the block fills the screen exactly.
 const MIN_FIT_PANE_BUDGET_PX = 400;
+// Level zone display settings (N nearest, weak zones, all strong zones), remembered per browser.
+const LEVEL_ZONES_STORAGE_KEY = 'reporterChart.levelZones.v1';
+const NO_RUNS = [];
+
+// Vertical (price-axis) zoom. The value-axis labels sit at the left of the price pane (drawValueAxis
+// draws them from x=18, ~35px wide); this strip is the "price axis" the drag / wheel / double-click
+// gestures act on.
+const PRICE_AXIS_HIT_PX = 56;
+// Axis drag: range factor per px dragged (exp, so up and down are symmetric). Drag up = zoom in.
+const Y_DRAG_SENSITIVITY = 0.006;
+// Wheel step for the price axis, same 15% as the horizontal wheel zoom.
+const Y_WHEEL_FACTOR = 1.15;
+// Manual price span limits, relative to the auto-fit span of the visible candles.
+const Y_MIN_SPAN_RATIO = 0.01;
+const Y_MAX_SPAN_RATIO = 50;
+// Price-only fullscreen: smallest price pane height.
+const MIN_PRICE_ONLY_PANE_PX = 200;
+
+const loadLevelZoneSettings = () => {
+  try {
+    const raw = window.localStorage.getItem(LEVEL_ZONES_STORAGE_KEY);
+    if (!raw) return { ...LEVEL_ZONES_DEFAULT_SETTINGS };
+    const stored = JSON.parse(raw) || {};
+    return {
+      nearestN: clampNearestN(stored.nearestN ?? LEVEL_ZONES_DEFAULT_SETTINGS.nearestN),
+      showWeak: stored.showWeak === true,
+      allStrong: stored.allStrong === true,
+    };
+  } catch {
+    return { ...LEVEL_ZONES_DEFAULT_SETTINGS };
+  }
+};
+
+const saveLevelZoneSettings = (settings) => {
+  try {
+    window.localStorage.setItem(LEVEL_ZONES_STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // storage unavailable (private window, blocked site data) - the settings just aren't kept
+  }
+};
 
 /**
  * ReporterStyleChart component - Main container for financial charts with synchronized zoom
@@ -56,9 +108,17 @@ const MIN_FIT_PANE_BUDGET_PX = 400;
  *   carries the long leg's signals only (an older backend without `data.includesShortSignals`),
  *   so the PnL pane titles say "(long leg)". When the backend merges the short leg's signals in
  *   (`data.includesShortSignals`) the caller passes false and the panes cover long + short.
+ * @param {Object} [props.indicatorSelection] - the shared indicator selection (App's
+ *   useIndicatorSelection: seriesList, showIndicators, setShowIndicators, selectedIds, toggleSeries).
+ *   Its 'price' series are listed in the legend right above the price pane, where each item also
+ *   toggles its series - the same state as the IndicatorPicker, so the two stay in sync. Without
+ *   it the legend lists only the visible price series, read-only.
  * @returns {JSX.Element}
  */
-const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = false, visibleSeries = [], longLegOnly = false }) => {
+const ReporterStyleChart = ({
+  data, width = 1200, height = 600, fitHeight = false, visibleSeries = [], longLegOnly = false,
+  indicatorSelection = null
+}) => {
   const containerRef = useRef(null);
   const legSuffix = longLegOnly ? ' (long leg)' : '';
 
@@ -84,7 +144,103 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
   // Split once per selection change - PriceChart / IndicatorChart key their draw effects on these.
   const priceSeries = useMemo(() => visibleSeries.filter(series => series.kind === 'price'), [visibleSeries]);
   const subSeries = useMemo(() => visibleSeries.filter(series => series.kind === 'sub'), [visibleSeries]);
-  
+
+  // Price-pane legend items: every price series of the result with its on/off state and a toggle
+  // (shared selection), or - without a selection to drive - just the drawn ones. Clicking an item
+  // while the picker's master "Show indicators" is off turns the master on with that series shown.
+  const priceLegendItems = useMemo(() => {
+    if (!indicatorSelection) {
+      return priceSeries.map(series => ({ ...series, on: true, toggle: null }));
+    }
+    const { seriesList = [], showIndicators, setShowIndicators, selectedIds, toggleSeries } = indicatorSelection;
+    return seriesList.filter(series => series.kind === 'price').map(series => {
+      const selected = Boolean(selectedIds?.has(series.id));
+      return {
+        ...series,
+        on: Boolean(showIndicators) && selected,
+        toggle: () => {
+          if (!showIndicators) {
+            setShowIndicators?.(true);
+            if (!selected) toggleSeries?.(series.id);
+          } else {
+            toggleSeries?.(series.id);
+          }
+        },
+      };
+    });
+  }, [indicatorSelection, priceSeries]);
+
+  // Level zones (LevelBreakoutRetest only - other strategies send none and get no controls).
+  // Selection per bar is done here, once per result/setting change, not on every redraw.
+  const showLevelZoneControls = hasLevelZones(data);
+  const [levelZoneSettings, setLevelZoneSettings] = useState(loadLevelZoneSettings);
+  const updateLevelZoneSettings = useCallback((patch) => {
+    setLevelZoneSettings(prev => {
+      const nextSettings = { ...prev, ...patch };
+      saveLevelZoneSettings(nextSettings);
+      return nextSettings;
+    });
+  }, []);
+  // The N field's text while it is being edited (null = show the applied value). Lets the field be
+  // cleared / retyped; the applied N only ever takes valid, clamped values. Typing a number applies
+  // it at once; blur or Enter commits - an empty / invalid entry falls back to the last valid N.
+  const [nearestNDraft, setNearestNDraft] = useState(null);
+  const handleNearestNChange = useCallback((e) => {
+    const raw = e.target.value;
+    setNearestNDraft(raw);
+    if (raw.trim() !== '' && Number.isFinite(Number(raw))) {
+      updateLevelZoneSettings({ nearestN: clampNearestN(raw) });
+    }
+  }, [updateLevelZoneSettings]);
+  const commitNearestN = useCallback(() => setNearestNDraft(null), []);
+  const levelZoneRuns = useMemo(() => {
+    if (!hasLevelZones(data)) return NO_RUNS;
+    return buildLevelZoneRuns(data.prices, data.levelZones, levelZoneSettings);
+  }, [data, levelZoneSettings]);
+
+  // Price-only fullscreen: just the price pane (+ zone controls, slider) filling the viewport.
+  // Independent of App's "Fullscreen" (whole results area): it is a fixed overlay over the
+  // viewport, and when nothing is natively fullscreen yet it also requests native fullscreen on
+  // this container. Exits with its button, Esc, or whenever the native fullscreen state changes
+  // away from this container (the browser eats Esc in native fullscreen and only reports the change).
+  const [priceOnly, setPriceOnly] = useState(false);
+  const priceOnlyRef = useRef(false);
+  priceOnlyRef.current = priceOnly;
+  const [pricePaneNode, setPricePaneNode] = useState(null);
+  const pricePaneSize = useElementSize(pricePaneNode);
+  const enterPriceOnly = useCallback(() => {
+    setPriceOnly(true);
+    const el = containerRef.current;
+    if (el && !document.fullscreenElement && el.requestFullscreen) {
+      el.requestFullscreen().catch(() => { /* denied - the fixed overlay still fills the viewport */ });
+    }
+  }, []);
+  const exitPriceOnly = useCallback(() => {
+    setPriceOnly(false);
+    if (containerRef.current && document.fullscreenElement === containerRef.current) {
+      document.exitFullscreen?.().catch(() => { /* already left fullscreen */ });
+    }
+  }, []);
+  useEffect(() => {
+    if (!priceOnly) return;
+    const onKeyDown = (e) => { if (e.key === 'Escape') exitPriceOnly(); };
+    const onFullscreenChange = () => {
+      if (document.fullscreenElement !== containerRef.current) setPriceOnly(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+    };
+  }, [priceOnly, exitPriceOnly]);
+
+  // Vertical zoom: a manual price-axis range, or null = auto-fit to the visible candles (what
+  // PriceChart does by itself). Once set it stays put under horizontal zoom / pan (like a manually
+  // scaled price axis elsewhere) until Reset Zoom, "Auto-fit price axis" or a double-click on the axis.
+  const [priceYRange, setPriceYRange] = useState(null);
+  const [yDrag, setYDrag] = useState(null); // {mode: 'scale'|'pan', startY, start: {min,max}, height}
+
   // State for crosshair position
   // x: relative to the plot (all panes share it); y: relative to the hovered pane's canvas
   const [crosshairPosition, setCrosshairPosition] = useState({ x: 0, y: 0 });
@@ -146,7 +302,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
   const [fitChromePx, setFitChromePx] = useState(DEFAULT_FIT_CHROME_PX);
   const measureFitChrome = useCallback(() => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!el || priceOnlyRef.current) return; // price-only lays out the price pane by flex instead
     const panes = PANE_CANVASES.reduce((sum, { selector }) => {
       const canvas = el.querySelector(selector);
       return sum + (canvas ? canvas.getBoundingClientRect().height : 0);
@@ -157,7 +313,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
   }, []);
   useLayoutEffect(() => {
     if (fitHeight) measureFitChrome();
-  }, [fitHeight, height, width, measureFitChrome]);
+  }, [fitHeight, height, width, priceOnly, measureFitChrome]);
   useEffect(() => {
     const el = containerRef.current;
     if (!fitHeight || !el) return;
@@ -173,7 +329,11 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
   // chrome as well, and the indicator pane's share goes to the price pane while it is hidden.
   const paneBudget = Math.max(fitHeight ? MIN_FIT_PANE_BUDGET_PX : 200, height - RANGE_SLIDER_BLOCK_PX - (fitHeight ? fitChromePx : 0));
   const hasIndicatorPane = subSeries.length > 0;
-  const priceChartHeight = paneBudget * (fitHeight && !hasIndicatorPane ? 0.70 : 0.55);
+  // Price-only fullscreen: the price pane's wrapper takes the remaining viewport height (flex), and
+  // the canvas is sized to it.
+  const priceChartHeight = priceOnly
+    ? Math.max(MIN_PRICE_ONLY_PANE_PX, Math.floor(pricePaneSize.height))
+    : paneBudget * (fitHeight && !hasIndicatorPane ? 0.70 : 0.55);
   const pnlChartHeight = paneBudget * 0.15;
   const cumulativeChartHeight = paneBudget * 0.15;
   const indicatorChartHeight = paneBudget * 0.15;
@@ -189,6 +349,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
     // A new result always drops the previous result's zoom and selection.
     setSelectedTradeIndex(null);
     setSelectedSignalReason(null);
+    setPriceYRange(null);
     if (!data || !data.prices || data.prices.length === 0) {
       // No bars: clear rather than keep the previous result's tooltip prices and zoom range.
       chartData.current.prices = [];
@@ -232,6 +393,70 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
     () => plotDateRange(dateRange, sliderRows.map(row => row.ms)),
     [dateRange, sliderRows]
   );
+
+  // The auto-fit price range PriceChart draws without a manual range: the candles in the logical
+  // window (dateRange), padded - the base for vertical zoom gestures and their span limits.
+  const autoPriceRange = useMemo(() => {
+    const prices = data?.prices || [];
+    if (prices.length === 0) return null;
+    if (!dateRange) return findMinMaxPriceRange(prices);
+    const startMs = dateRange[0].getTime();
+    const endMs = dateRange[1].getTime();
+    const visible = prices.filter(price => {
+      const ms = parseExchangeTs(price.date).getTime();
+      return ms >= startMs && ms <= endMs;
+    });
+    return findMinMaxPriceRange(visible.length > 0 ? visible : prices);
+  }, [data, dateRange]);
+  const effectivePriceRange = priceYRange || autoPriceRange;
+
+  // Keeps a manual price range's span within limits relative to the auto-fit span.
+  const clampPriceRange = useCallback((min, max) => {
+    if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return null;
+    const autoSpan = autoPriceRange ? autoPriceRange.max - autoPriceRange.min : max - min;
+    if (!(autoSpan > 0)) return { min, max };
+    const span = Math.min(autoSpan * Y_MAX_SPAN_RATIO, Math.max(autoSpan * Y_MIN_SPAN_RATIO, max - min));
+    const center = (min + max) / 2;
+    return { min: center - span / 2, max: center + span / 2 };
+  }, [autoPriceRange]);
+
+  // Pointer position over the price canvas, or null when outside it. `onAxis`: in the price-axis strip.
+  const getPricePanePoint = useCallback((clientX, clientY) => {
+    const canvas = containerRef.current?.querySelector('.price-chart-canvas');
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const px = clientX - rect.left;
+    const py = clientY - rect.top;
+    if (px < 0 || px > rect.width || py < 0 || py > rect.height || rect.height <= 0) return null;
+    return { px, py, height: rect.height, onAxis: px <= PRICE_AXIS_HIT_PX };
+  }, []);
+
+  // Price-axis drag in progress: follow the pointer on window, so it keeps working outside the pane.
+  useEffect(() => {
+    if (!yDrag) return;
+    const onMove = (e) => {
+      // Button released outside the window (no mouseup reached us): end the drag instead of sticking.
+      if (e.buttons === 0) { setYDrag(null); return; }
+      const dy = e.clientY - yDrag.startY;
+      const { min, max } = yDrag.start;
+      if (yDrag.mode === 'scale') {
+        const factor = Math.exp(dy * Y_DRAG_SENSITIVITY); // drag up (dy < 0) = zoom in
+        const center = (min + max) / 2;
+        const half = ((max - min) / 2) * factor;
+        setPriceYRange(clampPriceRange(center - half, center + half));
+      } else {
+        const shift = (dy / yDrag.height) * (max - min); // content follows the pointer
+        setPriceYRange({ min: min + shift, max: max + shift });
+      }
+    };
+    const onUp = () => setYDrag(null);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [yDrag, clampPriceRange]);
 
   // dateRange -> slider indices: first bar at/after the range start, last bar at/before its end.
   // Derived (not separate state), so wheel zoom / drag zoom / Reset Zoom move the slider and
@@ -401,7 +626,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
     const [startDate, endDate] = dateRange || currentDateRange;
 
     const visiblePrices = chartData.current.prices.filter(p => p.date >= startDate && p.date <= endDate);
-    const minMax = findMinMaxPriceRange(visiblePrices.length > 0 ? visiblePrices : chartData.current.prices);
+    const minMax = priceYRange || findMinMaxPriceRange(visiblePrices.length > 0 ? visiblePrices : chartData.current.prices);
 
     let closest = null;
     let closestDist = Infinity;
@@ -410,6 +635,9 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
       if (sDate < startDate || sDate > endDate) return;
       const x = ((sDate.getTime() - plotStart.getTime()) / totalMs) * rect.width;
       const y = rect.height - ((signal.price - minMax.min) / (minMax.max - minMax.min)) * rect.height;
+      // Vertically zoomed: a marker outside the price range is clipped away (PriceChart), so it
+      // must not be clickable at its off-plot position either.
+      if (priceYRange && (y < 0 || y > rect.height - DATE_AXIS_BAND)) return;
       const dist = Math.hypot(x - px, y - py);
       if (dist < closestDist) {
         closestDist = dist;
@@ -425,7 +653,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
       signal !== closest && signal.date === closest.date && signal.price === closest.price)];
 
     return { signal: closest, signals: coincident, dist: closestDist, canvas };
-  }, [data, dateRange, plotRange]);
+  }, [data, dateRange, plotRange, priceYRange]);
 
   // The signals at the clicked point (nearest first), or null when the click missed every signal.
   const findClickedSignals = useCallback((clientX, clientY) => {
@@ -472,12 +700,26 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
     
     // Only activate zoom with left mouse button
     if (e.button !== 0) return;
-    // The range slider handles its own drags
-    if (isInRangeSlider(e.target)) return;
-    
+    // The range slider handles its own drags; the level zone controls are plain form inputs
+    if (isInRangeSlider(e.target) || isInLevelZoneControls(e.target) || isInChartUi(e.target)) return;
+
+    // Price axis strip: drag scales the price axis; Shift + drag anywhere on the price pane pans
+    // it vertically. Neither starts the horizontal drag-zoom.
+    const pricePoint = getPricePanePoint(e.clientX, e.clientY);
+    if (pricePoint && (pricePoint.onAxis || e.shiftKey) && effectivePriceRange) {
+      e.preventDefault(); // no text selection while dragging
+      setYDrag({
+        mode: pricePoint.onAxis ? 'scale' : 'pan',
+        startY: e.clientY,
+        start: effectivePriceRange,
+        height: pricePoint.height,
+      });
+      return;
+    }
+
     const plotRect = getPlotRect();
     if (!plotRect) return;
-    
+
     // Get mouse position relative to the plot
     const x = e.clientX - plotRect.left;
     
@@ -485,7 +727,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
     setZoomActive(true);
     setZoomStart(x);
     setZoomEnd(x);
-  }, [getPlotRect]);
+  }, [getPlotRect, getPricePanePoint, effectivePriceRange]);
   
   // Handle mouse move for zoom selection
   const handleMouseMove = useCallback((e) => {
@@ -530,12 +772,17 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
     // Cursor feedback for "you're close enough to click this signal" - a direct style mutation
     // (not React state) since it needs to update on every mouse move without forcing a re-render.
     if (!zoomActive) {
-      const nearest = findNearestSignal(e.clientX, e.clientY);
-      const hovering = nearest && nearest.dist <= SIGNAL_HIT_RADIUS_PX;
       const canvas = containerRef.current.querySelector('.price-chart-canvas');
-      if (canvas) canvas.style.cursor = hovering ? 'pointer' : '';
+      const pricePoint = getPricePanePoint(e.clientX, e.clientY);
+      if (yDrag || pricePoint?.onAxis) {
+        if (canvas) canvas.style.cursor = yDrag?.mode === 'pan' ? 'grabbing' : 'ns-resize';
+      } else {
+        const nearest = findNearestSignal(e.clientX, e.clientY);
+        const hovering = nearest && nearest.dist <= SIGNAL_HIT_RADIUS_PX;
+        if (canvas) canvas.style.cursor = hovering ? 'pointer' : '';
+      }
     }
-  }, [zoomActive, updateTooltipData, findNearestSignal, getPlotRect, getHoveredPane]);
+  }, [zoomActive, yDrag, updateTooltipData, findNearestSignal, getPlotRect, getHoveredPane, getPricePanePoint]);
 
   // Handle mouse up for zoom selection end
   const handleMouseUp = useCallback((e) => {
@@ -615,8 +862,31 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
   // Handle mouse wheel for zoom in/out
   const handleMouseWheel = useCallback((e) => {
     if (!containerRef.current) return;
-    e.preventDefault(); // Prevent page scrolling
-    
+    if (isInLevelZoneControls(e.target)) return; // let the N field / page scroll normally
+    e.preventDefault(); // Prevent page scrolling (and Ctrl+wheel page zoom)
+
+    // Vertical zoom: Shift/Ctrl + wheel over the price pane, or the plain wheel over its price
+    // axis strip - scales the price axis around the price under the cursor.
+    const pricePoint = getPricePanePoint(e.clientX, e.clientY);
+    if (pricePoint && (e.shiftKey || e.ctrlKey || e.metaKey || pricePoint.onAxis)) {
+      // Legacy mousewheel / DOMMouseScroll duplicates of the same tick: handled once, as 'wheel'.
+      if (e.type !== 'wheel' || !effectivePriceRange) return;
+      // Shift+wheel arrives as horizontal scroll (deltaX) in Chromium / Windows
+      const delta = e.deltaY || e.deltaX;
+      if (!delta) return;
+      const factor = delta > 0 ? Y_WHEEL_FACTOR : 1 / Y_WHEEL_FACTOR; // wheel down = zoom out
+      const { min, max } = effectivePriceRange;
+      const pivot = max - (pricePoint.py / pricePoint.height) * (max - min);
+      const next = clampPriceRange(pivot - (pivot - min) * factor, pivot + (max - pivot) * factor);
+      if (next) {
+        // The span clamp recentres; keep the pivot under the cursor instead.
+        const ratio = (pivot - min) / (max - min);
+        const span = next.max - next.min;
+        setPriceYRange({ min: pivot - ratio * span, max: pivot - ratio * span + span });
+      }
+      return;
+    }
+
     // Get current dateRange or use the original
     const currentDateRange = dateRange || chartData.current.dateRange;
     
@@ -674,7 +944,7 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
     const boundedEnd = new Date(Math.min(newEndTime, maxEndTime));
     
     setDateRange([boundedStart, boundedEnd]);
-  }, [dateRange, plotRange, originalDateRange, getPlotRect]);
+  }, [dateRange, plotRange, originalDateRange, getPlotRect, getPricePanePoint, effectivePriceRange, clampPriceRange]);
   
   // Handle mouse leave
   const handleMouseLeave = useCallback(() => {
@@ -689,9 +959,17 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
   }, [zoomActive]);
   
   // Reset zoom to original date range
+  // Reset Zoom resets both axes: the date window and any manual price-axis range.
   const handleResetZoom = useCallback(() => {
     setDateRange(originalDateRange);
+    setPriceYRange(null);
   }, [originalDateRange]);
+
+  // Double-click on the price axis strip: back to auto-fit (vertical only).
+  const handleDoubleClick = useCallback((e) => {
+    const pricePoint = getPricePanePoint(e.clientX, e.clientY);
+    if (pricePoint?.onAxis) setPriceYRange(null);
+  }, [getPricePanePoint]);
   
   // Set up event handlers for crosshair, tooltip, and zoom
   useEffect(() => {
@@ -702,7 +980,8 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
       currentContainerRef.addEventListener('mousemove', handleMouseMove);
       currentContainerRef.addEventListener('mouseup', handleMouseUp);
       currentContainerRef.addEventListener('mouseleave', handleMouseLeave);
-      
+      currentContainerRef.addEventListener('dblclick', handleDoubleClick);
+
       // Add wheel event listener with passive: false to prevent scrolling
       // Use all variations for cross-browser compatibility
       currentContainerRef.addEventListener('wheel', handleMouseWheel, { passive: false });
@@ -717,13 +996,14 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
         currentContainerRef.removeEventListener('mousemove', handleMouseMove);
         currentContainerRef.removeEventListener('mouseup', handleMouseUp);
         currentContainerRef.removeEventListener('mouseleave', handleMouseLeave);
-        
+        currentContainerRef.removeEventListener('dblclick', handleDoubleClick);
+
         currentContainerRef.removeEventListener('wheel', handleMouseWheel);
         currentContainerRef.removeEventListener('mousewheel', handleMouseWheel);
         currentContainerRef.removeEventListener('DOMMouseScroll', handleMouseWheel);
       }
     };
-  }, [handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave, handleMouseWheel]);
+  }, [handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave, handleMouseWheel, handleDoubleClick]);
   
   // Calculate chart width based on container
   const getChartWidth = () => measuredWidth ?? width;
@@ -769,22 +1049,25 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
   ));
 
   return (
-    <div className="reporter-chart-container" ref={containerRef}>
+    <div
+      className={`reporter-chart-container${priceOnly ? ' reporter-chart-container--price-only' : ''}`}
+      ref={containerRef}
+    >
       {/* Zoom controls */}
       <div className="chart-controls">
         <div className="zoom-info">
           <button 
             className="zoom-reset-btn"
             onClick={handleResetZoom}
-            disabled={!dateRange || (originalDateRange && 
-              dateRange[0].getTime() === originalDateRange[0].getTime() &&
-              dateRange[1].getTime() === originalDateRange[1].getTime())}
+            disabled={!isZoomed && !priceYRange}
           >
             Reset Zoom
           </button>
           <div className="zoom-instructions">
             Click and drag horizontally to zoom in on a specific time range, use the mouse wheel to zoom in/out,
             or drag the slider below the price chart (its handles resize the window, its middle pans it).
+            Price axis: drag the price labels up/down (or use the wheel over them), or Shift/Ctrl + wheel over
+            the price chart, to zoom vertically; Shift + drag pans it; double-click the labels to auto-fit.
             Click a signal to reveal the channels that produced it, at whatever zoom you're currently at.
           </div>
         </div>
@@ -799,6 +1082,20 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
           </button>
         )}
 
+        {/* Always laid out (hidden while the axis is auto-fit), like the date badge: appearing on
+            the first axis drag must not re-wrap the row and shift the pane under the pointer. */}
+        <button
+          type="button"
+          className="zoom-reset-btn price-autofit-btn"
+          onClick={() => setPriceYRange(null)}
+          title="Back to fitting the price axis to the visible candles"
+          style={{ visibility: priceYRange ? 'visible' : 'hidden' }}
+          aria-hidden={!priceYRange}
+          tabIndex={priceYRange ? 0 : -1}
+        >
+          Auto-fit price axis
+        </button>
+
         {/* Date range badge - always rendered (hidden at full range) so it appearing on the first
             zoom never shifts the layout (which made the range slider jump mid-drag). */}
         {dateRange && (
@@ -810,7 +1107,52 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
             {formatDate(dateRange[0])} - {formatDate(dateRange[1])}
           </div>
         )}
+
+        <button
+          type="button"
+          className="zoom-reset-btn price-only-toggle-btn"
+          onClick={priceOnly ? exitPriceOnly : enterPriceOnly}
+          title={priceOnly ? 'Exit (Esc)' : 'Price chart and level zones only, filling the screen'}
+        >
+          {priceOnly ? '⤢ Exit price chart (Esc)' : '⛶ Price chart only'}
+        </button>
       </div>
+
+      {showLevelZoneControls && (
+        <div className="level-zones-controls" data-testid="level-zones-controls">
+          <span className="level-zones-controls__title">Level zones</span>
+          <label className="level-zones-controls__item" title="Zones drawn per bar: the one containing the previous close, plus this many nearest above and below">
+            N nearest
+            <input
+              type="number"
+              className="level-zones-controls__number"
+              min={0}
+              max={LEVEL_ZONES_MAX_N}
+              step={1}
+              value={nearestNDraft ?? levelZoneSettings.nearestN}
+              onChange={handleNearestNChange}
+              onBlur={commitNearestN}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitNearestN(); }}
+            />
+          </label>
+          <label className="level-zones-controls__item">
+            <input
+              type="checkbox"
+              checked={levelZoneSettings.showWeak}
+              onChange={(e) => updateLevelZoneSettings({ showWeak: e.target.checked })}
+            />
+            Show weak zones
+          </label>
+          <label className="level-zones-controls__item" title="Debug: every strong zone, without the nearest-N filter">
+            <input
+              type="checkbox"
+              checked={levelZoneSettings.allStrong}
+              onChange={(e) => updateLevelZoneSettings({ allStrong: e.target.checked })}
+            />
+            All strong zones
+          </label>
+        </div>
+      )}
 
       {selectedSignalReason && (
         <div className="signal-reason-note">
@@ -829,8 +1171,41 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
         </div>
       )}
 
-      <h3 className="chart-title">Price Chart with Signals</h3>
-      <div className="chart-wrapper position-relative">
+      {/* Title + legend of what the price pane draws, right above it (and so also in both
+          fullscreen modes): the price-axis indicator series - each item toggles its series, in
+          sync with the IndicatorPicker - and the level zone bands. */}
+      <div className="price-chart-header">
+        <h3 className="chart-title">Price Chart with Signals</h3>
+        {(priceLegendItems.length > 0 || showLevelZoneControls) && (
+          <div className="price-legend" data-testid="price-legend">
+            {priceLegendItems.map(item => (
+              <button
+                key={item.id}
+                type="button"
+                className={`price-legend__item${item.on ? '' : ' price-legend__item--off'}`}
+                onClick={item.toggle || undefined}
+                disabled={!item.toggle}
+                aria-pressed={item.on}
+                title={item.toggle ? `${item.on ? 'Hide' : 'Show'} ${item.name}` : item.name}
+              >
+                <span className="price-legend__line" style={{ backgroundColor: item.color }} />
+                {item.name}
+              </button>
+            ))}
+            {showLevelZoneControls && (
+              <span className="price-legend__zones">
+                <span className="level-zones-swatch level-zones-swatch--strong" /> strong zone
+                <span className="level-zones-swatch level-zones-swatch--weak" /> weak zone
+                <span className="level-zones-swatch level-zones-swatch--armed" /> resistance trigger zone
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+      <div
+        ref={setPricePaneNode}
+        className={`chart-wrapper position-relative${priceOnly ? ' price-only-pane' : ''}`}
+      >
         <PriceChart
           data={data}
           width={getChartWidth()}
@@ -840,6 +1215,8 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
           highlightTradeIndex={selectedTradeIndex}
           signalTradeIndex={signalTradeIndexMap}
           priceSeries={priceSeries}
+          levelZoneRuns={levelZoneRuns}
+          priceRange={priceYRange}
         />
         <Crosshair 
           show={showCrosshair} 
@@ -861,6 +1238,8 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
         width={getChartWidth()}
       />
 
+      {/* Lower panes - not in price-only fullscreen */}
+      {!priceOnly && (<>
       <h3 className="chart-title">Individual Trade PnL{legSuffix}</h3>
       <div className="chart-wrapper position-relative">
         <PnLChart
@@ -918,7 +1297,8 @@ const ReporterStyleChart = ({ data, width = 1200, height = 600, fitHeight = fals
           </div>
         </>
       )}
-      
+      </>)}
+
       {/* Render tooltip if data available */}
       <ChartTooltip tooltipData={tooltipData} />
     </div>

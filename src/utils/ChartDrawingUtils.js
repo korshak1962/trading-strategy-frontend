@@ -172,7 +172,7 @@ export const findMinMaxPriceRange = (prices) => {
   };
 
   // Height reserved at the bottom of every pane for the date axis labels (see drawDateAxis).
-  const DATE_AXIS_BAND = 18;
+  export const DATE_AXIS_BAND = 18;
   const VALUE_LABEL_X = 18; // right of the rotated axis title centred at x=8
   const MIN_LABEL_GAP = 12;
 
@@ -663,6 +663,79 @@ export const findMinMaxPriceRange = (prices) => {
         drawPolyline(channel.upperPoints);
         drawPolyline(channel.lowerPoints);
       });
+  };
+
+  // Level zone bands (LevelBreakoutRetest, see utils/levelZones.js). Strong zones get a medium
+  // fill, weak ones a pale fill with no border; the zone the resistanceTrigger line comes from
+  // (segment flag `trigger`, its tracker is ARMED) gets a dashed line along its upper edge - the
+  // edge the trigger sits a buffer above. The edge is fuchsia and dashed so it does not read as
+  // the (solid, palette-coloured) resistanceTrigger line drawn just above it: fuchsia is not in
+  // the indicator palette (utils/indicatorSeries.js), nor a candle / signal colour.
+  // Keep the swatches in ReporterStyleChart.css in sync.
+  export const LEVEL_ZONE_STYLE = Object.freeze({
+    strongFill: 'rgba(74, 58, 167, 0.26)', // violet, from the channel palette
+    weakFill: 'rgba(74, 58, 167, 0.09)',
+    armedEdge: 'rgba(192, 38, 211, 0.95)', // fuchsia
+    armedEdgeWidth: 2,
+    armedEdgeDash: [6, 4],
+  });
+
+  /**
+   * Draws level zone runs as horizontal bands, one fillRect per run (consecutive bars showing the
+   * same zone segment are already merged by buildLevelZoneRuns). Same x/y mapping as
+   * drawChannels / drawPriceOverlays; drawn under the candles so they stay readable.
+   *
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {Array<{low, high, strong, outlined, startMs, endMs}>} runs - from buildLevelZoneRuns
+   * @param {[Date, Date]} dateRange - the plot range
+   * @param {{min: number, max: number}} minMax - the candle-derived price range
+   * @param {number} width
+   * @param {number} height
+   */
+  export const drawLevelZones = (ctx, runs, dateRange, minMax, width, height) => {
+    if (!runs || runs.length === 0) return;
+    // Guard against undefined or incomplete dateRange
+    if (!dateRange || !dateRange[0] || !dateRange[1] ||
+        !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) {
+      return; // Skip drawing if no valid date range
+    }
+
+    const startMs = dateRange[0].getTime();
+    const endMs = dateRange[1].getTime();
+    const totalMs = endMs - startMs;
+    const { min, max } = minMax;
+    if (totalMs <= 0 || max === min) return;
+
+    const xOf = (ms) => ((ms - startMs) / totalMs) * width;
+    const yOf = (price) => height - ((price - min) / (max - min)) * height;
+
+    // Weak under strong, the outlined trigger zone on top.
+    const rank = (run) => (run.outlined ? 2 : run.strong ? 1 : 0);
+    const visible = runs
+      .filter(run => run.endMs >= startMs && run.startMs <= endMs && run.high >= min && run.low <= max)
+      .sort((a, b) => rank(a) - rank(b));
+
+    ctx.save();
+    visible.forEach(run => {
+      const x0 = Math.max(0, xOf(run.startMs));
+      const x1 = Math.min(width, xOf(run.endMs));
+      if (x1 <= x0) return;
+      const yTop = yOf(run.high);
+      const yBottom = yOf(run.low);
+      ctx.fillStyle = run.strong ? LEVEL_ZONE_STYLE.strongFill : LEVEL_ZONE_STYLE.weakFill;
+      ctx.fillRect(x0, yTop, x1 - x0, Math.max(1, yBottom - yTop));
+      if (run.outlined) {
+        ctx.strokeStyle = LEVEL_ZONE_STYLE.armedEdge;
+        ctx.lineWidth = LEVEL_ZONE_STYLE.armedEdgeWidth;
+        ctx.setLineDash(LEVEL_ZONE_STYLE.armedEdgeDash);
+        ctx.beginPath();
+        ctx.moveTo(x0, yTop);
+        ctx.lineTo(x1, yTop);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    });
+    ctx.restore();
   };
 
   export const drawIndividualTradeBars = (ctx, trades, dateRange, minMax, width, height) => {
