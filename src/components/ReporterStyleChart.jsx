@@ -12,6 +12,8 @@ import {
   findMinMaxPriceRange, deriveSignalTradeIndex, signalKey, plotDateRange, DATE_AXIS_BAND
 } from '../utils/ChartDrawingUtils';
 import { pointsForSeries } from '../utils/indicatorSeries';
+import { LEVEL_ZONE_DESCRIPTIONS } from '../utils/indicatorDescriptions';
+import IndicatorPicker from './IndicatorPicker';
 import { extractTradesFromSignals, cumulativeClosedPnLByBar, barIndexAtOrAfter } from '../utils/ChartDataUtils';
 import { parseExchangeTs, fmtExchangeIntl } from '../utils/dates';
 import { useElementSize } from '../hooks/useElementSize';
@@ -43,6 +45,9 @@ const isInLevelZoneControls = (target) => Boolean(target?.closest?.('.level-zone
 // Same for the price legend's toggles and the controls row's buttons: a click on them is not a
 // click on the chart (it would otherwise clear the selected signal).
 const isInChartUi = (target) => Boolean(target?.closest?.('.price-legend, .chart-controls'));
+// The wheel zooms only over the panes and the range slider; over the controls, legend, titles or
+// the signal-reason note it scrolls the page as usual.
+const isWheelZoomTarget = (target) => Boolean(target?.closest?.('.chart-wrapper, .reporter-range-slider'));
 // fitHeight mode: initial guess for the chart's non-pane chrome (controls row, pane titles, flex
 // gaps, padding, wrapper borders); replaced by the measured value after the first layout.
 const DEFAULT_FIT_CHROME_PX = 250;
@@ -61,8 +66,15 @@ const NO_RUNS = [];
 const PRICE_AXIS_HIT_PX = 56;
 // Axis drag: range factor per px dragged (exp, so up and down are symmetric). Drag up = zoom in.
 const Y_DRAG_SENSITIVITY = 0.006;
-// Wheel step for the price axis, same 15% as the horizontal wheel zoom.
+// Wheel step for the price axis, same 15% as the horizontal wheel zoom, per WHEEL_NOTCH_PX of
+// wheel delta - so a trackpad pinch (a stream of small Ctrl+wheel deltas) zooms smoothly instead
+// of 15% per event. One event is capped at Y_WHEEL_MAX_NOTCHES notches.
 const Y_WHEEL_FACTOR = 1.15;
+const WHEEL_NOTCH_PX = 100;
+const Y_WHEEL_MAX_NOTCHES = 3;
+// Vertical pan limit: at least this fraction of the price pane's height must stay over the
+// auto-fit price range of the visible candles, so the candles cannot be panned out of sight.
+const Y_PAN_MIN_OVERLAP = 0.1;
 // Manual price span limits, relative to the auto-fit span of the visible candles.
 const Y_MIN_SPAN_RATIO = 0.01;
 const Y_MAX_SPAN_RATIO = 50;
@@ -145,42 +157,23 @@ const ReporterStyleChart = ({
   const priceSeries = useMemo(() => visibleSeries.filter(series => series.kind === 'price'), [visibleSeries]);
   const subSeries = useMemo(() => visibleSeries.filter(series => series.kind === 'sub'), [visibleSeries]);
 
-  // Price-pane legend items: every price series of the result with its on/off state and a toggle
-  // (shared selection), or - without a selection to drive - just the drawn ones. Clicking an item
-  // while the picker's master "Show indicators" is off turns the master on with that series shown.
-  const priceLegendItems = useMemo(() => {
-    if (!indicatorSelection) {
-      return priceSeries.map(series => ({ ...series, on: true, toggle: null }));
-    }
-    const { seriesList = [], showIndicators, setShowIndicators, selectedIds, toggleSeries } = indicatorSelection;
-    return seriesList.filter(series => series.kind === 'price').map(series => {
-      const selected = Boolean(selectedIds?.has(series.id));
-      return {
-        ...series,
-        on: Boolean(showIndicators) && selected,
-        toggle: () => {
-          if (!showIndicators) {
-            setShowIndicators?.(true);
-            if (!selected) toggleSeries?.(series.id);
-          } else {
-            toggleSeries?.(series.id);
-          }
-        },
-      };
-    });
-  }, [indicatorSelection, priceSeries]);
+  // Legend next to the price pane: the shared selection (App's useIndicatorSelection) - or, without
+  // one, a read-only list of the drawn series.
+  const legendSelection = useMemo(() => indicatorSelection || {
+    seriesList: visibleSeries,
+    showIndicators: true,
+    selectedIds: new Set(visibleSeries.map(series => series.id)),
+  }, [indicatorSelection, visibleSeries]);
 
   // Level zones (LevelBreakoutRetest only - other strategies send none and get no controls).
   // Selection per bar is done here, once per result/setting change, not on every redraw.
   const showLevelZoneControls = hasLevelZones(data);
   const [levelZoneSettings, setLevelZoneSettings] = useState(loadLevelZoneSettings);
   const updateLevelZoneSettings = useCallback((patch) => {
-    setLevelZoneSettings(prev => {
-      const nextSettings = { ...prev, ...patch };
-      saveLevelZoneSettings(nextSettings);
-      return nextSettings;
-    });
+    setLevelZoneSettings(prev => ({ ...prev, ...patch }));
   }, []);
+  // Persisted after commit, not inside the state updater (updaters must stay pure).
+  useEffect(() => { saveLevelZoneSettings(levelZoneSettings); }, [levelZoneSettings]);
   // The N field's text while it is being edited (null = show the applied value). Lets the field be
   // cleared / retyped; the applied N only ever takes valid, clamped values. Typing a number applies
   // it at once; blur or Enter commits - an empty / invalid entry falls back to the last valid N.
@@ -204,13 +197,25 @@ const ReporterStyleChart = ({
   // this container. Exits with its button, Esc, or whenever the native fullscreen state changes
   // away from this container (the browser eats Esc in native fullscreen and only reports the change).
   const [priceOnly, setPriceOnly] = useState(false);
+  // Entered while another element (App's "Fullscreen") was natively fullscreen: then a real Esc is
+  // taken by the browser and leaves that fullscreen too, so the button must not promise "Esc".
+  const [priceOnlyNested, setPriceOnlyNested] = useState(false);
+  // Read by measureFitChrome (a layout effect). Synced in a layout effect declared before it, so it
+  // is already current when that effect runs in the same commit - not assigned during render.
   const priceOnlyRef = useRef(false);
-  priceOnlyRef.current = priceOnly;
+  useLayoutEffect(() => { priceOnlyRef.current = priceOnly; }, [priceOnly]);
+  const priceOnlyToggleRef = useRef(null);
+  // Price-only hides the sub panes, so the legend drops their chips there.
+  const legendSeriesList = useMemo(() => {
+    const list = legendSelection.seriesList || [];
+    return priceOnly ? list.filter(series => series.kind === 'price') : list;
+  }, [legendSelection, priceOnly]);
   const [pricePaneNode, setPricePaneNode] = useState(null);
   const pricePaneSize = useElementSize(pricePaneNode);
   const enterPriceOnly = useCallback(() => {
     setPriceOnly(true);
     const el = containerRef.current;
+    setPriceOnlyNested(Boolean(document.fullscreenElement && document.fullscreenElement !== el));
     if (el && !document.fullscreenElement && el.requestFullscreen) {
       el.requestFullscreen().catch(() => { /* denied - the fixed overlay still fills the viewport */ });
     }
@@ -234,6 +239,49 @@ const ReporterStyleChart = ({
       document.removeEventListener('fullscreenchange', onFullscreenChange);
     };
   }, [priceOnly, exitPriceOnly]);
+
+  // Price-only is modal: focus moves into it on entry and stays there (Tab / Shift+Tab wrap inside
+  // the container, focus landing outside is pulled back), so keyboard users cannot reach the
+  // controls hidden behind the overlay. On exit focus returns to the toggle button.
+  useEffect(() => {
+    if (!priceOnly) return undefined;
+    const container = containerRef.current;
+    if (!container) return undefined;
+    const focusables = () => Array.from(container.querySelectorAll(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+    )).filter(el => el.getClientRects().length > 0 && el.getAttribute('aria-hidden') !== 'true');
+    const toggle = priceOnlyToggleRef.current;
+    (toggle || focusables()[0] || container).focus({ preventScroll: true });
+    const onKeyDown = (e) => {
+      if (e.key !== 'Tab') return;
+      const items = focusables();
+      if (items.length === 0) { e.preventDefault(); return; }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (!container.contains(active)) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    const onFocusIn = (e) => {
+      if (!container.contains(e.target)) (focusables()[0] || container).focus({ preventScroll: true });
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('focusin', onFocusIn);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('focusin', onFocusIn);
+      // Back on the (same) toggle button, now labelled "Price chart only".
+      if (toggle && toggle.isConnected) toggle.focus({ preventScroll: true });
+    };
+  }, [priceOnly]);
 
   // Vertical zoom: a manual price-axis range, or null = auto-fit to the visible candles (what
   // PriceChart does by itself). Once set it stays put under horizontal zoom / pan (like a manually
@@ -420,6 +468,19 @@ const ReporterStyleChart = ({
     return { min: center - span / 2, max: center + span / 2 };
   }, [autoPriceRange]);
 
+  // Keeps a manual price range's position within limits: at least Y_PAN_MIN_OVERLAP of the pane
+  // height stays over the auto-fit range, i.e. min in [autoMin - (1 - k)*span, autoMax - k*span].
+  // The span is unchanged; null passes through.
+  const boundPriceRange = useCallback((range) => {
+    if (!range || !autoPriceRange) return range;
+    const span = range.max - range.min;
+    const lo = autoPriceRange.min - (1 - Y_PAN_MIN_OVERLAP) * span;
+    const hi = autoPriceRange.max - Y_PAN_MIN_OVERLAP * span;
+    if (!(span > 0) || !(hi >= lo)) return range;
+    const min = Math.min(hi, Math.max(lo, range.min));
+    return min === range.min ? range : { min, max: min + span };
+  }, [autoPriceRange]);
+
   // Pointer position over the price canvas, or null when outside it. `onAxis`: in the price-axis strip.
   const getPricePanePoint = useCallback((clientX, clientY) => {
     const canvas = containerRef.current?.querySelector('.price-chart-canvas');
@@ -443,10 +504,10 @@ const ReporterStyleChart = ({
         const factor = Math.exp(dy * Y_DRAG_SENSITIVITY); // drag up (dy < 0) = zoom in
         const center = (min + max) / 2;
         const half = ((max - min) / 2) * factor;
-        setPriceYRange(clampPriceRange(center - half, center + half));
+        setPriceYRange(boundPriceRange(clampPriceRange(center - half, center + half)));
       } else {
         const shift = (dy / yDrag.height) * (max - min); // content follows the pointer
-        setPriceYRange({ min: min + shift, max: max + shift });
+        setPriceYRange(boundPriceRange({ min: min + shift, max: max + shift }));
       }
     };
     const onUp = () => setYDrag(null);
@@ -456,7 +517,7 @@ const ReporterStyleChart = ({
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [yDrag, clampPriceRange]);
+  }, [yDrag, clampPriceRange, boundPriceRange]);
 
   // dateRange -> slider indices: first bar at/after the range start, last bar at/before its end.
   // Derived (not separate state), so wheel zoom / drag zoom / Reset Zoom move the slider and
@@ -862,7 +923,9 @@ const ReporterStyleChart = ({
   // Handle mouse wheel for zoom in/out
   const handleMouseWheel = useCallback((e) => {
     if (!containerRef.current) return;
-    if (isInLevelZoneControls(e.target)) return; // let the N field / page scroll normally
+    // Only over the panes / range slider: the controls row, legend, zone controls, titles and the
+    // reason note scroll the page normally (and the N field keeps its own wheel behaviour).
+    if (!isWheelZoomTarget(e.target)) return;
     e.preventDefault(); // Prevent page scrolling (and Ctrl+wheel page zoom)
 
     // Vertical zoom: Shift/Ctrl + wheel over the price pane, or the plain wheel over its price
@@ -872,9 +935,14 @@ const ReporterStyleChart = ({
       // Legacy mousewheel / DOMMouseScroll duplicates of the same tick: handled once, as 'wheel'.
       if (e.type !== 'wheel' || !effectivePriceRange) return;
       // Shift+wheel arrives as horizontal scroll (deltaX) in Chromium / Windows
-      const delta = e.deltaY || e.deltaX;
-      if (!delta) return;
-      const factor = delta > 0 ? Y_WHEEL_FACTOR : 1 / Y_WHEEL_FACTOR; // wheel down = zoom out
+      const rawDelta = e.deltaY || e.deltaX;
+      if (!rawDelta) return;
+      // Normalised to px (deltaMode 1 = lines, 2 = pages); the step scales with the delta's size:
+      // a mouse notch (~100px) = one 15% step, a pinch's small deltas = proportionally less.
+      const deltaPx = rawDelta * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 800 : 1);
+      const notches = Math.min(Y_WHEEL_MAX_NOTCHES, Math.abs(deltaPx) / WHEEL_NOTCH_PX);
+      const step = Math.pow(Y_WHEEL_FACTOR, notches);
+      const factor = deltaPx > 0 ? step : 1 / step; // wheel down = zoom out
       const { min, max } = effectivePriceRange;
       const pivot = max - (pricePoint.py / pricePoint.height) * (max - min);
       const next = clampPriceRange(pivot - (pivot - min) * factor, pivot + (max - pivot) * factor);
@@ -882,7 +950,7 @@ const ReporterStyleChart = ({
         // The span clamp recentres; keep the pivot under the cursor instead.
         const ratio = (pivot - min) / (max - min);
         const span = next.max - next.min;
-        setPriceYRange({ min: pivot - ratio * span, max: pivot - ratio * span + span });
+        setPriceYRange(boundPriceRange({ min: pivot - ratio * span, max: pivot - ratio * span + span }));
       }
       return;
     }
@@ -944,7 +1012,7 @@ const ReporterStyleChart = ({
     const boundedEnd = new Date(Math.min(newEndTime, maxEndTime));
     
     setDateRange([boundedStart, boundedEnd]);
-  }, [dateRange, plotRange, originalDateRange, getPlotRect, getPricePanePoint, effectivePriceRange, clampPriceRange]);
+  }, [dateRange, plotRange, originalDateRange, getPlotRect, getPricePanePoint, effectivePriceRange, clampPriceRange, boundPriceRange]);
   
   // Handle mouse leave
   const handleMouseLeave = useCallback(() => {
@@ -1109,12 +1177,17 @@ const ReporterStyleChart = ({
         )}
 
         <button
+          ref={priceOnlyToggleRef}
           type="button"
           className="zoom-reset-btn price-only-toggle-btn"
           onClick={priceOnly ? exitPriceOnly : enterPriceOnly}
-          title={priceOnly ? 'Exit (Esc)' : 'Price chart and level zones only, filling the screen'}
+          title={!priceOnly
+            ? 'Price chart and level zones only, filling the screen'
+            : priceOnlyNested
+              ? 'Back to all charts, staying in fullscreen. Esc leaves fullscreen entirely.'
+              : 'Back to all charts (Esc)'}
         >
-          {priceOnly ? '⤢ Exit price chart (Esc)' : '⛶ Price chart only'}
+          {!priceOnly ? '⛶ Price chart only' : priceOnlyNested ? '⤢ Back to all charts' : '⤢ Exit price chart (Esc)'}
         </button>
       </div>
 
@@ -1172,35 +1245,35 @@ const ReporterStyleChart = ({
       )}
 
       {/* Title + legend of what the price pane draws, right above it (and so also in both
-          fullscreen modes): the price-axis indicator series - each item toggles its series, in
-          sync with the IndicatorPicker - and the level zone bands. */}
+          fullscreen modes): the same "Show indicators" + series chips as the IndicatorPicker above
+          the chart (shared selection state, so the two stay in sync) - in price-only just the
+          price-axis series, since the sub panes are hidden - followed by the level zone swatches. */}
       <div className="price-chart-header">
         <h3 className="chart-title">Price Chart with Signals</h3>
-        {(priceLegendItems.length > 0 || showLevelZoneControls) && (
-          <div className="price-legend" data-testid="price-legend">
-            {priceLegendItems.map(item => (
-              <button
-                key={item.id}
-                type="button"
-                className={`price-legend__item${item.on ? '' : ' price-legend__item--off'}`}
-                onClick={item.toggle || undefined}
-                disabled={!item.toggle}
-                aria-pressed={item.on}
-                title={item.toggle ? `${item.on ? 'Hide' : 'Show'} ${item.name}` : item.name}
-              >
-                <span className="price-legend__line" style={{ backgroundColor: item.color }} />
-                {item.name}
-              </button>
-            ))}
-            {showLevelZoneControls && (
-              <span className="price-legend__zones">
+        <IndicatorPicker
+          variant="legend"
+          className="price-legend"
+          testId="price-legend"
+          seriesList={legendSeriesList}
+          showIndicators={Boolean(legendSelection.showIndicators)}
+          onToggleShow={legendSelection.setShowIndicators}
+          selectedIds={legendSelection.selectedIds || new Set()}
+          onToggleSeries={legendSelection.toggleSeries}
+        >
+          {showLevelZoneControls && (
+            <span className="price-legend__zones">
+              <span className="price-legend__zone" title={LEVEL_ZONE_DESCRIPTIONS.strong}>
                 <span className="level-zones-swatch level-zones-swatch--strong" /> strong zone
+              </span>
+              <span className="price-legend__zone" title={LEVEL_ZONE_DESCRIPTIONS.weak}>
                 <span className="level-zones-swatch level-zones-swatch--weak" /> weak zone
+              </span>
+              <span className="price-legend__zone" title={LEVEL_ZONE_DESCRIPTIONS.trigger}>
                 <span className="level-zones-swatch level-zones-swatch--armed" /> resistance trigger zone
               </span>
-            )}
-          </div>
-        )}
+            </span>
+          )}
+        </IndicatorPicker>
       </div>
       <div
         ref={setPricePaneNode}

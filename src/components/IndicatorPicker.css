@@ -84,3 +84,27 @@
   color: #6b7280;
   font-size: 0.6875rem;
 }
+
+/* Legend variant: the same controls next to the price pane (ReporterStyleChart's price header) -
+   compact and without the toolbar's box, so it reads as the pane's legend. */
+.indicator-picker--legend {
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 0.25rem 0.75rem;
+  margin-bottom: 0;
+  padding: 0;
+  background-color: transparent;
+  border: none;
+}
+
+.indicator-picker--legend .indicator-picker__master {
+  font-size: 0.75rem;
+}
+
+.indicator-picker--legend .indicator-picker__chips {
+  gap: 0.25rem 0.375rem;
+}
+
+.indicator-picker--legend .indicator-chip {
+  padding: 0.125rem 0.375rem;
+}

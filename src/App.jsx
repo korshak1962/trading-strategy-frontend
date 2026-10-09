@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useFullscreen } from './hooks/useFullscreen';
 import { useElementSize } from './hooks/useElementSize';
 import { useIndicatorSelection } from './hooks/useIndicatorSelection';
@@ -64,6 +64,15 @@ const App = () => {
     toggleSeries: toggleIndicatorSeries,
     visibleSeries: visibleIndicatorSeries,
   } = useIndicatorSelection(results?.chartDataDTO);
+  // One object per selection change (not per App render), so the chart's legend memos keyed on it
+  // only recompute when the selection actually changes.
+  const indicatorSelection = useMemo(() => ({
+    seriesList: indicatorSeriesList,
+    showIndicators,
+    setShowIndicators,
+    selectedIds: selectedIndicatorIds,
+    toggleSeries: toggleIndicatorSeries,
+  }), [indicatorSeriesList, showIndicators, setShowIndicators, selectedIndicatorIds, toggleIndicatorSeries]);
 
   // Fullscreen mode: fullscreens the whole results area - toolbar, charts and the
   // StrategyResults tabs below them. The charts fill the first screen; the element scrolls
@@ -386,13 +395,7 @@ const App = () => {
                       height={isFullscreen ? fullscreenChartHeight : 600}
                       fitHeight={isFullscreen}
                       visibleSeries={visibleIndicatorSeries}
-                      indicatorSelection={{
-                        seriesList: indicatorSeriesList,
-                        showIndicators,
-                        setShowIndicators,
-                        selectedIds: selectedIndicatorIds,
-                        toggleSeries: toggleIndicatorSeries,
-                      }}
+                      indicatorSelection={indicatorSelection}
                       longLegOnly={results.longOnly !== true && results.chartDataDTO?.includesShortSignals !== true}
                     />
                   </div>
