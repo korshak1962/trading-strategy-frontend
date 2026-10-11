@@ -98,12 +98,15 @@ const BestCard = ({ best, objective }) => {
     <div className="mt-4 p-4 rounded border border-green-200 bg-white">
       <h3 className="text-sm font-semibold text-gray-800 mb-2">Best so far</h3>
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2">
-        <Stat
-          label={objectiveLabel(objective)}
-          value={fmt2(best.objective)}
-          flash={changed('objective')}
-          title="Value of the optimised objective"
-        />
+        {/* For LONG_PNL the objective is the Long PnL itself: the tile below already shows it. */}
+        {objective !== 'LONG_PNL' && (
+          <Stat
+            label={objectiveLabel(objective)}
+            value={fmt2(best.objective)}
+            flash={changed('objective')}
+            title="Value of the optimised objective"
+          />
+        )}
         <Stat
           label="Long PnL"
           value={`${fmt2(best.longPnL)} (${fmtPct(best.longPnLPercent)})`}

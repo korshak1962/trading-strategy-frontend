@@ -46,6 +46,23 @@ const mergeLogLines = (prev, incoming) => {
   return merged.length > OPT_CLIENT_LOG_MAX ? merged.slice(merged.length - OPT_CLIENT_LOG_MAX) : merged;
 };
 
+// Rewrites every param's timeframe in a selectedStrategies map to `tf`.
+// The backend runs all sub-strategies on the global timeFrame (Reporter.configureMerger passes
+// config.getTimeFrame() into addStrategyToMerger), so the per-param timeframe must mirror it
+// rather than drift. Per-param timeframes are a future feature; until then these stay in sync.
+const withTimeframe = (strategies, tf) =>
+  Object.fromEntries(
+    Object.entries(strategies).map(([name, params]) => [
+      name,
+      Object.fromEntries(
+        Object.entries(params).map(([paramName, param]) => [
+          paramName,
+          { ...param, timeframe: tf },
+        ])
+      ),
+    ])
+  );
+
 const App = () => {
   // Top-level tab: 'backtest' (strategy configure/run/results flow), 'channels' (channel
   // explorer) or 'downloader' (price download + indicator recalc jobs). The tabs are
@@ -91,6 +108,7 @@ const App = () => {
   const optLastSeq = useRef(0);                         // highest log seq received
   const pollInFlight = useRef(false);
   const optAttached = useRef(false);                    // guards the on-mount reattach
+  const optSyncForm = useRef(false);                    // reattach: copy ticker/timeFrame from the first job poll
   const optActive = optPolling && !optLost;
 
   // Unified indicator selection (master toggle + per-series checkboxes) for the result chart,
@@ -166,8 +184,13 @@ const App = () => {
   // Shows a job right away and starts polling it. `initial` is either a placeholder (just started:
   // the first poll asks logSince=0 for all retained lines) or a full job JSON fetched with
   // logSince=0 (reattach on mount: its log is taken as is).
-  const attachOptimizationJob = (initial, { notice = null } = {}) => {
+  // syncForm (reattach on mount / 409): set the form's ticker and timeFrame from the job, so the
+  // form and the Trades export reflect the job's run. The strategy list is not restored (the job
+  // DTO does not echo the request). Applied by the first poll (made right away), which also covers
+  // the 409 placeholder that carries no ticker yet.
+  const attachOptimizationJob = (initial, { notice = null, syncForm = false } = {}) => {
     optAttached.current = true;
+    optSyncForm.current = syncForm;
     optLastSeq.current = Number.isFinite(initial.lastLogSeq) ? initial.lastLogSeq : 0;
     setOptLog(mergeLogLines([], initial.log || []));
     setOptLogTruncated(!!initial.logTruncated);
@@ -191,7 +214,7 @@ const App = () => {
         if (cancelled || !job || optAttached.current || !OPT_ACTIVE_STATUSES.has(job.status)) return;
         setMode('optimize');
         setResults(null);
-        attachOptimizationJob(job);
+        attachOptimizationJob(job, { syncForm: true });
       })
       .catch((err) => console.error('Failed to fetch current optimization job:', err));
     return () => { cancelled = true; };
@@ -240,6 +263,16 @@ const App = () => {
       try {
         const job = await fetchOptimizationJob(optJobId, optLastSeq.current);
         if (cancelled) return;
+        if (optSyncForm.current && job.ticker) {
+          // Reattach: the form follows the job. Results are not cleared here (unlike
+          // handleTimeFrameChange): finish() below may set them in this same tick.
+          optSyncForm.current = false;
+          setTicker(job.ticker);
+          if (job.timeFrame) {
+            setTimeFrame(job.timeFrame);
+            setSelectedStrategies((prev) => withTimeframe(prev, job.timeFrame));
+          }
+        }
         setOptJob(job);
         setOptLog((prev) => mergeLogLines(prev, job.log));
         if (job.logTruncated) setOptLogTruncated(true);
@@ -306,7 +339,7 @@ const App = () => {
       const res = await startOptimization(config);
       if (res.conflict) {
         if (!res.jobId) throw new Error(res.error || 'An optimization is already running');
-        attachOptimizationJob({ jobId: res.jobId, status: 'RUNNING' }, { notice: OPT_CONFLICT_NOTICE });
+        attachOptimizationJob({ jobId: res.jobId, status: 'RUNNING' }, { notice: OPT_CONFLICT_NOTICE, syncForm: true });
       } else {
         attachOptimizationJob({ jobId: res.jobId, status: 'QUEUED', total: res.total, done: 0, percent: 0 });
       }
@@ -353,23 +386,6 @@ const App = () => {
       setLoading(false);
     }
   };
-
-  // Rewrites every param's timeframe in a selectedStrategies map to `tf`.
-  // The backend runs all sub-strategies on the global timeFrame (Reporter.configureMerger passes
-  // config.getTimeFrame() into addStrategyToMerger), so the per-param timeframe must mirror it
-  // rather than drift. Per-param timeframes are a future feature; until then these stay in sync.
-  const withTimeframe = (strategies, tf) =>
-    Object.fromEntries(
-      Object.entries(strategies).map(([name, params]) => [
-        name,
-        Object.fromEntries(
-          Object.entries(params).map(([paramName, param]) => [
-            paramName,
-            { ...param, timeframe: tf },
-          ])
-        ),
-      ])
-    );
 
   const handleTimeFrameChange = (tf) => {
     setTimeFrame(tf);
