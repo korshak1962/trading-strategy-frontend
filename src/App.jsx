@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useFullscreen } from './hooks/useFullscreen';
 import { useElementSize } from './hooks/useElementSize';
 import { useIndicatorSelection } from './hooks/useIndicatorSelection';
@@ -14,7 +14,12 @@ import IndicatorPicker from './components/IndicatorPicker';
 import TradesTable from './components/TradesTable';
 import PerformanceMetricsTable from './components/PerformanceMetricsTable';
 import TradeStatisticsTable from './components/TradeStatisticsTable';
-import { getAvailableStrategies, getAvailableTickers, submitStrategies, optimizeStrategies, formatStrategyConfig } from './api/strategyApi';
+import {
+  getAvailableStrategies, getAvailableTickers, submitStrategies, formatStrategyConfig,
+  startOptimization, fetchOptimizationJob, fetchCurrentOptimizationJob, fetchOptimizationResult,
+  stopOptimization,
+} from './api/strategyApi';
+import OptimizationProgress from './components/OptimizationProgress';
 import TickerCombobox from './components/TickerCombobox';
 import ChannelExplorer from './components/channelExplorer/ChannelExplorer';
 import DownloaderPanel from './components/downloader/DownloaderPanel';
@@ -22,6 +27,24 @@ import { calendarDayKey, exchangeTodayLocalDate, exchangeZoneForTicker } from '.
 
 // .chart-toolbar bottom margin (see fullscreenChartHeight).
 const CHART_TOOLBAR_MARGIN_PX = 16;
+
+// Async optimization job (TASK_optimization_progress.md §3.3).
+const POLL_MS = 1000;
+const OPT_ACTIVE_STATUSES = new Set(['QUEUED', 'RUNNING']);
+const OPT_TERMINAL_STATUSES = new Set(['DONE', 'FAILED', 'CANCELLED']);
+const OPT_CLIENT_LOG_MAX = 2000; // client-side cap, oldest lines dropped first
+const OPT_JOB_LOST_MESSAGE = 'The optimization job was lost (backend restarted?)';
+const OPT_CONFLICT_NOTICE = 'An optimization is already running — showing its progress';
+
+// Appends polled log lines, de-duplicated by seq (lines arrive oldest first), capped.
+const mergeLogLines = (prev, incoming) => {
+  if (!incoming || incoming.length === 0) return prev;
+  const lastSeq = prev.length ? prev[prev.length - 1].seq : 0;
+  const fresh = incoming.filter((l) => l.seq > lastSeq);
+  if (fresh.length === 0) return prev;
+  const merged = prev.concat(fresh);
+  return merged.length > OPT_CLIENT_LOG_MAX ? merged.slice(merged.length - OPT_CLIENT_LOG_MAX) : merged;
+};
 
 const App = () => {
   // Top-level tab: 'backtest' (strategy configure/run/results flow), 'channels' (channel
@@ -53,6 +76,22 @@ const App = () => {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
+
+  // ---- Async optimization job (Optimize mode only; Backtest stays synchronous) ----
+  const [optJobId, setOptJobId] = useState(null);
+  const [optJob, setOptJob] = useState(null);           // last polled job JSON
+  const [optPolling, setOptPolling] = useState(false);  // poll loop running
+  const [optLog, setOptLog] = useState([]);             // accumulated log lines
+  const [optLogTruncated, setOptLogTruncated] = useState(false);
+  const [optWarning, setOptWarning] = useState(null);   // transient poll failure
+  const [optNotice, setOptNotice] = useState(null);     // e.g. attached to an already running job
+  const [optBanner, setOptBanner] = useState(null);     // "Stopped at x % — …" above a partial result
+  const [optLost, setOptLost] = useState(false);        // job 404 (backend restarted)
+  const [stopRequested, setStopRequested] = useState(false);
+  const optLastSeq = useRef(0);                         // highest log seq received
+  const pollInFlight = useRef(false);
+  const optAttached = useRef(false);                    // guards the on-mount reattach
+  const optActive = optPolling && !optLost;
 
   // Unified indicator selection (master toggle + per-series checkboxes) for the result chart,
   // reset to the per-series defaults (indicatorSeries.js SERIES_STYLE) whenever a new result arrives.
@@ -124,6 +163,160 @@ const App = () => {
     fetchTickers();
   }, []);
 
+  // Shows a job right away and starts polling it. `initial` is either a placeholder (just started:
+  // the first poll asks logSince=0 for all retained lines) or a full job JSON fetched with
+  // logSince=0 (reattach on mount: its log is taken as is).
+  const attachOptimizationJob = (initial, { notice = null } = {}) => {
+    optAttached.current = true;
+    optLastSeq.current = Number.isFinite(initial.lastLogSeq) ? initial.lastLogSeq : 0;
+    setOptLog(mergeLogLines([], initial.log || []));
+    setOptLogTruncated(!!initial.logTruncated);
+    setOptWarning(null);
+    setOptNotice(notice);
+    setOptBanner(null);
+    setOptLost(false);
+    setStopRequested(!!initial.cancelRequested);
+    setOptJob(initial);
+    setOptJobId(initial.jobId);
+    setOptPolling(true);
+    setLoading(true);
+  };
+
+  // On mount: reattach to a QUEUED/RUNNING optimization (e.g. after a page reload).
+  // A finished old job is not auto-loaded.
+  useEffect(() => {
+    let cancelled = false;
+    fetchCurrentOptimizationJob(0)
+      .then((job) => {
+        if (cancelled || !job || optAttached.current || !OPT_ACTIVE_STATUSES.has(job.status)) return;
+        setMode('optimize');
+        setResults(null);
+        attachOptimizationJob(job);
+      })
+      .catch((err) => console.error('Failed to fetch current optimization job:', err));
+    return () => { cancelled = true; };
+    // Runs once on mount; attachOptimizationJob only uses state setters and refs.
+  }, []);
+
+  // Poll the job every second while it runs. Polls never overlap; the loop stops on a terminal
+  // status, on a lost job (404) and on unmount. Each poll asks for the log lines after the last
+  // seq seen and appends them.
+  useEffect(() => {
+    if (!optJobId || !optPolling) return undefined;
+    let cancelled = false;
+
+    // Terminal status: fetch and show the result (DONE, or CANCELLED with a best-so-far result).
+    const finish = async (job) => {
+      try {
+        if (job.status === 'DONE' || (job.status === 'CANCELLED' && job.hasResult)) {
+          const result = await fetchOptimizationResult(job.jobId);
+          if (cancelled) return;
+          setResults(result);
+          setError(null);
+          if (job.status === 'CANCELLED') {
+            const pct = Number.isFinite(job.percent) ? job.percent.toFixed(1) : '?';
+            const done = Number.isFinite(job.done) ? job.done.toLocaleString('en-US') : '?';
+            setOptBanner(`Stopped at ${pct} % — best of the ${done} combinations tested`);
+          }
+        } else if (job.status === 'CANCELLED') {
+          setResults(null);
+          setError('Optimization stopped before any combination finished');
+        } else {
+          setResults(null);
+          setError('Optimization failed: ' + (job.error || 'unknown error'));
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setResults(null);
+        setError('Optimization failed: ' + err.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    const tick = async () => {
+      if (pollInFlight.current) return; // never overlap polls
+      pollInFlight.current = true;
+      try {
+        const job = await fetchOptimizationJob(optJobId, optLastSeq.current);
+        if (cancelled) return;
+        setOptJob(job);
+        setOptLog((prev) => mergeLogLines(prev, job.log));
+        if (job.logTruncated) setOptLogTruncated(true);
+        if (Number.isFinite(job.lastLogSeq)) optLastSeq.current = Math.max(optLastSeq.current, job.lastLogSeq);
+        setOptWarning(null);
+        if (OPT_TERMINAL_STATUSES.has(job.status)) {
+          // Fetch the result first: stopping the loop re-runs this effect's cleanup, which
+          // would mark the in-flight result fetch as cancelled. Ticks meanwhile are skipped
+          // by the in-flight guard.
+          await finish(job);
+          if (!cancelled) setOptPolling(false);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        if (err.status === 404) {
+          setOptLost(true);
+          setOptPolling(false);
+          setOptWarning(null);
+          setResults(null);
+          setError(OPT_JOB_LOST_MESSAGE);
+          setLoading(false);
+        } else {
+          setOptWarning(`Cannot reach the backend, retrying… (${err.message})`);
+        }
+      } finally {
+        pollInFlight.current = false;
+      }
+    };
+
+    tick(); // first poll right away, then once a second
+    const id = setInterval(tick, POLL_MS);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [optJobId, optPolling]);
+
+  const handleStopOptimization = async () => {
+    if (!optJobId) return;
+    setStopRequested(true);
+    try {
+      await stopOptimization(optJobId);
+    } catch (err) {
+      if (err.status === 404) {
+        setOptLost(true);
+        setOptPolling(false);
+        setError(OPT_JOB_LOST_MESSAGE);
+        setLoading(false);
+      } else {
+        setStopRequested(false);
+        setOptWarning(`Stop failed: ${err.message}`);
+      }
+    }
+  };
+
+  // Optimize mode: start an async job and attach to it (or to the already running one on 409).
+  const runOptimization = async (config) => {
+    // A new run clears the previous run's panel, log and result.
+    setResults(null);
+    setOptJob(null);
+    setOptJobId(null);
+    setOptLog([]);
+    setOptBanner(null);
+    setOptNotice(null);
+    setOptLost(false);
+    try {
+      const res = await startOptimization(config);
+      if (res.conflict) {
+        if (!res.jobId) throw new Error(res.error || 'An optimization is already running');
+        attachOptimizationJob({ jobId: res.jobId, status: 'RUNNING' }, { notice: OPT_CONFLICT_NOTICE });
+      } else {
+        attachOptimizationJob({ jobId: res.jobId, status: 'QUEUED', total: res.total, done: 0, percent: 0 });
+      }
+    } catch (err) {
+      setResults(null);
+      setError('Optimization failed: ' + err.message);
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     // Client-side validation. Every error clears the previous result so a stale result is
@@ -143,15 +336,19 @@ const App = () => {
     setLoading(true);
     setError(null);
 
+    const config = formatStrategyConfig(ticker, timeFrame, startDate, endDate, selectedStrategies, longOnly);
+    if (mode === 'optimize') {
+      // Async job: `loading` stays true until the poll loop sees a terminal status.
+      await runOptimization(config);
+      return;
+    }
+
     try {
-      const config = formatStrategyConfig(ticker, timeFrame, startDate, endDate, selectedStrategies, longOnly);
-      const result = mode === 'optimize'
-        ? await optimizeStrategies(config)
-        : await submitStrategies(config);
+      const result = await submitStrategies(config);
       setResults(result);
     } catch (err) {
       setResults(null);
-      setError((mode === 'optimize' ? 'Optimization failed: ' : 'Backtest failed: ') + err.message);
+      setError('Backtest failed: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -220,6 +417,8 @@ const App = () => {
     }));
   };
 
+  const showOptPanel = mode === 'optimize' && !!optJob;
+
   const renderMain = () => {
     switch (activeTab) {
       case 'channels':
@@ -250,8 +449,10 @@ const App = () => {
                   type="button"
                   className={mode === 'backtest'
                     ? 'flex-1 py-2 text-sm font-semibold bg-blue-600 text-white'
-                    : 'flex-1 py-2 text-sm font-medium bg-white text-blue-600 hover:bg-blue-50'}
+                    : 'flex-1 py-2 text-sm font-medium bg-white text-blue-600 hover:bg-blue-50 disabled:text-gray-400 disabled:hover:bg-white'}
                   onClick={() => { setMode('backtest'); setResults(null); }}
+                  disabled={optActive}
+                  title={optActive ? 'An optimization is running — stop it or wait for it to finish' : undefined}
                 >
                   Backtest
                 </button>
@@ -350,7 +551,9 @@ const App = () => {
                 className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 disabled:bg-gray-400"
               >
                 {loading
-                  ? (mode === 'optimize' ? 'Optimizing… (may take minutes)' : 'Processing…')
+                  ? (mode === 'optimize'
+                    ? (optActive && Number.isFinite(optJob?.percent) ? `Optimizing… ${Math.floor(optJob.percent)} %` : 'Optimizing…')
+                    : 'Processing…')
                   : (mode === 'optimize' ? 'Run Optimization' : 'Run Backtest')}
               </button>
               
@@ -364,8 +567,29 @@ const App = () => {
           
           {/* Results Panel */}
           <div className="min-w-0">
+            {/* Optimize mode: live progress of the async job; after it ends, the collapsed run
+                (final best card + log) stays above the result until the next run. */}
+            {showOptPanel && (
+              <div className={results ? 'mb-6' : ''}>
+                <OptimizationProgress
+                  job={optJob}
+                  logLines={optLog}
+                  logTruncated={optLogTruncated}
+                  onStop={handleStopOptimization}
+                  stopping={stopRequested}
+                  warning={optWarning}
+                  notice={optNotice}
+                  lost={optLost}
+                />
+              </div>
+            )}
             {results ? (
               <div className="bg-white p-6 rounded-lg shadow">
+                {mode === 'optimize' && optBanner && (
+                  <div className="mb-4 p-3 rounded bg-amber-50 border border-amber-300 text-amber-800 text-sm font-medium" role="status">
+                    {optBanner}
+                  </div>
+                )}
                 <h2 className="text-xl font-bold mb-4">
                   {mode === 'optimize' ? 'Optimization Results' : 'Results'} for {results.ticker}
                 </h2>
@@ -415,7 +639,7 @@ const App = () => {
                   />
                 </div>
               </div>
-            ) : (
+            ) : !showOptPanel && (
               <div className="bg-white p-6 rounded-lg shadow flex items-center justify-center h-64">
                 <p className="text-gray-500">
                   {loading ? 'Processing your request...' : 'Configure and run a strategy to see results'}

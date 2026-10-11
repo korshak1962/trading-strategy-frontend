@@ -67,6 +67,78 @@ export const optimizeStrategies = async (config) => {
   }
 };
 
+// ---------------------------------------------------------------------------------------------
+// Async optimization job (TASK_optimization_progress.md §2.7, §3.1). Same shape as
+// downloaderApi.js: errors carry `status`, the message comes from `body.message || body.error`.
+// The synchronous optimizeStrategies above is kept but the UI no longer calls it.
+// ---------------------------------------------------------------------------------------------
+
+// Error carrying the HTTP status, with the backend's message when the body has one.
+const jobHttpError = async (res, what) => {
+  const body = await res.json().catch(() => null);
+  const detail = body?.message || body?.error;
+  const err = new Error(detail || `${what}: ${res.status} ${res.statusText}`);
+  err.status = res.status;
+  err.detail = detail || null;
+  return err;
+};
+
+// logSince query string; omitted when undefined/null (backend default -1 = no lines).
+const logSinceQuery = (logSince) =>
+  (logSince === undefined || logSince === null) ? '' : `?${new URLSearchParams({ logSince: String(logSince) })}`;
+
+/**
+ * POST /optimize-jobs.
+ * @param {Object} config the StrategiesConfigDTO body (formatStrategyConfig)
+ * @returns {Promise<{jobId: string, total: number} | {conflict: true, jobId: string|null, error: string|null}>}
+ *   202 → `{ jobId, total }`; 409 → `{ conflict: true, jobId, error }` (jobId = the running job).
+ *   400 and other failures throw with the backend message.
+ */
+export const startOptimization = async (config) => {
+  const res = await fetch(`${API_BASE_URL}/optimize-jobs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  if (res.status === 409) {
+    const data = await res.json().catch(() => null);
+    return { conflict: true, jobId: data?.jobId ?? null, error: data?.error || data?.message || null };
+  }
+  if (!res.ok) throw await jobHttpError(res, 'Optimization failed to start');
+  return res.json();
+};
+
+/**
+ * GET /optimize-jobs/{jobId}?logSince=<seq>. A 404 (unknown / evicted / backend restarted)
+ * throws an Error whose `status` is 404 so the caller can tell it from a transient failure.
+ */
+export const fetchOptimizationJob = async (jobId, logSince) => {
+  const res = await fetch(`${API_BASE_URL}/optimize-jobs/${encodeURIComponent(jobId)}${logSinceQuery(logSince)}`);
+  if (!res.ok) throw await jobHttpError(res, 'Optimization job fetch failed');
+  return res.json();
+};
+
+/** GET /optimize-jobs/current?logSince=<seq> → the running job, else the most recent; 204 → null. */
+export const fetchCurrentOptimizationJob = async (logSince) => {
+  const res = await fetch(`${API_BASE_URL}/optimize-jobs/current${logSinceQuery(logSince)}`);
+  if (res.status === 204) return null;
+  if (!res.ok) throw await jobHttpError(res, 'Current optimization job fetch failed');
+  return res.json();
+};
+
+/** GET /optimize-jobs/{jobId}/result → StrategyResultDTO (same shape as /optimize-strategies). */
+export const fetchOptimizationResult = async (jobId) => {
+  const res = await fetch(`${API_BASE_URL}/optimize-jobs/${encodeURIComponent(jobId)}/result`);
+  if (!res.ok) throw await jobHttpError(res, 'Optimization result fetch failed');
+  return res.json();
+};
+
+/** POST /optimize-jobs/{jobId}/cancel → 202. The run finalises with the best combination so far. */
+export const stopOptimization = async (jobId) => {
+  const res = await fetch(`${API_BASE_URL}/optimize-jobs/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' });
+  if (!res.ok) throw await jobHttpError(res, 'Stop failed');
+};
+
 /**
  * Format the strategy configuration object for the API
  * @param {string} ticker - Stock ticker symbol

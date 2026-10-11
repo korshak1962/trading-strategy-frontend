@@ -1,0 +1,49 @@
+/* OptimizationProgress: live progress of an async optimization job
+   (TASK_optimization_progress.md §3.2). Layout/colours are Tailwind classes in the JSX;
+   this file only holds the animations Tailwind has no utility for. */
+
+/* Indeterminate bar while the job is QUEUED / PREPARING (total not known to be meaningful yet). */
+.opt-progress-indeterminate {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 30%;
+  border-radius: inherit;
+  background-color: #2563eb; /* blue-600, same as the determinate bar */
+  animation: opt-indeterminate 1.4s ease-in-out infinite;
+}
+
+@keyframes opt-indeterminate {
+  0% { left: -30%; }
+  100% { left: 100%; }
+}
+
+.opt-progress-fill {
+  transition: width 0.4s ease-out;
+}
+
+/* A best-so-far value that changed since the previous poll flashes briefly. The element is
+   re-keyed on its value, so the animation restarts on every change. Shorter than POLL_MS. */
+.opt-flash {
+  animation: opt-flash 0.9s ease-out;
+  border-radius: 0.25rem;
+}
+
+@keyframes opt-flash {
+  0% { background-color: #fde68a; } /* amber-200 */
+  100% { background-color: transparent; }
+}
+
+/* Log box: monospace, scrollable, keeps line breaks of long lines readable. */
+.opt-log-box {
+  max-height: 240px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.opt-jump-latest {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.5rem;
+}
