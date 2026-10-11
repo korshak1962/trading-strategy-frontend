@@ -55,13 +55,14 @@ const App = () => {
   const [error, setError] = useState(null);
 
   // Unified indicator selection (master toggle + per-series checkboxes) for the result chart,
-  // reset to "all on" whenever a new result arrives.
+  // reset to the per-series defaults (indicatorSeries.js SERIES_STYLE) whenever a new result arrives.
   const {
     seriesList: indicatorSeriesList,
     showIndicators,
     setShowIndicators,
     selectedIds: selectedIndicatorIds,
     toggleSeries: toggleIndicatorSeries,
+    toggleGroup: toggleIndicatorGroup,
     visibleSeries: visibleIndicatorSeries,
   } = useIndicatorSelection(results?.chartDataDTO);
   // One object per selection change (not per App render), so the chart's legend memos keyed on it
@@ -72,7 +73,11 @@ const App = () => {
     setShowIndicators,
     selectedIds: selectedIndicatorIds,
     toggleSeries: toggleIndicatorSeries,
-  }), [indicatorSeriesList, showIndicators, setShowIndicators, selectedIndicatorIds, toggleIndicatorSeries]);
+    toggleGroup: toggleIndicatorGroup,
+  }), [
+    indicatorSeriesList, showIndicators, setShowIndicators, selectedIndicatorIds, toggleIndicatorSeries,
+    toggleIndicatorGroup,
+  ]);
 
   // Fullscreen mode: fullscreens the whole results area - toolbar, charts and the
   // StrategyResults tabs below them. The charts fill the first screen; the element scrolls
@@ -376,6 +381,7 @@ const App = () => {
                       onToggleShow={setShowIndicators}
                       selectedIds={selectedIndicatorIds}
                       onToggleSeries={toggleIndicatorSeries}
+                      onToggleGroup={toggleIndicatorGroup}
                     />
                     <button
                       type="button"

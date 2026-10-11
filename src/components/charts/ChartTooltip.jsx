@@ -1,6 +1,9 @@
 // src/components/charts/ChartTooltip.jsx
 import { formatDate, formatSigned, formatSignedPercent } from '../../utils/formatters';
 import { fmtExchangeIntl } from '../../utils/dates';
+import {
+  OUTCOME_TEXT, NOT_TRADED_TEXT, ENTRY_TRIGGER_TEXT, EXIT_REASON_LONG_TEXT, isConfirmedOutcome, barsHeld
+} from '../../utils/levelChart';
 
 // Bar timestamp in the exchange wall clock (decision 0.18): price.date is a UTC-faked Date.
 const TOOLTIP_TS_FORMAT = { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' };
@@ -50,13 +53,91 @@ const CumulativeTooltipBody = ({ date, value, closedCount, legLabel }) => (
   </>
 );
 
+// --- LevelBreakoutRetest annotations (utils/levelChart.js) ---
+const fmtPx = (v) => (Number.isFinite(v) ? v.toFixed(2) : '–');
+const fmtBarDate = (ms) => (Number.isFinite(ms) ? fmtExchangeIntl(ms, TOOLTIP_TS_FORMAT) : '–');
+const fmtBand = (low, high) => (Number.isFinite(low) && Number.isFinite(high) ? `${fmtPx(low)}–${fmtPx(high)}` : '–');
+const Row = ({ label, children }) => (
+  <div>{label}: <span style={{ float: 'right', marginLeft: 12 }}>{children}</span></div>
+);
+
+/** Entry marker of a level trade: trigger, zone band, entry price, initial stop and exit line. */
+const EntryTooltipBody = ({ trade }) => (
+  <>
+    <div style={{ fontWeight: 'bold', marginBottom: '5px', color: 'green' }}>
+      Entry: {ENTRY_TRIGGER_TEXT[trade.entryTrigger] || trade.entryTrigger || 'long'}
+    </div>
+    <div className="chart-tooltip-muted">{fmtBarDate(trade.entryMs)}</div>
+    <Row label="Zone">{fmtBand(trade.entryZoneLow, trade.entryZoneHigh)}</Row>
+    <Row label="Entry price">{fmtPx(trade.entryPrice)}</Row>
+    <Row label="Initial stop">{fmtPx(trade.initialStop)}</Row>
+    <Row label="Initial exit line">{fmtPx(trade.initialExitLine)}</Row>
+  </>
+);
+
+/** Exit marker of a level trade: reason, price, P&L %, bars held, support upgrades, MFE %. */
+const ExitTooltipBody = ({ trade }) => {
+  const pnlPct = Number.isFinite(trade.exitPrice) && trade.entryPrice > 0
+    ? (trade.exitPrice - trade.entryPrice) / trade.entryPrice : NaN;
+  // mfeClose is already a fraction: max(close over the trade) / entryPrice - 1 (TradeAnnotationVO)
+  const mfePct = trade.mfeClose;
+  const held = barsHeld(trade);
+  return (
+    <>
+      <div style={{ fontWeight: 'bold', marginBottom: '5px', color: 'red' }}>
+        Exit: {EXIT_REASON_LONG_TEXT[trade.exitReason] || trade.exitReason || 'close'}
+      </div>
+      <div className="chart-tooltip-muted">{fmtBarDate(trade.exitMs)}</div>
+      <Row label="Exit price">{fmtPx(trade.exitPrice)}</Row>
+      <Row label="P&L">
+        {Number.isFinite(pnlPct)
+          ? <span className={pnlClass(pnlPct)} style={{ fontWeight: 'bold' }}>{formatSignedPercent(pnlPct)}</span>
+          : '–'}
+      </Row>
+      <Row label="Bars held">{Number.isFinite(held) ? held : '–'}</Row>
+      <Row label="Support upgrades">{Number.isFinite(trade.supportUpgrades) ? trade.supportUpgrades : '–'}</Row>
+      <Row label="MFE">{Number.isFinite(mfePct) ? formatSignedPercent(mfePct) : '–'}</Row>
+    </>
+  );
+};
+
+/** Setup window: zone, breakout date, outcome, and why a confirm did not trade. */
+const SetupWindowTooltipBody = ({ setupWindow }) => {
+  const confirmed = isConfirmedOutcome(setupWindow.outcome);
+  return (
+    <>
+      <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Setup window</div>
+      <Row label="Zone">{fmtBand(setupWindow.zoneLow, setupWindow.zoneHigh)}</Row>
+      <Row label="Breakout">{fmtBarDate(setupWindow.breakoutMs)}</Row>
+      {Number.isFinite(setupWindow.touchMs) && <Row label="Retest touch">{fmtBarDate(setupWindow.touchMs)}</Row>}
+      <Row label="Ended">{Number.isFinite(setupWindow.endMs) ? fmtBarDate(setupWindow.endMs) : 'open'}</Row>
+      <div style={{ marginTop: '4px' }}>
+        Outcome: <strong>{OUTCOME_TEXT[setupWindow.outcome] || setupWindow.outcome}</strong>
+      </div>
+      {confirmed && (
+        setupWindow.traded
+          ? <div className="chart-tooltip-positive">Traded: this confirm opened the position</div>
+          : (
+            <div className="chart-tooltip-negative">
+              Not traded: {NOT_TRADED_TEXT[setupWindow.notTradedReason] || setupWindow.notTradedReason || 'reason unknown'}
+            </div>
+          )
+      )}
+    </>
+  );
+};
+
 /**
  * ChartTooltip component for displaying data on hover. The body depends on the pane under the
- * cursor (`tooltipData.kind`): 'trade' -> trade PnL, 'cumulative' -> cumulative PnL, anything
- * else -> the bar's OHLCV + indicators + signals.
+ * cursor (`tooltipData.kind`): 'trade' -> trade PnL, 'cumulative' -> cumulative PnL, 'entry' /
+ * 'exit' -> a LevelBreakoutRetest trade marker, 'setupWindow' -> a LevelBreakoutRetest setup
+ * window, anything else -> the bar's OHLCV + the level status line (if any) + indicators + signals.
  * @param {Object} props - Component props
  * @param {Object} props.tooltipData - Data to display in tooltip
- * @param {string} [props.tooltipData.kind] - 'price' (default) | 'trade' | 'cumulative'
+ * @param {string} [props.tooltipData.kind] - 'price' (default) | 'trade' | 'cumulative' | 'entry' |
+ *   'exit' | 'setupWindow'
+ * @param {{text: string, note: string|null}|null} [props.tooltipData.status] - level strategy status
+ *   line for the bar ('price' kind; utils/levelChart.js statusLine)
  * @param {Object} props.tooltipData.price - Price data ('price' kind)
  * @param {Array} props.tooltipData.signals - Signals at this point ('price' kind)
  * @param {Array<{name: string, value: number, color: string}>} props.tooltipData.indicators -
@@ -98,7 +179,17 @@ const ChartTooltip = ({ tooltipData }) => {
     );
   }
 
-  const { price, signals, indicators } = tooltipData;
+  if (kind === 'entry' || kind === 'exit' || kind === 'setupWindow') {
+    return (
+      <div className="chart-tooltip" style={style}>
+        {kind === 'entry' && <EntryTooltipBody trade={tooltipData.trade} />}
+        {kind === 'exit' && <ExitTooltipBody trade={tooltipData.trade} />}
+        {kind === 'setupWindow' && <SetupWindowTooltipBody setupWindow={tooltipData.window} />}
+      </div>
+    );
+  }
+
+  const { price, signals, indicators, status } = tooltipData;
   return (
     <div className="chart-tooltip" style={style}>
       <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
@@ -109,6 +200,14 @@ const ChartTooltip = ({ tooltipData }) => {
       <div>Low: <span style={{ float: 'right' }}>{price.low.toFixed(2)}</span></div>
       <div>Close: <span style={{ float: 'right' }}>{price.close.toFixed(2)}</span></div>
       <div>Volume: <span style={{ float: 'right' }}>{price.volume.toLocaleString()}</span></div>
+
+      {/* Level strategy status for this bar (flat / waiting / in position) */}
+      {status && (
+        <div className="chart-tooltip-status" style={{ marginTop: '5px', paddingTop: '5px', borderTop: '1px solid #eee', maxWidth: 260 }}>
+          {status.text}
+          {status.note && <div className="chart-tooltip-muted" style={{ fontSize: '0.8em' }}>{status.note}</div>}
+        </div>
+      )}
 
       {/* Visible indicator values, each with the same colour dot as its line / picker chip */}
       {(indicators || []).map(({ name, value, color }, index) => (

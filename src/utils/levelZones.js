@@ -7,12 +7,14 @@
 //   [{ zoneId, from, to, low, high, strong, armed, trigger }]
 //   - from / to: bar dates (same wire format as prices[].date, parsed with parseExchangeTs).
 //     Both inclusive. The state on date t is the zone map after t-1 (plus overlay), i.e. what
-//     decided close(t) - the same dating as the resistanceTrigger / supportTrigger series.
+//     decided close(t) - the same dating as the resistanceTrigger series.
 //     The backend never sends a null `to`; a missing / unparseable one is still tolerated and
 //     means "open until the last bar".
 //   - strong: strength(z, t-1) >= MinStrength && touchCount >= minTouches; weak otherwise.
 //   - armed: the zone's breakout tracker is ARMED on those bars.
-//   - trigger: this zone produces resistanceTrigger on those bars (at most one per bar).
+//   - trigger: this zone produces resistanceTrigger on those bars (at most one per bar). False on
+//     every bar that starts long, exactly where resistanceTrigger is empty (TASK_level_chart_ux.md
+//     §2.3). (The former supportTrigger series and its zone are gone.)
 //
 // Per bar t (index i >= 1), with ref = close(t-1) and the segments covering t:
 //   - containing: low <= ref <= high
@@ -95,7 +97,7 @@ export const selectNearest = (segments, ref, nearestN) => {
  * Bar-slot edges in ms: halfway to each neighbour, half the neighbour spacing at the ends.
  * Adjacent bars share an edge, so a zone held over consecutive bars draws as one solid band.
  */
-const slotEdges = (barTimes) => {
+export const slotEdges = (barTimes) => {
   const n = barTimes.length;
   const left = new Array(n);
   const right = new Array(n);

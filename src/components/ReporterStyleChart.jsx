@@ -9,10 +9,12 @@ import ChartTooltip from './charts/ChartTooltip';
 import Crosshair from './charts/Crosshair';
 import RangeSlider, { RANGE_SLIDER_HEIGHT, RANGE_SLIDER_DATES_HEIGHT } from './charts/RangeSlider';
 import {
-  findMinMaxPriceRange, deriveSignalTradeIndex, signalKey, plotDateRange, DATE_AXIS_BAND
+  findMinMaxPriceRange, deriveSignalTradeIndex, signalKey, plotDateRange, DATE_AXIS_BAND,
+  windowGlyphPoint, WINDOW_GLYPH_R
 } from '../utils/ChartDrawingUtils';
-import { pointsForSeries } from '../utils/indicatorSeries';
-import { LEVEL_ZONE_DESCRIPTIONS } from '../utils/indicatorDescriptions';
+import { pointsForSeries, seriesLabel } from '../utils/indicatorSeries';
+import { LEVEL_ZONE_DESCRIPTIONS, LEVEL_CHART_DESCRIPTIONS } from '../utils/indicatorDescriptions';
+import { normalizeLevelChart, statusLine, matchTradeAnnotation, byZoneLowThenId } from '../utils/levelChart';
 import IndicatorPicker from './IndicatorPicker';
 import { extractTradesFromSignals, cumulativeClosedPnLByBar, barIndexAtOrAfter } from '../utils/ChartDataUtils';
 import { parseExchangeTs, fmtExchangeIntl } from '../utils/dates';
@@ -59,6 +61,35 @@ const MIN_FIT_PANE_BUDGET_PX = 400;
 // Level zone display settings (N nearest, weak zones, all strong zones), remembered per browser.
 const LEVEL_ZONES_STORAGE_KEY = 'reporterChart.levelZones.v1';
 const NO_RUNS = [];
+// Setup-window hit test (tooltip): extra px around the retest band / runaway line, and the radius
+// around a window-end glyph.
+const WINDOW_HIT_SLOP_PX = 4;
+const GLYPH_HIT_PX = WINDOW_GLYPH_R + 4;
+// A signal marker is only ~7px (its drawn triangle half-size); nobody clicks that precisely by
+// eye, so the hit target needs to be considerably more forgiving than the marker itself.
+const SIGNAL_HIT_RADIUS_PX = 22;
+
+// Value of every series at each bar time, built once per result: Map<seriesId, Map<ms, number>>
+// (seriesId = `${kind}:${name}`, see indicatorSeries.js). The tooltip reads it on every mouse move
+// instead of scanning the point lists.
+const buildSeriesValueIndex = (data) => {
+  const index = new Map();
+  const add = (kind, source) => {
+    Object.entries(source || {}).forEach(([name, points]) => {
+      const byMs = new Map();
+      (points || []).forEach(point => {
+        const ms = parseExchangeTs(point.date).getTime();
+        if (!Number.isNaN(ms) && typeof point.value === 'number' && !Number.isNaN(point.value)) {
+          byMs.set(ms, point.value);
+        }
+      });
+      index.set(`${kind}:${name}`, byMs);
+    });
+  };
+  add('price', data?.priceIndicators);
+  add('sub', data?.indicators);
+  return index;
+};
 
 // Vertical (price-axis) zoom. The value-axis labels sit at the left of the price pane (drawValueAxis
 // draws them from x=18, ~35px wide); this strip is the "price axis" the drag / wheel / double-click
@@ -191,6 +222,24 @@ const ReporterStyleChart = ({
     return buildLevelZoneRuns(data.prices, data.levelZones, levelZoneSettings);
   }, [data, levelZoneSettings]);
 
+  // LevelBreakoutRetest buy / sell annotations (data.levelChart; null for other strategies and
+  // older backends - then nothing below changes the chart). Normalized once per result.
+  const levelChart = useMemo(() => normalizeLevelChart(data?.levelChart, data?.prices), [data]);
+  // "Events" toggle, off by default; not persisted. Shows the event markers and the setup windows
+  // that ended while the position was long (§4.1).
+  const [showEvents, setShowEvents] = useState(false);
+  const hasEvents = Boolean(levelChart && levelChart.events.length > 0);
+  // Series values by bar time, for the tooltip's indicator rows and status line.
+  const seriesValueIndex = useMemo(() => buildSeriesValueIndex(data), [data]);
+  const seriesValueAt = useCallback((name, barIndex) => {
+    const ms = levelChart?.barTimes[barIndex];
+    const value = seriesValueIndex.get(`price:${name}`)?.get(ms);
+    return value === undefined ? NaN : value;
+  }, [levelChart, seriesValueIndex]);
+  // "Show indicators" also hides the setup windows' band and lines (§4.1); markers, glyphs, "↑",
+  // the support zone and the position shading stay.
+  const showLevelLines = Boolean(legendSelection.showIndicators);
+
   // Price-only fullscreen: just the price pane (+ zone controls, slider) filling the viewport.
   // Independent of App's "Fullscreen" (whole results area): it is a fixed overlay over the
   // viewport, and when nothing is natively fullscreen yet it also requests native fullscreen on
@@ -205,11 +254,13 @@ const ReporterStyleChart = ({
   const priceOnlyRef = useRef(false);
   useLayoutEffect(() => { priceOnlyRef.current = priceOnly; }, [priceOnly]);
   const priceOnlyToggleRef = useRef(null);
-  // Price-only hides the sub panes, so the legend drops their chips there.
-  const legendSeriesList = useMemo(() => {
-    const list = legendSelection.seriesList || [];
-    return priceOnly ? list.filter(series => series.kind === 'price') : list;
-  }, [legendSelection, priceOnly]);
+  // The legend above the price pane lists only what that pane draws: the price-axis series. Sub-pane
+  // series ("long PnL", "current PnL", RSI, ...) change nothing there and are toggled from the
+  // toolbar IndicatorPicker above the chart (also present in App's fullscreen).
+  const legendSeriesList = useMemo(
+    () => (legendSelection.seriesList || []).filter(series => series.kind === 'price'),
+    [legendSelection]
+  );
   const [pricePaneNode, setPricePaneNode] = useState(null);
   const pricePaneSize = useElementSize(pricePaneNode);
   const enterPriceOnly = useCallback(() => {
@@ -559,11 +610,114 @@ const ReporterStyleChart = ({
     return null;
   }, []);
 
+  // The price axis PriceChart is drawing right now: the manual range, else the auto-fit of the
+  // candles in the logical window.
+  const currentPriceScale = useCallback(() => {
+    if (priceYRange) return priceYRange;
+    const currentDateRange = plotRange || chartData.current.dateRange;
+    if (!currentDateRange || currentDateRange.length !== 2) return null;
+    const [startDate, endDate] = dateRange || currentDateRange;
+    const visiblePrices = chartData.current.prices.filter(p => p.date >= startDate && p.date <= endDate);
+    return findMinMaxPriceRange(visiblePrices.length > 0 ? visiblePrices : chartData.current.prices);
+  }, [priceYRange, plotRange, dateRange]);
+
+  // Finds the signal nearest a point, in the Price sub-chart specifically (returns
+  // {signal, dist, canvas} or null if the point isn't within that canvas or there's no visible
+  // date range - regardless of distance, so callers can apply their own threshold/feedback).
+  // Measures against the canvas's own bounding rect rather than reusing the crosshair's
+  // container-relative math, since the price chart sits below a header this component doesn't
+  // otherwise need to account for.
+  const findNearestSignal = useCallback((clientX, clientY) => {
+    if (!containerRef.current || !data?.signals?.length) return null;
+    const canvas = containerRef.current.querySelector('.price-chart-canvas');
+    if (!canvas) return null;
+
+    const rect = canvas.getBoundingClientRect();
+    const px = clientX - rect.left;
+    const py = clientY - rect.top;
+    if (px < 0 || px > rect.width || py < 0 || py > rect.height) return null;
+
+    // Same x mapping (plot range), drawn set (logical window) and price scale as PriceChart
+    const currentDateRange = plotRange || chartData.current.dateRange;
+    if (!currentDateRange || currentDateRange.length !== 2) return null;
+    const plotStart = currentDateRange[0];
+    const totalMs = currentDateRange[1].getTime() - plotStart.getTime();
+    const [startDate, endDate] = dateRange || currentDateRange;
+
+    const minMax = currentPriceScale();
+    if (!minMax) return null;
+
+    let closest = null;
+    let closestDist = Infinity;
+    data.signals.forEach(signal => {
+      const sDate = parseExchangeTs(signal.date);
+      if (sDate < startDate || sDate > endDate) return;
+      const x = ((sDate.getTime() - plotStart.getTime()) / totalMs) * rect.width;
+      const y = rect.height - ((signal.price - minMax.min) / (minMax.max - minMax.min)) * rect.height;
+      // Vertically zoomed: a marker outside the price range is clipped away (PriceChart), so it
+      // must not be clickable at its off-plot position either.
+      if (priceYRange && (y < 0 || y > rect.height - DATE_AXIS_BAND)) return;
+      const dist = Math.hypot(x - px, y - py);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closest = signal;
+      }
+    });
+    if (!closest) return null;
+
+    // Every signal drawn at the very same point as the nearest one - a reversal bar carries a
+    // close of one leg and an open of the other (e.g. LongClose + ShortOpen) at one date/price.
+    // Nearest first, then the backend's order (closes before opens).
+    const coincident = [closest, ...data.signals.filter(signal =>
+      signal !== closest && signal.date === closest.date && signal.price === closest.price)];
+
+    return { signal: closest, signals: coincident, dist: closestDist, canvas };
+  }, [data, dateRange, plotRange, priceYRange, currentPriceScale]);
+
+  // The setup window under the cursor on bar `barIndex` of the price pane: a window-end glyph
+  // (always drawn) first, then - only while "Show indicators" draws them - a retest band or the
+  // runaway line of a window waiting on that bar. Lowest zone first (zone.low, then id). Windows
+  // that ended while long are hit only while "Events" draws them. Null when nothing is hit.
+  const findSetupWindowAt = useCallback((barIndex, clientY) => {
+    if (!levelChart || barIndex < 0) return null;
+    const canvas = containerRef.current?.querySelector('.price-chart-canvas');
+    const minMax = currentPriceScale();
+    if (!canvas || !minMax || !(minMax.max > minMax.min)) return null;
+    const rect = canvas.getBoundingClientRect();
+    const py = clientY - rect.top;
+    if (py < 0 || py > rect.height || rect.height <= 0) return null;
+    const yOf = (price) => rect.height - ((price - minMax.min) / (minMax.max - minMax.min)) * rect.height;
+
+    const drawn = (win) => showEvents || !win.endsWhileLong;
+    const ending = (levelChart.windowsEndingAt.get(barIndex) || []).filter(drawn);
+    const glyphHit = ending.find(candidate => {
+      const at = windowGlyphPoint(candidate, levelChart.barTimes);
+      return at && Math.abs(yOf(at.price) - py) <= GLYPH_HIT_PX;
+    });
+    if (glyphHit) return glyphHit;
+    if (!showLevelLines) return null;
+
+    const waiting = (levelChart.windowPointsByBar.get(barIndex) || [])
+      .filter(({ window: candidate }) => drawn(candidate))
+      .sort((a, b) => byZoneLowThenId(a.window, b.window));
+    const hit = waiting.find(({ window: candidate, point }) => {
+      const bottom = Number.isFinite(point.confirmLine) ? point.confirmLine : candidate.zoneHigh;
+      const levels = [point.touchLine, bottom].filter(Number.isFinite);
+      if (point.phase === 'AWAIT' && Number.isFinite(point.runawayLine)
+        && Math.abs(yOf(point.runawayLine) - py) <= WINDOW_HIT_SLOP_PX) return true;
+      if (levels.length === 0) return false;
+      const yTop = yOf(Math.max(...levels)) - WINDOW_HIT_SLOP_PX;
+      const yBottom = yOf(Math.min(...levels)) + WINDOW_HIT_SLOP_PX;
+      return py >= yTop && py <= yBottom;
+    });
+    return hit ? hit.window : null;
+  }, [levelChart, currentPriceScale, showLevelLines, showEvents]);
+
   // Function to update tooltip data based on mouse position.
   // mouseX is plot-relative (drives the date); tooltipPos is container-relative (placement - the
   // container is the tooltip's offset parent, so price-canvas coordinates put it too high on
   // the lower panes).
-  const updateTooltipData = useCallback((mouseX, pane, tooltipPos) => {
+  const updateTooltipData = useCallback((mouseX, pane, tooltipPos, clientX, clientY) => {
     // Skip if we don't have prices
     if (!chartData.current.prices || chartData.current.prices.length === 0) return;
 
@@ -629,6 +783,31 @@ const ReporterStyleChart = ({
         return;
       }
 
+      // Level strategy, price pane: a matched entry / exit marker under the cursor, else a setup
+      // window (its end glyph, or its retest band / runaway line while those are drawn).
+      if (levelChart && pane === 'price') {
+        const nearest = findNearestSignal(clientX, clientY);
+        if (nearest && nearest.dist <= SIGNAL_HIT_RADIUS_PX) {
+          const hit = nearest.signals
+            .map(signal => ({ signal, match: matchTradeAnnotation(levelChart, signal) }))
+            .find(entry => entry.match);
+          if (hit) {
+            setTooltipData({
+              kind: hit.match.role, // 'entry' | 'exit'
+              trade: hit.match.trade,
+              signal: hit.signal,
+              ...placement
+            });
+            return;
+          }
+        }
+        const setupWindow = findSetupWindowAt(closestIndex, clientY);
+        if (setupWindow) {
+          setTooltipData({ kind: 'setupWindow', window: setupWindow, ...placement });
+          return;
+        }
+      }
+
       // Find signals for this price point
       let signals = [];
       if (data && data.signals) {
@@ -641,80 +820,28 @@ const ReporterStyleChart = ({
       const closestMs = closestPrice.date.getTime();
       const indicatorValues = [];
       visibleSeries.forEach(series => {
-        const matchingIndicator = pointsForSeries(data, series).find(ind =>
-          parseExchangeTs(ind.date).getTime() === closestMs
-        );
-        if (matchingIndicator && typeof matchingIndicator.value === 'number' && !Number.isNaN(matchingIndicator.value)) {
-          indicatorValues.push({ name: series.name, value: matchingIndicator.value, color: series.color });
+        const byMs = seriesValueIndex.get(series.id);
+        const value = byMs
+          ? byMs.get(closestMs)
+          : pointsForSeries(data, series).find(ind => parseExchangeTs(ind.date).getTime() === closestMs)?.value;
+        if (typeof value === 'number' && !Number.isNaN(value)) {
+          indicatorValues.push({ name: seriesLabel(series), value, color: series.color });
         }
       });
-      
+
       setTooltipData({
         kind: 'price',
         price: closestPrice,
         signals,
         indicators: indicatorValues,
+        status: levelChart ? statusLine(levelChart, closestIndex, seriesValueAt) : null,
         ...placement
       });
     }
-  }, [data, dateRange, plotRange, visibleSeries, getPlotRect, trades, cumulativePoints, legSuffix]);
-
-  // A signal marker is only ~7px (its drawn triangle half-size); nobody clicks that precisely by
-  // eye, so the hit target needs to be considerably more forgiving than the marker itself.
-  const SIGNAL_HIT_RADIUS_PX = 22;
-
-  // Finds the signal nearest a point, in the Price sub-chart specifically (returns
-  // {signal, dist, canvas} or null if the point isn't within that canvas or there's no visible
-  // date range - regardless of distance, so callers can apply their own threshold/feedback).
-  // Measures against the canvas's own bounding rect rather than reusing the crosshair's
-  // container-relative math, since the price chart sits below a header this component doesn't
-  // otherwise need to account for.
-  const findNearestSignal = useCallback((clientX, clientY) => {
-    if (!containerRef.current || !data?.signals?.length) return null;
-    const canvas = containerRef.current.querySelector('.price-chart-canvas');
-    if (!canvas) return null;
-
-    const rect = canvas.getBoundingClientRect();
-    const px = clientX - rect.left;
-    const py = clientY - rect.top;
-    if (px < 0 || px > rect.width || py < 0 || py > rect.height) return null;
-
-    // Same x mapping (plot range), drawn set (logical window) and price scale as PriceChart
-    const currentDateRange = plotRange || chartData.current.dateRange;
-    if (!currentDateRange || currentDateRange.length !== 2) return null;
-    const plotStart = currentDateRange[0];
-    const totalMs = currentDateRange[1].getTime() - plotStart.getTime();
-    const [startDate, endDate] = dateRange || currentDateRange;
-
-    const visiblePrices = chartData.current.prices.filter(p => p.date >= startDate && p.date <= endDate);
-    const minMax = priceYRange || findMinMaxPriceRange(visiblePrices.length > 0 ? visiblePrices : chartData.current.prices);
-
-    let closest = null;
-    let closestDist = Infinity;
-    data.signals.forEach(signal => {
-      const sDate = parseExchangeTs(signal.date);
-      if (sDate < startDate || sDate > endDate) return;
-      const x = ((sDate.getTime() - plotStart.getTime()) / totalMs) * rect.width;
-      const y = rect.height - ((signal.price - minMax.min) / (minMax.max - minMax.min)) * rect.height;
-      // Vertically zoomed: a marker outside the price range is clipped away (PriceChart), so it
-      // must not be clickable at its off-plot position either.
-      if (priceYRange && (y < 0 || y > rect.height - DATE_AXIS_BAND)) return;
-      const dist = Math.hypot(x - px, y - py);
-      if (dist < closestDist) {
-        closestDist = dist;
-        closest = signal;
-      }
-    });
-    if (!closest) return null;
-
-    // Every signal drawn at the very same point as the nearest one - a reversal bar carries a
-    // close of one leg and an open of the other (e.g. LongClose + ShortOpen) at one date/price.
-    // Nearest first, then the backend's order (closes before opens).
-    const coincident = [closest, ...data.signals.filter(signal =>
-      signal !== closest && signal.date === closest.date && signal.price === closest.price)];
-
-    return { signal: closest, signals: coincident, dist: closestDist, canvas };
-  }, [data, dateRange, plotRange, priceYRange]);
+  }, [
+    data, dateRange, plotRange, visibleSeries, getPlotRect, trades, cumulativePoints, legSuffix,
+    levelChart, seriesValueIndex, seriesValueAt, findNearestSignal, findSetupWindowAt
+  ]);
 
   // The signals at the clicked point (nearest first), or null when the click missed every signal.
   const findClickedSignals = useCallback((clientX, clientY) => {
@@ -820,7 +947,7 @@ const ReporterStyleChart = ({
       updateTooltipData(x, hovered.pane, {
         x: e.clientX - containerRect.left,
         y: e.clientY - containerRect.top
-      });
+      }, e.clientX, e.clientY);
     } else {
       setTooltipData(null);
     }
@@ -1191,8 +1318,9 @@ const ReporterStyleChart = ({
         </button>
       </div>
 
-      {showLevelZoneControls && (
+      {(showLevelZoneControls || hasEvents) && (
         <div className="level-zones-controls" data-testid="level-zones-controls">
+          {showLevelZoneControls && (<>
           <span className="level-zones-controls__title">Level zones</span>
           <label className="level-zones-controls__item" title="Zones drawn per bar: the one containing the previous close, plus this many nearest above and below">
             N nearest
@@ -1224,6 +1352,18 @@ const ReporterStyleChart = ({
             />
             All strong zones
           </label>
+          </>)}
+          {hasEvents && (
+            <label className="level-zones-controls__item" title={LEVEL_CHART_DESCRIPTIONS.events}>
+              <input
+                type="checkbox"
+                checked={showEvents}
+                onChange={(e) => setShowEvents(e.target.checked)}
+                data-testid="level-events-toggle"
+              />
+              Events
+            </label>
+          )}
         </div>
       )}
 
@@ -1246,8 +1386,8 @@ const ReporterStyleChart = ({
 
       {/* Title + legend of what the price pane draws, right above it (and so also in both
           fullscreen modes): the same "Show indicators" + series chips as the IndicatorPicker above
-          the chart (shared selection state, so the two stay in sync) - in price-only just the
-          price-axis series, since the sub panes are hidden - followed by the level zone swatches. */}
+          the chart (shared selection state, so the two stay in sync), but only the price-axis
+          series, followed by the level zone swatches. */}
       <div className="price-chart-header">
         <h3 className="chart-title">Price Chart with Signals</h3>
         <IndicatorPicker
@@ -1259,7 +1399,21 @@ const ReporterStyleChart = ({
           onToggleShow={legendSelection.setShowIndicators}
           selectedIds={legendSelection.selectedIds || new Set()}
           onToggleSeries={legendSelection.toggleSeries}
+          onToggleGroup={legendSelection.toggleGroup}
         >
+          {levelChart && (
+            <span className="price-legend__zones" data-testid="level-chart-legend">
+              <span className="price-legend__zone" title={LEVEL_CHART_DESCRIPTIONS.retestBand}>
+                <span className="level-chart-swatch level-chart-swatch--retest" /> retest band
+              </span>
+              <span className="price-legend__zone" title={LEVEL_CHART_DESCRIPTIONS.supportZone}>
+                <span className="level-chart-swatch level-chart-swatch--support" /> support zone
+              </span>
+              <span className="price-legend__zone" title={LEVEL_CHART_DESCRIPTIONS.position}>
+                <span className="level-chart-swatch level-chart-swatch--position" /> in position
+              </span>
+            </span>
+          )}
           {showLevelZoneControls && (
             <span className="price-legend__zones">
               <span className="price-legend__zone" title={LEVEL_ZONE_DESCRIPTIONS.strong}>
@@ -1290,6 +1444,9 @@ const ReporterStyleChart = ({
           priceSeries={priceSeries}
           levelZoneRuns={levelZoneRuns}
           priceRange={priceYRange}
+          levelChart={levelChart}
+          showLevelLines={showLevelLines}
+          showEvents={showEvents}
         />
         <Crosshair 
           show={showCrosshair} 
