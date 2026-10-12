@@ -16,7 +16,10 @@
 //     upgrades: [{ date, fromZoneId, toZoneId, newExitLine }],
 //     events:   [{ date, type, zoneId, price }],
 //     atr:      [number|null]          // ATR(t-1) per price bar, null before warm-up
-//     params:   { supportTracking, maxRetestBars, maxDwellBars, confirmMode, runawayAtr, ... }
+//     params:   { supportTracking, maxRetestBars, maxDwellBars, confirmMode, runawayAtr, ...,
+//                 minStrength, minTouches, decayBars, flipBonus, supportBreakMode, supportStrength }
+//               (the last six: TASK_level_lines_always_zone_hover_fullscreen.md §B3 - NaN on an
+//               older backend, and the zone tooltip then shows "–" / omits what needs them)
 //   }
 // - Dates are the bar's exchange-local wall clock, the same wire format as prices[].date
 //   (parsed with parseExchangeTs, decision 0.18). A null endDate / exitDate = still open.
@@ -75,6 +78,7 @@ export const isConfirmedOutcome = (outcome) => typeof outcome === 'string' && ou
 const PARAM_KEYS = [
   'supportTracking', 'maxRetestBars', 'maxDwellBars', 'confirmMode', 'runawayAtr',
   'touchTolerance', 'breakBuffer', 'baseMinBars',
+  'minStrength', 'minTouches', 'decayBars', 'flipBonus', 'supportBreakMode', 'supportStrength',
 ];
 
 const normalizeParams = (raw) => {
@@ -331,14 +335,16 @@ const atrDistance = (level, ref, atr) => {
 };
 
 /** The trade holding the position during bar i (entry bar .. bar before the exit), or null. */
-const tradeHoldingAt = (levelChart, barIndex) => levelChart.trades.find(trade =>
+export const tradeHoldingAt = (levelChart, barIndex) => levelChart.trades.find(trade =>
   trade.entryIndex !== -1 && trade.entryIndex <= barIndex
   && (trade.open || trade.exitIndex === -1 || barIndex < trade.exitIndex)) || null;
 
 /**
  * The one-line strategy status for the bar tooltip (§4.3, design n6), built from the result's own
- * series values (`seriesValueAt(name, barIndex)` - effectiveExit, resistanceTrigger), the setup
- * window points and atr[]. Distances in ATR are from this bar's close, in ATR(t-1).
+ * series values (`seriesValueAt(name, barIndex)` - effectiveExit, resistanceTrigger, projectedExit),
+ * the setup window points and atr[]. Distances in ATR are from this bar's close, in ATR(t-1).
+ * "In position" is detected from effectiveExit / tradeHoldingAt only - never from the breakout or
+ * the flat exit line, which are drawn on every bar.
  *
  * @param {Object|null} levelChart - from normalizeLevelChart
  * @param {number} barIndex - index into prices
@@ -358,15 +364,19 @@ export const statusLine = (levelChart, barIndex, seriesValueAt) => {
     let text = 'In position.';
     if (Number.isFinite(exitLine)) text += ` Exit below ${fmtPrice(exitLine)}${atrDistance(exitLine, close, atr)}.`;
     const segment = levelChart.supportSegments.find(seg => seg.fromIndex <= barIndex && barIndex <= seg.toIndex);
-    if (segment) text += ` Support zone ${fmtPrice(segment.low)}–${fmtPrice(segment.high)}`;
+    if (segment) text += ` Support zone ${fmtPrice(segment.low)}–${fmtPrice(segment.high)}.`;
+    const nextBreakout = seriesValueAt('resistanceTrigger', barIndex);
+    if (Number.isFinite(nextBreakout)) {
+      text += ` Next breakout above ${fmtPrice(nextBreakout)}${atrDistance(nextBreakout, close, atr)}.`;
+    }
     const note = params.supportTracking === 0
       ? 'Legacy rule: line shown on the bar it decided (one bar earlier than sticky mode).'
       : null;
     return { text: text.trim(), note };
   }
 
-  // Exit bar: the position closed on this bar's close (effectiveExit / resistanceTrigger are
-  // empty here by design, so neither the LONG nor the flat text applies)
+  // Exit bar: the position closed on this bar's close (effectiveExit is empty here by design, so
+  // the LONG text does not apply)
   const exited = levelChart.tradeByExitMs.get(levelChart.barTimes[barIndex]);
   if (exited) {
     const reason = EXIT_REASON_LONG_TEXT[exited.exitReason] || exited.exitReason || 'exit';
@@ -401,14 +411,126 @@ export const statusLine = (levelChart, barIndex, seriesValueAt) => {
     return { text: text + more, note: null };
   }
 
-  // Flat: the next breakout line
+  // Flat: the next breakout line, plus the hypothetical exit line while flat (projectedExit)
   const breakout = seriesValueAt('resistanceTrigger', barIndex);
-  if (Number.isFinite(breakout)) {
-    return { text: `Flat. Next breakout above ${fmtPrice(breakout)}${atrDistance(breakout, close, atr)}`, note: null };
+  const projected = seriesValueAt('projectedExit', barIndex);
+  let flatText = Number.isFinite(breakout)
+    ? `Flat. Next breakout above ${fmtPrice(breakout)}${atrDistance(breakout, close, atr)}.`
+    : 'Flat. No armed zone above.';
+  if (Number.isFinite(projected)) {
+    flatText += ` Exit line (flat) ${fmtPrice(projected)}${atrDistance(projected, close, atr)}.`;
   }
-  return { text: 'Flat. No armed zone above.', note: null };
+  return { text: flatText, note: null };
 };
 
 /** Bars held (exit bar index - entry bar index), NaN when unknown. */
 export const barsHeld = (trade) =>
   (trade && trade.entryIndex !== -1 && trade.exitIndex !== -1 ? trade.exitIndex - trade.entryIndex : NaN);
+
+/** Zone ids compared as strings (Long ids may arrive as numbers or strings). */
+const sameZoneId = (a, b) => a !== null && a !== undefined && b !== null && b !== undefined && String(a) === String(b);
+
+/**
+ * Strength of a zone segment on bar `barIndex` (screener TASK_level_lines_always_zone_hover_fullscreen.md
+ * §B3 / §F2). Within a segment the strength follows pure decay from strengthAtFrom:
+ * F + (strengthAtFrom − F)·exp(−(barIndex − fromIndex) / decayBars), F = flipBonus·flipCount.
+ * @returns {{value: number, exact: boolean}} exact = false: the value is strengthAtFrom ("at segment
+ *   start") because fromIndex / decayBars / flipBonus could not be resolved; NaN when not sent.
+ */
+export const zoneStrengthAt = (segment, barIndex, fromIndex, params) => {
+  const start = segment ? segment.strengthAtFrom : NaN;
+  if (!Number.isFinite(start)) return { value: NaN, exact: false };
+  const decay = params ? params.decayBars : NaN;
+  const flips = segment.flipCount;
+  const floor = flips === 0 ? 0 : (Number.isFinite(flips) && Number.isFinite(params?.flipBonus) ? params.flipBonus * flips : NaN);
+  if (!Number.isInteger(fromIndex) || fromIndex < 0 || barIndex < fromIndex
+    || !Number.isFinite(decay) || decay <= 0 || !Number.isFinite(floor)) {
+    return { value: start, exact: false };
+  }
+  return { value: floor + (start - floor) * Math.exp(-(barIndex - fromIndex) / decay), exact: true };
+};
+
+/**
+ * Everything the zone tooltip shows for one hovered zone on bar `barIndex` (§F2). Pure; every
+ * missing input (older backend, no levelChart, ATR not aligned) gives NaN / null and the tooltip
+ * shows "–" for it.
+ *
+ * @param {{segment: Object|null, band: {zoneId, low: number, high: number}}} hit - the normalized
+ *   levelZones segment (levelZones.js, may be null for a sticky support band without one) and the
+ *   band that was hit
+ * @param {number} barIndex - index into prices
+ * @param {Object} context
+ * @param {Object|null} context.levelChart - from normalizeLevelChart (may be null)
+ * @param {Array<number>} context.closes - close per price bar
+ * @param {Map<number, number>} context.barIndexByMs - bar time (ms) -> bar index
+ * @param {number} context.breakoutLine - resistanceTrigger on this bar (NaN when empty)
+ * @returns {Object}
+ */
+export const describeZone = ({ segment, band }, barIndex, { levelChart, closes, barIndexByMs, breakoutLine }) => {
+  const source = segment || band || {};
+  const low = Number(source.low);
+  const high = Number(source.high);
+  const zoneId = source.zoneId ?? band?.zoneId;
+  const params = levelChart?.params || {};
+  const atr = levelChart?.atr ? levelChart.atr[barIndex] : NaN;
+  const atrOk = Number.isFinite(atr) && atr > 0;
+
+  // Position against close(t-1) - the same ref the zone selection (levelZones.js) uses
+  const ref = barIndex > 0 && closes ? Number(closes[barIndex - 1]) : NaN;
+  let position = null;
+  if (Number.isFinite(ref) && ref > 0 && Number.isFinite(low) && Number.isFinite(high)) {
+    if (low <= ref && ref <= high) position = { side: 'contains' };
+    else {
+      const edge = low > ref ? low : high;
+      position = {
+        side: low > ref ? 'above' : 'below',
+        atr: atrOk ? (edge - ref) / atr : NaN,
+        pct: (edge - ref) / ref,
+      };
+    }
+  }
+
+  const fromIndex = segment && barIndexByMs ? barIndexByMs.get(segment.fromMs) : undefined;
+  const strength = zoneStrengthAt(segment, barIndex, fromIndex, params);
+
+  const roles = [];
+  if (levelChart) {
+    if (levelChart.supportSegments.some(seg => sameZoneId(seg.zoneId, zoneId)
+      && seg.fromIndex <= barIndex && barIndex <= seg.toIndex)) {
+      roles.push('sticky support of the open position (exit line hangs from it)');
+    }
+    const waiting = (levelChart.windowPointsByBar.get(barIndex) || [])
+      .find(({ window: win }) => sameZoneId(win.zoneId, zoneId));
+    if (waiting) roles.push(`setup window waiting (${waiting.point.phase})`);
+    const holding = tradeHoldingAt(levelChart, barIndex);
+    if (holding && sameZoneId(holding.entryZoneId, zoneId)) roles.push('entry zone of the open trade');
+  }
+
+  const width = high - low;
+  return {
+    zoneId,
+    hasSegment: Boolean(segment),
+    strong: segment ? segment.strong : null,
+    armed: segment ? segment.armed : null,
+    trigger: segment ? segment.trigger : null,
+    low,
+    high,
+    width,
+    widthAtr: atrOk && Number.isFinite(width) ? width / atr : NaN,
+    center: segment ? segment.center : NaN,
+    position,
+    strength: strength.value,
+    strengthExact: strength.exact,
+    strengthGate: params.minStrength ?? NaN,
+    touchCount: segment ? segment.touchCount : NaN,
+    minTouches: params.minTouches ?? NaN,
+    flipCount: segment ? segment.flipCount : NaN,
+    firstTouchMs: segment ? segment.firstTouchMs : NaN,
+    lastTouchMs: segment ? segment.lastTouchMs : NaN,
+    breakoutLine: segment && segment.trigger ? breakoutLine : NaN,
+    failLine: atrOk && Number.isFinite(params.breakBuffer) && Number.isFinite(low) ? low - params.breakBuffer * atr : NaN,
+    roles,
+    fromMs: segment ? segment.fromMs : NaN,
+    toMs: segment ? segment.toMs : NaN,
+  };
+};

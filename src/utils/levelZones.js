@@ -4,7 +4,8 @@
 // strategy (screener logs/agents/architect.md, option B, §3.2). No React, no canvas.
 //
 // Transport (ChartDataDTO.levelZones, optional - other strategies send [] or nothing):
-//   [{ zoneId, from, to, low, high, strong, armed, trigger }]
+//   [{ zoneId, from, to, low, high, strong, armed, trigger,
+//      center, touchCount, flipCount, firstTouchDate, lastTouchDate, strengthAtFrom }]
 //   - from / to: bar dates (same wire format as prices[].date, parsed with parseExchangeTs).
 //     Both inclusive. The state on date t is the zone map after t-1 (plus overlay), i.e. what
 //     decided close(t) - the same dating as the resistanceTrigger series.
@@ -12,9 +13,16 @@
 //     means "open until the last bar".
 //   - strong: strength(z, t-1) >= MinStrength && touchCount >= minTouches; weak otherwise.
 //   - armed: the zone's breakout tracker is ARMED on those bars.
-//   - trigger: this zone produces resistanceTrigger on those bars (at most one per bar). False on
-//     every bar that starts long, exactly where resistanceTrigger is empty (TASK_level_chart_ux.md
-//     §2.3). (The former supportTrigger series and its zone are gone.)
+//   - trigger: this zone produces resistanceTrigger on those bars (at most one per bar), on every
+//     bar - long or flat (TASK_level_lines_always_zone_hover_fullscreen.md §B1; it used to be
+//     false while long). (The former supportTrigger series and its zone are gone.)
+//   - center, touchCount, flipCount, firstTouchDate, lastTouchDate, strengthAtFrom: the zone's
+//     characteristics, constant within the segment (§B3), for the zone tooltip only. strengthAtFrom
+//     is strength(z, from - 1); the strength on a later bar of the segment follows pure decay:
+//     F + (strengthAtFrom - F)·exp(-(i - fromIndex) / decayBars), F = flipBonus·flipCount.
+//     Absent on an older backend: NaN (numbers) / NaN ms (dates) - the tooltip shows "–".
+//
+// Each run keeps a reference to its normalized segment (`run.segment`) for the zone tooltip.
 //
 // Per bar t (index i >= 1), with ref = close(t-1) and the segments covering t:
 //   - containing: low <= ref <= high
@@ -29,6 +37,9 @@
 // returned with its x extent in ms (bar-slot edges), so the canvas draws one fillRect per run.
 
 import { parseExchangeTs } from './dates';
+
+const num = (v) => (v === null || v === undefined || v === '' ? NaN : Number(v));
+const msOf = (v) => (v === null || v === undefined || v === '' ? NaN : parseExchangeTs(v).getTime());
 
 export const LEVEL_ZONES_MAX_N = 5;
 export const LEVEL_ZONES_DEFAULT_SETTINGS = Object.freeze({ nearestN: 1, showWeak: false, allStrong: false });
@@ -48,7 +59,7 @@ export const hasLevelZones = (chartData) =>
  * Normalizes the raw DTO list: parsed ms bounds, numeric band, boolean flags. Malformed entries
  * (no from date, non-numeric low/high) are dropped instead of breaking the chart.
  */
-const normalizeSegments = (rawSegments) => {
+export const normalizeLevelZoneSegments = (rawSegments) => {
   const out = [];
   (rawSegments || []).forEach((seg, index) => {
     if (!seg) return;
@@ -69,6 +80,13 @@ const normalizeSegments = (rawSegments) => {
       strong: seg.strong === true,
       armed: seg.armed === true,
       trigger: seg.trigger === true,
+      // §B3 characteristics (tooltip only); NaN when an older backend does not send them
+      center: num(seg.center),
+      touchCount: num(seg.touchCount),
+      flipCount: num(seg.flipCount),
+      firstTouchMs: msOf(seg.firstTouchDate),
+      lastTouchMs: msOf(seg.lastTouchDate),
+      strengthAtFrom: num(seg.strengthAtFrom),
     });
   });
   return out.sort((a, b) => a.fromMs - b.fromMs);
@@ -121,7 +139,8 @@ export const slotEdges = (barTimes) => {
  * @param {boolean} [options.showWeak=false] - also draw weak zones (own N nearest)
  * @param {boolean} [options.allStrong=false] - every strong zone, no nearest filter (debug)
  * @returns {Array<{zoneId, low: number, high: number, strong: boolean, armed: boolean, outlined: boolean,
- *   startMs: number, endMs: number, startIndex: number, endIndex: number}>}
+ *   startMs: number, endMs: number, startIndex: number, endIndex: number, segment: Object}>}
+ *   `segment`: the normalized segment the run draws (all its fields, for the zone tooltip)
  */
 export const buildLevelZoneRuns = (prices, rawSegments, options = {}) => {
   const bars = prices || [];
@@ -130,7 +149,7 @@ export const buildLevelZoneRuns = (prices, rawSegments, options = {}) => {
   const showWeak = options.showWeak === true;
   const allStrong = options.allStrong === true;
 
-  const segments = normalizeSegments(rawSegments);
+  const segments = normalizeLevelZoneSegments(rawSegments);
   if (segments.length === 0) return [];
 
   const barTimes = bars.map(price => parseExchangeTs(price.date).getTime());
@@ -178,6 +197,7 @@ export const buildLevelZoneRuns = (prices, rawSegments, options = {}) => {
           endIndex: i,
           startMs: left[i],
           endMs: right[i],
+          segment: seg,
         };
         runs.push(run);
         openRuns.set(seg.key, run);

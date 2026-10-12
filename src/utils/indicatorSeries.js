@@ -32,9 +32,15 @@ export const SERIES_GROUP_LABELS = Object.freeze({ [DETAILS_GROUP]: 'Details' })
 // only sets the legend label, the colour, step rendering, default visibility and the group.
 // Names not listed here keep today's look: their own name as label, the positional palette
 // colour, a straight polyline, visible by default, no group.
+// Colours (screener TASK_level_lines_always_zone_hover_fullscreen.md §F4):
 //   - effectiveExit: the one sell line of LevelBreakoutRetest, red, stepped (it moves in steps).
-//   - resistanceTrigger: the breakout line, in the orange it always had (palette slot 1).
-//   - stopLevel / supportExitLine: the two inputs of effectiveExit, hidden under "Details".
+//   - projectedExit: "Exit line (flat)", the same red, dashed and thinner: where the exit line
+//     would hang while flat. Together with effectiveExit there is a red line on every bar.
+//   - resistanceTrigger: the breakout line, green, on every bar (long or flat).
+//   - stopLevel (blue) / supportExitLine (purple): the two inputs of effectiveExit, hidden under
+//     "Details". The support line is purple so it does not read as a second (green) breakout line.
+// `dashed: true`: drawn with a dash pattern and a thinner stroke (drawPriceOverlays) and shown with a
+// dashed swatch on the picker / legend chips.
 // `redundantWith: <name>`: the series is dropped from the list (picker, legend, drawing) for a
 // result in which it equals that series on every bar where both have a value - it would only be
 // drawn exactly on top of it. With SupportTracking = 1 the Support line usually IS the Exit line
@@ -42,13 +48,14 @@ export const SERIES_GROUP_LABELS = Object.freeze({ [DETAILS_GROUP]: 'Details' })
 // whenever it differs somewhere, or when the two never overlap (e.g. SupportTracking = 0).
 export const SERIES_STYLE = Object.freeze({
   effectiveExit: { label: 'Exit line', color: '#d62728', stepped: true },
-  resistanceTrigger: { label: 'Breakout line', color: '#ff7f0e' },
+  projectedExit: { label: 'Exit line (flat)', color: '#d62728', stepped: true, dashed: true },
+  resistanceTrigger: { label: 'Breakout line', color: '#16a34a' },
   stopLevel: {
-    label: 'Initial stop', color: '#6b7280', stepped: true, defaultHidden: true, group: DETAILS_GROUP,
+    label: 'Initial stop', color: '#1f77b4', stepped: true, defaultHidden: true, group: DETAILS_GROUP,
     redundantWith: 'effectiveExit',
   },
   supportExitLine: {
-    label: 'Support line', color: '#2ca02c', stepped: true, defaultHidden: true, group: DETAILS_GROUP,
+    label: 'Support line', color: '#9467bd', stepped: true, defaultHidden: true, group: DETAILS_GROUP,
     redundantWith: 'effectiveExit',
   },
 });
@@ -88,7 +95,7 @@ const numericAwareCompare = (a, b) =>
  * the FULL list (known names included), exactly as before, so other strategies look unchanged.
  * A series styled `redundantWith` is left out when isSeriesRedundant against that series (same kind).
  * @returns {Array<{id: string, name: string, kind: 'price'|'sub', color: string, label: string,
- *   stepped: boolean, defaultHidden: boolean, group: string|null}>}
+ *   stepped: boolean, dashed: boolean, defaultHidden: boolean, group: string|null}>}
  */
 export const buildSeriesList = (chartDataDTO) => {
   if (!chartDataDTO) return [];
@@ -117,6 +124,7 @@ export const buildSeriesList = (chartDataDTO) => {
       color: style.color || INDICATOR_PALETTE[index % INDICATOR_PALETTE.length],
       label: style.label || entry.name,
       stepped: style.stepped === true,
+      dashed: style.dashed === true,
       defaultHidden: style.defaultHidden === true,
       group: style.group || null,
     };

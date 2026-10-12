@@ -14,13 +14,16 @@ import {
 } from '../utils/ChartDrawingUtils';
 import { pointsForSeries, seriesLabel } from '../utils/indicatorSeries';
 import { LEVEL_ZONE_DESCRIPTIONS, LEVEL_CHART_DESCRIPTIONS } from '../utils/indicatorDescriptions';
-import { normalizeLevelChart, statusLine, matchTradeAnnotation, byZoneLowThenId } from '../utils/levelChart';
+import {
+  normalizeLevelChart, statusLine, matchTradeAnnotation, byZoneLowThenId, describeZone
+} from '../utils/levelChart';
 import IndicatorPicker from './IndicatorPicker';
 import { extractTradesFromSignals, cumulativeClosedPnLByBar, barIndexAtOrAfter } from '../utils/ChartDataUtils';
 import { parseExchangeTs, fmtExchangeIntl } from '../utils/dates';
 import { useElementSize } from '../hooks/useElementSize';
 import {
-  buildLevelZoneRuns, hasLevelZones, clampNearestN, LEVEL_ZONES_MAX_N, LEVEL_ZONES_DEFAULT_SETTINGS
+  buildLevelZoneRuns, hasLevelZones, clampNearestN, LEVEL_ZONES_MAX_N, LEVEL_ZONES_DEFAULT_SETTINGS,
+  normalizeLevelZoneSegments
 } from '../utils/levelZones';
 
 // Pane canvases, top to bottom - used to tell which pane the cursor is over.
@@ -35,6 +38,8 @@ const PANE_CANVASES = [
 const TRADE_HIT_SLOP_PX = 4;
 // Past this distance from the container's right edge the tooltip opens to the left of the cursor.
 const TOOLTIP_FLIP_MARGIN_PX = 270;
+// Same, for a tooltip carrying level zone blocks (wider, see .chart-tooltip--zones).
+const TOOLTIP_FLIP_MARGIN_ZONES_PX = 340;
 // Height the range slider (under the price pane) takes out of the `height` budget (track + its
 // date row + container flex gap), so the stack still fits the height the fullscreen layout passes in.
 const RANGE_SLIDER_BLOCK_PX = RANGE_SLIDER_HEIGHT + 2 + RANGE_SLIDER_DATES_HEIGHT + 16;
@@ -44,9 +49,11 @@ const isInRangeSlider = (target) => Boolean(target?.closest?.('.reporter-range-s
 // Likewise the level zone controls: clicking a checkbox / scrolling the N field must not start a
 // drag-zoom, clear the signal selection or wheel-zoom the chart.
 const isInLevelZoneControls = (target) => Boolean(target?.closest?.('.level-zones-controls'));
-// Same for the price legend's toggles and the controls row's buttons: a click on them is not a
-// click on the chart (it would otherwise clear the selected signal).
-const isInChartUi = (target) => Boolean(target?.closest?.('.price-legend, .chart-controls'));
+// Same for the price legend's toggles, the controls row's buttons and the floating exit button of
+// the price-only fullscreen: a click on them is not a click on the chart (it would otherwise clear
+// the selected signal or start a drag-zoom), and the wheel over them does not zoom.
+const isInChartUi = (target) => Boolean(target?.closest?.('.price-legend, .chart-controls, .price-only-exit-btn'));
+const isOnPriceOnlyExit = (target) => Boolean(target?.closest?.('.price-only-exit-btn'));
 // The wheel zooms only over the panes and the range slider; over the controls, legend, titles or
 // the signal-reason note it scrolls the page as usual.
 const isWheelZoomTarget = (target) => Boolean(target?.closest?.('.chart-wrapper, .reporter-range-slider'));
@@ -221,6 +228,12 @@ const ReporterStyleChart = ({
     if (!hasLevelZones(data)) return NO_RUNS;
     return buildLevelZoneRuns(data.prices, data.levelZones, levelZoneSettings);
   }, [data, levelZoneSettings]);
+  // Every zone segment (drawn or not), for the zone tooltip of the sticky support band and of a
+  // setup window's own zone, which need not be among the drawn runs.
+  const levelZoneSegments = useMemo(
+    () => (hasLevelZones(data) ? normalizeLevelZoneSegments(data.levelZones) : []),
+    [data]
+  );
 
   // LevelBreakoutRetest buy / sell annotations (data.levelChart; null for other strategies and
   // older backends - then nothing below changes the chart). Normalized once per result.
@@ -240,7 +253,9 @@ const ReporterStyleChart = ({
   // the support zone and the position shading stay.
   const showLevelLines = Boolean(legendSelection.showIndicators);
 
-  // Price-only fullscreen: just the price pane (+ zone controls, slider) filling the viewport.
+  // Price-only fullscreen: just the price pane, its range slider and a floating exit button (✕)
+  // filling the viewport - no controls row, legend, zone panel or reason note (screener
+  // TASK_level_lines_always_zone_hover_fullscreen.md §F3; all of it comes back on exit, state kept).
   // Independent of App's "Fullscreen" (whole results area): it is a fixed overlay over the
   // viewport, and when nothing is natively fullscreen yet it also requests native fullscreen on
   // this container. Exits with its button, Esc, or whenever the native fullscreen state changes
@@ -254,6 +269,9 @@ const ReporterStyleChart = ({
   const priceOnlyRef = useRef(false);
   useLayoutEffect(() => { priceOnlyRef.current = priceOnly; }, [priceOnly]);
   const priceOnlyToggleRef = useRef(null);
+  const priceOnlyExitRef = useRef(null);
+  // Set while price-only is on, so leaving it puts focus back on the re-mounted toggle button.
+  const restoreToggleFocusRef = useRef(false);
   // The legend above the price pane lists only what that pane draws: the price-axis series. Sub-pane
   // series ("long PnL", "current PnL", RSI, ...) change nothing there and are toggled from the
   // toolbar IndicatorPicker above the chart (also present in App's fullscreen).
@@ -291,9 +309,21 @@ const ReporterStyleChart = ({
     };
   }, [priceOnly, exitPriceOnly]);
 
-  // Price-only is modal: focus moves into it on entry and stays there (Tab / Shift+Tab wrap inside
-  // the container, focus landing outside is pulled back), so keyboard users cannot reach the
-  // controls hidden behind the overlay. On exit focus returns to the toggle button.
+  // Price-only is modal: focus moves into it on entry (the floating exit button) and stays there
+  // (Tab / Shift+Tab wrap inside the container, focus landing outside is pulled back), so keyboard
+  // users cannot reach the controls hidden behind the overlay. On exit focus returns to the
+  // "Price chart only" toggle - re-mounted by then, so it is focused in the effect below, after the
+  // commit, not through a node captured here (that one is gone).
+  useEffect(() => {
+    if (priceOnly) {
+      restoreToggleFocusRef.current = true;
+      return;
+    }
+    if (restoreToggleFocusRef.current) {
+      restoreToggleFocusRef.current = false;
+      priceOnlyToggleRef.current?.focus({ preventScroll: true });
+    }
+  }, [priceOnly]);
   useEffect(() => {
     if (!priceOnly) return undefined;
     const container = containerRef.current;
@@ -301,8 +331,7 @@ const ReporterStyleChart = ({
     const focusables = () => Array.from(container.querySelectorAll(
       'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
     )).filter(el => el.getClientRects().length > 0 && el.getAttribute('aria-hidden') !== 'true');
-    const toggle = priceOnlyToggleRef.current;
-    (toggle || focusables()[0] || container).focus({ preventScroll: true });
+    (priceOnlyExitRef.current || focusables()[0] || container).focus({ preventScroll: true });
     const onKeyDown = (e) => {
       if (e.key !== 'Tab') return;
       const items = focusables();
@@ -329,8 +358,6 @@ const ReporterStyleChart = ({
     return () => {
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('focusin', onFocusIn);
-      // Back on the (same) toggle button, now labelled "Price chart only".
-      if (toggle && toggle.isConnected) toggle.focus({ preventScroll: true });
     };
   }, [priceOnly]);
 
@@ -713,6 +740,71 @@ const ReporterStyleChart = ({
     return hit ? hit.window : null;
   }, [levelChart, currentPriceScale, showLevelLines, showEvents]);
 
+  // Bar time (ms) -> bar index, and the closes, for the zone tooltip.
+  const barIndexByMs = useMemo(() => {
+    const map = new Map();
+    sliderRows.forEach((row, i) => { if (!Number.isNaN(row.ms)) map.set(row.ms, i); });
+    return map;
+  }, [sliderRows]);
+  const barCloses = useMemo(() => sliderRows.map(row => Number(row.close)), [sliderRows]);
+
+  // The zone segment of `zoneId` covering bar `barIndex` (drawn or not), or null.
+  const zoneSegmentAt = useCallback((zoneId, barIndex) => {
+    const ms = sliderRows[barIndex]?.ms;
+    if (ms === undefined || zoneId === null || zoneId === undefined) return null;
+    return levelZoneSegments.find(seg => String(seg.zoneId) === String(zoneId)
+      && seg.fromMs <= ms && ms <= seg.toMs) || null;
+  }, [levelZoneSegments, sliderRows]);
+
+  // The level zones under the cursor on bar `barIndex` of the price pane (§F2): the DRAWN zone runs
+  // covering the bar whose band contains the cursor price (± WINDOW_HIT_SLOP_PX for thin bands) -
+  // zones hidden by N nearest / weak / all-strong are not hit - plus the sticky support band of the
+  // open position (a zone with a role; it need not be among the drawn runs). Same y mapping as the
+  // marker and window hit tests. Lowest `low` first. [] when nothing is hit.
+  const findZonesAt = useCallback((barIndex, clientY) => {
+    const supportSegments = levelChart?.supportSegments || [];
+    if (barIndex < 0 || (levelZoneRuns.length === 0 && supportSegments.length === 0)) return [];
+    const canvas = containerRef.current?.querySelector('.price-chart-canvas');
+    const minMax = currentPriceScale();
+    if (!canvas || !minMax || !(minMax.max > minMax.min)) return [];
+    const rect = canvas.getBoundingClientRect();
+    const py = clientY - rect.top;
+    if (py < 0 || py > rect.height || rect.height <= 0) return [];
+    // Vertically zoomed: everything is clipped above the date-axis band (PriceChart)
+    if (priceYRange && py > rect.height - DATE_AXIS_BAND) return [];
+    const yOf = (price) => rect.height - ((price - minMax.min) / (minMax.max - minMax.min)) * rect.height;
+    const hitsBand = (low, high) => py >= yOf(high) - WINDOW_HIT_SLOP_PX && py <= yOf(low) + WINDOW_HIT_SLOP_PX;
+
+    const hits = [];
+    levelZoneRuns.forEach(run => {
+      if (run.startIndex <= barIndex && barIndex <= run.endIndex && hitsBand(run.low, run.high)) {
+        hits.push({ segment: run.segment || null, band: { zoneId: run.zoneId, low: run.low, high: run.high } });
+      }
+    });
+    supportSegments.forEach(seg => {
+      if (seg.fromIndex > barIndex || barIndex > seg.toIndex || !hitsBand(seg.low, seg.high)) return;
+      if (hits.some(hit => String(hit.band.zoneId) === String(seg.zoneId))) return; // already drawn as a zone
+      hits.push({
+        segment: zoneSegmentAt(seg.zoneId, barIndex),
+        band: { zoneId: seg.zoneId, low: seg.low, high: seg.high },
+      });
+    });
+    return hits.sort((a, b) => a.band.low - b.band.low);
+  }, [levelChart, levelZoneRuns, currentPriceScale, priceYRange, zoneSegmentAt]);
+
+  // Tooltip rows for hovered zones (levelChart.js describeZone).
+  const describeZones = useCallback((hits, barIndex) => {
+    if (!hits || hits.length === 0) return [];
+    const breakoutLine = seriesValueIndex.get('price:resistanceTrigger')?.get(sliderRows[barIndex]?.ms);
+    const context = {
+      levelChart,
+      closes: barCloses,
+      barIndexByMs,
+      breakoutLine: typeof breakoutLine === 'number' ? breakoutLine : NaN,
+    };
+    return hits.map(hit => describeZone(hit, barIndex, context));
+  }, [levelChart, barCloses, barIndexByMs, seriesValueIndex, sliderRows]);
+
   // Function to update tooltip data based on mouse position.
   // mouseX is plot-relative (drives the date); tooltipPos is container-relative (placement - the
   // container is the tooltip's offset parent, so price-canvas coordinates put it too high on
@@ -736,6 +828,10 @@ const ReporterStyleChart = ({
         position: tooltipPos,
         flip: tooltipPos.x > containerWidth - TOOLTIP_FLIP_MARGIN_PX
       };
+      // A tooltip with zone blocks is wider: flip earlier.
+      const zonePlacement = (zones) => (zones.length > 0
+        ? { ...placement, flip: tooltipPos.x > containerWidth - TOOLTIP_FLIP_MARGIN_ZONES_PX }
+        : placement);
 
       // Individual Trade PnL pane: the trade(s) whose bar spans the cursor - not prices.
       if (pane === 'trade') {
@@ -803,10 +899,18 @@ const ReporterStyleChart = ({
         }
         const setupWindow = findSetupWindowAt(closestIndex, clientY);
         if (setupWindow) {
-          setTooltipData({ kind: 'setupWindow', window: setupWindow, ...placement });
+          // Followed by the zone block of the window's own zone (§F2)
+          const zones = describeZones([{
+            segment: zoneSegmentAt(setupWindow.zoneId, closestIndex),
+            band: { zoneId: setupWindow.zoneId, low: setupWindow.zoneLow, high: setupWindow.zoneHigh },
+          }], closestIndex);
+          setTooltipData({ kind: 'setupWindow', window: setupWindow, zones, ...zonePlacement(zones) });
           return;
         }
       }
+
+      // Level zones under the cursor (price pane): appended to the bar tooltip
+      const zones = pane === 'price' ? describeZones(findZonesAt(closestIndex, clientY), closestIndex) : [];
 
       // Find signals for this price point
       let signals = [];
@@ -835,12 +939,14 @@ const ReporterStyleChart = ({
         signals,
         indicators: indicatorValues,
         status: levelChart ? statusLine(levelChart, closestIndex, seriesValueAt) : null,
-        ...placement
+        zones,
+        ...zonePlacement(zones)
       });
     }
   }, [
     data, dateRange, plotRange, visibleSeries, getPlotRect, trades, cumulativePoints, legSuffix,
-    levelChart, seriesValueIndex, seriesValueAt, findNearestSignal, findSetupWindowAt
+    levelChart, seriesValueIndex, seriesValueAt, findNearestSignal, findSetupWindowAt,
+    findZonesAt, describeZones, zoneSegmentAt
   ]);
 
   // The signals at the clicked point (nearest first), or null when the click missed every signal.
@@ -921,8 +1027,9 @@ const ReporterStyleChart = ({
   const handleMouseMove = useCallback((e) => {
     if (!containerRef.current) return;
     
-    // Over the range slider: no crosshair/tooltip (unless a pane drag-zoom is in progress)
-    if (!zoomActive && isInRangeSlider(e.target)) {
+    // Over the range slider or the price-only exit button: no crosshair/tooltip (unless a pane
+    // drag-zoom is in progress)
+    if (!zoomActive && (isInRangeSlider(e.target) || isOnPriceOnlyExit(e.target))) {
       setShowCrosshair(false);
       setHoverPane(null);
       setTooltipData(null);
@@ -1052,7 +1159,7 @@ const ReporterStyleChart = ({
     if (!containerRef.current) return;
     // Only over the panes / range slider: the controls row, legend, zone controls, titles and the
     // reason note scroll the page normally (and the N field keeps its own wheel behaviour).
-    if (!isWheelZoomTarget(e.target)) return;
+    if (!isWheelZoomTarget(e.target) || isInChartUi(e.target)) return;
     e.preventDefault(); // Prevent page scrolling (and Ctrl+wheel page zoom)
 
     // Vertical zoom: Shift/Ctrl + wheel over the price pane, or the plain wheel over its price
@@ -1248,6 +1355,9 @@ const ReporterStyleChart = ({
       className={`reporter-chart-container${priceOnly ? ' reporter-chart-container--price-only' : ''}`}
       ref={containerRef}
     >
+      {/* Everything above the price pane is chrome: not rendered in price-only fullscreen (§F3). It
+          is all driven by React state, so leaving price-only brings it back unchanged. */}
+      {!priceOnly && (<>
       {/* Zoom controls */}
       <div className="chart-controls">
         <div className="zoom-info">
@@ -1307,14 +1417,10 @@ const ReporterStyleChart = ({
           ref={priceOnlyToggleRef}
           type="button"
           className="zoom-reset-btn price-only-toggle-btn"
-          onClick={priceOnly ? exitPriceOnly : enterPriceOnly}
-          title={!priceOnly
-            ? 'Price chart and level zones only, filling the screen'
-            : priceOnlyNested
-              ? 'Back to all charts, staying in fullscreen. Esc leaves fullscreen entirely.'
-              : 'Back to all charts (Esc)'}
+          onClick={enterPriceOnly}
+          title="Price chart only, filling the screen"
         >
-          {!priceOnly ? '⛶ Price chart only' : priceOnlyNested ? '⤢ Back to all charts' : '⤢ Exit price chart (Esc)'}
+          ⛶ Price chart only
         </button>
       </div>
 
@@ -1429,6 +1535,7 @@ const ReporterStyleChart = ({
           )}
         </IndicatorPicker>
       </div>
+      </>)}
       <div
         ref={setPricePaneNode}
         className={`chart-wrapper position-relative${priceOnly ? ' price-only-pane' : ''}`}
@@ -1455,6 +1562,21 @@ const ReporterStyleChart = ({
           vertical={true}
         />
         {renderZoomSelection()}
+        {priceOnly && (
+          <button
+            ref={priceOnlyExitRef}
+            type="button"
+            className="price-only-exit-btn"
+            onClick={exitPriceOnly}
+            title={priceOnlyNested
+              ? 'Back to all charts, staying in fullscreen. Esc leaves fullscreen entirely.'
+              : 'Back to all charts (Esc)'}
+            aria-label={priceOnlyNested ? 'Back to all charts' : 'Exit price chart (Esc)'}
+            data-testid="price-only-exit"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* Range slider directly under the price pane - two-way synced

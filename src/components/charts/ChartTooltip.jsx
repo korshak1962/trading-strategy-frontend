@@ -1,4 +1,5 @@
 // src/components/charts/ChartTooltip.jsx
+import { useLayoutEffect, useRef } from 'react';
 import { formatDate, formatSigned, formatSignedPercent } from '../../utils/formatters';
 import { fmtExchangeIntl } from '../../utils/dates';
 import {
@@ -127,6 +128,94 @@ const SetupWindowTooltipBody = ({ setupWindow }) => {
   );
 };
 
+// --- Level zone details (utils/levelChart.js describeZone), screener
+// TASK_level_lines_always_zone_hover_fullscreen.md §F2 ---
+// At most this many zone blocks per tooltip; the rest are counted ("+N more zones").
+const ZONE_TOOLTIP_MAX = 2;
+const fmtFixed = (v, digits = 2) => (Number.isFinite(v) ? v.toFixed(digits) : '–');
+const fmtSignedFixed = (v, digits) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(digits)}`;
+
+const zonePositionText = (position) => {
+  if (!position) return '–';
+  if (position.side === 'contains') return 'contains previous close';
+  const atr = Number.isFinite(position.atr) ? `${fmtSignedFixed(position.atr, 1)} ATR ` : '';
+  const pct = Number.isFinite(position.pct) ? `(${fmtSignedFixed(position.pct * 100, 1)}%)` : '';
+  return `${position.side}, ${atr}${pct}`.trim();
+};
+
+const zoneStrengthText = (zone) => {
+  if (!Number.isFinite(zone.strength)) return '–';
+  const gate = Number.isFinite(zone.strengthGate) ? ` (gate ${zone.strengthGate})` : '';
+  return `${zone.strength.toFixed(2)}${zone.strengthExact ? '' : ' at segment start'}${gate}`;
+};
+
+const zoneTouchesText = (zone) => {
+  if (!Number.isFinite(zone.touchCount)) return '–';
+  const min = Number.isFinite(zone.minTouches) ? ` (min ${zone.minTouches})` : '';
+  const flips = Number.isFinite(zone.flipCount) ? `, flips ${zone.flipCount}` : '';
+  return `${zone.touchCount}${min}${flips}`;
+};
+
+const zoneTrackerText = (armed) => {
+  if (armed === true) return 'armed (can break out)';
+  if (armed === false) return 'not armed (waiting / traded)';
+  return '–';
+};
+
+/** One hovered level zone: every characteristic the backend sends plus the derived values. */
+const ZoneSection = ({ zone }) => {
+  const kind = zone.strong === true ? 'strong' : zone.strong === false ? 'weak' : null;
+  return (
+    <div className="chart-tooltip-section chart-tooltip-zone" data-testid="zone-tooltip-section">
+      <div style={{ fontWeight: 'bold' }}>
+        Zone #{zone.zoneId ?? '–'}{kind ? `, ${kind}` : ''}
+      </div>
+      <Row label="Band">{fmtBand(zone.low, zone.high)}</Row>
+      <Row label="Width">
+        {fmtPx(zone.width)}{Number.isFinite(zone.widthAtr) ? ` (${zone.widthAtr.toFixed(2)} ATR)` : ''}
+      </Row>
+      <Row label="Center">{fmtPx(zone.center)}</Row>
+      <Row label="Position">{zonePositionText(zone.position)}</Row>
+      <Row label="Strength">{zoneStrengthText(zone)}</Row>
+      <Row label="Touches">{zoneTouchesText(zone)}</Row>
+      <Row label="First touch">{fmtBarDate(zone.firstTouchMs)}</Row>
+      <Row label="Last touch">{fmtBarDate(zone.lastTouchMs)}</Row>
+      <Row label="Breakout tracker">{zoneTrackerText(zone.armed)}</Row>
+      {zone.trigger === true && (
+        <Row label="Breakout line">this zone sets it: {fmtFixed(zone.breakoutLine)}</Row>
+      )}
+      <Row label="Fail / support line">{fmtPx(zone.failLine)}</Row>
+      {zone.roles.length > 0 && (
+        <div>
+          Role:
+          {zone.roles.map(role => <div key={role} className="chart-tooltip-zone__role">{role}</div>)}
+        </div>
+      )}
+      <Row label="State valid">
+        {Number.isFinite(zone.fromMs)
+          ? `${fmtBarDate(zone.fromMs)} – ${Number.isFinite(zone.toMs) ? fmtBarDate(zone.toMs) : 'last bar'}`
+          : '–'}
+      </Row>
+    </div>
+  );
+};
+
+/** The hovered zones, lowest first (already sorted by the caller), capped at ZONE_TOOLTIP_MAX. */
+const ZoneSections = ({ zones }) => {
+  if (!zones || zones.length === 0) return null;
+  const shown = zones.slice(0, ZONE_TOOLTIP_MAX);
+  const more = zones.length - shown.length;
+  return (
+    <>
+      {shown.map((zone, index) => <ZoneSection key={`${zone.zoneId}-${index}`} zone={zone} />)}
+      {more > 0 && <div className="chart-tooltip-muted">+{more} more zone{more === 1 ? '' : 's'} here</div>}
+    </>
+  );
+};
+
+// Gap between the cursor and the tooltip, px.
+const TOOLTIP_OFFSET_PX = 15;
+
 /**
  * ChartTooltip component for displaying data on hover. The body depends on the pane under the
  * cursor (`tooltipData.kind`): 'trade' -> trade PnL, 'cumulative' -> cumulative PnL, 'entry' /
@@ -144,23 +233,50 @@ const SetupWindowTooltipBody = ({ setupWindow }) => {
  *   visible indicator values at this point, in picker order ('price' kind)
  * @param {Object} props.tooltipData.position - {x, y} cursor position relative to the container
  * @param {boolean} [props.tooltipData.flip] - place the tooltip left of the cursor (right edge)
+ * @param {Array<Object>} [props.tooltipData.zones] - hovered level zones (levelChart.js describeZone),
+ *   appended as zone blocks ('price' and 'setupWindow' kinds)
+ * Near the bottom edge (of the chart container or the viewport, whichever is higher) the tooltip
+ * opens above the cursor instead, so it never runs off-screen (matters most in fullscreen).
  * @returns {JSX.Element|null}
  */
 const ChartTooltip = ({ tooltipData }) => {
+  const tooltipRef = useRef(null);
+  // After every render: flip up when the tooltip would pass the bottom edge. Written straight to
+  // the DOM (not state) so a mouse move costs no second render; it runs after React applied
+  // `top`, so it always overrides it with the right value.
+  useLayoutEffect(() => {
+    const el = tooltipRef.current;
+    if (!el || !tooltipData) return;
+    const parent = el.offsetParent;
+    if (!parent) return;
+    const y = tooltipData.position.y;
+    const parentRect = parent.getBoundingClientRect();
+    const height = el.offsetHeight;
+    const bottomLimit = Math.min(parentRect.bottom, window.innerHeight) - parentRect.top;
+    let top = y + TOOLTIP_OFFSET_PX;
+    if (top + height > bottomLimit) {
+      const topLimit = Math.max(0, -parentRect.top); // keep the head on screen too
+      top = Math.max(topLimit, y - TOOLTIP_OFFSET_PX - height);
+    }
+    el.style.top = `${top}px`;
+  });
+
   if (!tooltipData) return null;
 
-  const { kind = 'price', position, flip } = tooltipData;
+  const { kind = 'price', position, flip, zones } = tooltipData;
   const { x, y } = position;
   const style = {
     position: 'absolute',
-    left: flip ? x - 15 : x + 15,
-    top: y + 15,
+    left: flip ? x - TOOLTIP_OFFSET_PX : x + TOOLTIP_OFFSET_PX,
+    top: y + TOOLTIP_OFFSET_PX,
     transform: flip ? 'translateX(-100%)' : undefined
   };
+  const hasZones = Array.isArray(zones) && zones.length > 0;
+  const className = `chart-tooltip${hasZones ? ' chart-tooltip--zones' : ''}`;
 
   if (kind === 'trade') {
     return (
-      <div className="chart-tooltip" style={style}>
+      <div ref={tooltipRef} className="chart-tooltip" style={style}>
         <TradeTooltipBody date={tooltipData.date} trades={tooltipData.trades} legLabel={tooltipData.legLabel} />
       </div>
     );
@@ -168,7 +284,7 @@ const ChartTooltip = ({ tooltipData }) => {
 
   if (kind === 'cumulative') {
     return (
-      <div className="chart-tooltip" style={style}>
+      <div ref={tooltipRef} className="chart-tooltip" style={style}>
         <CumulativeTooltipBody
           date={tooltipData.date}
           value={tooltipData.value}
@@ -181,17 +297,18 @@ const ChartTooltip = ({ tooltipData }) => {
 
   if (kind === 'entry' || kind === 'exit' || kind === 'setupWindow') {
     return (
-      <div className="chart-tooltip" style={style}>
+      <div ref={tooltipRef} className={className} style={style}>
         {kind === 'entry' && <EntryTooltipBody trade={tooltipData.trade} />}
         {kind === 'exit' && <ExitTooltipBody trade={tooltipData.trade} />}
         {kind === 'setupWindow' && <SetupWindowTooltipBody setupWindow={tooltipData.window} />}
+        {kind === 'setupWindow' && <ZoneSections zones={zones} />}
       </div>
     );
   }
 
   const { price, signals, indicators, status } = tooltipData;
   return (
-    <div className="chart-tooltip" style={style}>
+    <div ref={tooltipRef} className={className} style={style}>
       <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
         {fmtExchangeIntl(price.date, TOOLTIP_TS_FORMAT)}
       </div>
@@ -208,6 +325,9 @@ const ChartTooltip = ({ tooltipData }) => {
           {status.note && <div className="chart-tooltip-muted" style={{ fontSize: '0.8em' }}>{status.note}</div>}
         </div>
       )}
+
+      {/* Hovered level zones (under the status line, before the indicators) */}
+      <ZoneSections zones={zones} />
 
       {/* Visible indicator values, each with the same colour dot as its line / picker chip */}
       {(indicators || []).map(({ name, value, color }, index) => (

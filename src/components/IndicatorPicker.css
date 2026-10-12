@@ -75,6 +75,11 @@
   flex-shrink: 0;
 }
 
+/* Dashed series: the dash pattern (inline background-image) on a white swatch. */
+.indicator-chip__swatch--dashed {
+  background-color: white;
+}
+
 .indicator-chip__name {
   font-weight: 500;
   white-space: nowrap;

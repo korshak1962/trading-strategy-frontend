@@ -73,7 +73,13 @@ const IndicatorPicker = ({
           disabled={readOnly || !showIndicators}
           onChange={() => onToggleSeries?.(series.id)}
         />
-        <span className="indicator-chip__swatch" style={{ backgroundColor: series.color }} />
+        <span
+          className={`indicator-chip__swatch${series.dashed ? ' indicator-chip__swatch--dashed' : ''}`}
+          style={series.dashed
+            // Dashed series (e.g. "Exit line (flat)"): a dash pattern in the series colour
+            ? { backgroundImage: `repeating-linear-gradient(90deg, ${series.color} 0 3px, transparent 3px 5px)` }
+            : { backgroundColor: series.color }}
+        />
         <span className="indicator-chip__name">{seriesLabel(series)}</span>
         <span className="indicator-chip__kind">({series.kind})</span>
       </label>

@@ -390,8 +390,9 @@ export const findMinMaxPriceRange = (prices) => {
    *
    * @param {CanvasRenderingContext2D} ctx
    * @param {Object<string, Array<{date: string, value: number}>>} priceIndicators - the DTO map
-   * @param {Array<{name: string, color: string, stepped?: boolean}>} series - the visible price-kind
-   *   series; `stepped` ones (indicatorSeries.js SERIES_STYLE) draw as a step-after line
+   * @param {Array<{name: string, color: string, stepped?: boolean, dashed?: boolean}>} series - the
+   *   visible price-kind series; `stepped` ones (indicatorSeries.js SERIES_STYLE) draw as a step-after
+   *   line, `dashed` ones (projectedExit) with a [5, 4] dash and a thinner 1.25px stroke
    * @param {[Date, Date]} dateRange
    * @param {{min: number, max: number}} minMax - the candle-derived price range
    * @param {number} width
@@ -439,7 +440,14 @@ export const findMinMaxPriceRange = (prices) => {
 
       ctx.save();
       ctx.strokeStyle = entry.color;
-      ctx.lineWidth = 1.5;
+      // Dash state lives inside this save/restore, so it never leaks into the next series.
+      if (entry.dashed) {
+        ctx.setLineDash([5, 4]);
+        ctx.lineWidth = 1.25;
+      } else {
+        ctx.setLineDash([]);
+        ctx.lineWidth = 1.5;
+      }
       ctx.beginPath();
       let started = false;
       let prevY = 0;
@@ -676,7 +684,7 @@ export const findMinMaxPriceRange = (prices) => {
   // fill, weak ones a pale fill with no border; the zone the resistanceTrigger line comes from
   // (segment flag `trigger`, its tracker is ARMED) gets a dashed line along its upper edge - the
   // edge the trigger sits a buffer above. The edge is fuchsia and dashed so it does not read as
-  // the (solid, palette-coloured) resistanceTrigger line drawn just above it: fuchsia is not in
+  // the (solid, green) resistanceTrigger line drawn just above it: fuchsia is not in
   // the indicator palette (utils/indicatorSeries.js), nor a candle / signal colour.
   // Keep the swatches in ReporterStyleChart.css in sync.
   export const LEVEL_ZONE_STYLE = Object.freeze({
@@ -915,7 +923,7 @@ export const findMinMaxPriceRange = (prices) => {
     supportFill: 'rgba(44, 160, 44, 0.20)',
     supportEdge: 'rgba(21, 128, 61, 0.75)',
     retestBand: 'rgba(34, 197, 94, 0.16)',
-    runawayLine: '#ff7f0e', // the Breakout line's orange, dashed
+    runawayLine: '#ff7f0e', // orange, dashed (no longer the Breakout line's colour - that is green)
     runawayDash: [5, 4],
     failLine: 'rgba(220, 38, 38, 0.40)',
     glyphTraded: '#16a34a',
