@@ -4,7 +4,8 @@
 // indicators, start an asynchronous backend job (download → aggregate → recalc indicators)
 // and poll it. Contract: screener logs/agents/architect.md §4.6, §4.9 and
 // TASK_downloader_tab.md §B, §F, decision 0.17 (history limits); "Data check" section:
-// TASK_downloader_gaps.md §3.
+// TASK_downloader_gaps.md §3; default source per portfolio and "Scheduled jobs":
+// TASK_download_schedule.md §5.
 import { useState, useEffect, useRef } from 'react';
 import {
   fetchPortfolios, fetchSources, startDownload, fetchJob, fetchCurrentJob, cancelJob,
@@ -14,14 +15,10 @@ import TickerChips from './TickerChips';
 import PortfolioCombobox from './PortfolioCombobox';
 import DownloadJobTable, { StatusBadge } from './DownloadJobTable';
 import DataCheckPanel from './DataCheckPanel';
+import SchedulePanel from './SchedulePanel';
+import { TIMEFRAMES, pickTimeFrame } from './timeFrames';
 
 const MARKETS = ['US', 'MOEX'];
-
-const TIMEFRAMES = [
-  { value: 'MIN5', label: '5 Minutes' },
-  { value: 'HOUR', label: 'Hour' },
-  { value: 'DAY', label: 'Day' },
-];
 
 const INDICATORS = [
   { value: 'SMA', label: 'SMA' },
@@ -43,14 +40,10 @@ const JOB_LOST_MESSAGE =
 const MIN5_TOOLTIP =
   'MIN5 backfill is month-granular: it covers whole months, so From is effectively rounded down to the 1st of its month.';
 
-// Timeframe for a source (architect.md S2): keep `preferred` if the source serves it,
-// otherwise DAY if it serves DAY, otherwise its first supported timeframe (HOUR for MOEX).
-const pickTimeFrame = (preferred, source) => {
-  const tfs = source?.supportedTimeFrames || [];
-  if (tfs.length === 0 || tfs.includes(preferred)) return preferred;
-  if (tfs.includes(DEFAULT_TIMEFRAME)) return DEFAULT_TIMEFRAME;
-  return tfs[0];
-};
+// N1: the portfolio's default source (`defaultSource` from /portfolios) when the market's
+// source list offers it, else null.
+const portfolioDefaultSource = (p, sList) =>
+  (p?.defaultSource && sList.find((x) => x.id === p.defaultSource)) || null;
 
 // Wording for the F.4 history-limit warning (decision 0.17).
 const TF_HISTORY_NOUN = { MIN5: '5-minute', HOUR: 'hourly', DAY: 'daily' };
@@ -119,7 +112,9 @@ export default function DownloaderPanel() {
         const pList = Array.isArray(ps) ? ps : [];
         const sList = Array.isArray(ss) ? ss : [];
         const p = pList.find((x) => x.name === DEFAULT_PORTFOLIO) || pList[0] || null;
-        const s = sList.find((x) => x.id === DEFAULT_SOURCE) || sList[0] || null;
+        // N1: the default portfolio's own default source, then the legacy default, then the first.
+        const s = portfolioDefaultSource(p, sList)
+          || sList.find((x) => x.id === DEFAULT_SOURCE) || sList[0] || null;
         setPortfolios(pList);
         setPortfolio(p?.name || '');
         setTickers(p ? [...(p.tickers || [])] : []);
@@ -194,10 +189,17 @@ export default function DownloaderPanel() {
     setTimeFrame((tf) => pickTimeFrame(tf, sources.find((s) => s.id === id)));
   };
 
+  // N1: choosing a portfolio applies its default source (a manual source change is kept only
+  // until the next portfolio change). Editing the chips never touches the source.
   const handlePortfolioChange = (name) => {
     setPortfolio(name);
     const p = portfolios.find((x) => x.name === name);
     setTickers(p ? [...(p.tickers || [])] : []);
+    const def = portfolioDefaultSource(p, sources);
+    if (def) {
+      setSourceId(def.id);
+      setTimeFrame((tf) => pickTimeFrame(tf, def));
+    }
   };
 
   const toggleIndicator = (value) =>
@@ -341,7 +343,11 @@ export default function DownloaderPanel() {
                   disabled={optionsLoading || sources.length === 0}
                 >
                   {sources.length === 0 && <option value="">{optionsLoading ? 'Loading…' : 'No sources'}</option>}
-                  {sources.map((s) => <option key={s.id} value={s.id}>{s.label || s.id}</option>)}
+                  {sources.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.label || s.id}{s.id === selectedPortfolio?.defaultSource ? ' (portfolio default)' : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -498,6 +504,11 @@ export default function DownloaderPanel() {
               <div className="flex flex-wrap items-center gap-3 mb-2">
                 <h2 className="text-xl font-bold">Download job</h2>
                 <StatusBadge status={jobLost ? 'LOST' : job.status} />
+                {job.trigger === 'SCHEDULE' && (
+                  <span className="text-sm text-gray-700" title={job.forwardOnly ? 'Forward-only: no backfill' : undefined}>
+                    Scheduled: <span className="font-medium">{job.scheduleName || `#${job.scheduleId ?? '?'}`}</span>
+                  </span>
+                )}
                 <span className="text-xs text-gray-500 break-all">{job.jobId}</span>
               </div>
               {(job.market || job.source || job.timeFrame) && (
@@ -527,6 +538,13 @@ export default function DownloaderPanel() {
           )}
         </div>
       </div>
+
+      {/* Scheduled jobs (TASK_download_schedule.md §5.3) */}
+      <SchedulePanel
+        onJobStarted={(id) => attachToJob(id, 'QUEUED')}
+        currentJobId={job?.jobId}
+        jobActive={isActive}
+      />
 
       {/* Data check: gap finder + one-sided delete (TASK_downloader_gaps.md §3) */}
       <DataCheckPanel tickers={tickers} market={market} jobActive={isActive} />

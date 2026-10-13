@@ -3,8 +3,15 @@ import { useState } from 'react';
 import { jobElapsedMs } from '../../utils/dates';
 
 // Item statuses: QUEUED | DOWNLOADING | CALCULATING | DONE | FAILED | CANCELLED | SKIPPED
-// Job statuses:  QUEUED | RUNNING | DONE | FAILED | CANCELLED
+// Job statuses:  QUEUED | RUNNING | DONE | FAILED | CANCELLED (+ LOST in the UI: job gone after a restart)
+// Schedule statuses (lastStatus / manualStatus, TASK_download_schedule.md §2.2):
+//   QUEUED | RUNNING | DONE | PARTIAL | FAILED | CANCELLED | LOST | RETRY_PENDING | WAITING | MISSED
 const STATUS_CLASS = {
+  PARTIAL: 'bg-amber-100 text-amber-800',
+  RETRY_PENDING: 'bg-amber-100 text-amber-800',
+  LOST: 'bg-rose-100 text-rose-800',
+  MISSED: 'bg-gray-100 text-gray-600',
+  WAITING: 'bg-slate-100 text-slate-600',
   DONE: 'bg-green-100 text-green-800',
   FAILED: 'bg-red-100 text-red-800',
   SKIPPED: 'bg-gray-100 text-gray-600',
