@@ -23,6 +23,11 @@ const DateRangePicker = ({ startDate, endDate, onStartDateChange, onEndDateChang
     onChange(parseInputDate(e.target.value));
   };
 
+  // Enter in a date field must not submit the form (it would start a possibly long run).
+  const preventEnterSubmit = (e) => {
+    if (e.key === 'Enter') e.preventDefault();
+  };
+
   return (
     <div className="date-range-picker">
       <h3 className="date-range-title">Date Range</h3>
@@ -34,6 +39,7 @@ const DateRangePicker = ({ startDate, endDate, onStartDateChange, onEndDateChang
             type="date"
             value={formatDateForInput(startDate)}
             onChange={handleChange(onStartDateChange)}
+            onKeyDown={preventEnterSubmit}
             max={formatDateForInput(endDate)}
             className="date-input"
           />
@@ -45,6 +51,7 @@ const DateRangePicker = ({ startDate, endDate, onStartDateChange, onEndDateChang
             type="date"
             value={formatDateForInput(endDate)}
             onChange={handleChange(onEndDateChange)}
+            onKeyDown={preventEnterSubmit}
             min={formatDateForInput(startDate)}
             className="date-input"
           />

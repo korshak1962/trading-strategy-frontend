@@ -73,13 +73,15 @@ export const optimizeStrategies = async (config) => {
 // The synchronous optimizeStrategies above is kept but the UI no longer calls it.
 // ---------------------------------------------------------------------------------------------
 
-// Error carrying the HTTP status, with the backend's message when the body has one.
+// Error carrying the HTTP status and the parsed JSON body (null when the body is not JSON),
+// with the backend's message when the body has one.
 const jobHttpError = async (res, what) => {
   const body = await res.json().catch(() => null);
   const detail = body?.message || body?.error;
   const err = new Error(detail || `${what}: ${res.status} ${res.statusText}`);
   err.status = res.status;
   err.detail = detail || null;
+  err.body = body;
   return err;
 };
 
@@ -137,6 +139,66 @@ export const fetchOptimizationResult = async (jobId) => {
 export const stopOptimization = async (jobId) => {
   const res = await fetch(`${API_BASE_URL}/optimize-jobs/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' });
   if (!res.ok) throw await jobHttpError(res, 'Stop failed');
+};
+
+// ---------------------------------------------------------------------------------------------
+// Saved optimization cases (screener TASK_saved_optimization_cases.md §1.4, §3.1). Every failure
+// throws through jobHttpError, so the caller reads `err.status` and `err.body`: a 409 with
+// `body.error === 'NAME_EXISTS'` (and `body.name`) means "resend with overwrite: true"; any
+// other 409 carries `{status, error}` (the job cannot be saved).
+// ---------------------------------------------------------------------------------------------
+
+const CASES_URL = `${API_BASE_URL}/cases`;
+
+const postJson = (url, body) => fetch(url, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+});
+
+/**
+ * GET /cases?ticker=&timeframe= → [StrategyCaseSummaryDTO], newest first. Both filters optional.
+ * @param {{ticker?: string, timeframe?: string}} [filter]
+ */
+export const listCases = async ({ ticker, timeframe } = {}) => {
+  const params = new URLSearchParams();
+  if (ticker) params.set('ticker', ticker);
+  if (timeframe) params.set('timeframe', timeframe);
+  const qs = params.toString();
+  const res = await fetch(qs ? `${CASES_URL}?${qs}` : CASES_URL);
+  if (!res.ok) throw await jobHttpError(res, 'Saved cases fetch failed');
+  return res.json();
+};
+
+/** GET /cases/{id} → StrategyCaseDTO (`config` reconciled, `warnings` list). 404 throws. */
+export const getCase = async (id) => {
+  const res = await fetch(`${CASES_URL}/${encodeURIComponent(id)}`);
+  if (!res.ok) throw await jobHttpError(res, 'Saved case fetch failed');
+  return res.json();
+};
+
+/**
+ * POST /optimize-jobs/{jobId}/save → 201 `{id, name, overwritten}`.
+ * 404 = the job is no longer on the server; 409 = name exists or job not saveable.
+ */
+export const saveCaseFromJob = async (jobId, { name, note, overwrite = false } = {}) => {
+  const res = await postJson(`${API_BASE_URL}/optimize-jobs/${encodeURIComponent(jobId)}/save`,
+    { name, note, overwrite });
+  if (!res.ok) throw await jobHttpError(res, 'Save failed');
+  return res.json();
+};
+
+/** POST /cases with a StrategiesConfigDTO (manual save of a backtest) → 201 `{id, name, overwritten}`. */
+export const saveCase = async ({ name, note, overwrite = false, config }) => {
+  const res = await postJson(CASES_URL, { name, note, overwrite, config });
+  if (!res.ok) throw await jobHttpError(res, 'Save failed');
+  return res.json();
+};
+
+/** DELETE /cases/{id} → 204. 404 throws. */
+export const deleteCase = async (id) => {
+  const res = await fetch(`${CASES_URL}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!res.ok) throw await jobHttpError(res, 'Delete failed');
 };
 
 /**

@@ -143,6 +143,21 @@ export const exchangeTodayLocalDate = (zone = US_ZONE, now = new Date()) => {
 };
 
 /**
+ * The calendar day of an API LocalDateTime string ('YYYY-MM-DD' or 'YYYY-MM-DDTHH:mm:ss') as a
+ * browser-local Date at local midnight — the DateRangePicker state representation. The time
+ * part is ignored, so '2025-12-31T23:59:59' stays on Dec 31 in every browser zone. Not
+ * parseExchangeTs: that gives a UTC-faked Date, which east of UTC reads as the next local day.
+ * Unparseable input gives an Invalid Date.
+ * @param {string} str
+ * @returns {Date}
+ */
+export const localDateFromIso = (str) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(str ?? ''));
+  if (!m) return new Date(NaN);
+  return new Date(+m[1], +m[2] - 1, +m[3]);
+};
+
+/**
  * The current wall clock of `zone` as a UTC-faked epoch ms (its UTC fields are the zone's
  * wall clock), comparable with parseExchangeTs values sent in that zone — whatever zone the
  * browser runs in. NaN for an unknown zone id.

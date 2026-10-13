@@ -20,10 +20,12 @@ import {
   stopOptimization,
 } from './api/strategyApi';
 import OptimizationProgress from './components/OptimizationProgress';
+import SaveCaseControl from './components/SaveCaseControl';
+import SavedCasesPanel from './components/SavedCasesPanel';
 import TickerCombobox from './components/TickerCombobox';
 import ChannelExplorer from './components/channelExplorer/ChannelExplorer';
 import DownloaderPanel from './components/downloader/DownloaderPanel';
-import { calendarDayKey, exchangeTodayLocalDate, exchangeZoneForTicker } from './utils/dates';
+import { calendarDayKey, exchangeTodayLocalDate, exchangeZoneForTicker, localDateFromIso } from './utils/dates';
 
 // .chart-toolbar bottom margin (see fullscreenChartHeight).
 const CHART_TOOLBAR_MARGIN_PX = 16;
@@ -110,6 +112,19 @@ const App = () => {
   const optAttached = useRef(false);                    // guards the on-mount reattach
   const optSyncForm = useRef(false);                    // reattach: copy ticker/timeFrame from the first job poll
   const optActive = optPolling && !optLost;
+
+  // ---- Saved cases (screener TASK_saved_optimization_cases.md §3.3-3.5) ----
+  // Bumped after every save / delete; SavedCasesPanel refetches when it changes.
+  const [casesVersion, setCasesVersion] = useState(0);
+  const bumpCasesVersion = () => setCasesVersion((v) => v + 1);
+  const [caseWarnings, setCaseWarnings] = useState(null); // reconcile warnings of the last loaded case
+  // Bumped on every run start (backtest and optimize). SavedCasesPanel ignores a Load response if
+  // a run started while it was pending, even when that run has already finished.
+  const [runStarts, setRunStarts] = useState(0);
+  // Config of the backtest whose results are on screen (the form can drift from it: the date
+  // pickers do not clear results). Recorded at submit; read by SaveCaseControl at save time.
+  const backtestConfigRef = useRef(null);
+  const backtestRunSeq = useRef(0); // remount key of SaveCaseControl per backtest run
 
   // Unified indicator selection (master toggle + per-series checkboxes) for the result chart,
   // reset to the per-series defaults (indicatorSeries.js SERIES_STYLE) whenever a new result arrives.
@@ -368,6 +383,7 @@ const App = () => {
     }
     setLoading(true);
     setError(null);
+    setRunStarts((n) => n + 1);
 
     const config = formatStrategyConfig(ticker, timeFrame, startDate, endDate, selectedStrategies, longOnly);
     if (mode === 'optimize') {
@@ -378,8 +394,13 @@ const App = () => {
 
     try {
       const result = await submitStrategies(config);
+      // Record the config only together with its results: while this run is in flight the
+      // previous results (and their Save) stay on screen and must keep saving the previous config.
+      backtestConfigRef.current = config;
+      backtestRunSeq.current += 1;
       setResults(result);
     } catch (err) {
+      backtestConfigRef.current = null;
       setResults(null);
       setError('Backtest failed: ' + err.message);
     } finally {
@@ -433,7 +454,30 @@ const App = () => {
     }));
   };
 
+  // Load a saved case (StrategyCaseDTO) into the form. The mode is kept; the stored objective is
+  // not applied (the UI has no objective selector). Reconcile warnings are shown above the form.
+  const handleLoadCase = (savedCase) => {
+    const cfg = savedCase?.config || {};
+    const tf = cfg.timeFrame || savedCase.timeframe || timeFrame;
+    setTicker(cfg.ticker || savedCase.ticker || ticker);
+    setTimeFrame(tf);
+    setLongOnly(!!cfg.longOnly);
+    const start = localDateFromIso(cfg.startDate ?? savedCase.startDate);
+    const end = localDateFromIso(cfg.endDate ?? savedCase.endDate);
+    if (!Number.isNaN(start.getTime())) setStartDate(start);
+    if (!Number.isNaN(end.getTime())) setEndDate(end);
+    setSelectedStrategies(withTimeframe(cfg.strategyNameToParams || {}, tf));
+    setResults(null);
+    setError(null);
+    setCaseWarnings(Array.isArray(savedCase.warnings) && savedCase.warnings.length > 0 ? savedCase.warnings : null);
+  };
+
   const showOptPanel = mode === 'optimize' && !!optJob;
+  // Save is offered whenever results are on screen: optimize mode needs the job with a result,
+  // backtest mode the recorded config of the run.
+  const canSaveCase = mode === 'optimize'
+    ? !!optJobId && !!optJob?.hasResult
+    : !!backtestConfigRef.current;
 
   const renderMain = () => {
     switch (activeTab) {
@@ -458,6 +502,36 @@ const App = () => {
         <div className="grid grid-cols-1 lg:grid-cols-[410px_minmax(0,1fr)] gap-6">
           {/* Configuration Panel */}
           <div className="bg-white p-6 rounded-lg shadow">
+            {/* Saved cases: load a stored configuration into the form, or delete one */}
+            <SavedCasesPanel
+              ticker={ticker}
+              casesVersion={casesVersion}
+              onChanged={bumpCasesVersion}
+              onLoad={handleLoadCase}
+              disabled={loading}
+              runStarts={runStarts}
+            />
+
+            {caseWarnings && (
+              <div className="mb-6 p-3 rounded bg-amber-50 border border-amber-300 text-amber-800 text-sm" role="status">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="font-medium">The saved case was adjusted to the current strategies:</span>
+                  <button
+                    type="button"
+                    onClick={() => setCaseWarnings(null)}
+                    className="text-amber-700 hover:text-amber-900 leading-none"
+                    aria-label="Dismiss"
+                    title="Dismiss"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <ul className="mt-1 list-disc pl-5">
+                  {caseWarnings.map((w, i) => <li key={i}>{w}</li>)}
+                </ul>
+              </div>
+            )}
+
             {/* Mode Toggle */}
             <div className="mb-6">
               <div className="flex border-2 border-blue-600 rounded overflow-hidden">
@@ -606,9 +680,20 @@ const App = () => {
                     {optBanner}
                   </div>
                 )}
-                <h2 className="text-xl font-bold mb-4">
-                  {mode === 'optimize' ? 'Optimization Results' : 'Results'} for {results.ticker}
-                </h2>
+                <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+                  <h2 className="text-xl font-bold">
+                    {mode === 'optimize' ? 'Optimization Results' : 'Results'} for {results.ticker}
+                  </h2>
+                  {canSaveCase && (
+                    <SaveCaseControl
+                      key={mode === 'optimize' ? `job-${optJobId}` : `bt-${backtestRunSeq.current}`}
+                      mode={mode}
+                      jobId={optJobId}
+                      getConfig={() => backtestConfigRef.current}
+                      onSaved={bumpCasesVersion}
+                    />
+                  )}
+                </div>
                 
                 {/* Results area - the element fullscreened by the toggle. In fullscreen the charts
                     fill the first screen and StrategyResults follows below at full width. */}
