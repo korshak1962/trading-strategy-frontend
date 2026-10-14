@@ -225,7 +225,7 @@ const PriceChart = ({
           highlightTradeIndex, signalTradeIndex
         );
 
-        // Text labels ("Retest" / "Runaway" / "Stop" / "Support" / "TP") only while few markers
+        // Text labels ("Retest" / "Runaway" / "Base" / "Stop" / "Support" / "TP") only while few markers
         // are in view, and only on markers matching a level trade by (date, type)
         if (levelChart && visibleSignals.length <= MARKER_LABEL_LIMIT) {
           const labelled = [];

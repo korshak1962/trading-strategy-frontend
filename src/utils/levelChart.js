@@ -8,7 +8,9 @@
 //   {
 //     setupWindows: [{ zoneId, zoneLow, zoneHigh, breakoutDate, endDate, outcome, traded,
 //                      notTradedReason, touchDate,
-//                      points: [{ date, touchLine, runawayLine, confirmLine, failLine, phase }] }],
+//                      points: [{ date, touchLine, runawayLine, confirmLine, failLine, baseLine, phase }] }],
+//                      (baseLine: rev 2.9 base high as of the start of the bar; null before
+//                      BaseMinBars is reached, with Base off, and on an older backend)
 //     trades:   [{ entryDate, entryPrice, entryTrigger, entryZoneId, entryZoneLow, entryZoneHigh,
 //                  initialStop, initialExitLine, exitDate, exitPrice, exitReason,
 //                  supportUpgrades, mfeClose }],   // mfeClose = max(close) / entryPrice - 1
@@ -24,8 +26,9 @@
 // - Dates are the bar's exchange-local wall clock, the same wire format as prices[].date
 //   (parsed with parseExchangeTs, decision 0.18). A null endDate / exitDate = still open.
 // - NaN arrives as null. Every numeric field is read through num(): null / non-numeric -> NaN.
-// - Field and params names are exactly LevelChartDTO's (camelCase); no aliases. baseMinBars,
-//   CONFIRMED_BASE and the BASE entry trigger are rev 2.9 placeholders and are simply absent today.
+// - Field and params names are exactly LevelChartDTO's (camelCase); no aliases. Rev 2.9 (screener
+//   TASK_level_rev29_keep_the_trend.md §3): outcome CONFIRMED_BASE, entry trigger BASE, point field
+//   baseLine and params baseMinBars / maxBaseBars - all optional, absent on an older backend.
 // - atr is used only when its length equals the number of price bars (design n7); otherwise no
 //   ATR distances are shown and nothing else changes.
 
@@ -74,10 +77,10 @@ export const EVENT_TEXT = Object.freeze({
 
 export const isConfirmedOutcome = (outcome) => typeof outcome === 'string' && outcome.startsWith('CONFIRMED');
 
-// baseMinBars: rev 2.9 placeholder (NaN until the backend sends it).
+// baseMinBars / maxBaseBars: rev 2.9 (NaN on an older backend).
 const PARAM_KEYS = [
   'supportTracking', 'maxRetestBars', 'maxDwellBars', 'confirmMode', 'runawayAtr',
-  'touchTolerance', 'breakBuffer', 'baseMinBars',
+  'touchTolerance', 'breakBuffer', 'baseMinBars', 'maxBaseBars',
   'minStrength', 'minTouches', 'decayBars', 'flipBonus', 'supportBreakMode', 'supportStrength',
 ];
 
@@ -140,6 +143,7 @@ export const normalizeLevelChart = (rawLevelChart, prices) => {
         runawayLine: num(p.runawayLine),
         confirmLine: num(p.confirmLine),
         failLine: num(p.failLine),
+        baseLine: num(p.baseLine),
         phase: p.phase === 'TOUCHED' ? 'TOUCHED' : 'AWAIT',
       });
     });
@@ -317,7 +321,7 @@ export const matchTradeAnnotation = (levelChart, signal) => {
   return null;
 };
 
-/** Short label drawn next to a matched marker: "Retest" / "Runaway" / "Stop" / "Support" / "TP". */
+/** Short label drawn next to a matched marker: "Retest" / "Runaway" / "Base" / "Stop" / "Support" / "TP". */
 export const markerLabel = (match) => {
   if (!match) return null;
   if (match.role === 'entry') return ENTRY_TRIGGER_TEXT[match.trade.entryTrigger] || null;
@@ -400,12 +404,16 @@ export const statusLine = (levelChart, barIndex, seriesValueAt) => {
       text = `Retest touched: confirm on close above ${fmtPrice(point.confirmLine)}${counter ? ` (${counter})` : ''}`;
     } else {
       const count = point.pointIndex + 1;
-      const max = params.maxRetestBars;
+      // Rev 2.9: with Base on (BaseMinBars > 0) MaxRetestBars no longer ends the wait - only the
+      // MaxBaseBars safety cap does (NaN when the backend does not send it: no "of N").
+      const baseOn = Number.isFinite(params.baseMinBars) && params.baseMinBars > 0;
+      const max = baseOn ? params.maxBaseBars : params.maxRetestBars;
       const counter = Number.isFinite(max) && count > max
         ? `timed out (bar ${count} of ${max})`
         : `bar ${count}${Number.isFinite(max) ? ` of ${max}` : ''}`;
       text = `Waiting for retest: ${counter}. Retest below ${fmtPrice(point.touchLine)}`;
       if (Number.isFinite(point.runawayLine)) text += `, runaway above ${fmtPrice(point.runawayLine)}`;
+      if (Number.isFinite(point.baseLine)) text += `, base entry on a close above ${fmtPrice(point.baseLine)}`;
     }
     if (win.endIndex === barIndex) text += `. Ended here: ${OUTCOME_TEXT[win.outcome] || win.outcome}`;
     return { text: text + more, note: null };

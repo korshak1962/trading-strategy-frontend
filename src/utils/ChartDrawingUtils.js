@@ -925,6 +925,8 @@ export const findMinMaxPriceRange = (prices) => {
     retestBand: 'rgba(34, 197, 94, 0.16)',
     runawayLine: '#ff7f0e', // orange, dashed (no longer the Breakout line's colour - that is green)
     runawayDash: [5, 4],
+    baseLine: '#2563eb', // blue, short dashes: rev 2.9 "Base high" (base entry on a close above it)
+    baseDash: [2, 3],
     failLine: 'rgba(220, 38, 38, 0.40)',
     glyphTraded: '#16a34a',
     glyphNotTraded: '#d97706',
@@ -1009,6 +1011,8 @@ export const findMinMaxPriceRange = (prices) => {
    * Setup windows (buy logic): per waiting bar, the retest band from the confirm line (or the zone
    * top while ConfirmMode 1 has no confirm line yet) up to the touch line; the dashed orange
    * runaway line only in the AWAIT phase (design n5: runaway is not checked once touched); the
+   * dashed blue "Base high" line (rev 2.9 point.baseLine), also only in AWAIT and only where the
+   * backend sent a value (NaN before BaseMinBars, with Base off, on an older backend); the
    * faint fail line. Lines are drawn per bar slot and joined by a vertical step between adjacent
    * bars, so they read as stepped lines.
    * @param {Array} windows - levelChart.windows
@@ -1072,6 +1076,12 @@ export const findMinMaxPriceRange = (prices) => {
         point => (point.phase === 'AWAIT' ? point.runawayLine : NaN),
         LEVEL_CHART_STYLE.runawayLine,
         LEVEL_CHART_STYLE.runawayDash
+      );
+      strokeSteps(
+        points,
+        point => (point.phase === 'AWAIT' ? point.baseLine : NaN),
+        LEVEL_CHART_STYLE.baseLine,
+        LEVEL_CHART_STYLE.baseDash
       );
     });
     ctx.setLineDash([]);

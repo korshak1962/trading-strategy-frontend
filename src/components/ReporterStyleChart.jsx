@@ -703,7 +703,7 @@ const ReporterStyleChart = ({
 
   // The setup window under the cursor on bar `barIndex` of the price pane: a window-end glyph
   // (always drawn) first, then - only while "Show indicators" draws them - a retest band or the
-  // runaway line of a window waiting on that bar. Lowest zone first (zone.low, then id). Windows
+  // runaway / base-high line of a window waiting on that bar. Lowest zone first (zone.low, then id). Windows
   // that ended while long are hit only while "Events" draws them. Null when nothing is hit.
   const findSetupWindowAt = useCallback((barIndex, clientY) => {
     if (!levelChart || barIndex < 0) return null;
@@ -732,6 +732,8 @@ const ReporterStyleChart = ({
       const levels = [point.touchLine, bottom].filter(Number.isFinite);
       if (point.phase === 'AWAIT' && Number.isFinite(point.runawayLine)
         && Math.abs(yOf(point.runawayLine) - py) <= WINDOW_HIT_SLOP_PX) return true;
+      if (point.phase === 'AWAIT' && Number.isFinite(point.baseLine)
+        && Math.abs(yOf(point.baseLine) - py) <= WINDOW_HIT_SLOP_PX) return true;
       if (levels.length === 0) return false;
       const yTop = yOf(Math.max(...levels)) - WINDOW_HIT_SLOP_PX;
       const yBottom = yOf(Math.min(...levels)) + WINDOW_HIT_SLOP_PX;
