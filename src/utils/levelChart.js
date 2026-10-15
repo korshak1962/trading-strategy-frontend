@@ -14,6 +14,10 @@
 //     trades:   [{ entryDate, entryPrice, entryTrigger, entryZoneId, entryZoneLow, entryZoneHigh,
 //                  initialStop, initialExitLine, exitDate, exitPrice, exitReason,
 //                  supportUpgrades, mfeClose }],   // mfeClose = max(close) / entryPrice - 1
+//                  (entryTrigger ADOPTED = the merged long was opened by another strategy; without a
+//                  support zone entryZoneLow/High, initialStop, initialExitLine are null and
+//                  entryZoneId is -1 - normalized to null here. exitReason EXTERNAL = closed by
+//                  another strategy. setupWindows[].notTradedReason MERGE_VETOED = the merge vetoed it.)
 //     supportSegments: [{ zoneId, from, to, low, high }],
 //     upgrades: [{ date, fromZoneId, toZoneId, newExitLine }],
 //     events:   [{ date, type, zoneId, price }],
@@ -57,14 +61,18 @@ export const NOT_TRADED_TEXT = Object.freeze({
   EXITED_THIS_BAR: 'exited on this bar',
   REGIME: 'regime filter',
   LOWER_ZONE_ENTERED: 'a lower zone took the entry',
+  MERGE_VETOED: 'vetoed by the merge (another strategy blocked the entry)',
 });
 
-export const ENTRY_TRIGGER_TEXT = Object.freeze({ RETEST: 'Retest', RUNAWAY: 'Runaway', BASE: 'Base' });
-export const EXIT_REASON_TEXT = Object.freeze({ STOP: 'Stop', SUPPORT_BREAK: 'Support', TAKE_PROFIT: 'TP' });
+// ADOPTED / EXTERNAL (screener TASK_position_dependable_and_signals_tab.md §1.9): in a merged run
+// the long was opened (ADOPTED) or closed (EXTERNAL) by another strategy.
+export const ENTRY_TRIGGER_TEXT = Object.freeze({ RETEST: 'Retest', RUNAWAY: 'Runaway', BASE: 'Base', ADOPTED: 'Adopted' });
+export const EXIT_REASON_TEXT = Object.freeze({ STOP: 'Stop', SUPPORT_BREAK: 'Support', TAKE_PROFIT: 'TP', EXTERNAL: 'Other strategy' });
 export const EXIT_REASON_LONG_TEXT = Object.freeze({
   STOP: 'Stop (close below the initial stop)',
   SUPPORT_BREAK: 'Support break (close below the support line)',
   TAKE_PROFIT: 'Take profit',
+  EXTERNAL: 'Closed by another strategy (merged position)',
 });
 
 export const EVENT_TEXT = Object.freeze({
@@ -197,7 +205,8 @@ export const normalizeLevelChart = (rawLevelChart, prices) => {
       entryIndex,
       entryPrice: num(t.entryPrice),
       entryTrigger: t.entryTrigger || null,
-      entryZoneId: t.entryZoneId,
+      // -1 = adopted trade without a support zone
+      entryZoneId: t.entryZoneId === -1 || t.entryZoneId === '-1' ? null : (t.entryZoneId ?? null),
       entryZoneLow: num(t.entryZoneLow),
       entryZoneHigh: num(t.entryZoneHigh),
       initialStop: num(t.initialStop),
@@ -321,7 +330,7 @@ export const matchTradeAnnotation = (levelChart, signal) => {
   return null;
 };
 
-/** Short label drawn next to a matched marker: "Retest" / "Runaway" / "Base" / "Stop" / "Support" / "TP". */
+/** Short label drawn next to a matched marker: "Retest" / "Runaway" / "Base" / "Adopted" / "Stop" / "Support" / "TP" / "Other strategy". */
 export const markerLabel = (match) => {
   if (!match) return null;
   if (match.role === 'entry') return ENTRY_TRIGGER_TEXT[match.trade.entryTrigger] || null;

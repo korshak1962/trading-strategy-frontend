@@ -69,7 +69,14 @@ const EntryTooltipBody = ({ trade }) => (
       Entry: {ENTRY_TRIGGER_TEXT[trade.entryTrigger] || trade.entryTrigger || 'long'}
     </div>
     <div className="chart-tooltip-muted">{fmtBarDate(trade.entryMs)}</div>
-    <Row label="Zone">{fmtBand(trade.entryZoneLow, trade.entryZoneHigh)}</Row>
+    {trade.entryTrigger === 'ADOPTED' && (
+      <div className="chart-tooltip-muted">Opened by another strategy; taken over by LevelBreakoutRetest</div>
+    )}
+    <Row label="Zone">
+      {trade.entryTrigger === 'ADOPTED' && !(Number.isFinite(trade.entryZoneLow) && Number.isFinite(trade.entryZoneHigh))
+        ? 'none below price'
+        : fmtBand(trade.entryZoneLow, trade.entryZoneHigh)}
+    </Row>
     <Row label="Entry price">{fmtPx(trade.entryPrice)}</Row>
     <Row label="Initial stop">{fmtPx(trade.initialStop)}</Row>
     <Row label="Initial exit line">{fmtPx(trade.initialExitLine)}</Row>
