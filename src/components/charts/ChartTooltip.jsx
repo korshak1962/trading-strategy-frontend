@@ -5,6 +5,7 @@ import { fmtExchangeIntl } from '../../utils/dates';
 import {
   OUTCOME_TEXT, NOT_TRADED_TEXT, ENTRY_TRIGGER_TEXT, EXIT_REASON_LONG_TEXT, isConfirmedOutcome, barsHeld
 } from '../../utils/levelChart';
+import { voteText, VOTE_COLORS } from '../signals/signalPanes';
 
 // Bar timestamp in the exchange wall clock (decision 0.18): price.date is a UTC-faked Date.
 const TOOLTIP_TS_FORMAT = { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' };
@@ -220,6 +221,22 @@ const ZoneSections = ({ zones }) => {
   );
 };
 
+/** Signals mode vote strip: the vote run under the cursor and its bar range. */
+const VoteTooltipBody = ({ vote, longOnly }) => {
+  if (!vote) return <div className="chart-tooltip-muted">No vote here (warm-up)</div>;
+  return (
+    <>
+      <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+        <span className="vote-swatch" style={{ backgroundColor: VOTE_COLORS[vote.type] || '#9ca3af' }} />
+        Vote: {voteText(vote.type, longOnly)}
+      </div>
+      <div className="chart-tooltip-muted">
+        {fmtBarDate(vote.barStartMs ?? vote.startMs)} – {fmtBarDate(vote.barEndMs ?? vote.endMs)}
+      </div>
+    </>
+  );
+};
+
 // Gap between the cursor and the tooltip, px.
 const TOOLTIP_OFFSET_PX = 15;
 
@@ -302,6 +319,14 @@ const ChartTooltip = ({ tooltipData }) => {
     );
   }
 
+  if (kind === 'vote') {
+    return (
+      <div ref={tooltipRef} className="chart-tooltip" style={style}>
+        <VoteTooltipBody vote={tooltipData.vote} longOnly={tooltipData.longOnly} />
+      </div>
+    );
+  }
+
   if (kind === 'entry' || kind === 'exit' || kind === 'setupWindow') {
     return (
       <div ref={tooltipRef} className={className} style={style}>
@@ -365,6 +390,11 @@ const ChartTooltip = ({ tooltipData }) => {
                 : (signal.type === 'ShortOpen' ? 'blue' : 'orange')
             }}>
               {signal.type} @ {signal.price.toFixed(2)}
+              {/* Signals mode: a strategy signal the merge did not execute / the merged trade's sources */}
+              {signal.executed === false && <span className="chart-tooltip-muted"> (not executed in the merge)</span>}
+              {Array.isArray(signal.sources) && signal.sources.length > 0 && (
+                <div className="chart-tooltip-muted">from: {signal.sources.join(', ')}</div>
+              )}
               {signal.comment && <div style={{ fontSize: '0.8em' }}>{signal.comment}</div>}
             </div>
           ))}

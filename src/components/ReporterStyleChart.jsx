@@ -8,6 +8,7 @@ import IndicatorChart from './charts/IndicatorChart';
 import ChartTooltip from './charts/ChartTooltip';
 import Crosshair from './charts/Crosshair';
 import RangeSlider, { RANGE_SLIDER_HEIGHT, RANGE_SLIDER_DATES_HEIGHT } from './charts/RangeSlider';
+import VoteStrip from './charts/VoteStrip';
 import {
   findMinMaxPriceRange, deriveSignalTradeIndex, signalKey, plotDateRange, DATE_AXIS_BAND,
   windowGlyphPoint, WINDOW_GLYPH_R
@@ -29,6 +30,7 @@ import {
 // Pane canvases, top to bottom - used to tell which pane the cursor is over.
 const PANE_CANVASES = [
   { pane: 'price', selector: '.price-chart-canvas' },
+  { pane: 'votes', selector: '.vote-strip-canvas' },
   { pane: 'trade', selector: '.pnl-chart-canvas' },
   { pane: 'cumulative', selector: '.cumulative-pnl-chart-canvas' },
   { pane: 'indicator', selector: '.indicator-chart-canvas' },
@@ -158,6 +160,23 @@ const saveLevelZoneSettings = (settings) => {
  *   carries the long leg's signals only (an older backend without `data.includesShortSignals`),
  *   so the PnL pane titles say "(long leg)". When the backend merges the short leg's signals in
  *   (`data.includesShortSignals`) the caller passes false and the panes cover long + short.
+ * @param {'full'|'signals'} [props.panes] - 'full' (Backtest / Optimize): price, trade PnL,
+ *   cumulative PnL and indicator panes. 'signals' (Signals mode): price pane (+ vote strip) and the
+ *   indicator pane only, no PnL panes.
+ * @param {[Date, Date]|null} [props.dateRange] - controlled zoom window, used together with
+ *   `onDateRangeChange` (Signals mode: one window shared by every pane). The parent owns it,
+ *   including its initial full range. Without `onDateRangeChange` the chart keeps its own window
+ *   (Backtest / Optimize, unchanged).
+ * @param {(range: [Date, Date]) => void} [props.onDateRangeChange] - must be stable (a state setter)
+ * @param {boolean} [props.showRangeSlider=true] - the range slider under the price pane (Signals
+ *   mode shows it under the last pane only; always shown in price-only fullscreen)
+ * @param {Array<{startMs, endMs, type}>|null} [props.votes] - Signals mode vote strip under the
+ *   price pane (signalPanes.js normalizeVotes); null = no strip
+ * @param {Array<{startMs, endMs, fill}>|null} [props.positionSpans] - Signals mode merged position
+ *   shading (signalPanes.js normalizePositionSpans); null = the level chart's own shading
+ * @param {boolean} [props.longOnly] - Signals mode: labels the ShortOpen vote as a long exit
+ * @param {import('react').ReactNode} [props.priceTitle] - title left of the price legend
+ * @param {boolean} [props.showInstructions=true] - the zoom / pan help text in the controls row
  * @param {Object} [props.indicatorSelection] - the shared indicator selection (App's
  *   useIndicatorSelection: seriesList, showIndicators, setShowIndicators, selectedIds, toggleSeries).
  *   Its 'price' series are listed in the legend right above the price pane, where each item also
@@ -167,8 +186,11 @@ const saveLevelZoneSettings = (settings) => {
  */
 const ReporterStyleChart = ({
   data, width = 1200, height = 600, fitHeight = false, visibleSeries = [], longLegOnly = false,
-  indicatorSelection = null
+  indicatorSelection = null, panes = 'full', dateRange: controlledDateRange = null, onDateRangeChange = null,
+  showRangeSlider = true, votes = null, positionSpans = null, longOnly = false,
+  priceTitle = 'Price Chart with Signals', showInstructions = true
 }) => {
+  const fullPanes = panes !== 'signals';
   const containerRef = useRef(null);
   const legSuffix = longLegOnly ? ' (long leg)' : '';
 
@@ -378,7 +400,15 @@ const ReporterStyleChart = ({
   const [zoomActive, setZoomActive] = useState(false);
   const [zoomStart, setZoomStart] = useState(null);
   const [zoomEnd, setZoomEnd] = useState(null);
-  const [dateRange, setDateRange] = useState(null);
+  // Zoom window: own state (Backtest / Optimize), or controlled by the parent (Signals mode - one
+  // window for all panes). Every zoom / pan / slider / reset goes through setDateRange.
+  const controlledZoom = typeof onDateRangeChange === 'function';
+  const [ownDateRange, setOwnDateRange] = useState(null);
+  const dateRange = controlledZoom ? controlledDateRange : ownDateRange;
+  const setDateRange = useCallback((range) => {
+    if (controlledZoom) onDateRangeChange(range);
+    else setOwnDateRange(range);
+  }, [controlledZoom, onDateRangeChange]);
 
   // Click-to-select a trade: reveals its parent/entryChild/resumptionLeg channels (nothing is
   // drawn until a signal is clicked - see drawChannels) and its own signal markers get a halo.
@@ -453,16 +483,24 @@ const ReporterStyleChart = ({
   // available height) still fits after the cumulative pane was added.
   // The range slider's block is taken off the top so it fits too; with fitHeight the measured
   // chrome as well, and the indicator pane's share goes to the price pane while it is hidden.
-  const paneBudget = Math.max(fitHeight ? MIN_FIT_PANE_BUDGET_PX : 200, height - RANGE_SLIDER_BLOCK_PX - (fitHeight ? fitChromePx : 0));
+  const sliderShown = showRangeSlider || priceOnly;
+  const paneBudget = Math.max(
+    fitHeight ? MIN_FIT_PANE_BUDGET_PX : 200,
+    height - (sliderShown ? RANGE_SLIDER_BLOCK_PX : 0) - (fitHeight ? fitChromePx : 0)
+  );
   const hasIndicatorPane = subSeries.length > 0;
+  const hasVoteStrip = Array.isArray(votes);
   // Price-only fullscreen: the price pane's wrapper takes the remaining viewport height (flex), and
   // the canvas is sized to it.
+  // Signals mode: no PnL panes - the price pane takes their share (all of it without indicators).
   const priceChartHeight = priceOnly
     ? Math.max(MIN_PRICE_ONLY_PANE_PX, Math.floor(pricePaneSize.height))
-    : paneBudget * (fitHeight && !hasIndicatorPane ? 0.70 : 0.55);
+    : !fullPanes
+      ? paneBudget * (hasIndicatorPane ? 0.75 : 1)
+      : paneBudget * (fitHeight && !hasIndicatorPane ? 0.70 : 0.55);
   const pnlChartHeight = paneBudget * 0.15;
   const cumulativeChartHeight = paneBudget * 0.15;
-  const indicatorChartHeight = paneBudget * 0.15;
+  const indicatorChartHeight = paneBudget * (fullPanes ? 0.15 : 0.25);
   
   // Store data for tooltip
   const chartData = useRef({
@@ -480,7 +518,7 @@ const ReporterStyleChart = ({
       // No bars: clear rather than keep the previous result's tooltip prices and zoom range.
       chartData.current.prices = [];
       chartData.current.dateRange = [];
-      setDateRange(null);
+      if (!controlledZoom) setDateRange(null);
       setOriginalDateRange(null);
       return;
     }
@@ -502,8 +540,11 @@ const ReporterStyleChart = ({
       parseExchangeTs(data.prices[data.prices.length - 1].date)
     ];
     chartData.current.dateRange = range;
-    setDateRange(range);
+    // Controlled (Signals mode): the parent sets the shared window for a new result itself
+    if (!controlledZoom) setDateRange(range);
     setOriginalDateRange(range);
+    // controlledZoom / setDateRange are fixed for a chart's lifetime; only a new result resets
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
   // Bottom range slider rows: one per bar (stable identity per result, so the Brush keeps state).
@@ -621,7 +662,7 @@ const ReporterStyleChart = ({
     const end = sliderRows[endIndex];
     if (!start || !end) return;
     setDateRange([new Date(start.ms), new Date(end.ms)]);
-  }, [sliderRows]);
+  }, [sliderRows, setDateRange]);
   
   // Which pane canvas contains the pointer ('price' | 'trade' | 'cumulative' | 'indicator'),
   // plus the pointer's y within it. Null between panes (titles, gaps).
@@ -845,6 +886,13 @@ const ReporterStyleChart = ({
         return;
       }
 
+      // Signals mode vote strip: the vote run under the cursor
+      if (pane === 'votes') {
+        const vote = (votes || []).find(v => v.startMs <= mouseMs && mouseMs <= v.endMs) || null;
+        setTooltipData({ kind: 'vote', vote, longOnly, ...placement });
+        return;
+      }
+
       // Find closest price point among the drawn bars (those in the logical window) - over the
       // half-slot margin, or an empty weekend at a window edge, the nearest bar in time can be one
       // that is not drawn.
@@ -948,7 +996,7 @@ const ReporterStyleChart = ({
   }, [
     data, dateRange, plotRange, visibleSeries, getPlotRect, trades, cumulativePoints, legSuffix,
     levelChart, seriesValueIndex, seriesValueAt, findNearestSignal, findSetupWindowAt,
-    findZonesAt, describeZones, zoneSegmentAt
+    findZonesAt, describeZones, zoneSegmentAt, votes, longOnly
   ]);
 
   // The signals at the clicked point (nearest first), or null when the click missed every signal.
@@ -1153,7 +1201,7 @@ const ReporterStyleChart = ({
     setZoomActive(false);
   }, [
     zoomActive, zoomStart, zoomEnd, plotRange, originalDateRange, findClickedSignals, signalTradeIndexMap,
-    selectedTradeIndex, getSignalReasonText, getPlotRect
+    selectedTradeIndex, getSignalReasonText, getPlotRect, setDateRange
   ]);
   
   // Handle mouse wheel for zoom in/out
@@ -1248,7 +1296,7 @@ const ReporterStyleChart = ({
     const boundedEnd = new Date(Math.min(newEndTime, maxEndTime));
     
     setDateRange([boundedStart, boundedEnd]);
-  }, [dateRange, plotRange, originalDateRange, getPlotRect, getPricePanePoint, effectivePriceRange, clampPriceRange, boundPriceRange]);
+  }, [dateRange, plotRange, originalDateRange, getPlotRect, getPricePanePoint, effectivePriceRange, clampPriceRange, boundPriceRange, setDateRange]);
   
   // Handle mouse leave
   const handleMouseLeave = useCallback(() => {
@@ -1267,7 +1315,7 @@ const ReporterStyleChart = ({
   const handleResetZoom = useCallback(() => {
     setDateRange(originalDateRange);
     setPriceYRange(null);
-  }, [originalDateRange]);
+  }, [originalDateRange, setDateRange]);
 
   // Double-click on the price axis strip: back to auto-fit (vertical only).
   const handleDoubleClick = useCallback((e) => {
@@ -1370,6 +1418,7 @@ const ReporterStyleChart = ({
           >
             Reset Zoom
           </button>
+          {showInstructions && (
           <div className="zoom-instructions">
             Click and drag horizontally to zoom in on a specific time range, use the mouse wheel to zoom in/out,
             or drag the slider below the price chart (its handles resize the window, its middle pans it).
@@ -1377,6 +1426,7 @@ const ReporterStyleChart = ({
             the price chart, to zoom vertically; Shift + drag pans it; double-click the labels to auto-fit.
             Click a signal to reveal the channels that produced it, at whatever zoom you're currently at.
           </div>
+          )}
         </div>
 
         {selectedTradeIndex !== null && (
@@ -1497,7 +1547,7 @@ const ReporterStyleChart = ({
           the chart (shared selection state, so the two stay in sync), but only the price-axis
           series, followed by the level zone swatches. */}
       <div className="price-chart-header">
-        <h3 className="chart-title">Price Chart with Signals</h3>
+        {typeof priceTitle === 'string' ? <h3 className="chart-title">{priceTitle}</h3> : priceTitle}
         <IndicatorPicker
           variant="legend"
           className="price-legend"
@@ -1556,6 +1606,7 @@ const ReporterStyleChart = ({
           levelChart={levelChart}
           showLevelLines={showLevelLines}
           showEvents={showEvents}
+          positionSpans={positionSpans}
         />
         <Crosshair 
           show={showCrosshair} 
@@ -1584,6 +1635,15 @@ const ReporterStyleChart = ({
       {/* Range slider directly under the price pane - two-way synced
           with dateRange. Panes are hit-tested by their own canvas rects (getHoveredPane), so
           sitting between panes does not shift the lower panes' crosshair/tooltip. */}
+      {/* Signals mode: the strategy's vote, bar by bar, right under its price pane */}
+      {hasVoteStrip && !priceOnly && (
+        <div className="chart-wrapper position-relative vote-strip-wrapper">
+          <VoteStrip votes={votes} width={getChartWidth()} dateRange={plotRange} />
+          <Crosshair show={showCrosshair} position={crosshairPosition} horizontal={false} vertical={true} />
+        </div>
+      )}
+
+      {sliderShown && (
       <RangeSlider
         rows={sliderRows}
         startIndex={sliderIndices.startIndex}
@@ -1591,9 +1651,11 @@ const ReporterStyleChart = ({
         onChange={handleSliderChange}
         width={getChartWidth()}
       />
+      )}
 
-      {/* Lower panes - not in price-only fullscreen */}
+      {/* Lower panes - not in price-only fullscreen; the PnL panes only in the full layout */}
       {!priceOnly && (<>
+      {fullPanes && (<>
       <h3 className="chart-title">Individual Trade PnL{legSuffix}</h3>
       <div className="chart-wrapper position-relative">
         <PnLChart
@@ -1629,6 +1691,7 @@ const ReporterStyleChart = ({
           vertical={true}
         />
       </div>
+      </>)}
       
       {/* Sub-pane indicators - only while some sub series is selected in the picker */}
       {hasIndicatorPane && (

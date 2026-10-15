@@ -414,3 +414,23 @@
 .reporter-chart-container--price-only .price-chart-header {
   margin-bottom: 0;
 }
+
+/* Signals mode (screener TASK_position_dependable_and_signals_tab.md §2.5): the vote strip under a
+   strategy's price pane, and the vote colour swatch (legend + tooltip). Colours: signalPanes.js
+   VOTE_COLORS. */
+.vote-strip-wrapper {
+  margin-top: -0.75rem; /* sits right under the price pane (the container's flex gap is 1rem) */
+}
+
+.vote-strip-canvas {
+  display: block;
+}
+
+.vote-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 4px;
+  vertical-align: middle;
+}

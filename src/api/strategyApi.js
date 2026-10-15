@@ -49,6 +49,32 @@ export const submitStrategies = async (config) => {
   }
 };
 
+/**
+ * POST /signal-charts (screener TASK_position_dependable_and_signals_tab.md §2.3): the per-strategy
+ * signal panes of the merge, plus the merged pane and the merged position. Same body as
+ * submitStrategies (the StrategiesConfigDTO from formatStrategyConfig). The raw JSON is returned
+ * as is - components/signals/signalPanes.js adaptSignalCharts maps it to what the view draws.
+ * Errors as submitStrategies: a 400 `{message}` (no prices / no SMA / empty strategies or dates /
+ * post-trade strategies in the config) throws with that message.
+ */
+export const fetchSignalCharts = async (config) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/signal-charts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.message || body?.error || `Error: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to fetch signal charts:', error);
+    throw error;
+  }
+};
+
 export const optimizeStrategies = async (config) => {
   try {
     const response = await fetch(`${API_BASE_URL}/optimize-strategies`, {

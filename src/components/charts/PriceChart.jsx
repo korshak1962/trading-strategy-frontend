@@ -53,12 +53,14 @@ const EMPTY_RUNS = [];
  *   shading do not depend on it.
  * @param {boolean} [props.showEvents] - the "Events" toggle, off by default: event markers, and
  *   the setup windows that ended while the position was long (ALREADY_LONG, §4.1).
+ * @param {Array<{startMs, endMs, fill}>|null} [props.positionSpans] - Signals mode: the merged
+ *   position to shade (signalPanes.js normalizePositionSpans); null = the level chart's own shading.
  * @returns {JSX.Element}
  */
 const PriceChart = ({
   data, width, height, dateRange, visibleRange = null, highlightTradeIndex = null, signalTradeIndex = null,
   priceSeries = [], levelZoneRuns = EMPTY_RUNS, priceRange = null,
-  levelChart = null, showLevelLines = true, showEvents = false
+  levelChart = null, showLevelLines = true, showEvents = false, positionSpans = null
 }) => {
   const canvasRef = useRef(null);
 
@@ -180,7 +182,11 @@ const PriceChart = ({
 
     // Position shading first, then level zone bands, the sticky support zone and the setup
     // windows - all under the candles, so the candles stay readable over them
-    if (levelChart) {
+    // Signals mode passes the merged position (positionSpans) - it replaces the level strategy's
+    // own shading, which follows the same merged position since Stage 1 (no double shading)
+    if (positionSpans) {
+      drawPositionShading(ctx, positionSpans, chartDateRange, minMaxPrice, width, height);
+    } else if (levelChart) {
       drawPositionShading(ctx, levelChart.positionSpans, chartDateRange, minMaxPrice, width, height);
     }
     drawLevelZones(ctx, levelZoneRuns, chartDateRange, minMaxPrice, width, height);
@@ -253,7 +259,7 @@ const PriceChart = ({
       }
     };
   }, [data, width, height, dateRange, visibleRange, highlightTradeIndex, signalTradeIndex, priceSeries, levelZoneRuns, priceRange,
-    levelChart, showLevelLines, showEvents]);
+    levelChart, showLevelLines, showEvents, positionSpans]);
 
   return (
     <div className="chart-wrapper">

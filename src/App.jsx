@@ -17,8 +17,10 @@ import TradeStatisticsTable from './components/TradeStatisticsTable';
 import {
   getAvailableStrategies, getAvailableTickers, submitStrategies, formatStrategyConfig,
   startOptimization, fetchOptimizationJob, fetchCurrentOptimizationJob, fetchOptimizationResult,
-  stopOptimization,
+  stopOptimization, fetchSignalCharts,
 } from './api/strategyApi';
+import SignalChartsView from './components/signals/SignalChartsView';
+import { adaptSignalCharts } from './components/signals/signalPanes';
 import OptimizationProgress from './components/OptimizationProgress';
 import SaveCaseControl from './components/SaveCaseControl';
 import SavedCasesPanel from './components/SavedCasesPanel';
@@ -91,10 +93,23 @@ const App = () => {
   const [endDate, setEndDate] = useState(() => exchangeTodayLocalDate());
   
   // State for mode, loading and results
-  const [mode, setMode] = useState('backtest'); // 'backtest' | 'optimize'
+  const [mode, setMode] = useState('backtest'); // 'backtest' | 'optimize' | 'signals'
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
+
+  // ---- Signals mode (screener TASK_position_dependable_and_signals_tab.md §2.5) ----
+  // Its own result (adaptSignalCharts of POST /signal-charts), never mixed with `results`. Cleared
+  // whenever the form changes (ticker, timeframe, dates, strategies, params, long-only, a loaded
+  // case) and on a mode switch. signalSeq numbers the requests: a response is dropped if the form
+  // was changed (or another request started) while it was in flight, and it keys the view, so a
+  // new response starts at the full date range.
+  const [signalCharts, setSignalCharts] = useState(null);
+  const signalSeq = useRef(0);
+  const clearSignalCharts = () => {
+    signalSeq.current += 1;
+    setSignalCharts(null);
+  };
 
   // ---- Async optimization job (Optimize mode only; Backtest stays synchronous) ----
   const [optJobId, setOptJobId] = useState(null);
@@ -386,6 +401,22 @@ const App = () => {
     setRunStarts((n) => n + 1);
 
     const config = formatStrategyConfig(ticker, timeFrame, startDate, endDate, selectedStrategies, longOnly);
+    if (mode === 'signals') {
+      clearSignalCharts();
+      const seq = signalSeq.current;
+      try {
+        const raw = await fetchSignalCharts(config);
+        if (seq !== signalSeq.current) return; // the form changed meanwhile
+        setSignalCharts({ seq, charts: adaptSignalCharts(raw) });
+      } catch (err) {
+        if (seq !== signalSeq.current) return;
+        setSignalCharts(null);
+        setError('Signals failed: ' + err.message);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
     if (mode === 'optimize') {
       // Async job: `loading` stays true until the poll loop sees a terminal status.
       await runOptimization(config);
@@ -411,12 +442,14 @@ const App = () => {
   const handleTimeFrameChange = (tf) => {
     setTimeFrame(tf);
     setResults(null);
+    clearSignalCharts();
     setSelectedStrategies(prev => withTimeframe(prev, tf));
   };
 
   // Add strategy to selected strategies
   const handleAddStrategy = (strategy) => {
     setResults(null);
+    clearSignalCharts();
     setSelectedStrategies(prev => ({
       ...prev,
       // available-strategies advertises params with timeframe == null
@@ -432,6 +465,7 @@ const App = () => {
   // Remove strategy from selected strategies
   const handleRemoveStrategy = (strategyName) => {
     setResults(null);
+    clearSignalCharts();
     setSelectedStrategies(prev => {
       const newStrategies = { ...prev };
       delete newStrategies[strategyName];
@@ -442,6 +476,7 @@ const App = () => {
   // field: 'value' | 'min' | 'max' | 'step' | 'timeframe'
   const handleUpdateParam = (strategyName, paramName, field, value) => {
     setResults(null);
+    clearSignalCharts();
     setSelectedStrategies(prev => ({
       ...prev,
       [strategyName]: {
@@ -468,6 +503,7 @@ const App = () => {
     if (!Number.isNaN(end.getTime())) setEndDate(end);
     setSelectedStrategies(withTimeframe(cfg.strategyNameToParams || {}, tf));
     setResults(null);
+    clearSignalCharts();
     setError(null);
     setCaseWarnings(Array.isArray(savedCase.warnings) && savedCase.warnings.length > 0 ? savedCase.warnings : null);
   };
@@ -540,7 +576,7 @@ const App = () => {
                   className={mode === 'backtest'
                     ? 'flex-1 py-2 text-sm font-semibold bg-blue-600 text-white'
                     : 'flex-1 py-2 text-sm font-medium bg-white text-blue-600 hover:bg-blue-50 disabled:text-gray-400 disabled:hover:bg-white'}
-                  onClick={() => { setMode('backtest'); setResults(null); }}
+                  onClick={() => { setMode('backtest'); setResults(null); clearSignalCharts(); }}
                   disabled={optActive}
                   title={optActive ? 'An optimization is running — stop it or wait for it to finish' : undefined}
                 >
@@ -551,13 +587,30 @@ const App = () => {
                   className={mode === 'optimize'
                     ? 'flex-1 py-2 text-sm font-semibold bg-blue-600 text-white'
                     : 'flex-1 py-2 text-sm font-medium bg-white text-blue-600 hover:bg-blue-50'}
-                  onClick={() => { setMode('optimize'); setResults(null); }}
+                  onClick={() => { setMode('optimize'); setResults(null); clearSignalCharts(); }}
                 >
                   Optimize
+                </button>
+                <button
+                  type="button"
+                  className={mode === 'signals'
+                    ? 'flex-1 py-2 text-sm font-semibold bg-blue-600 text-white'
+                    : 'flex-1 py-2 text-sm font-medium bg-white text-blue-600 hover:bg-blue-50 disabled:text-gray-400 disabled:hover:bg-white'}
+                  onClick={() => { setMode('signals'); setResults(null); clearSignalCharts(); }}
+                  disabled={optActive}
+                  title={optActive
+                    ? 'An optimization is running — stop it or wait for it to finish'
+                    : 'Each strategy\'s own signals on its own chart, and the merged result'}
+                  data-testid="mode-signals"
+                >
+                  Signals
                 </button>
               </div>
               {mode === 'optimize' && (
                 <p className="mt-1 text-xs text-gray-500">Set Min/Max/Step for each parameter to grid-search the best combination.</p>
+              )}
+              {mode === 'signals' && (
+                <p className="mt-1 text-xs text-gray-500">One chart per strategy with its own signals, and the merged result below. No PnL.</p>
               )}
             </div>
 
@@ -568,7 +621,7 @@ const App = () => {
                 <TickerCombobox
                   id="ticker-input"
                   value={ticker}
-                  onChange={(val) => { setTicker(val); setResults(null); }}
+                  onChange={(val) => { setTicker(val); setResults(null); clearSignalCharts(); }}
                   tickers={availableTickers}
                 />
               </div>
@@ -594,7 +647,7 @@ const App = () => {
                   <input
                     type="checkbox"
                     checked={longOnly}
-                    onChange={(e) => { setLongOnly(e.target.checked); setResults(null); }}
+                    onChange={(e) => { setLongOnly(e.target.checked); setResults(null); clearSignalCharts(); }}
                     className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   Long only
@@ -606,8 +659,8 @@ const App = () => {
               <DateRangePicker
                 startDate={startDate}
                 endDate={endDate}
-                onStartDateChange={setStartDate}
-                onEndDateChange={setEndDate}
+                onStartDateChange={(d) => { setStartDate(d); clearSignalCharts(); }}
+                onEndDateChange={(d) => { setEndDate(d); clearSignalCharts(); }}
                 zone={exchangeZoneForTicker(ticker)}
               />
               
@@ -644,7 +697,7 @@ const App = () => {
                   ? (mode === 'optimize'
                     ? (optActive && Number.isFinite(optJob?.percent) ? `Optimizing… ${Math.floor(optJob.percent)} %` : 'Optimizing…')
                     : 'Processing…')
-                  : (mode === 'optimize' ? 'Run Optimization' : 'Run Backtest')}
+                  : (mode === 'optimize' ? 'Run Optimization' : mode === 'signals' ? 'Show Signals' : 'Run Backtest')}
               </button>
               
               {error && (
@@ -673,7 +726,25 @@ const App = () => {
                 />
               </div>
             )}
-            {results ? (
+            {mode === 'signals' ? (
+              signalCharts ? (
+                <div className="bg-white p-6 rounded-lg shadow">
+                  <h2 className="text-xl font-bold mb-4">
+                    Signals for {signalCharts.charts.ticker || ticker}
+                    {signalCharts.charts.timeFrame && (
+                      <span className="text-base font-normal text-gray-500"> · {signalCharts.charts.timeFrame}</span>
+                    )}
+                  </h2>
+                  <SignalChartsView key={signalCharts.seq} charts={signalCharts.charts} />
+                </div>
+              ) : (
+                <div className="bg-white p-6 rounded-lg shadow flex items-center justify-center h-64">
+                  <p className="text-gray-500">
+                    {loading ? 'Processing your request...' : 'Configure strategies and press Show Signals'}
+                  </p>
+                </div>
+              )
+            ) : results ? (
               <div className="bg-white p-6 rounded-lg shadow">
                 {mode === 'optimize' && optBanner && (
                   <div className="mb-4 p-3 rounded bg-amber-50 border border-amber-300 text-amber-800 text-sm font-medium" role="status">

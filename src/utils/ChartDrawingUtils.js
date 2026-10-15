@@ -547,6 +547,28 @@ export const findMinMaxPriceRange = (prices) => {
     ctx.restore();
   };
 
+  // Hollow (not executed) marker: the filled shape's outline over a white body; short markers are
+  // already outlines, so theirs is dashed. Same size / position, so hit-testing is unchanged.
+  const HOLLOW_COLOR = Object.freeze({ LongOpen: 'green', LongClose: 'red', ShortOpen: 'blue', ShortClose: 'orange' });
+  const drawHollowSignal = (ctx, type, x, y) => {
+    const color = HOLLOW_COLOR[type] || 'gray';
+    const isShort = type === 'ShortOpen' || type === 'ShortClose';
+    const size = isShort ? SHORT_MARKER_SIZE : 7;
+    ctx.save();
+    if (type === 'LongOpen' || type === 'ShortClose') traceUpTriangle(ctx, x, y, size);
+    else if (type === 'LongClose' || type === 'ShortOpen') traceDownTriangle(ctx, x, y, size);
+    else { ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); }
+    if (!isShort) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.fill();
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.75;
+    if (isShort) ctx.setLineDash([3, 2]);
+    ctx.stroke();
+    ctx.restore();
+  };
+
   export const drawSignals = (
     ctx, signals, dateRange, minMax, width, height, highlightTradeIndex = null, signalTradeIndex = null
   ) => {
@@ -574,6 +596,13 @@ export const findMinMaxPriceRange = (prices) => {
         ctx.lineWidth = 1.5;
         drawCircle(ctx, x, y, 11);
         ctx.restore();
+      }
+
+      // Signals mode: a strategy's signal the merge did not execute (vetoed / not a transition) is
+      // drawn hollow - same shape, white body, coloured outline; a short one gets a dashed outline.
+      if (signal.executed === false) {
+        drawHollowSignal(ctx, signal.type, x, y);
+        return;
       }
 
       // Set color based on signal type
@@ -963,17 +992,19 @@ export const findMinMaxPriceRange = (prices) => {
 
   /**
    * Very light background from each trade's entry bar to its exit bar (open trade: last bar).
-   * @param {Array<{startMs, endMs}>} spans - levelChart.positionSpans
+   * @param {Array<{startMs, endMs, fill?}>} spans - levelChart.positionSpans, or the Signals mode's
+   *   merged spans (signalPanes.js normalizePositionSpans, with a per-side `fill`)
    */
   export const drawPositionShading = (ctx, spans, dateRange, minMax, width, height) => {
     const map = priceMapper(dateRange, minMax, width, height);
     if (!map || !spans || spans.length === 0) return;
     ctx.save();
-    ctx.fillStyle = LEVEL_CHART_STYLE.positionFill;
     spans.forEach(span => {
       if (span.endMs < map.startMs || span.startMs > map.endMs) return;
       const x0 = Math.max(0, map.xOf(span.startMs));
       const x1 = Math.min(width, map.xOf(span.endMs));
+      // `fill`: the Signals mode's merged spans colour long / short apart
+      ctx.fillStyle = span.fill || LEVEL_CHART_STYLE.positionFill;
       if (x1 > x0) ctx.fillRect(x0, 0, x1 - x0, height);
     });
     ctx.restore();
@@ -1239,6 +1270,35 @@ export const findMinMaxPriceRange = (prices) => {
       ctx.fillRect(box.x0, box.y0, box.x1 - box.x0, MARKER_LABEL_BOX_H);
       ctx.fillStyle = below ? '#166534' : '#991b1b';
       ctx.fillText(label, x, box.textY);
+    });
+    ctx.restore();
+  };
+
+  /**
+   * Signals mode vote strip (screener TASK_position_dependable_and_signals_tab.md §2.3): one coloured
+   * segment per collapsed run of a stateless strategy's vote, over the whole strip canvas. Same x
+   * mapping (the plot range) as the price pane above it.
+   * @param {Array<{startMs, endMs, type}>} votes - signalPanes.js normalizeVotes
+   * @param {Object<string, string>} colors - vote type -> fill (signalPanes.js VOTE_COLORS)
+   */
+  export const drawVoteStrip = (ctx, votes, dateRange, width, height, colors) => {
+    if (!dateRange || !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) return;
+    const startMs = dateRange[0].getTime();
+    const endMs = dateRange[1].getTime();
+    const totalMs = endMs - startMs;
+    if (!(totalMs > 0)) return;
+    const xOf = (ms) => ((ms - startMs) / totalMs) * width;
+    ctx.save();
+    ctx.fillStyle = '#f3f4f6';
+    ctx.fillRect(0, 0, width, height);
+    (votes || []).forEach(vote => {
+      if (vote.endMs < startMs || vote.startMs > endMs) return;
+      const x0 = Math.max(0, xOf(vote.startMs));
+      const x1 = Math.min(width, xOf(vote.endMs));
+      if (!(x1 > x0)) return;
+      ctx.fillStyle = colors?.[vote.type] || 'rgba(107, 114, 128, 0.6)';
+      // at least 1px, so a one-bar vote stays visible when zoomed out
+      ctx.fillRect(x0, 0, Math.max(1, x1 - x0), height);
     });
     ctx.restore();
   };
