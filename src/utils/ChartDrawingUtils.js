@@ -569,6 +569,9 @@ export const findMinMaxPriceRange = (prices) => {
     ctx.restore();
   };
 
+  // Opacity of a warm-up (OUTSIDE_WINDOW) marker.
+  const OUTSIDE_WINDOW_ALPHA = 0.35;
+
   export const drawSignals = (
     ctx, signals, dateRange, minMax, width, height, highlightTradeIndex = null, signalTradeIndex = null
   ) => {
@@ -596,6 +599,16 @@ export const findMinMaxPriceRange = (prices) => {
         ctx.lineWidth = 1.5;
         drawCircle(ctx, x, y, 11);
         ctx.restore();
+      }
+
+      // Signals mode: a strategy's signal on a warm-up bar before tradeStart (reason OUTSIDE_WINDOW)
+      // could not trade at all - hollow and muted, so it reads apart from a merge veto.
+      if (signal.reason === 'OUTSIDE_WINDOW') {
+        ctx.save();
+        ctx.globalAlpha = OUTSIDE_WINDOW_ALPHA;
+        drawHollowSignal(ctx, signal.type, x, y);
+        ctx.restore();
+        return;
       }
 
       // Signals mode: a strategy's signal the merge did not execute (vetoed / not a transition) is
@@ -1007,6 +1020,56 @@ export const findMinMaxPriceRange = (prices) => {
       ctx.fillStyle = span.fill || LEVEL_CHART_STYLE.positionFill;
       if (x1 > x0) ctx.fillRect(x0, 0, x1 - x0, height);
     });
+    ctx.restore();
+  };
+
+  // Warm-up before the trading window (screener tradeStart): neutral grey, so it never reads as
+  // the green / red position shading. Same look on every pane (price, PnL, cumulative, indicator).
+  export const PRE_WINDOW_STYLE = Object.freeze({
+    fill: 'rgba(107, 114, 128, 0.12)',
+    line: 'rgba(75, 85, 99, 0.8)',
+    dash: [4, 3],
+    label: 'trade start',
+    labelColor: 'rgba(55, 65, 81, 0.95)',
+  });
+
+  /**
+   * Shades the warm-up left of the trading window and marks its start with a dashed vertical line.
+   * x only (no price mapping), so every pane can call it with its own height.
+   * @param {{endMs: number}|null} span - ChartDataUtils.preWindowSpan (null = no warm-up, no-op)
+   * @param {[Date, Date]} dateRange - the pane's plot range
+   * @param {{label?: boolean}} [options] - label: write "trade start" next to the line (price pane)
+   */
+  export const drawPreWindowShading = (ctx, span, dateRange, width, height, { label = false } = {}) => {
+    if (!span || !dateRange || !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) return;
+    const startMs = dateRange[0].getTime();
+    const totalMs = dateRange[1].getTime() - startMs;
+    if (!(totalMs > 0) || !Number.isFinite(span.endMs)) return;
+    const x = ((span.endMs - startMs) / totalMs) * width;
+    if (x <= 0) return; // the whole view is inside the trading window
+    ctx.save();
+    ctx.fillStyle = PRE_WINDOW_STYLE.fill;
+    ctx.fillRect(0, 0, Math.min(width, x), height);
+    if (x < width) {
+      ctx.strokeStyle = PRE_WINDOW_STYLE.line;
+      ctx.lineWidth = 1;
+      ctx.setLineDash(PRE_WINDOW_STYLE.dash);
+      ctx.beginPath();
+      ctx.moveTo(Math.round(x) + 0.5, 0);
+      ctx.lineTo(Math.round(x) + 0.5, height);
+      ctx.stroke();
+      if (label) {
+        ctx.setLineDash([]);
+        ctx.font = '11px sans-serif';
+        ctx.textBaseline = 'top';
+        const textWidth = ctx.measureText(PRE_WINDOW_STYLE.label).width;
+        // Right of the line; flipped to its left near the right edge
+        const right = x + 4 + textWidth <= width;
+        ctx.textAlign = right ? 'left' : 'right';
+        ctx.fillStyle = PRE_WINDOW_STYLE.labelColor;
+        ctx.fillText(PRE_WINDOW_STYLE.label, right ? x + 4 : x - 4, 4);
+      }
+    }
     ctx.restore();
   };
 

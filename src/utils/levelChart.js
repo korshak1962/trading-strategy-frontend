@@ -62,6 +62,8 @@ export const NOT_TRADED_TEXT = Object.freeze({
   REGIME: 'regime filter',
   LOWER_ZONE_ENTERED: 'a lower zone took the entry',
   MERGE_VETOED: 'vetoed by the merge (another strategy blocked the entry)',
+  // screener tradeStart: the setup confirmed on a warm-up bar, where no position may open
+  OUTSIDE_WINDOW: 'before trade start (warm-up, no positions)',
 });
 
 // ADOPTED / EXTERNAL (screener TASK_position_dependable_and_signals_tab.md §1.9): in a merged run

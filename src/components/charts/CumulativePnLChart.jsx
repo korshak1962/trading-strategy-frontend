@@ -6,7 +6,8 @@ import {
   drawDateAxis,
   drawPnLAxis,
   findMinMaxCumulative,
-  drawCumulativePnLLine
+  drawCumulativePnLLine,
+  drawPreWindowShading
 } from '../../utils/ChartDrawingUtils';
 
 /**
@@ -20,10 +21,12 @@ import {
  * @param {number} props.width
  * @param {number} props.height
  * @param {[Date, Date]} props.dateRange
+ * @param {{endMs: number}|null} [props.preWindowSpan] - warm-up before tradeStart to shade (the
+ *   curve is flat at 0 there: no trades before the window)
  */
 const DATE_LABEL_BAND = 16; // px kept clear at the bottom for drawDateAxis
 
-const CumulativePnLChart = ({ points, hasTrades, width, height, dateRange }) => {
+const CumulativePnLChart = ({ points, hasTrades, width, height, dateRange, preWindowSpan = null }) => {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -44,6 +47,7 @@ const CumulativePnLChart = ({ points, hasTrades, width, height, dateRange }) => 
       drawNoDataMessage(ctx, width, height);
       return;
     }
+    drawPreWindowShading(ctx, preWindowSpan, dateRange, width, height);
     if (!hasTrades) {
       drawNoDataMessage(ctx, width, height, 'No completed trades available');
       return;
@@ -72,7 +76,7 @@ const CumulativePnLChart = ({ points, hasTrades, width, height, dateRange }) => 
     // Axes last, so their labels sit on top of the curve
     drawDateAxis(ctx, dateRange, width, height);
     drawPnLAxis(ctx, minMax, width, height, 'Cum. PnL');
-  }, [points, hasTrades, width, height, dateRange]);
+  }, [points, hasTrades, width, height, dateRange, preWindowSpan]);
 
   return (
     <div className="chart-wrapper">

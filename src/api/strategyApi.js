@@ -236,9 +236,16 @@ export const deleteCase = async (id) => {
  * @param {Object} strategyParams - Map of strategy names to parameter maps
  * @param {boolean} [longOnly=false] - When true the backend evaluates only the long leg
  *   (short signals are ignored); applies to both backtest and optimize requests
+ * @param {Date|null} [tradeStart=null] - start of the trading window (screener tradeStart): bars
+ *   from startDate up to it are warm-up only, positions open from this day. Sent as T00:00:00
+ *   only when given; null leaves the field out, so the request is byte-for-byte the pre-feature
+ *   one (the backend then trades from startDate). The caller passes null unless the user set a
+ *   day different from startDate.
  * @returns {Object} Formatted configuration object
  */
-export const formatStrategyConfig = (ticker, timeFrame, startDate, endDate, strategyParams, longOnly = false) => {
+export const formatStrategyConfig = (
+  ticker, timeFrame, startDate, endDate, strategyParams, longOnly = false, tradeStart = null
+) => {
   // Convert JavaScript dates to the LocalDateTime format expected by the Java backend. The
   // pickers hand us calendar days, so the range is inclusive of both ends: start at 00:00:00,
   // end at 23:59:59. (toISOString() would give the end day's midnight and drop its bars.)
@@ -246,7 +253,7 @@ export const formatStrategyConfig = (ticker, timeFrame, startDate, endDate, stra
   const formatDate = (date, time) =>
     `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${time}`;
   
-  return {
+  const config = {
     ticker,
     timeFrame,
     startDate: formatDate(startDate, '00:00:00'),
@@ -254,4 +261,6 @@ export const formatStrategyConfig = (ticker, timeFrame, startDate, endDate, stra
     strategyNameToParams: strategyParams,
     longOnly
   };
+  if (tradeStart) config.tradeStart = formatDate(tradeStart, '00:00:00');
+  return config;
 };

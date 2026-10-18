@@ -6,7 +6,8 @@ import {
   drawGrid,
   drawDateAxis,
   drawIndicatorAxis,
-  drawIndicatorLine
+  drawIndicatorLine,
+  drawPreWindowShading
 } from '../../utils/ChartDrawingUtils';
 import { parseExchangeTs, exchangeToday } from '../../utils/dates';
 
@@ -20,9 +21,10 @@ import { parseExchangeTs, exchangeToday } from '../../utils/dates';
  * @param {Object} props.dateRange - Date range [startDate, endDate]
  * @param {Array<{name, color}>} [props.subSeries] - visible sub-pane series (from the shared
  *   IndicatorPicker); values come from data.indicators[name].
+ * @param {{endMs: number}|null} [props.preWindowSpan] - warm-up before tradeStart to shade
  * @returns {JSX.Element}
  */
-const IndicatorChart = ({ data, width, height, dateRange, subSeries = [] }) => {
+const IndicatorChart = ({ data, width, height, dateRange, subSeries = [], preWindowSpan = null }) => {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -90,6 +92,9 @@ const IndicatorChart = ({ data, width, height, dateRange, subSeries = [] }) => {
       }
     }
     
+    // Warm-up before the trading window (indicators are computed over the whole range)
+    drawPreWindowShading(ctx, preWindowSpan, chartDateRange, width, height);
+
     // Visible points of every selected sub series, in the current date range
     const visibleBySeries = subSeries
       .map(series => ({
@@ -132,7 +137,7 @@ const IndicatorChart = ({ data, width, height, dateRange, subSeries = [] }) => {
         ctx.clearRect(0, 0, width, height);
       }
     };
-  }, [data, width, height, dateRange, subSeries]);
+  }, [data, width, height, dateRange, subSeries, preWindowSpan]);
 
   return (
     <div className="chart-wrapper">

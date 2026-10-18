@@ -12,6 +12,7 @@ import {
   drawPriceOverlays,
   drawSignals,
   drawPositionShading,
+  drawPreWindowShading,
   drawSupportSegments,
   drawSetupWindows,
   drawWindowEndGlyphs,
@@ -55,12 +56,14 @@ const EMPTY_RUNS = [];
  *   the setup windows that ended while the position was long (ALREADY_LONG, §4.1).
  * @param {Array<{startMs, endMs, fill}>|null} [props.positionSpans] - Signals mode: the merged
  *   position to shade (signalPanes.js normalizePositionSpans); null = the level chart's own shading.
+ * @param {{endMs: number}|null} [props.preWindowSpan] - warm-up before tradeStart to shade
+ *   (ChartDataUtils.preWindowSpan); null = no warm-up.
  * @returns {JSX.Element}
  */
 const PriceChart = ({
   data, width, height, dateRange, visibleRange = null, highlightTradeIndex = null, signalTradeIndex = null,
   priceSeries = [], levelZoneRuns = EMPTY_RUNS, priceRange = null,
-  levelChart = null, showLevelLines = true, showEvents = false, positionSpans = null
+  levelChart = null, showLevelLines = true, showEvents = false, positionSpans = null, preWindowSpan = null
 }) => {
   const canvasRef = useRef(null);
 
@@ -180,6 +183,9 @@ const PriceChart = ({
     const drawnWindows = !levelChart ? []
       : (showEvents ? levelChart.windows : levelChart.windows.filter(win => !win.endsWhileLong));
 
+    // Warm-up before the trading window: the bottom layer, under the position shading
+    drawPreWindowShading(ctx, preWindowSpan, chartDateRange, width, height, { label: true });
+
     // Position shading first, then level zone bands, the sticky support zone and the setup
     // windows - all under the candles, so the candles stay readable over them
     // Signals mode passes the merged position (positionSpans) - it replaces the level strategy's
@@ -259,7 +265,7 @@ const PriceChart = ({
       }
     };
   }, [data, width, height, dateRange, visibleRange, highlightTradeIndex, signalTradeIndex, priceSeries, levelZoneRuns, priceRange,
-    levelChart, showLevelLines, showEvents, positionSpans]);
+    levelChart, showLevelLines, showEvents, positionSpans, preWindowSpan]);
 
   return (
     <div className="chart-wrapper">

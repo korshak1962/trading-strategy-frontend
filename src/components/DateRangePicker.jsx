@@ -4,7 +4,14 @@ import { exchangeTodayLocalDate, US_ZONE } from '../utils/dates';
 
 // `zone`: the selected ticker's exchange zone. Presets end on the EXCHANGE's today
 // (decision 0.18), not the browser's.
-const DateRangePicker = ({ startDate, endDate, onStartDateChange, onEndDateChange, zone = US_ZONE }) => {
+// Trade start (screener tradeStart; optional - shown only with `onTradeStartChange`): the day from
+// which positions may open; the bars before it are warm-up. `tradeStart` is the effective day
+// (the start date while the user has not set one), `onTradeStartReset` puts it back on the start
+// date, `tradeStartHint` explains a clamp after a date-range change.
+const DateRangePicker = ({
+  startDate, endDate, onStartDateChange, onEndDateChange, zone = US_ZONE,
+  tradeStart = null, onTradeStartChange = null, onTradeStartReset = null, tradeStartHint = null,
+}) => {
   // Format date for input as local YYYY-MM-DD (toISOString() would use UTC and can shift the day)
   const pad = (n) => String(n).padStart(2, '0');
   const formatDateForInput = (date) => {
@@ -57,6 +64,38 @@ const DateRangePicker = ({ startDate, endDate, onStartDateChange, onEndDateChang
           />
         </div>
       </div>
+
+      {onTradeStartChange && (
+        <div className="trade-start-field" data-testid="trade-start-field">
+          <label className="date-label" htmlFor="trade-start-input">Trade start</label>
+          <div className="trade-start-row">
+            <input
+              id="trade-start-input"
+              type="date"
+              value={formatDateForInput(tradeStart || startDate)}
+              onChange={handleChange(onTradeStartChange)}
+              onKeyDown={preventEnterSubmit}
+              min={formatDateForInput(startDate)}
+              max={formatDateForInput(endDate)}
+              className="date-input"
+              data-testid="trade-start-input"
+            />
+            <button
+              type="button"
+              onClick={onTradeStartReset || undefined}
+              className="date-shortcut-btn trade-start-reset"
+              title="Trade from the start date (no warm-up)"
+              data-testid="trade-start-reset"
+            >
+              Reset
+            </button>
+          </div>
+          <p className="trade-start-caption">Positions open only from this day; earlier bars are warm-up.</p>
+          {tradeStartHint && (
+            <p className="trade-start-hint" role="status" data-testid="trade-start-hint">{tradeStartHint}</p>
+          )}
+        </div>
+      )}
       
       {/* Quick date range selectors */}
       <div className="date-shortcuts">

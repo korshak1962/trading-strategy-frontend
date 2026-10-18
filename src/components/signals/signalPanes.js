@@ -8,11 +8,12 @@
 // normalized object it returns.
 //
 // Raw shape consumed (SignalChartsDTO):
-//   { ticker, timeFrame, startDate, endDate, longOnly,
+//   { ticker, timeFrame, startDate, endDate, tradeStart, windowStart, warnings: [string], longOnly,
 //     prices: [{date, open, high, low, close, volume}],
 //     positionSpans: [{from, to, side: 'LONG'|'SHORT'}],
 //     strategies: [{ key, strategyClass, positionDependent, params: [{paramName, value}], hasSignals,
-//                    signals: [{date, price, type, comment, executed}],
+//                    signals: [{date, price, type, comment, executed, reason?}],
+//                    (reason 'OUTSIDE_WINDOW' = proposed on a warm-up bar before tradeStart)
 //                    votes: [{from, to, type}] | null,
 //                    priceIndicators: {name: [{date, value}]}, indicators: {...},
 //                    channels: [...], levelZones: [...], levelChart: {...} | null }],
@@ -51,6 +52,8 @@ const adaptSignal = (s) => ({
   comment: s.comment ?? null,
   // true / false on a strategy pane's signals; undefined on the merged pane (always a trade)
   executed: typeof s.executed === 'boolean' ? s.executed : undefined,
+  // 'OUTSIDE_WINDOW' on a strategy pane's warm-up signal (drawn muted); absent otherwise
+  reason: typeof s.reason === 'string' ? s.reason : undefined,
   sources: Array.isArray(s.sources) ? s.sources.map(String) : undefined,
 });
 
@@ -87,7 +90,8 @@ const adaptStrategy = (raw, index, longOnly) => {
 
 /**
  * Maps the raw signal-charts JSON to the view model. Never throws on missing optional parts.
- * @returns {{ticker, timeFrame, startDate, endDate, longOnly: boolean, prices: Array,
+ * @returns {{ticker, timeFrame, startDate, endDate, tradeStart, windowStart, warnings: string[],
+ *   longOnly: boolean, prices: Array,
  *   positionSpans: Array<{from, to, side}>, strategies: Array, merged: {signals: Array}|null}}
  */
 export const adaptSignalCharts = (raw) => {
@@ -100,6 +104,10 @@ export const adaptSignalCharts = (raw) => {
     timeFrame: raw?.timeFrame ?? '',
     startDate: raw?.startDate ?? null,
     endDate: raw?.endDate ?? null,
+    // Trading window (screener tradeStart). Absent from an older backend = no warm-up.
+    tradeStart: raw?.tradeStart ?? null,
+    windowStart: raw?.windowStart ?? null,
+    warnings: asArray(raw?.warnings).filter(w => typeof w === 'string' && w.length > 0),
     longOnly,
     prices: asArray(raw?.prices),
     positionSpans: asArray(raw?.positionSpans)

@@ -2,7 +2,8 @@
 import { useMemo, useState } from 'react';
 import { useFullscreen } from '../../hooks/useFullscreen';
 import { useElementSize } from '../../hooks/useElementSize';
-import { parseExchangeTs } from '../../utils/dates';
+import { parseExchangeTs, fmtBarTimestamp } from '../../utils/dates';
+import { initialWindowRange, preWindowSpan } from '../../utils/ChartDataUtils';
 import SignalPane from './SignalPane';
 import {
   barGeometry, normalizePositionSpans, LARGE_RANGE_BARS, VOTE_COLORS, voteText
@@ -18,13 +19,16 @@ const FULLSCREEN_CHROME_PX = 160;
 // Fullscreen: this many panes share the first screen; the rest scroll.
 const PANES_PER_SCREEN = 2;
 
-const Triangle = ({ color, hollow = false, down = false }) => (
+// Legend glyph mirroring drawSignals / drawHollowSignal (ChartDrawingUtils): filled = executed long,
+// hollow = white body (not-executed long), outline = executed short, dashed = not-executed short.
+const Triangle = ({ color, hollow = false, outline = false, dashed = false, down = false }) => (
   <svg width="14" height="12" viewBox="0 0 14 12" aria-hidden="true" className="signals-legend__glyph">
     <polygon
-      points={down ? '1,1 13,1 7,11' : '7,1 13,11 1,11'}
-      fill={hollow ? '#fff' : color}
+      points={down ? '1.5,1.5 12.5,1.5 7,10.5' : '7,1.5 12.5,10.5 1.5,10.5'}
+      fill={outline || dashed ? 'none' : hollow ? '#fff' : color}
       stroke={color}
-      strokeWidth="1.5"
+      strokeWidth={outline ? 2 : 1.5}
+      strokeDasharray={dashed ? '3,2' : undefined}
     />
   </svg>
 );
@@ -34,7 +38,8 @@ const Triangle = ({ color, hollow = false, down = false }) => (
  * (summary, fullscreen), the legend, one SignalPane per strategy and the merged pane at the bottom
  * (when the backend sends one - not for a single strategy). One zoom window is shared by all panes;
  * the range slider sits under the last pane. App remounts this view (key) per response, which
- * resets the window to the full range.
+ * resets the window to the full range - or, with a warm-up before tradeStart, to the trading window
+ * plus some context (initialWindowRange); the warm-up is shaded on every pane.
  * @param {Object} props.charts - adaptSignalCharts() result
  */
 const SignalChartsView = ({ charts }) => {
@@ -46,8 +51,12 @@ const SignalChartsView = ({ charts }) => {
   const [dateRange, setDateRange] = useState(() => {
     const prices = charts.prices;
     if (!prices.length) return null;
-    return [parseExchangeTs(prices[0].date), parseExchangeTs(prices[prices.length - 1].date)];
+    return initialWindowRange(prices, charts.windowStart)
+      || [parseExchangeTs(prices[0].date), parseExchangeTs(prices[prices.length - 1].date)];
   });
+  // A warm-up before the trading window exists (tradeStart after the first bar)
+  const hasWarmup = useMemo(() => preWindowSpan(charts.prices, charts.windowStart) !== null, [charts]);
+  const warnings = charts.warnings || [];
 
   const [areaNode, setAreaNode] = useState(null);
   const { isFullscreen, toggleFullscreen } = useFullscreen(areaNode);
@@ -81,6 +90,13 @@ const SignalChartsView = ({ charts }) => {
           {' · '}{charts.prices.length.toLocaleString('en-US')} bars
           {charts.longOnly && <>{' · '}long only</>}
           {' · '}{positionSpans.length} merged position{positionSpans.length === 1 ? '' : 's'}
+          {charts.tradeStart && charts.windowStart && (
+            <span data-testid="signals-trading-window">
+              {' · '}Trading window: {fmtBarTimestamp(charts.windowStart)}
+              {charts.prices.length > 0 && <> → {fmtBarTimestamp(charts.prices[charts.prices.length - 1].date)}</>}
+              {charts.prices.length > 0 && <> · warm-up from {fmtBarTimestamp(charts.prices[0].date)}</>}
+            </span>
+          )}
         </div>
         <button
           type="button"
@@ -92,6 +108,16 @@ const SignalChartsView = ({ charts }) => {
         </button>
       </div>
 
+      {warnings.length > 0 && (
+        <div
+          className="mb-4 p-3 rounded bg-amber-50 border border-amber-300 text-amber-800 text-sm"
+          role="status"
+          data-testid="signals-warnings"
+        >
+          {warnings.map((w, i) => <div key={i}>{w}</div>)}
+        </div>
+      )}
+
       {largeRange && (
         <div className="mb-4 p-3 rounded bg-amber-50 border border-amber-300 text-amber-800 text-sm" role="status">
           {charts.prices.length.toLocaleString('en-US')} bars × {paneCount} panes: zooming and panning may be slow.
@@ -100,12 +126,39 @@ const SignalChartsView = ({ charts }) => {
       )}
 
       <div className="signals-legend" data-testid="signals-legend">
-        <span className="signals-legend__item" title="The strategy's signal became a trade in the merged result">
-          <Triangle color="green" /><Triangle color="red" down /> executed
+        <span
+          className="signals-legend__item"
+          title={charts.longOnly
+            ? "The strategy's signal became a trade in the merged result"
+            : "The strategy's signal became a trade in the merged result. Longs are filled (green open / red close); "
+              + 'shorts are drawn as outlines (blue ▼ open / orange ▲ close)'}
+        >
+          <Triangle color="green" /><Triangle color="red" down />
+          {!charts.longOnly && <><Triangle color="blue" outline down /><Triangle color="orange" outline /></>}
+          {' '}executed
         </span>
-        <span className="signals-legend__item" title="The strategy emitted the signal, but the merge did not trade it (vetoed / no transition)">
-          <Triangle color="green" hollow /><Triangle color="red" hollow down /> not executed
+        <span
+          className="signals-legend__item"
+          title={charts.longOnly
+            ? 'The strategy emitted the signal, but the merge did not trade it (vetoed / no transition)'
+            : 'The strategy emitted the signal, but the merge did not trade it (vetoed / no transition). '
+              + 'Longs get a white body; shorts get a dashed outline'}
+        >
+          <Triangle color="green" hollow /><Triangle color="red" hollow down />
+          {!charts.longOnly && <><Triangle color="blue" dashed down /><Triangle color="orange" dashed /></>}
+          {' '}not executed
         </span>
+        {hasWarmup && (
+          <span
+            className="signals-legend__item"
+            title="Proposed on a warm-up bar before trade start: no position may open there, so it was not executed"
+            data-testid="signals-legend-warmup"
+          >
+            <span className="signals-legend__swatch signals-legend__swatch--warmup" />
+            <span className="signals-legend__muted"><Triangle color="green" hollow /><Triangle color="red" hollow down /></span>
+            {' '}muted = before trade start (warm-up)
+          </span>
+        )}
         <span className="signals-legend__item">
           <span className="signals-legend__swatch signals-legend__swatch--long" /> merged long position
         </span>
@@ -147,6 +200,7 @@ const SignalChartsView = ({ charts }) => {
           onDateRangeChange={setDateRange}
           showRangeSlider={!merged && index === strategies.length - 1}
           height={paneHeight}
+          windowStart={charts.windowStart}
         />
       ))}
       {merged && (
@@ -160,6 +214,7 @@ const SignalChartsView = ({ charts }) => {
           onDateRangeChange={setDateRange}
           showRangeSlider
           height={paneHeight}
+          windowStart={charts.windowStart}
         />
       )}
     </div>

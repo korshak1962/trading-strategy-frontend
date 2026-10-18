@@ -19,7 +19,9 @@ import {
   normalizeLevelChart, statusLine, matchTradeAnnotation, byZoneLowThenId, describeZone
 } from '../utils/levelChart';
 import IndicatorPicker from './IndicatorPicker';
-import { extractTradesFromSignals, cumulativeClosedPnLByBar, barIndexAtOrAfter } from '../utils/ChartDataUtils';
+import {
+  extractTradesFromSignals, cumulativeClosedPnLByBar, barIndexAtOrAfter, preWindowSpan, initialWindowRange
+} from '../utils/ChartDataUtils';
 import { parseExchangeTs, fmtExchangeIntl } from '../utils/dates';
 import { useElementSize } from '../hooks/useElementSize';
 import {
@@ -177,6 +179,11 @@ const saveLevelZoneSettings = (settings) => {
  * @param {boolean} [props.longOnly] - Signals mode: labels the ShortOpen vote as a long exit
  * @param {import('react').ReactNode} [props.priceTitle] - title left of the price legend
  * @param {boolean} [props.showInstructions=true] - the zoom / pan help text in the controls row
+ * @param {string|null} [props.windowStart] - first bar of the trading window (screener tradeStart;
+ *   StrategyResultDTO / SignalChartsDTO.windowStart). When it is after the first bar, the warm-up
+ *   before it is shaded on every pane, and (own zoom only) a new result opens zoomed on the window
+ *   with some warm-up context (ChartDataUtils.initialWindowRange); Reset Zoom shows the full range.
+ *   Null / absent (older backend, no tradeStart) = no shading, full range, as before.
  * @param {Object} [props.indicatorSelection] - the shared indicator selection (App's
  *   useIndicatorSelection: seriesList, showIndicators, setShowIndicators, selectedIds, toggleSeries).
  *   Its 'price' series are listed in the legend right above the price pane, where each item also
@@ -188,11 +195,14 @@ const ReporterStyleChart = ({
   data, width = 1200, height = 600, fitHeight = false, visibleSeries = [], longLegOnly = false,
   indicatorSelection = null, panes = 'full', dateRange: controlledDateRange = null, onDateRangeChange = null,
   showRangeSlider = true, votes = null, positionSpans = null, longOnly = false,
-  priceTitle = 'Price Chart with Signals', showInstructions = true
+  priceTitle = 'Price Chart with Signals', showInstructions = true, windowStart = null
 }) => {
   const fullPanes = panes !== 'signals';
   const containerRef = useRef(null);
   const legSuffix = longLegOnly ? ' (long leg)' : '';
+
+  // Warm-up before the trading window, shaded on every pane (null = none).
+  const warmupSpan = useMemo(() => preWindowSpan(data?.prices, windowStart), [data, windowStart]);
 
   // Closed trades, paired once and shared by the trade pane, the cumulative pane and the tooltip.
   const trades = useMemo(() => extractTradesFromSignals(data?.signals || []), [data]);
@@ -533,19 +543,21 @@ const ReporterStyleChart = ({
       volume: price.volume
     }));
     
-    // Store date range. A new result (new `data` identity) always starts at the full range -
-    // the zoom and any signal selection belong to the previous result.
+    // Store date range. A new result (new `data` identity) always starts at the full range (or
+    // the trading window, below) - the zoom and any signal selection belong to the previous result.
     const range = [
       parseExchangeTs(data.prices[0].date),
       parseExchangeTs(data.prices[data.prices.length - 1].date)
     ];
     chartData.current.dateRange = range;
-    // Controlled (Signals mode): the parent sets the shared window for a new result itself
-    if (!controlledZoom) setDateRange(range);
+    // Controlled (Signals mode): the parent sets the shared window for a new result itself.
+    // With a warm-up before tradeStart the result opens on the trading window (plus context);
+    // originalDateRange stays the full range, so Reset Zoom and the slider reach the warm-up.
+    if (!controlledZoom) setDateRange(initialWindowRange(data.prices, windowStart) || range);
     setOriginalDateRange(range);
     // controlledZoom / setDateRange are fixed for a chart's lifetime; only a new result resets
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
+  }, [data, windowStart]);
 
   // Bottom range slider rows: one per bar (stable identity per result, so the Brush keeps state).
   const sliderRows = useMemo(() => (data?.prices || []).map(price => ({
@@ -1607,6 +1619,7 @@ const ReporterStyleChart = ({
           showLevelLines={showLevelLines}
           showEvents={showEvents}
           positionSpans={positionSpans}
+          preWindowSpan={warmupSpan}
         />
         <Crosshair 
           show={showCrosshair} 
@@ -1664,6 +1677,7 @@ const ReporterStyleChart = ({
           height={pnlChartHeight}
           dateRange={plotRange}
           trades={trades}
+          preWindowSpan={warmupSpan}
         />
         <Crosshair
           show={showCrosshair}
@@ -1683,6 +1697,7 @@ const ReporterStyleChart = ({
           width={getChartWidth()}
           height={cumulativeChartHeight}
           dateRange={plotRange}
+          preWindowSpan={warmupSpan}
         />
         <Crosshair
           show={showCrosshair}
@@ -1704,6 +1719,7 @@ const ReporterStyleChart = ({
               height={indicatorChartHeight} 
               dateRange={plotRange}
               subSeries={subSeries}
+              preWindowSpan={warmupSpan}
             />
             <Crosshair 
               show={showCrosshair} 

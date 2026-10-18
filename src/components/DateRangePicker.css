@@ -54,3 +54,31 @@
   .date-shortcut-btn:hover {
     background-color: #d1d5db;
   }
+
+  .trade-start-field {
+    display: flex;
+    flex-direction: column;
+    margin-top: 0.75rem;
+  }
+
+  .trade-start-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+
+  .trade-start-reset {
+    padding: 0.25rem 0.75rem;
+  }
+
+  .trade-start-caption {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: #6b7280;
+  }
+
+  .trade-start-hint {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: #92400e;
+  }

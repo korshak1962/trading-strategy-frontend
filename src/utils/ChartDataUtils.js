@@ -94,3 +94,52 @@ export const barIndexAtOrAfter = (barTimes, ms) => {
   }
   return found;
 };
+
+// ---------------------------------------------------------------------------------------------
+// Trading window (screener tradeStart): the bars before `windowStart` are warm-up only - the
+// strategies see them but hold no position. `windowStart` is the backend's first bar of the
+// window (StrategyResultDTO / SignalChartsDTO.windowStart); without a tradeStart it is the first
+// bar, and an older backend omits it - both mean "no warm-up", so the helpers return null.
+// ---------------------------------------------------------------------------------------------
+
+// Initial zoom: this many bars of warm-up context left of the window, at least
+// (owner's decision: max(20 bars, 10% of the window's bars)).
+export const WINDOW_CONTEXT_MIN_BARS = 20;
+export const WINDOW_CONTEXT_FRACTION = 0.1;
+
+/** Index of the first window bar in `prices`, or -1 when there is no warm-up before it. */
+const windowStartIndex = (prices, windowStart) => {
+  if (!windowStart || !Array.isArray(prices) || prices.length === 0) return -1;
+  const windowMs = parseExchangeTs(windowStart).getTime();
+  if (Number.isNaN(windowMs)) return -1;
+  const barTimes = prices.map(price => parseExchangeTs(price.date).getTime());
+  const index = barIndexAtOrAfter(barTimes, windowMs);
+  return index > 0 ? index : -1;
+};
+
+/**
+ * Warm-up span to shade: everything left of the boundary between the last warm-up bar and the
+ * first window bar (the midpoint, so neither candle is cut by the edge).
+ * @returns {{endMs: number, windowStartMs: number}|null} null without a warm-up
+ */
+export const preWindowSpan = (prices, windowStart) => {
+  const index = windowStartIndex(prices, windowStart);
+  if (index === -1) return null;
+  const lastWarmupMs = parseExchangeTs(prices[index - 1].date).getTime();
+  const windowStartMs = parseExchangeTs(prices[index].date).getTime();
+  return { endMs: (lastWarmupMs + windowStartMs) / 2, windowStartMs };
+};
+
+/**
+ * Initial zoom window of a result with a warm-up: the trading window plus
+ * max(WINDOW_CONTEXT_MIN_BARS, 10% of the window's bars) bars of warm-up on the left.
+ * @returns {[Date, Date]|null} null without a warm-up (the caller shows the full range)
+ */
+export const initialWindowRange = (prices, windowStart) => {
+  const index = windowStartIndex(prices, windowStart);
+  if (index === -1) return null;
+  const windowBars = prices.length - index;
+  const context = Math.max(WINDOW_CONTEXT_MIN_BARS, Math.round(WINDOW_CONTEXT_FRACTION * windowBars));
+  const startIndex = Math.max(0, index - context);
+  return [parseExchangeTs(prices[startIndex].date), parseExchangeTs(prices[prices.length - 1].date)];
+};

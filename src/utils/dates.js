@@ -202,3 +202,19 @@ export const jobElapsedMs = (startedAt, finishedAt, zone, now = new Date()) => {
   const end = Number.isNaN(fin) ? zoneWallClockNowMs(zone, now) : fin;
   return Number.isNaN(end) ? null : end - start;
 };
+
+/**
+ * A bar's wall-clock timestamp as shown in text: 'YYYY-MM-DD' for a midnight / date-only value
+ * (DAY / WEEK / MONTH bars), 'YYYY-MM-DD HH:mm' for an intraday bar (MIN5 / HOUR) - exactly as
+ * received, no zone conversion. '' for missing / unparseable input.
+ * @param {string|Array|Date} v API LocalDateTime
+ * @returns {string}
+ */
+export const fmtBarTimestamp = (v) => {
+  const d = parseExchangeTs(v);
+  if (Number.isNaN(d.getTime())) return '';
+  const day = d.toISOString().substring(0, 10);
+  const hh = d.getUTCHours();
+  const mm = d.getUTCMinutes();
+  return hh === 0 && mm === 0 ? day : `${day} ${pad2(hh)}:${pad2(mm)}`;
+};

@@ -52,6 +52,10 @@
 /* Same fills as signalPanes.js POSITION_FILL, a little stronger so the swatch is visible */
 .signals-legend__swatch--long { background-color: rgba(16, 185, 129, 0.25); }
 .signals-legend__swatch--short { background-color: rgba(239, 68, 68, 0.2); }
+/* Warm-up before tradeStart: ChartDrawingUtils PRE_WINDOW_STYLE.fill, a little stronger */
+.signals-legend__swatch--warmup { background-color: rgba(107, 114, 128, 0.25); }
+/* Warm-up markers are drawn at ChartDrawingUtils OUTSIDE_WINDOW_ALPHA */
+.signals-legend__muted { opacity: 0.35; display: inline-flex; }
 
 .signal-pane {
   border-top: 1px solid #e5e7eb;

@@ -27,7 +27,9 @@ import SavedCasesPanel from './components/SavedCasesPanel';
 import TickerCombobox from './components/TickerCombobox';
 import ChannelExplorer from './components/channelExplorer/ChannelExplorer';
 import DownloaderPanel from './components/downloader/DownloaderPanel';
-import { calendarDayKey, exchangeTodayLocalDate, exchangeZoneForTicker, localDateFromIso } from './utils/dates';
+import {
+  calendarDayKey, exchangeTodayLocalDate, exchangeZoneForTicker, localDateFromIso, toLocalIsoDate, fmtBarTimestamp,
+} from './utils/dates';
 
 // .chart-toolbar bottom margin (see fullscreenChartHeight).
 const CHART_TOOLBAR_MARGIN_PX = 16;
@@ -91,6 +93,21 @@ const App = () => {
   const [startDate, setStartDate] = useState(new Date(2023, 0, 1));
   // Decision 0.18: default end = the exchange's today (US default ticker), not the browser's.
   const [endDate, setEndDate] = useState(() => exchangeTodayLocalDate());
+
+  // Trade start (screener tradeStart): positions open only from this day, the bars before it are
+  // warm-up. Until the user sets it (tradeStartTouched) it follows startDate and is not sent at
+  // all; once set, a date-range change that leaves it outside [startDate, endDate] clamps it to
+  // the nearest bound, with tradeStartHint saying so.
+  const [tradeStart, setTradeStart] = useState(null);
+  const [tradeStartTouched, setTradeStartTouched] = useState(false);
+  const [tradeStartHint, setTradeStartHint] = useState(null);
+  // Latest dates for the clamp, written by the handlers as they run: the quick-range buttons call
+  // the start and the end handler in one event, so state read there would still be stale.
+  const datesRef = useRef(null);
+  if (datesRef.current === null) {
+    datesRef.current = { start: startDate, end: endDate, tradeStart: null, touched: false };
+  }
+  const effectiveTradeStart = tradeStartTouched && tradeStart ? tradeStart : startDate;
   
   // State for mode, loading and results
   const [mode, setMode] = useState('backtest'); // 'backtest' | 'optimize' | 'signals'
@@ -211,6 +228,16 @@ const App = () => {
     fetchTickers();
   }, []);
 
+  // Sets the trade start state (and datesRef) in one go; touched false = follow startDate.
+  // Only state setters and a ref: safe to call from the poll loop.
+  const applyTradeStart = (date, touched) => {
+    datesRef.current.tradeStart = touched ? date : null;
+    datesRef.current.touched = touched;
+    setTradeStart(touched ? date : null);
+    setTradeStartTouched(touched);
+    setTradeStartHint(null);
+  };
+
   // Shows a job right away and starts polling it. `initial` is either a placeholder (just started:
   // the first poll asks logSince=0 for all retained lines) or a full job JSON fetched with
   // logSince=0 (reattach on mount: its log is taken as is).
@@ -301,6 +328,15 @@ const App = () => {
           if (job.timeFrame) {
             setTimeFrame(job.timeFrame);
             setSelectedStrategies((prev) => withTimeframe(prev, job.timeFrame));
+          }
+          // The job's trade start (null = traded from its start date). The job does not echo its
+          // date range, so a restored day outside the form's range is clamped (with the hint).
+          const jobTradeStart = job.tradeStart ? localDateFromIso(job.tradeStart) : null;
+          if (jobTradeStart && !Number.isNaN(jobTradeStart.getTime())) {
+            applyTradeStart(jobTradeStart, true);
+            clampTradeStart();
+          } else {
+            applyTradeStart(null, false);
           }
         }
         setOptJob(job);
@@ -396,11 +432,23 @@ const App = () => {
       setError('Start date must be on or before end date');
       return;
     }
+    // tradeStart is sent only when the user set a day other than the start date, so a default
+    // request (and a case saved from it) is exactly the pre-feature one.
+    const requestTradeStart = tradeStartTouched && tradeStart
+      && calendarDayKey(tradeStart) !== calendarDayKey(startDate) ? tradeStart : null;
+    if (requestTradeStart && (calendarDayKey(requestTradeStart) < calendarDayKey(startDate)
+      || calendarDayKey(requestTradeStart) > calendarDayKey(endDate))) {
+      setResults(null);
+      setError('Trade start must be inside the date range');
+      return;
+    }
     setLoading(true);
     setError(null);
     setRunStarts((n) => n + 1);
 
-    const config = formatStrategyConfig(ticker, timeFrame, startDate, endDate, selectedStrategies, longOnly);
+    const config = formatStrategyConfig(
+      ticker, timeFrame, startDate, endDate, selectedStrategies, longOnly, requestTradeStart
+    );
     if (mode === 'signals') {
       clearSignalCharts();
       const seq = signalSeq.current;
@@ -436,6 +484,50 @@ const App = () => {
       setError('Backtest failed: ' + err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Clamps a user-set trade start into [start, end] (datesRef: the values just set), with a hint.
+  const clampTradeStart = () => {
+    const dates = datesRef.current;
+    if (!dates.touched || !dates.tradeStart) return;
+    let next = dates.tradeStart;
+    if (calendarDayKey(next) < calendarDayKey(dates.start)) next = dates.start;
+    else if (calendarDayKey(next) > calendarDayKey(dates.end)) next = dates.end;
+    if (next === dates.tradeStart) return;
+    dates.tradeStart = next;
+    setTradeStart(next);
+    setTradeStartHint(`Trade start moved to ${toLocalIsoDate(next)} to stay inside the date range`);
+  };
+
+  const handleStartDateChange = (d) => {
+    datesRef.current.start = d;
+    setStartDate(d);
+    clearSignalCharts();
+    clampTradeStart();
+  };
+
+  const handleEndDateChange = (d) => {
+    datesRef.current.end = d;
+    setEndDate(d);
+    clearSignalCharts();
+    clampTradeStart();
+  };
+
+  // A trade start change clears the results like any other form field.
+  const handleTradeStartChange = (d) => {
+    applyTradeStart(d, true);
+    setResults(null);
+    clearSignalCharts();
+    clampTradeStart(); // a typed day can bypass the input's min / max
+  };
+
+  const handleTradeStartReset = () => {
+    const changed = datesRef.current.touched;
+    applyTradeStart(null, false);
+    if (changed) {
+      setResults(null);
+      clearSignalCharts();
     }
   };
 
@@ -499,8 +591,23 @@ const App = () => {
     setLongOnly(!!cfg.longOnly);
     const start = localDateFromIso(cfg.startDate ?? savedCase.startDate);
     const end = localDateFromIso(cfg.endDate ?? savedCase.endDate);
-    if (!Number.isNaN(start.getTime())) setStartDate(start);
-    if (!Number.isNaN(end.getTime())) setEndDate(end);
+    if (!Number.isNaN(start.getTime())) {
+      setStartDate(start);
+      datesRef.current.start = start;
+    }
+    if (!Number.isNaN(end.getTime())) {
+      setEndDate(end);
+      datesRef.current.end = end;
+    }
+    // Saved trade start: null (older case, or saved without one) = trade from the start date.
+    const caseTradeStart = cfg.tradeStart ? localDateFromIso(cfg.tradeStart) : null;
+    if (caseTradeStart && !Number.isNaN(caseTradeStart.getTime())
+      && calendarDayKey(caseTradeStart) !== calendarDayKey(datesRef.current.start)) {
+      applyTradeStart(caseTradeStart, true);
+      clampTradeStart();
+    } else {
+      applyTradeStart(null, false);
+    }
     setSelectedStrategies(withTimeframe(cfg.strategyNameToParams || {}, tf));
     setResults(null);
     clearSignalCharts();
@@ -509,6 +616,11 @@ const App = () => {
   };
 
   const showOptPanel = mode === 'optimize' && !!optJob;
+  // Trading window line and warnings of the result on screen (absent from an older backend).
+  const resultPrices = results?.chartDataDTO?.prices || [];
+  const resultWarnings = Array.isArray(results?.warnings)
+    ? results.warnings.filter((w) => typeof w === 'string' && w.length > 0)
+    : [];
   // Save is offered whenever results are on screen: optimize mode needs the job with a result,
   // backtest mode the recorded config of the run.
   const canSaveCase = mode === 'optimize'
@@ -659,9 +771,13 @@ const App = () => {
               <DateRangePicker
                 startDate={startDate}
                 endDate={endDate}
-                onStartDateChange={(d) => { setStartDate(d); clearSignalCharts(); }}
-                onEndDateChange={(d) => { setEndDate(d); clearSignalCharts(); }}
+                onStartDateChange={handleStartDateChange}
+                onEndDateChange={handleEndDateChange}
                 zone={exchangeZoneForTicker(ticker)}
+                tradeStart={effectiveTradeStart}
+                onTradeStartChange={handleTradeStartChange}
+                onTradeStartReset={handleTradeStartReset}
+                tradeStartHint={tradeStartHint}
               />
               
               {/* Strategy Selector */}
@@ -766,6 +882,29 @@ const App = () => {
                   )}
                 </div>
                 
+
+                {/* Trading window (screener tradeStart): the backend's first bar of the window, shown
+                    only when the run had a tradeStart. Bars before it are warm-up (shaded). */}
+                {results.tradeStart && results.windowStart && (
+                  <p className="mb-3 text-sm text-gray-600" data-testid="trading-window">
+                    <span className="font-medium text-gray-800">Trading window:</span>{' '}
+                    {fmtBarTimestamp(results.windowStart)}
+                    {resultPrices.length > 0 && <> → {fmtBarTimestamp(resultPrices[resultPrices.length - 1].date)}</>}
+                    {resultPrices.length > 0 && <> · warm-up from {fmtBarTimestamp(resultPrices[0].date)}</>}
+                  </p>
+                )}
+
+                {/* Backend warnings (e.g. a short warm-up before tradeStart): informational only */}
+                {resultWarnings.length > 0 && (
+                  <div
+                    className="mb-4 p-3 rounded bg-amber-50 border border-amber-300 text-amber-800 text-sm"
+                    role="status"
+                    data-testid="result-warnings"
+                  >
+                    {resultWarnings.map((w, i) => <div key={i}>{w}</div>)}
+                  </div>
+                )}
+
                 {/* Results area - the element fullscreened by the toggle. In fullscreen the charts
                     fill the first screen and StrategyResults follows below at full width. */}
                 <div ref={setChartAreaNode} className={isFullscreen ? 'chart-fullscreen-active' : ''}>
@@ -799,6 +938,7 @@ const App = () => {
                       visibleSeries={visibleIndicatorSeries}
                       indicatorSelection={indicatorSelection}
                       longLegOnly={results.longOnly !== true && results.chartDataDTO?.includesShortSignals !== true}
+                      windowStart={results.windowStart ?? null}
                     />
                   </div>
 

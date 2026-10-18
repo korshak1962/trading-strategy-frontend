@@ -6,7 +6,8 @@ import {
   drawGrid,
   drawDateAxis,
   drawPnLAxis,
-  drawIndividualTradeBars
+  drawIndividualTradeBars,
+  drawPreWindowShading
 } from '../../utils/ChartDrawingUtils';
 import { extractTradesFromSignals } from '../../utils/ChartDataUtils';
 import { parseExchangeTs, exchangeToday } from '../../utils/dates';
@@ -21,9 +22,10 @@ import { parseExchangeTs, exchangeToday } from '../../utils/dates';
  * @param {Array} [props.trades] - trades already paired from the signals (the parent shares them
  *   with its tooltip / cumulative pane); paired here from data.signals when omitted
  * @param {string} [props.axisTitle] - value-axis title
+ * @param {{endMs: number}|null} [props.preWindowSpan] - warm-up before tradeStart to shade
  * @returns {JSX.Element}
  */
-const PnLChart = ({ data, width, height, dateRange, trades, axisTitle }) => {
+const PnLChart = ({ data, width, height, dateRange, trades, axisTitle, preWindowSpan = null }) => {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -91,6 +93,9 @@ const PnLChart = ({ data, width, height, dateRange, trades, axisTitle }) => {
       }
     }
     
+    // Warm-up before the trading window (drawn whatever the pane shows; no trades there anyway)
+    drawPreWindowShading(ctx, preWindowSpan, chartDateRange, width, height);
+
     // Extract trades from signals
     if (signals.length > 0) {
       const allTrades = trades ?? extractTradesFromSignals(signals);
@@ -136,7 +141,7 @@ const PnLChart = ({ data, width, height, dateRange, trades, axisTitle }) => {
         ctx.clearRect(0, 0, width, height);
       }
     };
-  }, [data, width, height, dateRange, trades, axisTitle]);
+  }, [data, width, height, dateRange, trades, axisTitle, preWindowSpan]);
 
   return (
     <div className="chart-wrapper">

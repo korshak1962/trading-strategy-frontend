@@ -23,6 +23,7 @@ import {
  * @param {(range: [Date, Date]) => void} props.onDateRangeChange - stable setter
  * @param {boolean} props.showRangeSlider - only the last pane carries the slider
  * @param {number} props.height - pane block height (price pane + indicator pane + slider)
+ * @param {string|null} [props.windowStart] - first bar of the trading window (warm-up shading)
  */
 // What ReporterStyleChart takes off `height` for its range slider (RANGE_SLIDER_BLOCK_PX there):
 // added back on the slider pane, so its price pane is as tall as the others.
@@ -30,7 +31,7 @@ const SLIDER_BLOCK_PX = RANGE_SLIDER_HEIGHT + 2 + RANGE_SLIDER_DATES_HEIGHT + 16
 
 const SignalPane = ({
   charts, pane = null, merged = false, geometry, positionSpans, dateRange, onDateRangeChange,
-  showRangeSlider, height
+  showRangeSlider, height, windowStart = null
 }) => {
   const paneData = useMemo(
     () => (merged ? mergedPaneData(charts) : toPaneData(charts, pane)),
@@ -119,6 +120,7 @@ const SignalPane = ({
         longOnly={charts.longOnly}
         priceTitle={title}
         showInstructions={false}
+        windowStart={windowStart}
       />
     </section>
   );

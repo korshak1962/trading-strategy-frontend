@@ -391,7 +391,9 @@ const ChartTooltip = ({ tooltipData }) => {
             }}>
               {signal.type} @ {signal.price.toFixed(2)}
               {/* Signals mode: a strategy signal the merge did not execute / the merged trade's sources */}
-              {signal.executed === false && <span className="chart-tooltip-muted"> (not executed in the merge)</span>}
+              {signal.reason === 'OUTSIDE_WINDOW'
+                ? <span className="chart-tooltip-muted"> (not executed — before trade start)</span>
+                : signal.executed === false && <span className="chart-tooltip-muted"> (not executed in the merge)</span>}
               {Array.isArray(signal.sources) && signal.sources.length > 0 && (
                 <div className="chart-tooltip-muted">from: {signal.sources.join(', ')}</div>
               )}

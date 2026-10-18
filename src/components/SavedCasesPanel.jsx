@@ -197,6 +197,8 @@ const SavedCasesPanel = ({ ticker, casesVersion, onChanged, onLoad, disabled, ru
                       <div className="text-sm font-medium text-gray-900 break-words">{c.name}</div>
                       <div className="text-xs text-gray-500">
                         {c.ticker} {c.timeframe} · {dayOf(c.startDate)}..{dayOf(c.endDate)}
+                        {/* null = traded from the start date (older cases, or saved without one) */}
+                        {c.tradeStart ? ` · trade from ${dayOf(c.tradeStart)}` : ''}
                         {c.longOnly ? ' · long only' : ''}
                       </div>
                       <div className="text-xs text-gray-500">Saved {fmtSavedAt(c.savedAt)}</div>
