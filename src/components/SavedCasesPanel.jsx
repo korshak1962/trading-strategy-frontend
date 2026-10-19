@@ -10,22 +10,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { deleteCase, getCase, listCases } from '../api/strategyApi';
 import { fmtExchangeIntl } from '../utils/dates';
+import { objectiveLabel } from '../utils/objectives';
 import CreateWatchDialog from './watch/CreateWatchDialog';
 import { watchBlockReason } from './watch/format';
 
 const TICKER_DEBOUNCE_MS = 300;
-
-const OBJECTIVE_LABELS = {
-  LONG_PNL: 'Long PnL',
-  ANNUAL_RETURN: 'Annual return',
-  COMPLEX_YIELD: 'Complex yield',
-  CALMAR: 'Calmar',
-  SHARPE: 'Sharpe',
-};
-
-const objectiveLabel = (objective) =>
-  OBJECTIVE_LABELS[objective]
-  || objective.toLowerCase().replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
 
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const fmt2 = (v) => (isNum(v) && Math.abs(v) < 1e12 ? v.toFixed(2) : 'n/a');

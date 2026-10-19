@@ -8,16 +8,9 @@
 
 import { useState, useRef, useLayoutEffect } from 'react';
 import './OptimizationProgress.css';
+import { objectiveLabel } from '../utils/objectives';
 
 const TERMINAL = new Set(['DONE', 'FAILED', 'CANCELLED']);
-
-const OBJECTIVE_LABELS = {
-  LONG_PNL: 'Long PnL',
-  ANNUAL_RETURN: 'Annual return',
-  COMPLEX_YIELD: 'Complex yield',
-  CALMAR: 'Calmar',
-  SHARPE: 'Sharpe',
-};
 
 const PHASE_TEXT = {
   QUEUED: 'Queued…',
@@ -39,12 +32,6 @@ const LEVEL_CLASS = {
 };
 
 // ---- formatting ----
-
-const objectiveLabel = (objective) =>
-  OBJECTIVE_LABELS[objective]
-  || (objective
-    ? objective.toLowerCase().replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
-    : 'Objective');
 
 // m:ss, or h:mm:ss from one hour on. Elapsed offsets only, never wall-clock times.
 const fmtElapsed = (ms) => {

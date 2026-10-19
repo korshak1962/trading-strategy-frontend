@@ -250,7 +250,7 @@ export const deleteCase = async (id) => {
  */
 export const formatStrategyConfig = (
   ticker, timeFrame, startDate, endDate, strategyParams, longOnly = false, tradeStart = null,
-  initialPosition = null
+  initialPosition = null, objectiveFunction = null
 ) => {
   // Convert JavaScript dates to the LocalDateTime format expected by the Java backend. The
   // pickers hand us calendar days, so the range is inclusive of both ends: start at 00:00:00,
@@ -268,6 +268,8 @@ export const formatStrategyConfig = (
     longOnly
   };
   if (tradeStart) config.tradeStart = formatDate(tradeStart, '00:00:00');
+  // Optimize only (OptimizationObjective name); omitted = the backend default LONG_PNL.
+  if (objectiveFunction) config.objectiveFunction = objectiveFunction;
   if (initialPosition) {
     const entryDate = initialPosition.entryDate instanceof Date
       ? formatDate(initialPosition.entryDate, '').slice(0, 10)

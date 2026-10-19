@@ -35,6 +35,7 @@ import { describeError, fmtDay, fmtPrice, modeLabel } from './components/watch/f
 import {
   calendarDayKey, exchangeTodayLocalDate, exchangeZoneForTicker, localDateFromIso, toLocalIsoDate, fmtBarTimestamp,
 } from './utils/dates';
+import { DEFAULT_OBJECTIVE, OBJECTIVES, normalizeObjective } from './utils/objectives';
 
 // .chart-toolbar bottom margin (see fullscreenChartHeight).
 const CHART_TOOLBAR_MARGIN_PX = 16;
@@ -110,6 +111,10 @@ const App = () => {
   // Long-only evaluation: backend skips the short leg entirely. Sent with both
   // backtest and optimize requests via formatStrategyConfig.
   const [longOnly, setLongOnly] = useState(false);
+  // Optimization objective (OptimizationObjective name), sent as objectiveFunction with Optimize
+  // requests only. Restored from a loaded case and from a reattached job.
+  const [objective, setObjective] = useState(DEFAULT_OBJECTIVE);
+  const selectedObjective = OBJECTIVES.find((o) => o.value === objective);
 
   // State for date range
   const [startDate, setStartDate] = useState(new Date(2023, 0, 1));
@@ -347,6 +352,7 @@ const App = () => {
           // handleTimeFrameChange): finish() below may set them in this same tick.
           optSyncForm.current = false;
           setTicker(job.ticker);
+          if (job.objective) setObjective(normalizeObjective(job.objective));
           if (job.timeFrame) {
             setTimeFrame(job.timeFrame);
             setSelectedStrategies((prev) => withTimeframe(prev, job.timeFrame));
@@ -475,7 +481,7 @@ const App = () => {
 
     const config = formatStrategyConfig(
       ticker, timeFrame, startDate, endDate, selectedStrategies, longOnly, requestTradeStart,
-      requestInitialPosition
+      requestInitialPosition, mode === 'optimize' ? objective : null
     );
     if (mode === 'signals') {
       clearSignalCharts();
@@ -652,9 +658,10 @@ const App = () => {
   };
 
   // Load a saved case (StrategyCaseDTO) into the form. The mode is kept; the stored objective is
-  // not applied (the UI has no objective selector). Reconcile warnings are shown above the form.
+  // applied (Long PnL when the case has none). Reconcile warnings are shown above the form.
   const handleLoadCase = (savedCase) => {
     applyConfig(savedCase?.config || {}, { fallback: savedCase || {} });
+    setObjective(normalizeObjective(savedCase?.config?.objectiveFunction ?? savedCase?.objective));
     setWatchContext(null);
     setCaseWarnings(Array.isArray(savedCase.warnings) && savedCase.warnings.length > 0 ? savedCase.warnings : null);
   };
@@ -934,6 +941,26 @@ const App = () => {
                 </label>
                 <p className="mt-1 text-xs text-gray-500">Ignore short signals; only the long leg is evaluated.</p>
               </div>
+
+              {/* Optimization objective (Optimize mode only; not sent otherwise) */}
+              {mode === 'optimize' && (
+                <div className="mb-6">
+                  <label htmlFor="objective-select" className="block text-sm font-medium text-gray-700 mb-2">Optimize for</label>
+                  <select
+                    id="objective-select"
+                    data-testid="objective-select"
+                    value={objective}
+                    onChange={(e) => { setObjective(e.target.value); setResults(null); }}
+                    className="w-full p-2 border rounded"
+                    title={selectedObjective?.description}
+                  >
+                    {OBJECTIVES.map((o) => (
+                      <option key={o.value} value={o.value} title={o.description}>{o.label}</option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">{selectedObjective?.description}</p>
+                </div>
+              )}
 
               {/* Date Range Picker */}
               <DateRangePicker
