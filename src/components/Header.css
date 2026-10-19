@@ -53,3 +53,27 @@
     border-color: #fff;
     color: #1e40af;
   }
+
+  /* Watchlist tab: unread badge + warning icon */
+  .header-tab-badge {
+    display: inline-block;
+    margin-left: 6px;
+    min-width: 18px;
+    padding: 0 5px;
+    border-radius: 9999px;
+    background: #dc2626;
+    color: #fff;
+    font-size: 0.7rem;
+    line-height: 18px;
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  .header-tab-warn {
+    margin-left: 6px;
+    color: #fbbf24;
+  }
+
+  .header-tab--active .header-tab-warn {
+    color: #d97706;
+  }

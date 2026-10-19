@@ -1,7 +1,16 @@
 // src/components/Header.jsx
 import './Header.css';
 
-const Header = ({ activeTab, onChangeTab }) => {
+/**
+ * @param {Object} props
+ * @param {string} props.activeTab
+ * @param {(tab: string) => void} props.onChangeTab
+ * @param {{count: number, stale: number, errors: number}} [props.watch] Watchlist badge (unread
+ *   notifications) and the warning icon (stale / failing watches), visible from any tab
+ */
+const Header = ({ activeTab, onChangeTab, watch = null }) => {
+  const unread = watch?.count > 0 ? watch.count : 0;
+  const troubled = (watch?.stale || 0) + (watch?.errors || 0);
   return (
     <header className="header">
       <div className="container header-container">
@@ -30,6 +39,25 @@ const Header = ({ activeTab, onChangeTab }) => {
             onClick={() => onChangeTab('downloader')}
           >
             Downloader
+          </button>
+          <button
+            type="button"
+            className={`header-tab${activeTab === 'watchlist' ? ' header-tab--active' : ''}`}
+            onClick={() => onChangeTab('watchlist')}
+            data-testid="tab-watchlist"
+            title={troubled > 0
+              ? `${troubled} watch${troubled === 1 ? '' : 'es'} with stale data or a failing check`
+              : undefined}
+          >
+            Watchlist
+            {troubled > 0 && (
+              <span className="header-tab-warn" aria-label="Watches need attention" data-testid="watchlist-warn">⚠</span>
+            )}
+            {unread > 0 && (
+              <span className="header-tab-badge" aria-label={`${unread} unread`} data-testid="watchlist-badge">
+                {unread > 99 ? '99+' : unread}
+              </span>
+            )}
           </button>
         </nav>
       </div>

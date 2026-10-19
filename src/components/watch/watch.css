@@ -1,0 +1,115 @@
+/* Signal watch: Watchlist tab, signal feed, toasts. Tailwind does the layout; this file holds the
+   signal-state / health styles shared by several components. */
+
+/* ---- signal states (feed rows, last-signal cells) ---- */
+.watch-sig--CONFIRMED {
+  color: #111827;
+}
+.watch-sig--PROVISIONAL {
+  color: #9ca3af;
+}
+.watch-sig--RETRACTED {
+  color: #9ca3af;
+  text-decoration: line-through;
+}
+.watch-sig--BASELINE {
+  color: #6b7280;
+  opacity: 0.75;
+}
+
+.watch-state-badge {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  line-height: 1.1rem;
+  border: 1px solid transparent;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.watch-state-badge--CONFIRMED { background: #dcfce7; color: #166534; border-color: #86efac; }
+.watch-state-badge--PROVISIONAL { background: #f3f4f6; color: #6b7280; border-color: #d1d5db; }
+.watch-state-badge--RETRACTED { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+.watch-state-badge--BASELINE { background: #f9fafb; color: #6b7280; border-color: #e5e7eb; }
+
+.watch-flag {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  line-height: 1.1rem;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+  white-space: nowrap;
+}
+
+.watch-action--BUY { color: #15803d; font-weight: 700; }
+.watch-action--SELL { color: #b91c1c; font-weight: 700; }
+
+/* ---- health ---- */
+.watch-health {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  cursor: help;
+}
+.watch-health--ok { color: #16a34a; }
+.watch-health--stale { color: #d97706; }
+.watch-health--error { color: #dc2626; }
+
+/* ---- table rows ---- */
+.watch-row {
+  cursor: pointer;
+}
+.watch-row:hover {
+  background: #eff6ff;
+}
+.watch-row--inactive {
+  color: #9ca3af;
+}
+
+/* ---- toasts (top right, above everything) ---- */
+.watch-toasts {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(380px, calc(100vw - 32px));
+}
+.watch-toast {
+  background: #fff;
+  border: 1px solid #93c5fd;
+  border-left: 4px solid #2563eb;
+  border-radius: 6px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  padding: 10px 12px;
+  font-size: 0.875rem;
+  color: #1f2937;
+}
+.watch-toast--RETRACTED { border-left-color: #9ca3af; border-color: #d1d5db; }
+.watch-toast--BROKEN { border-left-color: #dc2626; border-color: #fecaca; }
+
+/* ---- modal ---- */
+.watch-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: rgba(17, 24, 39, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 48px 16px;
+}
+.watch-modal {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  width: min(560px, 100%);
+  padding: 20px;
+}

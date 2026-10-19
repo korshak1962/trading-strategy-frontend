@@ -241,10 +241,16 @@ export const deleteCase = async (id) => {
  *   only when given; null leaves the field out, so the request is byte-for-byte the pre-feature
  *   one (the backend then trades from startDate). The caller passes null unless the user set a
  *   day different from startDate.
+ * @param {{side: string, entryPrice: number, entryDate?: string|null}|null} [initialPosition=null] -
+ *   a seeded position (screener Signal watch design §1.1): only set by a deep link from the
+ *   Watchlist, only for Backtest / Signals - the caller never passes it in Optimize (the backend
+ *   rejects it there with 400 INITIAL_POSITION_NOT_SUPPORTED_IN_OPTIMIZE). `entryDate` is sent as
+ *   'YYYY-MM-DD'. null leaves the field out.
  * @returns {Object} Formatted configuration object
  */
 export const formatStrategyConfig = (
-  ticker, timeFrame, startDate, endDate, strategyParams, longOnly = false, tradeStart = null
+  ticker, timeFrame, startDate, endDate, strategyParams, longOnly = false, tradeStart = null,
+  initialPosition = null
 ) => {
   // Convert JavaScript dates to the LocalDateTime format expected by the Java backend. The
   // pickers hand us calendar days, so the range is inclusive of both ends: start at 00:00:00,
@@ -262,5 +268,15 @@ export const formatStrategyConfig = (
     longOnly
   };
   if (tradeStart) config.tradeStart = formatDate(tradeStart, '00:00:00');
+  if (initialPosition) {
+    const entryDate = initialPosition.entryDate instanceof Date
+      ? formatDate(initialPosition.entryDate, '').slice(0, 10)
+      : (initialPosition.entryDate ? String(initialPosition.entryDate).substring(0, 10) : null);
+    config.initialPosition = {
+      side: initialPosition.side || 'LONG',
+      entryPrice: initialPosition.entryPrice,
+      entryDate,
+    };
+  }
   return config;
 };

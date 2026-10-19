@@ -19,7 +19,16 @@ const TradesTable = ({
   // True when the result is not long-only but the chart data carries long signals only (older
   // backend without includesShortSignals), so this table shows the long leg alone and says so.
   longLegOnly = false,
+  // Signal watch deep link (StrategyResultDTO.seededEntry {date, price}): the long trade opened by
+  // the seeded position is the user's own entry, not a model signal - marked "SEEDED (your entry)".
+  seededEntry = null,
 }) => {
+  const seededMs = seededEntry?.date ? parseExchangeTs(seededEntry.date).getTime() : NaN;
+  const isSeededOpen = (signal) => {
+    if (Number.isFinite(seededMs) && parseExchangeTs(signal.date).getTime() === seededMs
+      && (typeof seededEntry.price !== 'number' || Math.abs(signal.price - seededEntry.price) < 1e-9)) return true;
+    return typeof signal.comment === 'string' && signal.comment.startsWith('SEEDED');
+  };
   const legLabel = longLegOnly ? 'long leg, ' : '';
   const totalQualifiers = [
     longLegOnly && 'long leg',
@@ -66,6 +75,7 @@ const TradesTable = ({
           pnlPercent: tradePnlPercent(profit, openSignal.price),
           openReason: openSignal.comment || '',
           closeReason: signal.comment || '',
+          seeded: isSeededOpen(openSignal),
         });
         
         // Clear open signal
@@ -103,8 +113,8 @@ const TradesTable = ({
 
   // Derived from the current result on every change, so a run with no signals shows an empty
   // table instead of keeping the previous run's trades.
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- extractTradesFromSignals is a pure helper
-  const trades = useMemo(() => extractTradesFromSignals(data?.signals || []), [data]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- extractTradesFromSignals is a pure helper (+ seededEntry)
+  const trades = useMemo(() => extractTradesFromSignals(data?.signals || []), [data, seededEntry]);
 
   const requestSort = (key) => {
     let direction = 'asc';
@@ -154,7 +164,7 @@ const TradesTable = ({
       'Close Price': trade.closePrice,
       'P&L':         parseFloat(trade.pnl.toFixed(2)),
       'P&L %':       parseFloat(trade.pnlPercent.toFixed(2)),
-      'Open Reason':  trade.openReason,
+      'Open Reason':  trade.seeded ? `SEEDED (your entry)${trade.openReason ? ` ${trade.openReason}` : ''}` : trade.openReason,
       'Close Reason': trade.closeReason,
     }));
 
@@ -252,6 +262,15 @@ const TradesTable = ({
                   <td>{trade.id}</td>
                   <td className={trade.type === 'Long' ? 'long-trade' : 'short-trade'}>
                     {trade.type}
+                    {trade.seeded && (
+                      <span
+                        className="ml-1 px-1 rounded bg-amber-100 text-amber-800 border border-amber-300 text-xs font-normal whitespace-nowrap"
+                        title="The position you already held (seeded from the watch), not a model entry"
+                        data-testid="trade-seeded"
+                      >
+                        SEEDED (your entry)
+                      </span>
+                    )}
                   </td>
                   <td>{formatDate(trade.openDate, false)}</td>
                   <td>{formatDate(trade.closeDate, false)}</td>

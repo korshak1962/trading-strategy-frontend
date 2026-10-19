@@ -27,6 +27,11 @@ import SavedCasesPanel from './components/SavedCasesPanel';
 import TickerCombobox from './components/TickerCombobox';
 import ChannelExplorer from './components/channelExplorer/ChannelExplorer';
 import DownloaderPanel from './components/downloader/DownloaderPanel';
+import WatchlistPanel from './components/watch/WatchlistPanel';
+import WatchToasts from './components/watch/WatchToasts';
+import { useWatchNotifications } from './hooks/useWatchNotifications';
+import { getWatchBacktestConfig, markNotificationRead } from './api/watchApi';
+import { describeError, fmtDay, fmtPrice, modeLabel } from './components/watch/format';
 import {
   calendarDayKey, exchangeTodayLocalDate, exchangeZoneForTicker, localDateFromIso, toLocalIsoDate, fmtBarTimestamp,
 } from './utils/dates';
@@ -71,9 +76,26 @@ const withTimeframe = (strategies, tf) =>
 
 const App = () => {
   // Top-level tab: 'backtest' (strategy configure/run/results flow), 'channels' (channel
-  // explorer) or 'downloader' (price download + indicator recalc jobs). The tabs are
-  // functionally independent and don't share state.
+  // explorer), 'downloader' (price download + indicator recalc jobs) or 'watchlist' (signal
+  // watches). The tabs are functionally independent; the Watchlist only opens a watch's run in
+  // Backtest (deep link, openWatchInBacktest).
   const [activeTab, setActiveTab] = useState('backtest');
+
+  // ---- Signal watch (screener architect.md "Signal watch — design rev 1" §6.2) ----
+  // Badge + toasts: polled from any tab.
+  const watchNotifications = useWatchNotifications();
+  // The watch whose run the Backtest form holds (deep link): {watchId, watchName, mode,
+  // initialPosition, focusBarDate, tradeStart, edited}. Its initialPosition is sent with Backtest /
+  // Signals runs only (never Optimize). A ticker / timeframe change or a loaded case drops it; any
+  // other form edit sets `edited` (the run may then differ from the watch: E1 holds only unedited).
+  const [watchContext, setWatchContext] = useState(null);
+  const [watchLinkError, setWatchLinkError] = useState(null);
+  const [watchLinkBusy, setWatchLinkBusy] = useState(false);
+  // Deep link auto-run: set together with the form; the effect below submits once the form state
+  // has rendered, through the same handleSubmit as a manual run.
+  const pendingAutoRun = useRef(false);
+  const [autoRunTick, setAutoRunTick] = useState(0);
+  const markWatchEdited = () => setWatchContext((c) => (c && !c.edited ? { ...c, edited: true } : c));
 
   // State for available strategies
   const [availableStrategies, setAvailableStrategies] = useState([]);
@@ -417,7 +439,7 @@ const App = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     // Client-side validation. Every error clears the previous result so a stale result is
     // never shown next to an error message.
     if (!ticker || !ticker.trim()) {
@@ -433,9 +455,14 @@ const App = () => {
       return;
     }
     // tradeStart is sent only when the user set a day other than the start date, so a default
-    // request (and a case saved from it) is exactly the pre-feature one.
+    // request (and a case saved from it) is exactly the pre-feature one. A watch run (deep link,
+    // Backtest / Signals) always sends the watch's trade start, even when it equals the start
+    // date: a seeded position requires one (400 INITIAL_POSITION_REQUIRES_TRADE_START otherwise).
+    const watchRun = !!watchContext && mode !== 'optimize';
     const requestTradeStart = tradeStartTouched && tradeStart
-      && calendarDayKey(tradeStart) !== calendarDayKey(startDate) ? tradeStart : null;
+      && (watchRun || calendarDayKey(tradeStart) !== calendarDayKey(startDate)) ? tradeStart : null;
+    // Never in Optimize (400 INITIAL_POSITION_NOT_SUPPORTED_IN_OPTIMIZE).
+    const requestInitialPosition = watchRun ? (watchContext.initialPosition || null) : null;
     if (requestTradeStart && (calendarDayKey(requestTradeStart) < calendarDayKey(startDate)
       || calendarDayKey(requestTradeStart) > calendarDayKey(endDate))) {
       setResults(null);
@@ -447,7 +474,8 @@ const App = () => {
     setRunStarts((n) => n + 1);
 
     const config = formatStrategyConfig(
-      ticker, timeFrame, startDate, endDate, selectedStrategies, longOnly, requestTradeStart
+      ticker, timeFrame, startDate, endDate, selectedStrategies, longOnly, requestTradeStart,
+      requestInitialPosition
     );
     if (mode === 'signals') {
       clearSignalCharts();
@@ -501,6 +529,7 @@ const App = () => {
   };
 
   const handleStartDateChange = (d) => {
+    markWatchEdited();
     datesRef.current.start = d;
     setStartDate(d);
     clearSignalCharts();
@@ -508,6 +537,7 @@ const App = () => {
   };
 
   const handleEndDateChange = (d) => {
+    markWatchEdited();
     datesRef.current.end = d;
     setEndDate(d);
     clearSignalCharts();
@@ -516,6 +546,7 @@ const App = () => {
 
   // A trade start change clears the results like any other form field.
   const handleTradeStartChange = (d) => {
+    markWatchEdited();
     applyTradeStart(d, true);
     setResults(null);
     clearSignalCharts();
@@ -524,6 +555,7 @@ const App = () => {
 
   const handleTradeStartReset = () => {
     const changed = datesRef.current.touched;
+    if (changed) markWatchEdited();
     applyTradeStart(null, false);
     if (changed) {
       setResults(null);
@@ -532,6 +564,7 @@ const App = () => {
   };
 
   const handleTimeFrameChange = (tf) => {
+    setWatchContext(null); // another timeframe is not the watch's run
     setTimeFrame(tf);
     setResults(null);
     clearSignalCharts();
@@ -540,6 +573,7 @@ const App = () => {
 
   // Add strategy to selected strategies
   const handleAddStrategy = (strategy) => {
+    markWatchEdited();
     setResults(null);
     clearSignalCharts();
     setSelectedStrategies(prev => ({
@@ -556,6 +590,7 @@ const App = () => {
 
   // Remove strategy from selected strategies
   const handleRemoveStrategy = (strategyName) => {
+    markWatchEdited();
     setResults(null);
     clearSignalCharts();
     setSelectedStrategies(prev => {
@@ -567,6 +602,7 @@ const App = () => {
 
   // field: 'value' | 'min' | 'max' | 'step' | 'timeframe'
   const handleUpdateParam = (strategyName, paramName, field, value) => {
+    markWatchEdited();
     setResults(null);
     clearSignalCharts();
     setSelectedStrategies(prev => ({
@@ -581,16 +617,17 @@ const App = () => {
     }));
   };
 
-  // Load a saved case (StrategyCaseDTO) into the form. The mode is kept; the stored objective is
-  // not applied (the UI has no objective selector). Reconcile warnings are shown above the form.
-  const handleLoadCase = (savedCase) => {
-    const cfg = savedCase?.config || {};
-    const tf = cfg.timeFrame || savedCase.timeframe || timeFrame;
-    setTicker(cfg.ticker || savedCase.ticker || ticker);
+  // Puts a StrategiesConfigDTO into the form (a saved case, or a watch's run). `fallback` fills
+  // fields the config lacks (the case summary's ticker / timeframe / dates). forceTradeStart: keep
+  // the config's trade start as a user-set one even when it equals the start date (a watch run
+  // always sends it). Results and signal charts are cleared.
+  const applyConfig = (cfg, { fallback = {}, forceTradeStart = false } = {}) => {
+    const tf = cfg.timeFrame || fallback.timeframe || timeFrame;
+    setTicker(cfg.ticker || fallback.ticker || ticker);
     setTimeFrame(tf);
     setLongOnly(!!cfg.longOnly);
-    const start = localDateFromIso(cfg.startDate ?? savedCase.startDate);
-    const end = localDateFromIso(cfg.endDate ?? savedCase.endDate);
+    const start = localDateFromIso(cfg.startDate ?? fallback.startDate);
+    const end = localDateFromIso(cfg.endDate ?? fallback.endDate);
     if (!Number.isNaN(start.getTime())) {
       setStartDate(start);
       datesRef.current.start = start;
@@ -602,7 +639,7 @@ const App = () => {
     // Saved trade start: null (older case, or saved without one) = trade from the start date.
     const caseTradeStart = cfg.tradeStart ? localDateFromIso(cfg.tradeStart) : null;
     if (caseTradeStart && !Number.isNaN(caseTradeStart.getTime())
-      && calendarDayKey(caseTradeStart) !== calendarDayKey(datesRef.current.start)) {
+      && (forceTradeStart || calendarDayKey(caseTradeStart) !== calendarDayKey(datesRef.current.start))) {
       applyTradeStart(caseTradeStart, true);
       clampTradeStart();
     } else {
@@ -612,7 +649,75 @@ const App = () => {
     setResults(null);
     clearSignalCharts();
     setError(null);
+  };
+
+  // Load a saved case (StrategyCaseDTO) into the form. The mode is kept; the stored objective is
+  // not applied (the UI has no objective selector). Reconcile warnings are shown above the form.
+  const handleLoadCase = (savedCase) => {
+    applyConfig(savedCase?.config || {}, { fallback: savedCase || {} });
+    setWatchContext(null);
     setCaseWarnings(Array.isArray(savedCase.warnings) && savedCase.warnings.length > 0 ? savedCase.warnings : null);
+  };
+
+  // Watchlist deep link (architect.md "Signal watch" §3.8, §6.2): the watch's own config comes
+  // from the server whole (snapshot params, startDate, endDate = now, tradeStart, longOnly,
+  // initialPosition) - nothing is recomputed here (E1). Opens Backtest, fills the form, runs it
+  // once and focuses the signal's bar.
+  const openWatchInBacktest = async (watchId, signalId = null) => {
+    setWatchLinkError(null);
+    if (loading || optActive) {
+      setWatchLinkError('A run is in progress in the Strategy Backtester — wait for it to finish, then open the watch again.');
+      return;
+    }
+    setWatchLinkBusy(true);
+    try {
+      const dto = await getWatchBacktestConfig(watchId, signalId);
+      const cfg = dto?.config || {};
+      setActiveTab('backtest');
+      setMode('backtest');
+      applyConfig(cfg, { forceTradeStart: true });
+      setCaseWarnings(null);
+      setWatchContext({
+        watchId,
+        watchName: dto?.watchName || `#${watchId}`,
+        mode: dto?.mode || null,
+        initialPosition: cfg.initialPosition || null,
+        focusBarDate: dto?.focusBarDate || null,
+        tradeStart: cfg.tradeStart || null,
+        linkedAt: dto?.linkedAt || null,
+        edited: false,
+      });
+      pendingAutoRun.current = true;
+      setAutoRunTick((t) => t + 1);
+    } catch (err) {
+      setWatchLinkError(err.status === 404 && !err.code
+        ? 'The watch or its signal no longer exists (or the backend has no watch API).'
+        : `Could not open the watch in Backtest: ${describeError(err)}`);
+    } finally {
+      setWatchLinkBusy(false);
+    }
+  };
+
+  // Deep link auto-run: once the form state set by openWatchInBacktest has rendered.
+  useEffect(() => {
+    if (!pendingAutoRun.current) return;
+    pendingAutoRun.current = false;
+    handleSubmit();
+    // handleSubmit of this render holds the form just applied; only a new deep link re-runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRunTick]);
+
+  // Toast click: open the Watchlist and mark the notification read.
+  const handleOpenToast = (n) => {
+    watchNotifications.dismiss(n.id);
+    setActiveTab('watchlist');
+    markNotificationRead(n.id).catch(() => {}).finally(() => watchNotifications.refresh());
+  };
+
+  const clearWatchPosition = () => {
+    setWatchContext((c) => (c ? { ...c, initialPosition: null, edited: true } : c));
+    setResults(null);
+    clearSignalCharts();
   };
 
   const showOptPanel = mode === 'optimize' && !!optJob;
@@ -641,6 +746,20 @@ const App = () => {
             <DownloaderPanel />
           </main>
         );
+      case 'watchlist':
+        return (
+          <main className="flex-grow w-full px-4 py-8">
+            {watchLinkError && (
+              <div className="form-error mb-4" role="alert" data-testid="watch-link-error">{watchLinkError}</div>
+            )}
+            {watchLinkBusy && <p className="mb-4 text-sm text-gray-500">Opening the watch in Backtest…</p>}
+            <WatchlistPanel
+              onOpenInBacktest={openWatchInBacktest}
+              latestNotificationId={watchNotifications.latestId}
+              onNotificationsChanged={watchNotifications.refresh}
+            />
+          </main>
+        );
       default:
         return (
       // Full page width (like the other tabs): a fixed-width parameters column flush at the
@@ -658,7 +777,56 @@ const App = () => {
               onLoad={handleLoadCase}
               disabled={loading}
               runStarts={runStarts}
+              onOpenWatchlist={() => setActiveTab('watchlist')}
             />
+
+            {/* Watch run banner (deep link from the Watchlist) */}
+            {watchContext && (
+              <div className="mb-6 p-3 rounded bg-blue-50 border border-blue-300 text-blue-900 text-sm" role="status" data-testid="watch-banner">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="font-medium">Watch run «{watchContext.watchName}»</span>
+                    {watchContext.mode && <> · {modeLabel(watchContext.mode)}</>}
+                    {watchContext.initialPosition ? (
+                      <div data-testid="watch-banner-position">
+                        Seeded position: LONG from {fmtDay(watchContext.initialPosition.entryDate)} at{' '}
+                        {fmtPrice(watchContext.initialPosition.entryPrice)}
+                      </div>
+                    ) : (
+                      <div>Starts flat{watchContext.tradeStart ? ` · trading from ${fmtDay(watchContext.tradeStart)}` : ''}</div>
+                    )}
+                    {watchContext.edited && (
+                      <div className="mt-1 text-amber-800" data-testid="watch-banner-edited">
+                        Edited — the run may not match the watch.
+                      </div>
+                    )}
+                    {mode === 'optimize' && watchContext.initialPosition && (
+                      <div className="mt-1 text-amber-800">The seeded position is not used in Optimize.</div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setWatchContext(null)}
+                    className="text-blue-700 hover:text-blue-900 leading-none"
+                    aria-label="Close the watch run"
+                    title="Close (keeps the form)"
+                    data-testid="watch-banner-close"
+                  >
+                    ✕
+                  </button>
+                </div>
+                {watchContext.initialPosition && (
+                  <button
+                    type="button"
+                    onClick={clearWatchPosition}
+                    className="mt-2 py-0.5 px-2 text-xs border border-blue-600 text-blue-700 rounded bg-white hover:bg-blue-100"
+                    data-testid="watch-banner-clear-position"
+                  >
+                    Clear position
+                  </button>
+                )}
+              </div>
+            )}
 
             {caseWarnings && (
               <div className="mb-6 p-3 rounded bg-amber-50 border border-amber-300 text-amber-800 text-sm" role="status">
@@ -733,7 +901,7 @@ const App = () => {
                 <TickerCombobox
                   id="ticker-input"
                   value={ticker}
-                  onChange={(val) => { setTicker(val); setResults(null); clearSignalCharts(); }}
+                  onChange={(val) => { setTicker(val); setWatchContext(null); setResults(null); clearSignalCharts(); }}
                   tickers={availableTickers}
                 />
               </div>
@@ -759,7 +927,7 @@ const App = () => {
                   <input
                     type="checkbox"
                     checked={longOnly}
-                    onChange={(e) => { setLongOnly(e.target.checked); setResults(null); clearSignalCharts(); }}
+                    onChange={(e) => { markWatchEdited(); setLongOnly(e.target.checked); setResults(null); clearSignalCharts(); }}
                     className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   Long only
@@ -878,6 +1046,10 @@ const App = () => {
                       jobId={optJobId}
                       getConfig={() => backtestConfigRef.current}
                       onSaved={bumpCasesVersion}
+                      getCaseMeta={() => (mode === 'optimize'
+                        ? { ticker, timeframe: timeFrame, longOnly, startDate: toLocalIsoDate(startDate) }
+                        : null)}
+                      onOpenWatchlist={() => setActiveTab('watchlist')}
                     />
                   )}
                 </div>
@@ -891,6 +1063,14 @@ const App = () => {
                     {fmtBarTimestamp(results.windowStart)}
                     {resultPrices.length > 0 && <> → {fmtBarTimestamp(resultPrices[resultPrices.length - 1].date)}</>}
                     {resultPrices.length > 0 && <> · warm-up from {fmtBarTimestamp(resultPrices[0].date)}</>}
+                  </p>
+                )}
+
+                {/* Seeded entry of a watch run (StrategyResultDTO.seededEntry; absent on an older backend) */}
+                {results.seededEntry && (
+                  <p className="mb-3 text-sm text-gray-600" data-testid="seeded-entry">
+                    <span className="font-medium text-gray-800">Seeded entry (your position):</span>{' '}
+                    {fmtBarTimestamp(results.seededEntry.date)} @ {fmtPrice(results.seededEntry.price)}
                   </p>
                 )}
 
@@ -939,6 +1119,7 @@ const App = () => {
                       indicatorSelection={indicatorSelection}
                       longLegOnly={results.longOnly !== true && results.chartDataDTO?.includesShortSignals !== true}
                       windowStart={results.windowStart ?? null}
+                      focusDate={mode === 'backtest' && watchContext && !watchContext.edited ? watchContext.focusBarDate : null}
                     />
                   </div>
 
@@ -967,7 +1148,17 @@ const App = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      <Header activeTab={activeTab} onChangeTab={setActiveTab} />
+      <Header
+        activeTab={activeTab}
+        onChangeTab={setActiveTab}
+        watch={watchNotifications.available ? watchNotifications : null}
+      />
+      <WatchToasts
+        toasts={watchNotifications.toasts}
+        onOpen={handleOpenToast}
+        onDismiss={watchNotifications.dismiss}
+        onDismissAll={watchNotifications.dismissAll}
+      />
 
       {renderMain()}
 

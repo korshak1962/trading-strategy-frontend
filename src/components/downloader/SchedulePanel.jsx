@@ -334,7 +334,12 @@ export default function SchedulePanel({ onJobStarted, currentJobId, jobActive })
                       onChange={() => togglePortfolio(p.name)}
                       className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
-                    <span className="truncate">{p.name} ({n} ticker{n === 1 ? '' : 's'})</span>
+                    <span className="truncate">
+                      {p.name} ({n} ticker{n === 1 ? '' : 's'})
+                      {p.dynamic && (
+                        <span className="ml-1 text-xs text-gray-500" title="Built automatically from the active and paused watches">auto</span>
+                      )}
+                    </span>
                   </label>
                 );
               })}
@@ -464,6 +469,15 @@ export default function SchedulePanel({ onJobStarted, currentJobId, jobActive })
                         {/* Name / portfolios */}
                         <td className="px-3 py-2">
                           <span className="font-medium">{s.name}</span>
+                          {s.systemKey && (
+                            <span
+                              className="ml-1 px-1.5 rounded border border-gray-300 bg-gray-50 text-xs text-gray-600"
+                              title="Created by the application for the signal watches. It can be disabled, not deleted."
+                              data-testid="schedule-system"
+                            >
+                              system (WATCH)
+                            </span>
+                          )}
                           <span className="block text-xs text-gray-500">
                             {s.market} · {portfolioNames.join(', ')}
                             {typeof s.tickerCount === 'number' && ` · ${s.tickerCount} ticker${s.tickerCount === 1 ? '' : 's'}`}
@@ -548,14 +562,17 @@ export default function SchedulePanel({ onJobStarted, currentJobId, jobActive })
                             >
                               Run now
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => { setRowError(null); setPendingDelete(s.id); }}
-                              disabled={busy}
-                              className="px-2 py-0.5 rounded border border-red-600 text-red-600 hover:bg-red-50 text-xs disabled:border-gray-300 disabled:text-gray-400 disabled:hover:bg-transparent"
-                            >
-                              Delete
-                            </button>
+                            {/* System (WATCH) schedules cannot be deleted (backend 409 SYSTEM_SCHEDULE) */}
+                            {!s.systemKey && (
+                              <button
+                                type="button"
+                                onClick={() => { setRowError(null); setPendingDelete(s.id); }}
+                                disabled={busy}
+                                className="px-2 py-0.5 rounded border border-red-600 text-red-600 hover:bg-red-50 text-xs disabled:border-gray-300 disabled:text-gray-400 disabled:hover:bg-transparent"
+                              >
+                                Delete
+                              </button>
+                            )}
                             {busy && <span className="text-xs text-gray-500">working…</span>}
                           </div>
                         </td>

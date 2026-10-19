@@ -8,6 +8,7 @@
 
 import { useState } from 'react';
 import { saveCase, saveCaseFromJob } from '../api/strategyApi';
+import CreateWatchDialog from './watch/CreateWatchDialog';
 
 const JOB_GONE_MESSAGE = 'This optimization is no longer on the server (the backend restarted or newer '
   + 'optimizations replaced it). Run it again to save it.';
@@ -18,14 +19,28 @@ const JOB_GONE_MESSAGE = 'This optimization is no longer on the server (the back
  * @param {string|null} props.jobId optimize mode: the job whose result is on screen
  * @param {() => Object|null} props.getConfig backtest mode: the StrategiesConfigDTO of the run on screen
  * @param {() => void} props.onSaved called after every successful save (refreshes the saved-cases list)
+ * @param {() => {ticker: string, timeframe: string, longOnly: boolean, startDate?: string}|null} [props.getCaseMeta]
+ *   what the saved case is about (for "Watch this setup" after a save); backtest mode falls back to
+ *   the recorded config
+ * @param {() => void} [props.onOpenWatchlist] "Open Watchlist" after a watch was created
  */
-const SaveCaseControl = ({ mode, jobId, getConfig, onSaved }) => {
+const SaveCaseControl = ({ mode, jobId, getConfig, onSaved, getCaseMeta, onOpenWatchlist }) => {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [savedAs, setSavedAs] = useState(null);
+  const [savedCase, setSavedCase] = useState(null); // {id, name, ticker, timeframe, longOnly, startDate}
+  const [watchOpen, setWatchOpen] = useState(false);
+
+  // Case metadata for the Create watch dialog: App's getter, else the backtest config of the run.
+  const caseMeta = () => {
+    const meta = getCaseMeta?.();
+    if (meta) return meta;
+    const cfg = mode === 'optimize' ? null : getConfig?.();
+    return cfg ? { ticker: cfg.ticker, timeframe: cfg.timeFrame, longOnly: !!cfg.longOnly, startDate: cfg.startDate } : {};
+  };
 
   const send = (overwrite) => {
     if (mode === 'optimize') return saveCaseFromJob(jobId, { name, note, overwrite });
@@ -38,6 +53,7 @@ const SaveCaseControl = ({ mode, jobId, getConfig, onSaved }) => {
     setSaving(true);
     setError(null);
     setSavedAs(null);
+    setSavedCase(null);
     try {
       let res;
       try {
@@ -50,6 +66,7 @@ const SaveCaseControl = ({ mode, jobId, getConfig, onSaved }) => {
         res = await send(true);
       }
       setSavedAs(res?.name ?? name.trim());
+      if (res?.id != null) setSavedCase({ ...caseMeta(), id: res.id, name: res?.name ?? name.trim() });
       setOpen(false);
       setName('');
       setNote('');
@@ -82,6 +99,17 @@ const SaveCaseControl = ({ mode, jobId, getConfig, onSaved }) => {
         <div className="flex items-center gap-3">
           {savedAs && (
             <span className="text-green-700" role="status">Saved as «{savedAs}»</span>
+          )}
+          {savedCase && (
+            <button
+              type="button"
+              onClick={() => setWatchOpen(true)}
+              className="py-1 px-3 border border-green-600 text-green-700 rounded hover:bg-green-50"
+              title="Get notified about this case's new signals"
+              data-testid="watch-this-setup"
+            >
+              Watch this setup
+            </button>
           )}
           <button
             type="button"
@@ -140,6 +168,13 @@ const SaveCaseControl = ({ mode, jobId, getConfig, onSaved }) => {
         <div className="w-80 p-2 rounded bg-red-50 border border-red-200 text-red-700" role="alert">
           {error}
         </div>
+      )}
+      {watchOpen && savedCase && (
+        <CreateWatchDialog
+          caseInfo={savedCase}
+          onClose={() => setWatchOpen(false)}
+          onOpenWatchlist={onOpenWatchlist}
+        />
       )}
     </div>
   );

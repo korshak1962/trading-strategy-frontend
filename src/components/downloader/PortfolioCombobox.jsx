@@ -146,6 +146,8 @@ const PortfolioCombobox = ({ value, onChange, portfolios = [], id, disabled = fa
                   </>
                 ) : p.name}
                 <span className="text-gray-500"> ({(p.tickers || []).length})</span>
+                {/* Dynamic portfolio (WATCH_US / WATCH_MOEX): built from the watches */}
+                {p.dynamic && <span className="ml-1 text-xs text-gray-500" title="Built automatically from the watches">auto</span>}
               </li>
             );
           })}

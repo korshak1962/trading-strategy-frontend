@@ -243,6 +243,7 @@ const StrategyResults = ({ results, mode, fileContext }) => {
           openShortPositionPnL={openShortPositionPnL}
           openShortPositionPnLPercent={openShortPositionPnLPercent}
           longLegOnly={longLegOnly}
+          seededEntry={results.seededEntry ?? null}
         />
       )}
     </div>

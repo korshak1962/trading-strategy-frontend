@@ -10,6 +10,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { deleteCase, getCase, listCases } from '../api/strategyApi';
 import { fmtExchangeIntl } from '../utils/dates';
+import CreateWatchDialog from './watch/CreateWatchDialog';
+import { watchBlockReason } from './watch/format';
 
 const TICKER_DEBOUNCE_MS = 300;
 
@@ -44,14 +46,16 @@ const fmtSavedAt = (v) => fmtExchangeIntl(v, {
  * @param {boolean} props.disabled a run is in progress: Load / Delete are disabled
  * @param {number} props.runStarts bumped by App on every run start; a Load response that arrives
  *   after a run started while it was pending is ignored, even if that run has already finished
+ * @param {() => void} [props.onOpenWatchlist] "Open Watchlist" after a watch was created
  */
-const SavedCasesPanel = ({ ticker, casesVersion, onChanged, onLoad, disabled, runStarts = 0 }) => {
+const SavedCasesPanel = ({ ticker, casesVersion, onChanged, onLoad, disabled, runStarts = 0, onOpenWatchlist }) => {
   const [expanded, setExpanded] = useState(true);
   const [onlyTicker, setOnlyTicker] = useState(true);
   const [cases, setCases] = useState([]);
   const [listLoading, setListLoading] = useState(false);
   const [error, setError] = useState(null);
   const [busyId, setBusyId] = useState(null);       // row being loaded / deleted
+  const [watchCase, setWatchCase] = useState(null); // case summary the Create watch dialog is open for
   const requestSeq = useRef(0);                     // newest list request; older responses are dropped
   const lastTickerFilter = useRef(undefined);       // ticker of the last request (debounce only ticker edits)
   const [refreshTick, setRefreshTick] = useState(0); // bumped by the ↻ button → immediate refetch
@@ -220,6 +224,22 @@ const SavedCasesPanel = ({ ticker, casesVersion, onChanged, onLoad, disabled, ru
                       >
                         Delete
                       </button>
+                      {(() => {
+                        // Signal watch (v1: DAY / WEEK, long-only). A hint only - the backend decides.
+                        const reason = watchBlockReason(c);
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => setWatchCase(c)}
+                            disabled={!!reason || busyId !== null}
+                            title={reason || 'Watch this case: get notified about its new signals'}
+                            className="py-0.5 px-2 text-xs border border-green-600 text-green-700 rounded hover:bg-green-50 disabled:border-gray-300 disabled:text-gray-400 disabled:hover:bg-white"
+                            data-testid="case-watch"
+                          >
+                            Watch
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-700 tabular-nums">
@@ -241,6 +261,13 @@ const SavedCasesPanel = ({ ticker, casesVersion, onChanged, onLoad, disabled, ru
             </ul>
           )}
         </div>
+      )}
+      {watchCase && (
+        <CreateWatchDialog
+          caseInfo={watchCase}
+          onClose={() => setWatchCase(null)}
+          onOpenWatchlist={onOpenWatchlist}
+        />
       )}
     </div>
   );

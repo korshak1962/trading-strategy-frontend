@@ -146,6 +146,10 @@ const saveLevelZoneSettings = (settings) => {
   }
 };
 
+// Watch deep-link focus window (architect.md "Signal watch" §6.2): bars shown around the focus bar.
+const FOCUS_BARS_BEFORE = 30;
+const FOCUS_BARS_AFTER = 5;
+
 /**
  * ReporterStyleChart component - Main container for financial charts with synchronized zoom
  * @param {Object} props - Component props
@@ -189,13 +193,17 @@ const saveLevelZoneSettings = (settings) => {
  *   Its 'price' series are listed in the legend right above the price pane, where each item also
  *   toggles its series - the same state as the IndicatorPicker, so the two stay in sync. Without
  *   it the legend lists only the visible price series, read-only.
+ * @param {string|null} [props.focusDate] - Signal watch deep link: a bar's API timestamp. A new
+ *   result (own zoom only) opens zoomed on [focus − 30 bars, focus + 5 bars] and selects the
+ *   signal on that bar (the same selection as a click on it). Null = no focus.
  * @returns {JSX.Element}
  */
 const ReporterStyleChart = ({
   data, width = 1200, height = 600, fitHeight = false, visibleSeries = [], longLegOnly = false,
   indicatorSelection = null, panes = 'full', dateRange: controlledDateRange = null, onDateRangeChange = null,
   showRangeSlider = true, votes = null, positionSpans = null, longOnly = false,
-  priceTitle = 'Price Chart with Signals', showInstructions = true, windowStart = null
+  priceTitle = 'Price Chart with Signals', showInstructions = true, windowStart = null,
+  focusDate = null
 }) => {
   const fullPanes = panes !== 'signals';
   const containerRef = useRef(null);
@@ -1049,6 +1057,32 @@ const ReporterStyleChart = ({
     }
     return text;
   }, [data]);
+
+  // Focus (watch deep link): runs after the reset-on-new-result effect above, so it wins for the
+  // same result. Zooms on the focus bar with context and selects its signal like a click would.
+  useEffect(() => {
+    if (!focusDate || controlledZoom || !data?.prices?.length) return;
+    const barTimes = data.prices.map(price => parseExchangeTs(price.date).getTime());
+    const focusMs = parseExchangeTs(focusDate).getTime();
+    if (Number.isNaN(focusMs)) return;
+    let index = barIndexAtOrAfter(barTimes, focusMs);
+    if (index === -1) index = barTimes.length - 1;
+    const from = Math.max(0, index - FOCUS_BARS_BEFORE);
+    const to = Math.min(barTimes.length - 1, index + FOCUS_BARS_AFTER);
+    setDateRange([new Date(barTimes[from]), new Date(barTimes[to])]);
+    const barMs = barTimes[index];
+    const onBar = (data.signals || []).filter(signal => parseExchangeTs(signal.date).getTime() === barMs);
+    const withTrade = onBar.filter(signal => signalTradeIndexMap.get(signalKey(signal)) !== undefined);
+    if (withTrade.length > 0) {
+      setSelectedTradeIndex(signalTradeIndexMap.get(signalKey(withTrade[withTrade.length - 1])));
+      setSelectedSignalReason(withTrade.map(signal => ({
+        type: signal.type,
+        text: getSignalReasonText(signal, signalTradeIndexMap.get(signalKey(signal))),
+      })));
+    }
+    // Only a new result or a new focus re-focuses; zoom / selection afterwards are the user's.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, focusDate]);
 
   // Handle mouse down for zoom selection start
   const handleMouseDown = useCallback((e) => {
