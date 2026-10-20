@@ -2,8 +2,12 @@
 //
 // Watch table of the Watchlist tab (architect.md "Signal watch" §6.1), grouped by ticker. A row
 // click opens the watch's run in Backtest (deep link); the action buttons stop the click.
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import './watch.css';
+import '../nextTriggers/nextBarCard.css';
+import NextBarCard from '../nextTriggers/NextBarCard';
+import { adaptNextTriggers } from '../nextTriggers/nextTriggersAdapter';
+import { compactSummary, fmtBarKey } from '../nextTriggers/nextTriggersFormat';
 import {
   HEALTH_INFO, actionOf, describeCode, fmtDay, fmtTs, modeLabel, positionText, signalPriceText, zoneShort,
 } from './format';
@@ -13,6 +17,46 @@ const STATUS_CLS = {
   PAUSED: 'bg-gray-100 text-gray-700 border-gray-300',
   CLOSED: 'bg-gray-50 text-gray-500 border-gray-200',
   BROKEN: 'bg-red-50 text-red-700 border-red-300',
+};
+
+/**
+ * The persisted estimate is older than what the table shows: the latest check failed (the previous
+ * estimate is kept, OQ4), or a newer closed bar exists than the estimate's basis bar.
+ */
+const isStaleEstimate = (w, nt) => {
+  if (!nt) return false;
+  if (w.lastError) return true;
+  const basis = typeof nt.basisBarDate === 'string' ? nt.basisBarDate.substring(0, 10) : null;
+  const last = typeof w.lastBarDate === 'string' ? w.lastBarDate.substring(0, 10) : null;
+  return Boolean(basis && last && last > basis && !nt.nextBar.inProgress);
+};
+
+/** "Next bar" cell: the merged estimate in one short line, the full sentence as tooltip. */
+const NextBarCell = ({ nt, stale, expanded, onToggle }) => {
+  if (!nt) return <span className="text-gray-400">—</span>;
+  const c = compactSummary(nt);
+  const title = [
+    c.title,
+    nt.basisBarDate ? `From the ${fmtBarKey(nt, nt.basisBarDate)} close (${nt.position || '—'})` : null,
+    stale ? 'Earlier estimate — the latest check did not produce a new one' : null,
+  ].filter(Boolean).join('\n');
+  return (
+    <span className={stale ? 'nbt-cell--stale' : ''} data-testid="watch-next-bar" data-tone={c.tone}>
+      <span className={`nbt-cell-${c.tone}`} title={title}>{c.text}</span>
+      {c.more > 0 && <span className="ml-1 text-xs text-gray-500" title={title}>+{c.more}</span>}
+      {c.partial && <span className="ml-1 nbt-badge nbt-badge--partial" title={title}>partial</span>}
+      {stale && <span className="ml-1 nbt-badge nbt-badge--stale">as of {fmtBarKey(nt, nt.basisBarDate)}</span>}
+      <button
+        type="button"
+        className="ml-1 nbt-toggle"
+        onClick={(e) => { e.stopPropagation(); onToggle(); }}
+        title="Show the next-bar card: all lines, distances, per-strategy breakdown"
+        data-testid="watch-next-bar-toggle"
+      >
+        {expanded ? 'hide' : 'details'}
+      </button>
+    </span>
+  );
 };
 
 const btn = 'px-2 py-0.5 rounded border text-xs whitespace-nowrap disabled:border-gray-300 disabled:text-gray-400 disabled:hover:bg-transparent';
@@ -55,6 +99,13 @@ const WatchTable = ({ watches, busyId, rowMessages = {}, onOpen, onSetStatus, on
   });
 
   const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
+  // Watches whose next-bar card is expanded (detail row under the watch)
+  const [expanded, setExpanded] = useState(() => new Set());
+  const toggleExpanded = (id) => setExpanded((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   return (
     <div className="overflow-x-auto">
@@ -67,6 +118,7 @@ const WatchTable = ({ watches, busyId, rowMessages = {}, onOpen, onSetStatus, on
             <th className="text-left px-3 py-2 font-semibold">Status</th>
             <th className="text-left px-3 py-2 font-semibold">Model position</th>
             <th className="text-left px-3 py-2 font-semibold">Last signal</th>
+            <th className="text-left px-3 py-2 font-semibold" title="The merged trigger price(s) for the next bar, from the last closed bar">Next bar</th>
             <th className="text-left px-3 py-2 font-semibold">Health</th>
             <th className="text-left px-3 py-2 font-semibold">Linked</th>
             <th className="text-left px-3 py-2 font-semibold">Trade start</th>
@@ -77,7 +129,7 @@ const WatchTable = ({ watches, busyId, rowMessages = {}, onOpen, onSetStatus, on
           {groups.map((g) => (
             <Fragment key={g.ticker}>
               <tr className="bg-gray-50 border-t border-gray-200">
-                <td colSpan={10} className="px-3 py-1.5 font-semibold text-gray-800">{g.ticker}</td>
+                <td colSpan={11} className="px-3 py-1.5 font-semibold text-gray-800">{g.ticker}</td>
               </tr>
               {g.rows.map((w) => {
                 const zone = zoneShort(w.zone, w.ticker);
@@ -87,6 +139,9 @@ const WatchTable = ({ watches, busyId, rowMessages = {}, onOpen, onSetStatus, on
                 const warnings = Array.isArray(w.warnings) ? w.warnings : [];
                 const pos = w.position || null;
                 const ls = w.lastSignal || null;
+                const nt = adaptNextTriggers(w.nextTriggers);
+                const ntStale = isStaleEstimate(w, nt);
+                const ntOpen = nt !== null && expanded.has(w.id);
                 return (
                   <Fragment key={w.id}>
                     <tr
@@ -141,6 +196,9 @@ const WatchTable = ({ watches, busyId, rowMessages = {}, onOpen, onSetStatus, on
                           </span>
                         ) : <span className="text-gray-400">none</span>}
                       </td>
+                      <td className="px-3 py-2 min-w-[12rem]">
+                        <NextBarCell nt={nt} stale={ntStale} expanded={ntOpen} onToggle={() => toggleExpanded(w.id)} />
+                      </td>
                       <td className="px-3 py-2"><HealthCell w={w} /></td>
                       <td className="px-3 py-2 whitespace-nowrap tabular-nums">{fmtTs(w.linkedAt)} {zone}</td>
                       <td className="px-3 py-2 whitespace-nowrap tabular-nums">{fmtDay(w.tradeStart)}</td>
@@ -183,7 +241,7 @@ const WatchTable = ({ watches, busyId, rowMessages = {}, onOpen, onSetStatus, on
                     {(msg || w.lastError || warnings.length > 0) && (
                       <tr className="border-t border-gray-50">
                         <td />
-                        <td colSpan={9} className="px-3 pb-2 text-xs">
+                        <td colSpan={10} className="px-3 pb-2 text-xs">
                           {w.lastError && <div className="text-red-700">Last check failed: {w.lastError}</div>}
                           {warnings.map((wr, i) => (
                             <div key={i} className="text-amber-700">{describeCode(wr.code, wr.message)}</div>
@@ -193,6 +251,14 @@ const WatchTable = ({ watches, busyId, rowMessages = {}, onOpen, onSetStatus, on
                               {msg.text}
                             </div>
                           )}
+                        </td>
+                      </tr>
+                    )}
+                    {ntOpen && (
+                      <tr className="border-t border-gray-50" data-testid="watch-next-bar-detail">
+                        <td />
+                        <td colSpan={10} className="px-3 pb-3">
+                          <NextBarCard nt={nt} compact stale={ntStale} />
                         </td>
                       </tr>
                     )}

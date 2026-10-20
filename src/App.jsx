@@ -21,6 +21,7 @@ import {
 } from './api/strategyApi';
 import SignalChartsView from './components/signals/SignalChartsView';
 import { adaptSignalCharts } from './components/signals/signalPanes';
+import { adaptNextTriggers, chartTriggers } from './components/nextTriggers/nextTriggersAdapter';
 import OptimizationProgress from './components/OptimizationProgress';
 import SaveCaseControl from './components/SaveCaseControl';
 import SavedCasesPanel from './components/SavedCasesPanel';
@@ -733,6 +734,12 @@ const App = () => {
   const resultWarnings = Array.isArray(results?.warnings)
     ? results.warnings.filter((w) => typeof w === 'string' && w.length > 0)
     : [];
+  // Next-bar trigger lines of the merged estimate for the main chart (null: older backend,
+  // Optimize results - the chart then draws exactly as before)
+  const resultTriggers = useMemo(
+    () => chartTriggers(adaptNextTriggers(results?.nextTriggers)),
+    [results]
+  );
   // Save is offered whenever results are on screen: optimize mode needs the job with a result,
   // backtest mode the recorded config of the run.
   const canSaveCase = mode === 'optimize'
@@ -1147,6 +1154,7 @@ const App = () => {
                       longLegOnly={results.longOnly !== true && results.chartDataDTO?.includesShortSignals !== true}
                       windowStart={results.windowStart ?? null}
                       focusDate={mode === 'backtest' && watchContext && !watchContext.edited ? watchContext.focusBarDate : null}
+                      nextTriggers={resultTriggers}
                     />
                   </div>
 

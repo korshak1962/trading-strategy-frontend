@@ -5,6 +5,7 @@ import { useElementSize } from '../../hooks/useElementSize';
 import { parseExchangeTs, fmtBarTimestamp } from '../../utils/dates';
 import { initialWindowRange, preWindowSpan } from '../../utils/ChartDataUtils';
 import SignalPane from './SignalPane';
+import { anyChartTriggers, triggerPlacement } from '../nextTriggers/nextTriggersAdapter';
 import {
   barGeometry, normalizePositionSpans, LARGE_RANGE_BARS, VOTE_COLORS, voteText
 } from './signalPanes';
@@ -57,6 +58,14 @@ const SignalChartsView = ({ charts }) => {
   // A warm-up before the trading window exists (tradeStart after the first bar)
   const hasWarmup = useMemo(() => preWindowSpan(charts.prices, charts.windowStart) !== null, [charts]);
   const warnings = charts.warnings || [];
+  // Next-bar triggers drawn in an empty slot after the last bar on some pane: every pane reserves
+  // that slot so the shared zoom keeps one x mapping (null nextTriggers: no slot anywhere)
+  const reserveNextBarSlot = useMemo(() => {
+    const nt = charts.nextTriggers;
+    if (!anyChartTriggers(nt, charts.strategies.map(s => s.key)) || charts.prices.length === 0) return false;
+    const lastMs = parseExchangeTs(charts.prices[charts.prices.length - 1].date).getTime();
+    return triggerPlacement(nt, lastMs) === 'slot';
+  }, [charts]);
 
   const [areaNode, setAreaNode] = useState(null);
   const { isFullscreen, toggleFullscreen } = useFullscreen(areaNode);
@@ -201,6 +210,7 @@ const SignalChartsView = ({ charts }) => {
           showRangeSlider={!merged && index === strategies.length - 1}
           height={paneHeight}
           windowStart={charts.windowStart}
+          reserveNextBarSlot={reserveNextBarSlot}
         />
       ))}
       {merged && (
@@ -215,6 +225,7 @@ const SignalChartsView = ({ charts }) => {
           showRangeSlider
           height={paneHeight}
           windowStart={charts.windowStart}
+          reserveNextBarSlot={reserveNextBarSlot}
         />
       )}
     </div>

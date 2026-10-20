@@ -79,3 +79,15 @@ export const LEVEL_CHART_DESCRIPTIONS = {
   position: 'In position: light background from the entry bar to the exit bar (an open trade runs to the last bar).',
   events: 'Events: BU = broken up (breakout), F = failed, MT = missed (timeout), MD = missed (dwell), BD = broken down. Off by default.',
 };
+
+// Next-bar trigger prices (StrategyResultDTO / SignalChartsDTO.nextTriggers), for the legend.
+export const NEXT_BAR_DESCRIPTIONS = {
+  lines: 'Next-bar triggers: the prices at which the model would act on the next bar, from the state at the last closed bar. '
+    + 'Short segments one bar wide in the empty slot after the last bar (or on the last bar while it is in progress). '
+    + 'Green = BUY, red = SELL; dashed = close-based (acts on the close), dotted = conditional (needs an intrabar fact too, marked *), '
+    + 'solid = intrabar stop (fills at the line). Grey shading: a veto region (no buy there) or a channel band inside which no '
+    + 'signal is possible. A black dot = the real close of that bar, for a run that ended in the past. '
+    + 'Estimates of the rule, not predictions: details and the execution note are on the Summary tab.',
+  info: 'Informational next-bar lines (LevelBreakoutRetest): where a setup arms (entry not before the bar after next), '
+    + 'the initial stop if bought, the close below which a setup fails. Never a signal for the next bar.',
+};

@@ -19,6 +19,7 @@ import {
   drawUpgradeMarkers,
   drawEventMarkers,
   drawMarkerLabels,
+  drawNextBarTriggers,
   DATE_AXIS_BAND
 } from '../../utils/ChartDrawingUtils';
 import { parseExchangeTs, exchangeToday } from '../../utils/dates';
@@ -58,12 +59,19 @@ const EMPTY_RUNS = [];
  *   position to shade (signalPanes.js normalizePositionSpans); null = the level chart's own shading.
  * @param {{endMs: number}|null} [props.preWindowSpan] - warm-up before tradeStart to shade
  *   (ChartDataUtils.preWindowSpan); null = no warm-up.
+ * @param {Object|null} [props.nextBarTriggers] - next-bar trigger lines to draw: a
+ *   nextTriggersAdapter.js chartTriggers() result plus {placement: 'slot'|'lastBar', showInfo};
+ *   'slot' = the empty slot after the last bar (the plot range carries it, see extraSlots),
+ *   'lastBar' = on the last bar, which is the bar in progress. null = nothing (as before).
+ * @param {number} [props.extraSlots=0] - empty slots the plot range adds after the last bar
+ *   (plotDateRange extraSlotsRight); counted when sizing the candles
  * @returns {JSX.Element}
  */
 const PriceChart = ({
   data, width, height, dateRange, visibleRange = null, highlightTradeIndex = null, signalTradeIndex = null,
   priceSeries = [], levelZoneRuns = EMPTY_RUNS, priceRange = null,
-  levelChart = null, showLevelLines = true, showEvents = false, positionSpans = null, preWindowSpan = null
+  levelChart = null, showLevelLines = true, showEvents = false, positionSpans = null, preWindowSpan = null,
+  nextBarTriggers = null, extraSlots = 0
 }) => {
   const canvasRef = useRef(null);
 
@@ -147,7 +155,7 @@ const PriceChart = ({
     // (plotDateRange), whose half-slot margins make width / count exactly one slot per candle,
     // so the 80% body fits whole even at the edges.
     const candleWidthRatio = 0.8; // 80% of available space per candle
-    const candleSpacing = width / Math.max(visibleCandleCount, 1);
+    const candleSpacing = width / Math.max(visibleCandleCount + extraSlots, 1);
     const candleWidth = Math.min(
       candleSpacing * candleWidthRatio, 
       20 // Maximum width in pixels
@@ -251,6 +259,20 @@ const PriceChart = ({
       }
     }
 
+    // Next-bar trigger lines, one bar wide: in the empty slot after the last bar, or on the last
+    // bar while it is in progress. Slot = the plot range's own bar spacing.
+    if (nextBarTriggers && prices.length > 0) {
+      const slotMs = (chartDateRange[1].getTime() - chartDateRange[0].getTime())
+        / Math.max(visibleCandleCount + extraSlots, 1);
+      const lastMs = parseExchangeTs(prices[prices.length - 1].date).getTime();
+      const onLastBar = nextBarTriggers.placement === 'lastBar';
+      drawNextBarTriggers(ctx, {
+        ...nextBarTriggers,
+        slotStartMs: onLastBar ? lastMs - slotMs / 2 : lastMs + slotMs / 2,
+        slotEndMs: onLastBar ? lastMs + slotMs / 2 : lastMs + slotMs * 1.5,
+      }, chartDateRange, minMaxPrice, width, height);
+    }
+
     ctx.restore(); // end of the plot-area clip
 
     // Axes last, so their labels sit on top of candles / overlays / signals
@@ -265,7 +287,7 @@ const PriceChart = ({
       }
     };
   }, [data, width, height, dateRange, visibleRange, highlightTradeIndex, signalTradeIndex, priceSeries, levelZoneRuns, priceRange,
-    levelChart, showLevelLines, showEvents, positionSpans, preWindowSpan]);
+    levelChart, showLevelLines, showEvents, positionSpans, preWindowSpan, nextBarTriggers, extraSlots]);
 
   return (
     <div className="chart-wrapper">

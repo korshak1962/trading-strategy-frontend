@@ -66,9 +66,12 @@ export const findMinMaxPriceRange = (prices) => {
    *
    * @param {[Date, Date]|null} dateRange - the logical range
    * @param {number[]} barTimes - every bar's epoch ms, ascending
+   * @param {number} [extraSlotsRight=0] - empty bar slots appended after the window's right edge
+   *   (the next-bar trigger slot after the last bar). Every pane gets the same range, so they stay
+   *   aligned; PriceChart counts the extra slots when it sizes its candles.
    * @returns {[Date, Date]|null}
    */
-  export const plotDateRange = (dateRange, barTimes) => {
+  export const plotDateRange = (dateRange, barTimes, extraSlotsRight = 0) => {
     if (!dateRange || !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) return dateRange;
     const startMs = dateRange[0].getTime();
     const endMs = dateRange[1].getTime();
@@ -85,7 +88,7 @@ export const findMinMaxPriceRange = (prices) => {
     } else {
       slotMs = 24 * 60 * 60 * 1000; // a lone bar: any non-zero width centres it
     }
-    return [new Date(startMs - slotMs / 2), new Date(endMs + slotMs / 2)];
+    return [new Date(startMs - slotMs / 2), new Date(endMs + slotMs / 2 + extraSlotsRight * slotMs)];
   };
 
   // Canvas drawing functions
@@ -1362,6 +1365,140 @@ export const findMinMaxPriceRange = (prices) => {
       ctx.fillStyle = colors?.[vote.type] || 'rgba(107, 114, 128, 0.6)';
       // at least 1px, so a one-bar vote stays visible when zoomed out
       ctx.fillRect(x0, 0, Math.max(1, x1 - x0), height);
+    });
+    ctx.restore();
+  };
+
+  // ---------------------------------------------------------------------------------------------
+  // Next-bar trigger prices (screener architect.md "nextTriggers" §3): short horizontal segments
+  // one bar wide - in an empty slot after the last bar, or on the last bar while it is in progress.
+  // Keep nextTriggers/nextBarCard.css (.nbt-legend-swatch, .nbt-side--*) in sync.
+  // ---------------------------------------------------------------------------------------------
+  export const NEXT_BAR_STYLE = Object.freeze({
+    BUY: '#16a34a',
+    SELL: '#dc2626',
+    VETO: '#6b7280',
+    INFO: 'rgba(107, 114, 128, 0.85)',
+    NECESSARY: '#6b7280',
+    closeDash: [5, 3],
+    conditionalDash: [2, 2],
+    vetoFill: 'rgba(107, 114, 128, 0.16)',
+    bandFill: 'rgba(107, 114, 128, 0.14)',
+    slotFill: 'rgba(37, 99, 235, 0.04)',
+    actual: '#111827',
+    labelBacking: 'rgba(255, 255, 255, 0.88)',
+    labelGap: 12,
+  });
+
+  const NEXT_BAR_OPS = Object.freeze({ ABOVE: '>', BELOW: '<', AT_OR_ABOVE: '≥', AT_OR_BELOW: '≤' });
+
+  const nextBarLabelText = (line) => {
+    const price = `${line.category === 'APPROX' ? '≈' : ''}${line.price.toFixed(Math.abs(line.price) < 1 ? 4 : 2)}`;
+    const op = NEXT_BAR_OPS[line.direction] || '';
+    if (line.informational) {
+      if (line.reason === 'SETUP_ARMS') return `arms > ${price}`;
+      if (line.reason === 'IF_BOUGHT_STOP') return `if bought: stop ${price}`;
+      if (line.reason === 'SETUP_FAILS') return `fails ${op} ${price}`;
+      return price;
+    }
+    if (line.side === 'VETO') return `veto ${op} ${price}`;
+    if (line.category === 'NECESSARY') return `${op} ${price} possible`;
+    const on = line.on === 'LOW' ? 'low ' : line.on === 'HIGH' ? 'high ' : '';
+    const stop = line.on === 'LOW' && line.side === 'SELL' ? 'stop ' : `${line.side} `;
+    return `${stop}${on}${op} ${price}${line.and ? '*' : ''}`;
+  };
+
+  /**
+   * @param {Object} triggers - nextTriggersAdapter.js chartTriggers() result, plus
+   *   {slotStartMs, slotEndMs, showInfo}: the bar slot to draw in and whether informational lines
+   *   (setup arms, if-bought stop, setup fails) are drawn
+   */
+  export const drawNextBarTriggers = (ctx, triggers, dateRange, minMax, width, height) => {
+    const map = priceMapper(dateRange, minMax, width, height);
+    if (!map || !triggers || !triggers.estimate) return;
+    const { estimate, slotStartMs, slotEndMs, showInfo = false, actual = null } = triggers;
+    if (!Number.isFinite(slotStartMs) || !Number.isFinite(slotEndMs)) return;
+    if (slotEndMs < map.startMs || slotStartMs > map.endMs) return;
+    const x0 = Math.max(0, map.xOf(slotStartMs));
+    const x1 = Math.min(width, map.xOf(slotEndMs));
+    if (!(x1 > x0)) return;
+    const plotBottom = height - DATE_AXIS_BAND;
+    const clampY = (y) => Math.min(plotBottom - 2, Math.max(2, y));
+
+    const lines = estimate.lines.filter(l => l.price !== null && Number.isFinite(l.price)
+      && (showInfo || !l.informational) && l.reason !== 'SETUP_EXPIRES');
+    if (lines.length === 0) return;
+
+    ctx.save();
+    // A faint backing marks the slot itself (the next bar)
+    ctx.fillStyle = NEXT_BAR_STYLE.slotFill;
+    ctx.fillRect(x0, 0, x1 - x0, plotBottom);
+
+    // NECESSARY band (CausalChannelBreakout): shaded between A and B - "no signal inside"
+    const necessary = lines.filter(l => l.category === 'NECESSARY');
+    if (necessary.length >= 2) {
+      const ys = necessary.map(l => clampY(map.yOf(l.price)));
+      const top = Math.min(...ys);
+      const bottom = Math.max(...ys);
+      ctx.fillStyle = NEXT_BAR_STYLE.bandFill;
+      ctx.fillRect(x0, top, x1 - x0, Math.max(1, bottom - top));
+    }
+    // VETO regions: from the line to the bottom (BELOW) or to the top (ABOVE) of the pane
+    lines.filter(l => l.side === 'VETO').forEach(l => {
+      const y = clampY(map.yOf(l.price));
+      const below = l.direction === 'BELOW' || l.direction === 'AT_OR_BELOW';
+      ctx.fillStyle = NEXT_BAR_STYLE.vetoFill;
+      if (below) ctx.fillRect(x0, y, x1 - x0, plotBottom - y);
+      else ctx.fillRect(x0, 0, x1 - x0, y);
+    });
+
+    // Segments
+    const labels = [];
+    lines.forEach(l => {
+      const rawY = map.yOf(l.price);
+      const y = clampY(rawY);
+      const color = l.informational ? NEXT_BAR_STYLE.INFO
+        : l.category === 'NECESSARY' ? NEXT_BAR_STYLE.NECESSARY
+          : NEXT_BAR_STYLE[l.side] || NEXT_BAR_STYLE.INFO;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = l.informational ? 1 : 2;
+      ctx.setLineDash(l.category === 'CONDITIONAL' || l.and ? NEXT_BAR_STYLE.conditionalDash
+        : l.on === 'CLOSE' ? NEXT_BAR_STYLE.closeDash : []);
+      ctx.beginPath();
+      ctx.moveTo(x0, Math.round(y) + 0.5);
+      ctx.lineTo(x1, Math.round(y) + 0.5);
+      ctx.stroke();
+      const arrow = rawY < 2 ? '↑ ' : rawY > plotBottom - 2 ? '↓ ' : '';
+      labels.push({ y, text: `${arrow}${nextBarLabelText(l)}`, color });
+    });
+    ctx.setLineDash([]);
+
+    // What actually happened (a run that ended in the past): the real close of the bar as a tick
+    if (actual && Number.isFinite(actual.close)) {
+      const y = clampY(map.yOf(actual.close));
+      const cx = (x0 + x1) / 2;
+      ctx.fillStyle = NEXT_BAR_STYLE.actual;
+      ctx.beginPath();
+      ctx.arc(cx, y, 3, 0, Math.PI * 2);
+      ctx.fill();
+      labels.push({ y, text: `actual close ${actual.close.toFixed(2)}`, color: NEXT_BAR_STYLE.actual });
+    }
+
+    // Labels left of the slot, right-aligned, nudged apart so they never overlap
+    ctx.font = '10px sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'right';
+    labels.sort((a, b) => a.y - b.y);
+    let lastY = -Infinity;
+    labels.forEach(label => {
+      const y = Math.max(label.y, lastY + NEXT_BAR_STYLE.labelGap);
+      lastY = y;
+      const textWidth = ctx.measureText(label.text).width;
+      const right = x0 - 3;
+      ctx.fillStyle = NEXT_BAR_STYLE.labelBacking;
+      ctx.fillRect(right - textWidth - 2, y - 6, textWidth + 4, 12);
+      ctx.fillStyle = label.color;
+      ctx.fillText(label.text, right, y);
     });
     ctx.restore();
   };

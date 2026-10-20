@@ -1,6 +1,8 @@
 // src/components/StrategyResults.jsx
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import TradesTable from './TradesTable';
+import NextBarCard from './nextTriggers/NextBarCard';
+import { adaptNextTriggers } from './nextTriggers/nextTriggersAdapter';
 import PerformanceMetricsTable from './PerformanceMetricsTable';
 import TradeStatisticsTable from './TradeStatisticsTable';
 import { formatNumber, formatPercent, formatSigned, formatSignedPercent } from '../utils/formatters';
@@ -9,6 +11,8 @@ import '../ResultsTabs.css';
 const StrategyResults = ({ results, mode, fileContext }) => {
   const [activeTab, setActiveTab] = useState(mode === 'optimize' ? 'best-params' : 'summary');
   const hasParams = results.paramsDTO && results.paramsDTO.length > 0;
+  // Next-bar trigger prices (absent on an older backend and always null in Optimize results)
+  const nextTriggers = useMemo(() => adaptNextTriggers(results.nextTriggers), [results]);
 
   // Summary-card values. `?? 0` keeps older responses (without the short-side fields) rendering.
   // `longOnly` comes from the response itself so a stale result is never shown against a toggled checkbox.
@@ -106,6 +110,12 @@ const StrategyResults = ({ results, mode, fileContext }) => {
       {/* Summary Tab - Quick overview */}
       {activeTab === 'summary' && (
         <div className="grid grid-cols-1 gap-4">
+          {nextTriggers && <NextBarCard nt={nextTriggers} />}
+          {!nextTriggers && mode === 'optimize' && (
+            <div className="text-sm text-gray-500" data-testid="next-bar-optimize-hint">
+              Next-bar trigger prices: run the best combination as a Backtest to see them.
+            </div>
+          )}
           <div className="bg-white p-4 rounded-lg shadow">
             <h3 className="text-lg font-medium text-gray-900 mb-3">Strategy Performance Summary</h3>
             

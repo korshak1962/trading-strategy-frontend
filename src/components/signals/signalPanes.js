@@ -17,11 +17,14 @@
 //                    votes: [{from, to, type}] | null,
 //                    priceIndicators: {name: [{date, value}]}, indicators: {...},
 //                    channels: [...], levelZones: [...], levelChart: {...} | null }],
-//     merged: { signals: [{date, price, type, comment, sources: [key]}] } | null }
+//     merged: { signals: [{date, price, type, comment, sources: [key]}] } | null,
+//     nextTriggers: NextTriggersDTO | null }  (read by nextTriggers/nextTriggersAdapter.js, the
+//     one reader of that sub-contract; absent on an older backend -> null, nothing drawn)
 
 import { parseExchangeTs } from '../../utils/dates';
 import { slotEdges } from '../../utils/levelZones';
 import { barIndexAtOrAfter } from '../../utils/ChartDataUtils';
+import { adaptNextTriggers } from '../nextTriggers/nextTriggersAdapter';
 
 /** Bars past which the view warns that zooming may be slow (§2.6; not a block). */
 export const LARGE_RANGE_BARS = 50000;
@@ -92,7 +95,8 @@ const adaptStrategy = (raw, index, longOnly) => {
  * Maps the raw signal-charts JSON to the view model. Never throws on missing optional parts.
  * @returns {{ticker, timeFrame, startDate, endDate, tradeStart, windowStart, warnings: string[],
  *   longOnly: boolean, prices: Array,
- *   positionSpans: Array<{from, to, side}>, strategies: Array, merged: {signals: Array}|null}}
+ *   positionSpans: Array<{from, to, side}>, strategies: Array, merged: {signals: Array}|null,
+ *   nextTriggers: Object|null}}
  */
 export const adaptSignalCharts = (raw) => {
   const longOnly = raw?.longOnly === true;
@@ -116,6 +120,8 @@ export const adaptSignalCharts = (raw) => {
       .map(span => ({ from: span.from, to: span.to ?? null, side: span.side === 'SHORT' ? 'SHORT' : 'LONG' })),
     strategies: asArray(raw?.strategies).map((s, i) => adaptStrategy(s, i, longOnly)),
     merged,
+    // Next-bar trigger prices: per strategy (by request key == pane key) and merged
+    nextTriggers: adaptNextTriggers(raw?.nextTriggers),
   };
 };
 

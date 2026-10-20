@@ -7,6 +7,9 @@ import { useIndicatorSelection } from '../../hooks/useIndicatorSelection';
 import {
   toPaneData, mergedPaneData, normalizeVotes, executionSummary, formatParams
 } from './signalPanes';
+import { chartTriggers } from '../nextTriggers/nextTriggersAdapter';
+import { paneChip } from '../nextTriggers/nextTriggersFormat';
+import '../nextTriggers/nextBarCard.css';
 
 /**
  * One price pane of the Signals mode (screener TASK_position_dependable_and_signals_tab.md §2.5):
@@ -24,6 +27,8 @@ import {
  * @param {boolean} props.showRangeSlider - only the last pane carries the slider
  * @param {number} props.height - pane block height (price pane + indicator pane + slider)
  * @param {string|null} [props.windowStart] - first bar of the trading window (warm-up shading)
+ * @param {boolean} [props.reserveNextBarSlot=false] - keep the next-bar slot after the last bar
+ *   (another pane draws its trigger lines there)
  */
 // What ReporterStyleChart takes off `height` for its range slider (RANGE_SLIDER_BLOCK_PX there):
 // added back on the slider pane, so its price pane is as tall as the others.
@@ -31,7 +36,7 @@ const SLIDER_BLOCK_PX = RANGE_SLIDER_HEIGHT + 2 + RANGE_SLIDER_DATES_HEIGHT + 16
 
 const SignalPane = ({
   charts, pane = null, merged = false, geometry, positionSpans, dateRange, onDateRangeChange,
-  showRangeSlider, height, windowStart = null
+  showRangeSlider, height, windowStart = null, reserveNextBarSlot = false
 }) => {
   const paneData = useMemo(
     () => (merged ? mergedPaneData(charts) : toPaneData(charts, pane)),
@@ -57,6 +62,11 @@ const SignalPane = ({
   const summary = useMemo(() => executionSummary(signals), [signals]);
   const params = merged ? '' : formatParams(pane.params);
   const noSignals = !merged && (pane.hasSignals === false || signals.length === 0);
+  // Next-bar triggers of this pane: the strategy's own lines (for the merged position) or the
+  // merged ones. null on an older backend: no chip, no lines, no slot.
+  const paneKey = merged ? null : pane.key;
+  const nextTriggers = useMemo(() => chartTriggers(charts.nextTriggers, paneKey), [charts, paneKey]);
+  const chip = useMemo(() => paneChip(charts.nextTriggers, paneKey), [charts, paneKey]);
 
   const title = (
     <div className="signal-pane__title" data-testid="signal-pane-title">
@@ -84,6 +94,11 @@ const SignalPane = ({
       {merged && signals.length === 0 && <span className="signal-badge signal-badge--muted">no merged trades</span>}
       {merged && signals.length > 0 && (
         <span className="signal-badge">{signals.length} signal{signals.length === 1 ? '' : 's'}</span>
+      )}
+      {chip && (
+        <span className={`nbt-chip nbt-chip--${chip.tone}`} title={chip.title} data-testid="signal-pane-next-bar">
+          {chip.text}
+        </span>
       )}
     </div>
   );
@@ -121,6 +136,8 @@ const SignalPane = ({
         priceTitle={title}
         showInstructions={false}
         windowStart={windowStart}
+        nextTriggers={nextTriggers}
+        reserveNextBarSlot={reserveNextBarSlot}
       />
     </section>
   );

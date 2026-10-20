@@ -1,0 +1,112 @@
+/* src/components/nextTriggers/nextBarCard.css - next-bar trigger card, chips and badges.
+   Line colours match ChartDrawingUtils NEXT_BAR_STYLE (BUY green, SELL red, veto / band grey). */
+
+.nbt-badge {
+  display: inline-block;
+  padding: 0 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 9999px;
+  white-space: nowrap;
+  cursor: help;
+  color: #374151;
+  background-color: #f9fafb;
+}
+
+.nbt-badge--derived { color: #1e40af; background-color: #eff6ff; border-color: #bfdbfe; }
+.nbt-badge--conditional { color: #92400e; background-color: #fffbeb; border-color: #fde68a; }
+.nbt-badge--approx { color: #9a3412; background-color: #fff7ed; border-color: #fed7aa; }
+.nbt-badge--necessary { color: #4b5563; background-color: #f3f4f6; border-color: #d1d5db; }
+.nbt-badge--partial { color: #6b21a8; background-color: #faf5ff; border-color: #e9d5ff; }
+.nbt-badge--stop { color: #991b1b; background-color: #fef2f2; border-color: #fecaca; }
+.nbt-badge--live { color: #065f46; background-color: #ecfdf5; border-color: #a7f3d0; }
+.nbt-badge--stale { color: #6b7280; background-color: #f9fafb; border-color: #e5e7eb; }
+
+.nbt-side {
+  display: inline-block;
+  min-width: 2.6rem;
+  padding: 0 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+  border-radius: 0.25rem;
+}
+.nbt-side--BUY { color: #fff; background-color: #16a34a; }
+.nbt-side--SELL { color: #fff; background-color: #dc2626; }
+.nbt-side--VETO { color: #374151; background-color: #e5e7eb; }
+.nbt-side--INFO { color: #4b5563; background-color: #f3f4f6; }
+
+.nbt-line-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+  padding: 0.2rem 0;
+}
+
+.nbt-line-row--info { color: #6b7280; font-size: 0.8rem; }
+
+.nbt-distance {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.nbt-note {
+  font-size: 0.75rem;
+  color: #78350f;
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 0.25rem;
+  padding: 0.35rem 0.5rem;
+}
+
+/* Signals pane header chip (one line) */
+.nbt-chip {
+  display: inline-block;
+  max-width: 34rem;
+  padding: 0.05rem 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  border: 1px dashed #9ca3af;
+  color: #374151;
+  background-color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+  cursor: help;
+}
+.nbt-chip--buy { border-color: #16a34a; color: #166534; }
+.nbt-chip--sell { border-color: #dc2626; color: #991b1b; }
+.nbt-chip--none { color: #6b7280; }
+
+/* Watchlist "Next bar" cell */
+.nbt-cell-buy { color: #15803d; font-weight: 600; }
+.nbt-cell-sell { color: #b91c1c; font-weight: 600; }
+.nbt-cell-none { color: #6b7280; }
+.nbt-cell-muted { color: #9ca3af; }
+.nbt-cell--stale { opacity: 0.55; }
+
+.nbt-toggle {
+  font-size: 0.7rem;
+  color: #2563eb;
+  text-decoration: underline;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* Price legend swatch: dashed green over dashed red, like the drawn segments */
+.nbt-legend-swatch {
+  display: inline-block;
+  width: 1.25rem;
+  height: 0.625rem;
+  margin-left: 0.25rem;
+  border-top: 2px dashed #16a34a;
+  border-bottom: 2px dashed #dc2626;
+}

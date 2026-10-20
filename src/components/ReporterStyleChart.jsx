@@ -14,7 +14,11 @@ import {
   windowGlyphPoint, WINDOW_GLYPH_R
 } from '../utils/ChartDrawingUtils';
 import { pointsForSeries, seriesLabel } from '../utils/indicatorSeries';
-import { LEVEL_ZONE_DESCRIPTIONS, LEVEL_CHART_DESCRIPTIONS } from '../utils/indicatorDescriptions';
+import {
+  LEVEL_ZONE_DESCRIPTIONS, LEVEL_CHART_DESCRIPTIONS, NEXT_BAR_DESCRIPTIONS
+} from '../utils/indicatorDescriptions';
+import './nextTriggers/nextBarCard.css';
+import { triggerPlacement } from './nextTriggers/nextTriggersAdapter';
 import {
   normalizeLevelChart, statusLine, matchTradeAnnotation, byZoneLowThenId, describeZone
 } from '../utils/levelChart';
@@ -196,6 +200,13 @@ const FOCUS_BARS_AFTER = 5;
  * @param {string|null} [props.focusDate] - Signal watch deep link: a bar's API timestamp. A new
  *   result (own zoom only) opens zoomed on [focus − 30 bars, focus + 5 bars] and selects the
  *   signal on that bar (the same selection as a click on it). Null = no focus.
+ * @param {Object|null} [props.nextTriggers] - next-bar trigger lines of one estimate
+ *   (nextTriggersAdapter.js chartTriggers: the merged one, or a Signals pane's strategy). When the
+ *   next bar is not in the data and the window reaches the last bar, every pane's plot range gets
+ *   one empty slot after the last bar and the lines are drawn there; when the last bar is the bar
+ *   in progress (after the basis bar) they are drawn on it. null = nothing drawn, no slot (as before).
+ * @param {boolean} [props.reserveNextBarSlot=false] - Signals mode: keep the empty slot after the
+ *   last bar even without lines of this pane (another pane draws there), so the panes stay aligned
  * @returns {JSX.Element}
  */
 const ReporterStyleChart = ({
@@ -203,7 +214,7 @@ const ReporterStyleChart = ({
   indicatorSelection = null, panes = 'full', dateRange: controlledDateRange = null, onDateRangeChange = null,
   showRangeSlider = true, votes = null, positionSpans = null, longOnly = false,
   priceTitle = 'Price Chart with Signals', showInstructions = true, windowStart = null,
-  focusDate = null
+  focusDate = null, nextTriggers = null, reserveNextBarSlot = false
 }) => {
   const fullPanes = panes !== 'signals';
   const containerRef = useRef(null);
@@ -576,9 +587,24 @@ const ReporterStyleChart = ({
   // What the panes actually draw: dateRange widened by half a candle slot each side so the edge
   // candles are not cut in half. Every pane gets this, and every mouse <-> time mapping below
   // uses it, so they all agree; dateRange itself stays the logical zoom window (slider, badge).
+  // Next-bar triggers: on the last bar when it is after the basis bar (the bar in progress), else
+  // in one extra empty slot after the last bar - only while the window reaches the last bar.
+  const [showTriggerInfo, setShowTriggerInfo] = useState(false);
+  const lastBarMs = sliderRows.length > 0 ? sliderRows[sliderRows.length - 1].ms : null;
+  const placement = useMemo(() => triggerPlacement(nextTriggers, lastBarMs), [nextTriggers, lastBarMs]);
+  // reserveNextBarSlot: a Signals pane without lines of its own keeps the slot of the other panes,
+  // so every pane shares one x mapping
+  const triggerSlots = (placement === 'slot' || reserveNextBarSlot) && dateRange && lastBarMs !== null
+    && dateRange[1].getTime() >= lastBarMs ? 1 : 0;
+  const nextBarTriggers = useMemo(
+    () => (placement ? { ...nextTriggers, placement, showInfo: showTriggerInfo } : null),
+    [nextTriggers, placement, showTriggerInfo]
+  );
+  const hasTriggerInfo = Boolean(nextTriggers?.estimate?.lines.some(l => l.informational && l.price !== null));
+
   const plotRange = useMemo(
-    () => plotDateRange(dateRange, sliderRows.map(row => row.ms)),
-    [dateRange, sliderRows]
+    () => plotDateRange(dateRange, sliderRows.map(row => row.ms), triggerSlots),
+    [dateRange, sliderRows, triggerSlots]
   );
 
   // The auto-fit price range PriceChart draws without a manual range: the candles in the logical
@@ -1605,6 +1631,24 @@ const ReporterStyleChart = ({
           onToggleSeries={legendSelection.toggleSeries}
           onToggleGroup={legendSelection.toggleGroup}
         >
+          {nextBarTriggers && (
+            <span className="price-legend__zones" data-testid="next-bar-legend">
+              <span className="price-legend__zone" title={NEXT_BAR_DESCRIPTIONS.lines}>
+                <span className="nbt-legend-swatch" /> next-bar triggers
+              </span>
+              {hasTriggerInfo && (
+                <label className="price-legend__zone" title={NEXT_BAR_DESCRIPTIONS.info}>
+                  <input
+                    type="checkbox"
+                    checked={showTriggerInfo}
+                    onChange={(e) => setShowTriggerInfo(e.target.checked)}
+                    data-testid="next-bar-info-toggle"
+                  />
+                  setup info
+                </label>
+              )}
+            </span>
+          )}
           {levelChart && (
             <span className="price-legend__zones" data-testid="level-chart-legend">
               <span className="price-legend__zone" title={LEVEL_CHART_DESCRIPTIONS.retestBand}>
@@ -1654,6 +1698,8 @@ const ReporterStyleChart = ({
           showEvents={showEvents}
           positionSpans={positionSpans}
           preWindowSpan={warmupSpan}
+          nextBarTriggers={nextBarTriggers}
+          extraSlots={triggerSlots}
         />
         <Crosshair 
           show={showCrosshair} 
