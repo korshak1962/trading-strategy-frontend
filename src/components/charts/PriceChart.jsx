@@ -13,6 +13,7 @@ import {
   drawSignals,
   drawPositionShading,
   drawPreWindowShading,
+  drawStabilityBand,
   drawSupportSegments,
   drawSetupWindows,
   drawWindowEndGlyphs,
@@ -65,13 +66,15 @@ const EMPTY_RUNS = [];
  *   'lastBar' = on the last bar, which is the bar in progress. null = nothing (as before).
  * @param {number} [props.extraSlots=0] - empty slots the plot range adds after the last bar
  *   (plotDateRange extraSlotsRight); counted when sizing the candles
+ * @param {{startMs, midMs, endMs}|null} [props.stabilityBand] - Parameter stability by channel: the
+ *   selected chain node's Fit / Check halves (ChartDataUtils.stabilityBandSpan); null = nothing drawn
  * @returns {JSX.Element}
  */
 const PriceChart = ({
   data, width, height, dateRange, visibleRange = null, highlightTradeIndex = null, signalTradeIndex = null,
   priceSeries = [], levelZoneRuns = EMPTY_RUNS, priceRange = null,
   levelChart = null, showLevelLines = true, showEvents = false, positionSpans = null, preWindowSpan = null,
-  nextBarTriggers = null, extraSlots = 0
+  nextBarTriggers = null, extraSlots = 0, stabilityBand = null
 }) => {
   const canvasRef = useRef(null);
 
@@ -193,6 +196,8 @@ const PriceChart = ({
 
     // Warm-up before the trading window: the bottom layer, under the position shading
     drawPreWindowShading(ctx, preWindowSpan, chartDateRange, width, height, { label: true });
+    // Stability band of the selected chain node (Fit / Check halves), right above the warm-up
+    drawStabilityBand(ctx, stabilityBand, chartDateRange, width, height);
 
     // Position shading first, then level zone bands, the sticky support zone and the setup
     // windows - all under the candles, so the candles stay readable over them
@@ -287,7 +292,7 @@ const PriceChart = ({
       }
     };
   }, [data, width, height, dateRange, visibleRange, highlightTradeIndex, signalTradeIndex, priceSeries, levelZoneRuns, priceRange,
-    levelChart, showLevelLines, showEvents, positionSpans, preWindowSpan, nextBarTriggers, extraSlots]);
+    levelChart, showLevelLines, showEvents, positionSpans, preWindowSpan, nextBarTriggers, extraSlots, stabilityBand]);
 
   return (
     <div className="chart-wrapper">

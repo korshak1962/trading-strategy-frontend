@@ -238,6 +238,15 @@ const SavedCasesPanel = ({ ticker, casesVersion, onChanged, onLoad, disabled, ru
                     {isNum(c.longPnlPercent) && <span>Long PnL {fmtPct(c.longPnlPercent)}</span>}
                     {isNum(c.maxDrawdownPercent) && <span>Max DD {fmtPct(c.maxDrawdownPercent)}</span>}
                     {isNum(c.trades) && <span>{c.trades} trades</span>}
+                    {c.hasChannelStability && (
+                      <span
+                        className="px-1.5 rounded bg-blue-50 text-blue-800 border border-blue-300"
+                        title="Saved with a channel-stability snapshot: Load shows it in Optimize mode (no re-detection)"
+                        data-testid="case-channels-badge"
+                      >
+                        channels
+                      </span>
+                    )}
                     {c.stoppedEarly && (
                       <span className="px-1.5 rounded bg-amber-100 text-amber-800 border border-amber-300">stopped early</span>
                     )}

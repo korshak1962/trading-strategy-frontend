@@ -24,7 +24,8 @@ import {
 } from '../utils/levelChart';
 import IndicatorPicker from './IndicatorPicker';
 import {
-  extractTradesFromSignals, cumulativeClosedPnLByBar, barIndexAtOrAfter, preWindowSpan, initialWindowRange
+  extractTradesFromSignals, cumulativeClosedPnLByBar, barIndexAtOrAfter, preWindowSpan, initialWindowRange,
+  stabilityBandSpan, stabilityInitialRange
 } from '../utils/ChartDataUtils';
 import { parseExchangeTs, fmtExchangeIntl } from '../utils/dates';
 import { useElementSize } from '../hooks/useElementSize';
@@ -207,6 +208,10 @@ const FOCUS_BARS_AFTER = 5;
  *   in progress (after the basis bar) they are drawn on it. null = nothing drawn, no slot (as before).
  * @param {boolean} [props.reserveNextBarSlot=false] - Signals mode: keep the empty slot after the
  *   last bar even without lines of this pane (another pane draws there), so the panes stay aligned
+ * @param {{start: string, mid: string, end: string}|null} [props.stabilityBand] - Parameter stability
+ *   by channel: the selected chain node (ChainNodeDTO start / mid / end, strategy-TF bars). Draws its
+ *   Fit / Check halves and the midpoint line on the price pane, and a new band (or result) opens zoomed
+ *   on the node plus 10 % of its length on the left. null = unchanged drawing.
  * @returns {JSX.Element}
  */
 const ReporterStyleChart = ({
@@ -214,7 +219,7 @@ const ReporterStyleChart = ({
   indicatorSelection = null, panes = 'full', dateRange: controlledDateRange = null, onDateRangeChange = null,
   showRangeSlider = true, votes = null, positionSpans = null, longOnly = false,
   priceTitle = 'Price Chart with Signals', showInstructions = true, windowStart = null,
-  focusDate = null, nextTriggers = null, reserveNextBarSlot = false
+  focusDate = null, nextTriggers = null, reserveNextBarSlot = false, stabilityBand = null
 }) => {
   const fullPanes = panes !== 'signals';
   const containerRef = useRef(null);
@@ -222,6 +227,15 @@ const ReporterStyleChart = ({
 
   // Warm-up before the trading window, shaded on every pane (null = none).
   const warmupSpan = useMemo(() => preWindowSpan(data?.prices, windowStart), [data, windowStart]);
+
+  // Stability band of the selected chain node (null = none). Keyed by its dates, so a parent that
+  // rebuilds the band object each render does not re-zoom the chart.
+  const stabilityKey = stabilityBand ? `${stabilityBand.start}|${stabilityBand.mid}|${stabilityBand.end}` : '';
+  const stabilitySpan = useMemo(
+    () => stabilityBandSpan(data?.prices, stabilityBand),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, stabilityKey]
+  );
 
   // Closed trades, paired once and shared by the trade pane, the cumulative pane and the tooltip.
   const trades = useMemo(() => extractTradesFromSignals(data?.signals || []), [data]);
@@ -572,11 +586,16 @@ const ReporterStyleChart = ({
     // Controlled (Signals mode): the parent sets the shared window for a new result itself.
     // With a warm-up before tradeStart the result opens on the trading window (plus context);
     // originalDateRange stays the full range, so Reset Zoom and the slider reach the warm-up.
-    if (!controlledZoom) setDateRange(initialWindowRange(data.prices, windowStart) || range);
+    // A stability band (Channels tab) opens on the selected chain node instead.
+    if (!controlledZoom) {
+      setDateRange(stabilityInitialRange(data.prices, stabilityBand)
+        || initialWindowRange(data.prices, windowStart) || range);
+    }
     setOriginalDateRange(range);
-    // controlledZoom / setDateRange are fixed for a chart's lifetime; only a new result resets
+    // controlledZoom / setDateRange are fixed for a chart's lifetime; only a new result (or a new
+    // stability band) resets
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, windowStart]);
+  }, [data, windowStart, stabilityKey]);
 
   // Bottom range slider rows: one per bar (stable identity per result, so the Brush keeps state).
   const sliderRows = useMemo(() => (data?.prices || []).map(price => ({
@@ -1700,6 +1719,7 @@ const ReporterStyleChart = ({
           preWindowSpan={warmupSpan}
           nextBarTriggers={nextBarTriggers}
           extraSlots={triggerSlots}
+          stabilityBand={stabilitySpan}
         />
         <Crosshair 
           show={showCrosshair} 

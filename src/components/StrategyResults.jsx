@@ -5,12 +5,24 @@ import NextBarCard from './nextTriggers/NextBarCard';
 import { adaptNextTriggers } from './nextTriggers/nextTriggersAdapter';
 import PerformanceMetricsTable from './PerformanceMetricsTable';
 import TradeStatisticsTable from './TradeStatisticsTable';
+import ChannelStabilityView from './stability/ChannelStabilityView';
 import { formatNumber, formatPercent, formatSigned, formatSignedPercent } from '../utils/formatters';
 import '../ResultsTabs.css';
 
-const StrategyResults = ({ results, mode, fileContext }) => {
+// stability (Optimize only, when results.channelStability is present): {baseConfig, onApplyParams,
+// busy, totalCombinations} for the Channels tab (ChannelStabilityView).
+const StrategyResults = ({ results, mode, fileContext, stability = null }) => {
   const [activeTab, setActiveTab] = useState(mode === 'optimize' ? 'best-params' : 'summary');
   const hasParams = results.paramsDTO && results.paramsDTO.length > 0;
+  // Parameter stability by channel: present only on Optimize results of a request with channelStability
+  const hasChannels = mode === 'optimize' && !!results.channelStability;
+  // Mounted on the first visit of the tab and kept mounted (hidden) afterwards, so the selected level
+  // and the per-level Backtest cache survive switching tabs.
+  const [channelsVisited, setChannelsVisited] = useState(false);
+  const openTab = (tab) => {
+    if (tab === 'channels') setChannelsVisited(true);
+    setActiveTab(tab);
+  };
   // Next-bar trigger prices (absent on an older backend and always null in Optimize results)
   const nextTriggers = useMemo(() => adaptNextTriggers(results.nextTriggers), [results]);
 
@@ -77,6 +89,11 @@ const StrategyResults = ({ results, mode, fileContext }) => {
           <button className={tabClass('trades')} onClick={() => setActiveTab('trades')}>
             Trades
           </button>
+          {hasChannels && (
+            <button className={tabClass('channels')} onClick={() => openTab('channels')} data-testid="tab-channels">
+              Channels
+            </button>
+          )}
         </nav>
       </div>
 
@@ -238,6 +255,20 @@ const StrategyResults = ({ results, mode, fileContext }) => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <PerformanceMetricsTable results={results} />
           <TradeStatisticsTable results={results} longLegOnly={longLegOnly} />
+        </div>
+      )}
+
+      {/* Channels Tab - parameter stability along the current channel chain */}
+      {hasChannels && channelsVisited && (
+        <div hidden={activeTab !== 'channels'}>
+        <ChannelStabilityView
+          key={results.channelStability?.snapshot?.detectedAt || 'stability'}
+          stability={results.channelStability}
+          baseConfig={stability?.baseConfig ?? null}
+          onApplyParams={stability?.onApplyParams ?? (() => {})}
+          busy={!!stability?.busy}
+          totalCombinations={stability?.totalCombinations ?? null}
+        />
         </div>
       )}
 

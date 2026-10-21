@@ -143,3 +143,59 @@ export const initialWindowRange = (prices, windowStart) => {
   const startIndex = Math.max(0, index - context);
   return [parseExchangeTs(prices[startIndex].date), parseExchangeTs(prices[prices.length - 1].date)];
 };
+
+// ---------------------------------------------------------------------------------------------
+// Parameter stability by channel (screener architect.md §6 item 4): the selected chain node's
+// Fit half [start, mid) and Check half [mid, end] on the price chart. The node dates are
+// strategy-TF bar timestamps (ChainNodeDTO start / mid / end).
+// ---------------------------------------------------------------------------------------------
+
+// Initial zoom: this fraction of the node's length as context left of the node start.
+export const STABILITY_CONTEXT_FRACTION = 0.1;
+
+/** Boundary just left of bar `index`: midway to the previous bar, so no candle is cut. */
+const boundaryBefore = (barTimes, index) =>
+  (index > 0 ? (barTimes[index - 1] + barTimes[index]) / 2 : barTimes[index]);
+
+/**
+ * Time span of a stability band on the chart's bars.
+ * @param {Array<{date}>} prices the chart's bars
+ * @param {{start, mid, end}|null} band ChainNodeDTO dates (API LocalDateTime)
+ * @returns {{startMs, midMs, endMs}|null} null when the band or the prices are missing / unparseable
+ */
+export const stabilityBandSpan = (prices, band) => {
+  if (!band || !Array.isArray(prices) || prices.length === 0) return null;
+  const startMs = parseExchangeTs(band.start).getTime();
+  const midMs = parseExchangeTs(band.mid).getTime();
+  const endMs = parseExchangeTs(band.end).getTime();
+  if ([startMs, midMs].some((v) => Number.isNaN(v))) return null;
+  const barTimes = prices.map(price => parseExchangeTs(price.date).getTime());
+  const lastIndex = barTimes.length - 1;
+  const startIndex = barIndexAtOrAfter(barTimes, startMs);
+  const midIndex = barIndexAtOrAfter(barTimes, midMs);
+  const endIndex = Number.isNaN(endMs) ? lastIndex : barIndexAtOrAfter(barTimes, endMs);
+  const bandEnd = endIndex === -1 || endIndex >= lastIndex ? barTimes[lastIndex]
+    : (barTimes[endIndex] + barTimes[endIndex + 1]) / 2;
+  return {
+    startMs: startIndex === -1 ? startMs : boundaryBefore(barTimes, startIndex),
+    midMs: midIndex === -1 ? midMs : boundaryBefore(barTimes, midIndex),
+    endMs: bandEnd,
+  };
+};
+
+/**
+ * Initial zoom of a stability chart: the node plus STABILITY_CONTEXT_FRACTION of its length on the
+ * left (never before the first bar), to the last bar.
+ * @returns {[Date, Date]|null}
+ */
+export const stabilityInitialRange = (prices, band) => {
+  if (!band || !Array.isArray(prices) || prices.length === 0) return null;
+  const firstMs = parseExchangeTs(prices[0].date).getTime();
+  const lastMs = parseExchangeTs(prices[prices.length - 1].date).getTime();
+  const startMs = parseExchangeTs(band.start).getTime();
+  const endMs = parseExchangeTs(band.end).getTime();
+  if ([firstMs, lastMs, startMs].some((v) => Number.isNaN(v))) return null;
+  const nodeEnd = Number.isNaN(endMs) ? lastMs : Math.min(endMs, lastMs);
+  const from = Math.max(firstMs, startMs - STABILITY_CONTEXT_FRACTION * Math.max(0, nodeEnd - startMs));
+  return [new Date(from), new Date(lastMs)];
+};

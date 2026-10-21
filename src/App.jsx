@@ -37,6 +37,12 @@ import {
   calendarDayKey, exchangeTodayLocalDate, exchangeZoneForTicker, localDateFromIso, toLocalIsoDate, fmtBarTimestamp,
 } from './utils/dates';
 import { DEFAULT_OBJECTIVE, OBJECTIVES, normalizeObjective } from './utils/objectives';
+import StabilitySettings from './components/stability/StabilitySettings';
+import ChannelStabilityView from './components/stability/ChannelStabilityView';
+import {
+  defaultStabilitySettings, isCoarserTimeFrame, settingsFromRequest, stabilityRequest, stabilityValidationError,
+  withParamValues,
+} from './components/stability/stabilityFormat';
 
 // .chart-toolbar bottom margin (see fullscreenChartHeight).
 const CHART_TOOLBAR_MARGIN_PX = 16;
@@ -116,6 +122,18 @@ const App = () => {
   // requests only. Restored from a loaded case and from a reattached job.
   const [objective, setObjective] = useState(DEFAULT_OBJECTIVE);
   const selectedObjective = OBJECTIVES.find((o) => o.value === objective);
+
+  // ---- Parameter stability by channel (screener TASK_channel_param_stability.md, architect.md §6) ----
+  // Optimize-form section {enabled, channelTimeFrame, params}; sent as channelStability with Optimize
+  // requests only, and only when enabled. Restored from a reattached job and from a loaded case.
+  const [stabilitySettings, setStabilitySettings] = useState(() => defaultStabilitySettings('DAY'));
+  // A loaded case's stored stability block {stability, config, name, savedAt}: shown in Optimize mode
+  // while no live result is on screen (the detector is not called). Cleared on a ticker / timeframe
+  // change, another case and any new optimization run.
+  const [storedStability, setStoredStability] = useState(null);
+  // The request of the optimization job whose result is on screen (for the per-level Backtests and
+  // Apply params of the Channels tab). null after a reattach (the job DTO does not echo the request).
+  const optConfigRef = useRef(null);
 
   // State for date range
   const [startDate, setStartDate] = useState(new Date(2023, 0, 1));
@@ -354,6 +372,11 @@ const App = () => {
           optSyncForm.current = false;
           setTicker(job.ticker);
           if (job.objective) setObjective(normalizeObjective(job.objective));
+          // The job's channel-stability request (absent on an older backend / when off)
+          {
+            const restored = settingsFromRequest(job.channelStability, job.timeFrame || 'DAY');
+            setStabilitySettings((prev) => restored || { ...prev, enabled: false });
+          }
           if (job.timeFrame) {
             setTimeFrame(job.timeFrame);
             setSelectedStrategies((prev) => withTimeframe(prev, job.timeFrame));
@@ -430,12 +453,16 @@ const App = () => {
     setOptBanner(null);
     setOptNotice(null);
     setOptLost(false);
+    setStoredStability(null);
+    optConfigRef.current = null;
     try {
       const res = await startOptimization(config);
       if (res.conflict) {
         if (!res.jobId) throw new Error(res.error || 'An optimization is already running');
+        // Another job (its request is not ours): optConfigRef stays null.
         attachOptimizationJob({ jobId: res.jobId, status: 'RUNNING' }, { notice: OPT_CONFLICT_NOTICE, syncForm: true });
       } else {
+        optConfigRef.current = config;
         attachOptimizationJob({ jobId: res.jobId, status: 'QUEUED', total: res.total, done: 0, percent: 0 });
       }
     } catch (err) {
@@ -476,13 +503,20 @@ const App = () => {
       setError('Trade start must be inside the date range');
       return;
     }
+    const stabilityError = mode === 'optimize' ? stabilityValidationError(stabilitySettings, timeFrame) : null;
+    if (stabilityError) {
+      setResults(null);
+      setError(stabilityError);
+      return;
+    }
     setLoading(true);
     setError(null);
     setRunStarts((n) => n + 1);
 
     const config = formatStrategyConfig(
       ticker, timeFrame, startDate, endDate, selectedStrategies, longOnly, requestTradeStart,
-      requestInitialPosition, mode === 'optimize' ? objective : null
+      requestInitialPosition, mode === 'optimize' ? objective : null,
+      mode === 'optimize' ? stabilityRequest(stabilitySettings) : null
     );
     if (mode === 'signals') {
       clearSignalCharts();
@@ -574,6 +608,9 @@ const App = () => {
     setWatchContext(null); // another timeframe is not the watch's run
     setTimeFrame(tf);
     setResults(null);
+    setStoredStability(null);
+    // The channel timeframe must not be coarser than the strategy's: follow a finer strategy TF.
+    setStabilitySettings((s) => (isCoarserTimeFrame(s.channelTimeFrame, tf) ? { ...s, channelTimeFrame: tf } : s));
     clearSignalCharts();
     setSelectedStrategies(prev => withTimeframe(prev, tf));
   };
@@ -628,8 +665,15 @@ const App = () => {
   // fields the config lacks (the case summary's ticker / timeframe / dates). forceTradeStart: keep
   // the config's trade start as a user-set one even when it equals the start date (a watch run
   // always sends it). Results and signal charts are cleared.
-  const applyConfig = (cfg, { fallback = {}, forceTradeStart = false } = {}) => {
+  // keepStability: leave the channel-stability section as it is (Apply params); otherwise it follows
+  // cfg.channelStability (off when the config has none).
+  const applyConfig = (cfg, { fallback = {}, forceTradeStart = false, keepStability = false } = {}) => {
     const tf = cfg.timeFrame || fallback.timeframe || timeFrame;
+    if (!keepStability) {
+      const restored = settingsFromRequest(cfg.channelStability, tf);
+      setStabilitySettings((prev) => restored
+        || { ...prev, enabled: false, channelTimeFrame: isCoarserTimeFrame(prev.channelTimeFrame, tf) ? tf : prev.channelTimeFrame });
+    }
     setTicker(cfg.ticker || fallback.ticker || ticker);
     setTimeFrame(tf);
     setLongOnly(!!cfg.longOnly);
@@ -665,6 +709,56 @@ const App = () => {
     setObjective(normalizeObjective(savedCase?.config?.objectiveFunction ?? savedCase?.objective));
     setWatchContext(null);
     setCaseWarnings(Array.isArray(savedCase.warnings) && savedCase.warnings.length > 0 ? savedCase.warnings : null);
+    // A case saved from an optimize job with channel stability carries the stored snapshot + results
+    setStoredStability(savedCase?.channelStability
+      ? { stability: savedCase.channelStability, config: savedCase.config || null, name: savedCase.name || null, savedAt: savedCase.savedAt || null }
+      : null);
+  };
+
+  // Request of the result on screen, for the Channels tab: the recorded job request, else (reattach)
+  // rebuilt from the snapshot (the job's dates) and the form's strategies.
+  const stabilityBaseConfig = (() => {
+    if (mode !== 'optimize' || !results?.channelStability) return null;
+    if (optConfigRef.current) return optConfigRef.current;
+    const snap = results.channelStability.snapshot || {};
+    const cfg = {
+      ticker: results.ticker || ticker,
+      timeFrame: snap.strategyTimeFrame || timeFrame,
+      startDate: snap.startDate,
+      endDate: snap.endDate,
+      strategyNameToParams: selectedStrategies,
+      longOnly: results.longOnly === true,
+    };
+    if (snap.tradeStart) cfg.tradeStart = snap.tradeStart;
+    return cfg;
+  })();
+
+  // "Apply params" of a chain level: the job's request with the level's Fit-best values into the form,
+  // Backtest mode (results cleared by applyConfig; ranges min / max / step kept).
+  const applyStabilityParams = (baseConfig, params) => {
+    if (!baseConfig) return;
+    applyConfig({ ...baseConfig, strategyNameToParams: withParamValues(baseConfig.strategyNameToParams, params) },
+      { keepStability: true });
+    setWatchContext(null);
+    setMode('backtest');
+  };
+
+  // Stored case: "Re-detect on current data" = a new optimize job with the case's config (new
+  // snapshot, new result; saving follows the existing name / 409 rules).
+  const handleRedetect = async () => {
+    if (!storedStability?.config || loading || optActive) return;
+    const caseCfg = storedStability.config;
+    const snap = storedStability.stability?.snapshot || {};
+    const channelStability = caseCfg.channelStability
+      || (snap.channelTimeFrame ? { channelTimeFrame: snap.channelTimeFrame, detectorParams: snap.detectorParams || null } : null);
+    // eslint-disable-next-line no-unused-vars
+    const { initialPosition, ...rest } = caseCfg;
+    const config = { ...rest, ...(channelStability ? { channelStability } : {}) };
+    setMode('optimize');
+    setLoading(true);
+    setError(null);
+    setRunStarts((n) => n + 1);
+    await runOptimization(config);
   };
 
   // Watchlist deep link (architect.md "Signal watch" §3.8, §6.2): the watch's own config comes
@@ -915,7 +1009,7 @@ const App = () => {
                 <TickerCombobox
                   id="ticker-input"
                   value={ticker}
-                  onChange={(val) => { setTicker(val); setWatchContext(null); setResults(null); clearSignalCharts(); }}
+                  onChange={(val) => { setTicker(val); setWatchContext(null); setResults(null); setStoredStability(null); clearSignalCharts(); }}
                   tickers={availableTickers}
                 />
               </div>
@@ -967,6 +1061,16 @@ const App = () => {
                   </select>
                   <p className="mt-1 text-xs text-gray-500">{selectedObjective?.description}</p>
                 </div>
+              )}
+
+              {/* Parameter stability by channel (Optimize mode only; not sent otherwise) */}
+              {mode === 'optimize' && (
+                <StabilitySettings
+                  settings={stabilitySettings}
+                  onChange={(next) => { setStabilitySettings(next); setResults(null); }}
+                  strategyTimeFrame={timeFrame}
+                  disabled={optActive}
+                />
               )}
 
               {/* Date Range Picker */}
@@ -1031,7 +1135,7 @@ const App = () => {
             {/* Optimize mode: live progress of the async job; after it ends, the collapsed run
                 (final best card + log) stays above the result until the next run. */}
             {showOptPanel && (
-              <div className={results ? 'mb-6' : ''}>
+              <div className={results || (mode === 'optimize' && storedStability) ? 'mb-6' : ''}>
                 <OptimizationProgress
                   job={optJob}
                   logLines={optLog}
@@ -1164,13 +1268,34 @@ const App = () => {
                     results={results}
                     mode={mode}
                     fileContext={{ ticker, timeFrame, selectedStrategies, startDate, endDate }}
+                    stability={results.channelStability ? {
+                      baseConfig: stabilityBaseConfig,
+                      onApplyParams: (params) => applyStabilityParams(stabilityBaseConfig, params),
+                      busy: loading || optActive,
+                      totalCombinations: Number.isFinite(optJob?.total) ? optJob.total : null,
+                    } : null}
                   />
                 </div>
               </div>
+            ) : mode === 'optimize' && storedStability && !optActive ? (
+              <ChannelStabilityView
+                key={`stored-${storedStability.stability?.snapshot?.detectedAt || ''}-${storedStability.name || ''}`}
+                stability={storedStability.stability}
+                baseConfig={storedStability.config}
+                onApplyParams={(params) => applyStabilityParams(storedStability.config, params)}
+                stored={{ name: storedStability.name, savedAt: storedStability.savedAt }}
+                onRedetect={storedStability.config ? handleRedetect : null}
+                busy={loading || optActive}
+              />
             ) : !showOptPanel && (
               <div className="bg-white p-6 rounded-lg shadow flex items-center justify-center h-64">
                 <p className="text-gray-500">
                   {loading ? 'Processing your request...' : 'Configure and run a strategy to see results'}
+                  {!loading && storedStability && mode !== 'optimize' && (
+                    <span className="block mt-2 text-sm" data-testid="stored-stability-hint">
+                      The loaded case has a stored channel-stability result — switch to Optimize to view it.
+                    </span>
+                  )}
                 </p>
               </div>
             )}

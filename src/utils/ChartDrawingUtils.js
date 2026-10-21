@@ -1076,6 +1076,85 @@ export const findMinMaxPriceRange = (prices) => {
     ctx.restore();
   };
 
+  // Parameter stability by channel: the selected chain node's Fit half (light tint) and Check half
+  // (stronger tint, the recent stretch the fit-best params are checked on), a solid node-start
+  // line, a dashed midpoint line and the labels "Fit" / "Check".
+  export const STABILITY_BAND_STYLE = Object.freeze({
+    fitFill: 'rgba(59, 130, 246, 0.07)',
+    checkFill: 'rgba(245, 158, 11, 0.14)',
+    edge: 'rgba(37, 99, 235, 0.55)',
+    midLine: 'rgba(180, 83, 9, 0.9)',
+    dash: [5, 4],
+    fitLabel: 'Fit',
+    checkLabel: 'Check',
+    fitLabelColor: 'rgba(30, 64, 175, 0.95)',
+    checkLabelColor: 'rgba(146, 64, 14, 0.95)',
+  });
+
+  /**
+   * Draws a stability band (x only, like drawPreWindowShading).
+   * @param {{startMs: number, midMs: number, endMs: number}|null} span - ChartDataUtils.stabilityBandSpan
+   * @param {[Date, Date]} dateRange - the pane's plot range
+   */
+  export const drawStabilityBand = (ctx, span, dateRange, width, height) => {
+    if (!span || !dateRange || !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) return;
+    const rangeStart = dateRange[0].getTime();
+    const totalMs = dateRange[1].getTime() - rangeStart;
+    if (!(totalMs > 0)) return;
+    const xOf = (ms) => ((ms - rangeStart) / totalMs) * width;
+    const clamp = (x) => Math.max(0, Math.min(width, x));
+    const xStart = xOf(span.startMs);
+    const xMid = xOf(span.midMs);
+    const xEnd = xOf(span.endMs);
+    ctx.save();
+    // Fit half
+    if (xMid > 0 && xStart < width) {
+      ctx.fillStyle = STABILITY_BAND_STYLE.fitFill;
+      ctx.fillRect(clamp(xStart), 0, clamp(xMid) - clamp(xStart), height);
+    }
+    // Check half
+    if (xEnd > 0 && xMid < width) {
+      ctx.fillStyle = STABILITY_BAND_STYLE.checkFill;
+      ctx.fillRect(clamp(xMid), 0, clamp(xEnd) - clamp(xMid), height);
+    }
+    ctx.lineWidth = 1;
+    const vLine = (x) => {
+      ctx.beginPath();
+      ctx.moveTo(Math.round(x) + 0.5, 0);
+      ctx.lineTo(Math.round(x) + 0.5, height);
+      ctx.stroke();
+    };
+    // Node start (solid)
+    if (xStart >= 0 && xStart <= width) {
+      ctx.strokeStyle = STABILITY_BAND_STYLE.edge;
+      vLine(xStart);
+    }
+    // Midpoint (dashed)
+    if (xMid >= 0 && xMid <= width) {
+      ctx.strokeStyle = STABILITY_BAND_STYLE.midLine;
+      ctx.setLineDash(STABILITY_BAND_STYLE.dash);
+      vLine(xMid);
+      ctx.setLineDash([]);
+    }
+    // Labels at the top of each visible half (below the "trade start" label row)
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    const fitX = Math.max(0, xStart) + 4;
+    if (xMid > 0 && xStart < width
+      && fitX + ctx.measureText(STABILITY_BAND_STYLE.fitLabel).width < clamp(xMid)) {
+      ctx.fillStyle = STABILITY_BAND_STYLE.fitLabelColor;
+      ctx.fillText(STABILITY_BAND_STYLE.fitLabel, fitX, 18);
+    }
+    const checkX = Math.max(0, xMid) + 4;
+    if (xEnd > 0 && xMid < width
+      && checkX + ctx.measureText(STABILITY_BAND_STYLE.checkLabel).width <= clamp(xEnd) + 1) {
+      ctx.fillStyle = STABILITY_BAND_STYLE.checkLabelColor;
+      ctx.fillText(STABILITY_BAND_STYLE.checkLabel, checkX, 18);
+    }
+    ctx.restore();
+  };
+
   /**
    * The sticky support zone the Support line hangs from, one band per segment, with its low edge
    * (the line hangs a buffer below it) drawn as a thin line.
