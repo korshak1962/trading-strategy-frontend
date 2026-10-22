@@ -50,6 +50,7 @@ export const REASON_LABELS = Object.freeze({
   REGIME_GATE: 'regime gate',
   BREACH_BAND: 'channel breach band',
   SETUP_ARMS: 'setup arms',
+  RUNAWAY_AFTER_BREAKOUT: 'runaway after breakout',
   IF_BOUGHT_STOP: 'if bought, initial stop',
   SETUP_FAILS: 'setup fails',
   SETUP_EXPIRES: 'setup expires',
@@ -84,6 +85,10 @@ export const lineText = (line) => {
   if (line.informational || line.side === 'INFO') {
     switch (line.reason) {
       case 'SETUP_ARMS': return `setup arms above ${priceText(line)} (entry not before the bar after next)`;
+      case 'RUNAWAY_AFTER_BREAKOUT': return `after a breakout: runaway BUY if close > ${priceText(line)}${andPart}`
+        + ', from the bar after the breakout bar'
+        + `${line.category === 'APPROX' ? ' (approximate: ATR will change)' : ''}`
+        + `${line.meta?.regimeGate === true ? '; the regime gate also applies' : ''}`;
       case 'IF_BOUGHT_STOP': return `if bought: initial stop ${priceText(line)}`;
       case 'SETUP_FAILS': return `setup fails if ${thresholdText(line)}`;
       case 'SETUP_EXPIRES': return 'setup expires after this bar';
@@ -214,6 +219,117 @@ export const primaryLine = (estimate) => {
   return [...lines].sort((a, b) => Math.abs(a.distance ?? Infinity) - Math.abs(b.distance ?? Infinity))[0];
 };
 
+// ---------------------------------------------------------------------------------------------
+// Setup preview (screener architect.md "setup preview" §3.1): a FLAT LevelBreakoutRetest with no
+// armed setup can not buy on the next bar, but its INFO lines say where the zone would break out
+// (SETUP_ARMS) and, from the bar after that breakout, where a runaway close would buy
+// (RUNAWAY_AFTER_BREAKOUT, newer backends only). Never an order for the next bar.
+// ---------------------------------------------------------------------------------------------
+
+export const PREVIEW_REASONS = Object.freeze(['SETUP_ARMS', 'RUNAWAY_AFTER_BREAKOUT']);
+
+/** An informational setup-preview line (breakout / runaway after breakout). */
+export const isSetupPreview = (line) => Boolean(line?.informational) && PREVIEW_REASONS.includes(line.reason);
+
+const sameZone = (a, b) => (a.meta?.zoneId ?? null) === (b.meta?.zoneId ?? null)
+  && (a.source ?? null) === (b.source ?? null);
+
+/**
+ * { arms, runaway } of a list of info lines: the arms line nearest to the basis close and the
+ * runaway line of the same zone (null on older payloads / RunawayAtr 0). null without an arms line.
+ */
+const previewOfLines = (lines) => {
+  const arms = lines
+    .filter(l => l.informational && l.reason === 'SETUP_ARMS' && isNum(l.price))
+    .sort((a, b) => Math.abs(a.distance ?? Infinity) - Math.abs(b.distance ?? Infinity))[0];
+  if (!arms) return null;
+  const runaway = lines.find(l => l.informational && l.reason === 'RUNAWAY_AFTER_BREAKOUT'
+    && isNum(l.price) && sameZone(l, arms)) || null;
+  return { arms, runaway };
+};
+
+/** An ATR multiple: "1.0", "0.5", "0.25". */
+const fmtMult = (f) => (Number.isInteger(f) ? f.toFixed(1) : fmtFactor(f));
+
+// One gate for every view (column, card, Signals chip, chart): status OK, not LONG / SHORT, and the
+// merged estimate is NONE - never under "BUY at any price", UNAVAILABLE, NOT_ESTIMABLE, ... (as oneLiner)
+const previewAllowed = (nt) => Boolean(nt) && nt.status === 'OK'
+  && nt.position !== 'LONG' && nt.position !== 'SHORT' && nt.merged?.kind === 'NONE';
+
+/**
+ * The setup preview of the merged estimate: null when LONG / SHORT, status not OK, the merged
+ * estimate is not of kind NONE or has actionable lines (then the BUY lines are the next-bar answer, as before).
+ * Reads the merged info lines first, then every strategy's (the same source oneLiner uses).
+ */
+export const setupPreview = (nt) => {
+  if (!previewAllowed(nt) || actionLines(nt.merged).length > 0) return null;
+  return previewOfLines(infoLines(nt.merged)) || previewOfLines(nt.strategies.flatMap(infoLines));
+};
+
+/** The setup preview of one estimate (a Signals pane), same gating as setupPreview. */
+export const estimatePreview = (nt, estimate) => {
+  if (!previewAllowed(nt) || !estimate || estimate.kind !== 'NONE' || actionLines(estimate).length > 0) return null;
+  return previewOfLines(infoLines(estimate));
+};
+
+/** "arms > 788.60 (+2.0 %) · runaway ≈ 785.11 after breakout" (withPct false: no distance). */
+export const previewShortText = (p, withPct = true) => {
+  if (!p) return '';
+  const pct = withPct && isNum(p.arms.distancePct) ? ` (${signed(p.arms.distancePct, 1)} %)` : '';
+  const runaway = p.runaway
+    ? ` · runaway ${p.runaway.category === 'APPROX' ? '≈ ' : ''}${fmtTriggerPrice(p.runaway.price)} after breakout`
+    : '';
+  return `arms > ${fmtTriggerPrice(p.arms.price)}${pct}${runaway}`;
+};
+
+/** "setup arms above 788.60, then runaway above ≈785.11" (backend NextTriggerText wording). */
+const previewInlineText = (p) => `setup arms above ${fmtTriggerPrice(p.arms.price)}`
+  + `${p.runaway ? `, then runaway above ${priceText(p.runaway)}` : ''}`;
+
+/**
+ * Multi-line explanation of the preview (tooltips, the card note). Sentences whose numbers an
+ * older payload does not carry are dropped.
+ * @returns {string[]} the sentences
+ */
+export const previewSentences = (p, nt) => {
+  if (!p) return [];
+  const { arms, runaway } = p;
+  const am = arms.meta || {};
+  const rm = runaway?.meta || {};
+  const zoneLow = isNum(am.zoneLow) ? am.zoneLow : (isNum(rm.zoneLow) ? rm.zoneLow : null);
+  const zoneHigh = isNum(am.zoneHigh) ? am.zoneHigh : (isNum(rm.zoneHigh) ? rm.zoneHigh : null);
+  const touch = isNum(rm.touchLine) ? rm.touchLine : (runaway?.and ? runaway.and.price : zoneHigh);
+  const label = nt ? nextBarLabel(nt) : 'next bar';
+  const when = label === 'next bar' ? 'on the next bar' : `on ${label}`;
+  const noArmed = /no armed setup/i.test(nt?.merged?.reason || '');
+  const out = [noArmed ? `No armed setup yet: nothing can buy ${when}.` : `Nothing can buy ${when}.`];
+  const how = zoneLow !== null && zoneHigh !== null && isNum(am.breakBuffer) && isNum(nt?.atr)
+    ? ` (zone ${fmtTriggerPrice(zoneLow)}–${fmtTriggerPrice(zoneHigh)} high + ${fmtMult(am.breakBuffer)} × ATR ${fmtTriggerPrice(nt.atr)})`
+    : '';
+  out.push(`Breakout: a close above ${fmtTriggerPrice(arms.price)}${how} breaks the zone out. That bar itself does not buy.`);
+  if (runaway) {
+    const factor = isNum(rm.runawayAtr) ? ` (zone high + ${fmtMult(rm.runawayAtr)} × ATR)` : '';
+    const noTouch = isNum(touch) ? ` without touching the zone (low > ${fmtTriggerPrice(touch)})` : '';
+    out.push(`From the bar after the breakout: runaway BUY if close > ${priceText(runaway)}${factor}${noTouch}.`);
+  }
+  if (zoneHigh !== null) {
+    const t = fmtTriggerPrice(isNum(touch) ? touch : zoneHigh);
+    if (rm.confirmMode === 1) {
+      out.push(`A retest (low ≤ ${t}) starts a confirmation: a later close above the touch bar's high buys.`);
+    } else if (rm.confirmMode === 0) {
+      out.push(`A retest (low ≤ ${t}) with a close above ${fmtTriggerPrice(zoneHigh)} buys too.`);
+    } else {
+      out.push(`A retest of the zone (low ≤ ${t}) after the breakout can also lead to a buy.`);
+    }
+  }
+  if (rm.regimeGate === true) out.push('The regime gate also applies (not known for future bars).');
+  if (runaway?.category === 'APPROX') out.push('≈: the ATR will have changed by then; the line is recomputed after the breakout.');
+  return out;
+};
+
+/** previewSentences joined into one multi-line tooltip text. */
+export const previewTitle = (p, nt) => previewSentences(p, nt).join('\n');
+
 /** "2026-10-19" / "week of 2026-10-18" / "next bar" - the backend's label wins. */
 export const nextBarLabel = (nt) => {
   const nb = nt?.nextBar;
@@ -278,16 +394,17 @@ export const oneLiner = (nt) => {
     body = kindText(m, nt.position);
   }
   if (m.kind === 'NONE' && nt.position !== 'LONG') {
-    const arms = [...infoLines(m), ...nt.strategies.flatMap(infoLines)].find(l => l.reason === 'SETUP_ARMS');
-    if (arms) body += `; setup arms above ${fmtTriggerPrice(arms.price)}`;
+    const p = setupPreview(nt);
+    if (p) body += `; ${previewInlineText(p)}`;
   }
   const partial = m.partial ? ` · ${partialText(m)}` : '';
   return `${head}: ${body}${partial}`;
 };
 
 /**
- * Watchlist column: { tone: 'buy'|'sell'|'none'|'muted', text, more, partial, title }.
- * tone 'buy' / 'sell' = the merged estimate has a line of that side.
+ * Watchlist column: { tone: 'buy'|'sell'|'none'|'info'|'muted', text, more, partial, title }.
+ * tone 'buy' / 'sell' = the merged estimate has a line of that side; 'info' = a FLAT setup preview
+ * (where the zone would break out - never a next-bar order).
  */
 export const compactSummary = (nt) => {
   if (!nt) return null;
@@ -307,6 +424,16 @@ export const compactSummary = (nt) => {
       more: others,
       partial: m.partial,
       title,
+    };
+  }
+  const preview = setupPreview(nt);
+  if (preview) {
+    return {
+      tone: 'info',
+      text: previewShortText(preview),
+      more: 0,
+      partial: m.partial,
+      title: `${title}\n${previewTitle(preview, nt)}`,
     };
   }
   const text = m.kind === 'NONE'
@@ -348,9 +475,13 @@ export const paneChip = (nt, strategyKey = null) => {
   const partial = estimate.partial ? ` · ${partialText(estimate)}` : '';
   const sides = new Set(lines.map(l => l.side));
   const tone = sides.has('BUY') ? 'buy' : sides.has('SELL') ? 'sell' : 'none';
-  const text = `next bar: ${body}${estimate.partial ? ' · partial' : ''}`;
+  // FLAT, nothing actionable: the setup preview as a suffix (tone stays 'none' - not an order)
+  const preview = strategyKey ? estimatePreview(nt, estimate) : setupPreview(nt);
+  const previewPart = preview ? ` · ${previewShortText(preview, false)}` : '';
+  const text = `next bar: ${body}${previewPart}${estimate.partial ? ' · partial' : ''}`;
   const title = `Next bar (${label}), position ${nt.position || '—'} at the ${fmtBarKey(nt, nt.basisBarDate)} close`
-    + `${strategyKey ? ' (the merged position this strategy runs on)' : ''}:\n${body}${partial}`;
+    + `${strategyKey ? ' (the merged position this strategy runs on)' : ''}:\n${body}${partial}`
+    + `${preview ? `\n${previewTitle(preview, nt)}` : ''}`;
   return { tone, text, title };
 };
 

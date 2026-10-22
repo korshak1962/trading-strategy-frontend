@@ -1,5 +1,6 @@
 // src/utils/ChartDrawingUtils.js
 import { parseExchangeTs } from './dates';
+import { SERIES_STYLE } from './indicatorSeries';
 
 // Helper functions for finding min/max values
 export const findMinMaxPriceRange = (prices) => {
@@ -1467,7 +1468,18 @@ export const findMinMaxPriceRange = (prices) => {
     actual: '#111827',
     labelBacking: 'rgba(255, 255, 255, 0.88)',
     labelGap: 12,
+    // first label row: below the "trade start" text (drawPreWindowShading, y 4..15), never cut at the top
+    labelTop: 20,
+    // Setup preview (FLAT, no armed setup): 1 px dotted, the breakout one in the Breakout line's
+    // green (it continues that line into the next slot), the runaway one in the setup window's
+    // runaway orange - never the 2 px dashed look of a next-bar BUY
+    SETUP_ARMS: SERIES_STYLE.resistanceTrigger.color,
+    RUNAWAY_AFTER_BREAKOUT: '#ff7f0e',
+    previewDash: [1, 3],
   });
+
+  const NEXT_BAR_PREVIEW_REASONS = ['SETUP_ARMS', 'RUNAWAY_AFTER_BREAKOUT'];
+  const isPreviewLine = (l) => Boolean(l.informational) && NEXT_BAR_PREVIEW_REASONS.includes(l.reason);
 
   const NEXT_BAR_OPS = Object.freeze({ ABOVE: '>', BELOW: '<', AT_OR_ABOVE: '≥', AT_OR_BELOW: '≤' });
 
@@ -1475,7 +1487,8 @@ export const findMinMaxPriceRange = (prices) => {
     const price = `${line.category === 'APPROX' ? '≈' : ''}${line.price.toFixed(Math.abs(line.price) < 1 ? 4 : 2)}`;
     const op = NEXT_BAR_OPS[line.direction] || '';
     if (line.informational) {
-      if (line.reason === 'SETUP_ARMS') return `arms > ${price}`;
+      if (line.reason === 'SETUP_ARMS') return `breakout > ${price}`;
+      if (line.reason === 'RUNAWAY_AFTER_BREAKOUT') return `runaway ${price.startsWith('≈') ? `≈ ${price.substring(1)}` : price} (bar after breakout)`;
       if (line.reason === 'IF_BOUGHT_STOP') return `if bought: stop ${price}`;
       if (line.reason === 'SETUP_FAILS') return `fails ${op} ${price}`;
       return price;
@@ -1490,12 +1503,13 @@ export const findMinMaxPriceRange = (prices) => {
   /**
    * @param {Object} triggers - nextTriggersAdapter.js chartTriggers() result, plus
    *   {slotStartMs, slotEndMs, showInfo}: the bar slot to draw in and whether informational lines
-   *   (setup arms, if-bought stop, setup fails) are drawn
+   *   (setup arms, if-bought stop, setup fails) are drawn. With `preview` (FLAT, nothing actionable)
+   *   the setup-preview lines (breakout, runaway after breakout) are drawn even when showInfo is off.
    */
   export const drawNextBarTriggers = (ctx, triggers, dateRange, minMax, width, height) => {
     const map = priceMapper(dateRange, minMax, width, height);
     if (!map || !triggers || !triggers.estimate) return;
-    const { estimate, slotStartMs, slotEndMs, showInfo = false, actual = null } = triggers;
+    const { estimate, slotStartMs, slotEndMs, showInfo = false, actual = null, preview = false } = triggers;
     if (!Number.isFinite(slotStartMs) || !Number.isFinite(slotEndMs)) return;
     if (slotEndMs < map.startMs || slotStartMs > map.endMs) return;
     const x0 = Math.max(0, map.xOf(slotStartMs));
@@ -1505,7 +1519,7 @@ export const findMinMaxPriceRange = (prices) => {
     const clampY = (y) => Math.min(plotBottom - 2, Math.max(2, y));
 
     const lines = estimate.lines.filter(l => l.price !== null && Number.isFinite(l.price)
-      && (showInfo || !l.informational) && l.reason !== 'SETUP_EXPIRES');
+      && (showInfo || !l.informational || (preview && isPreviewLine(l))) && l.reason !== 'SETUP_EXPIRES');
     if (lines.length === 0) return;
 
     ctx.save();
@@ -1536,13 +1550,16 @@ export const findMinMaxPriceRange = (prices) => {
     lines.forEach(l => {
       const rawY = map.yOf(l.price);
       const y = clampY(rawY);
-      const color = l.informational ? NEXT_BAR_STYLE.INFO
-        : l.category === 'NECESSARY' ? NEXT_BAR_STYLE.NECESSARY
-          : NEXT_BAR_STYLE[l.side] || NEXT_BAR_STYLE.INFO;
+      const previewLine = isPreviewLine(l);
+      const color = previewLine ? NEXT_BAR_STYLE[l.reason]
+        : l.informational ? NEXT_BAR_STYLE.INFO
+          : l.category === 'NECESSARY' ? NEXT_BAR_STYLE.NECESSARY
+            : NEXT_BAR_STYLE[l.side] || NEXT_BAR_STYLE.INFO;
       ctx.strokeStyle = color;
       ctx.lineWidth = l.informational ? 1 : 2;
-      ctx.setLineDash(l.category === 'CONDITIONAL' || l.and ? NEXT_BAR_STYLE.conditionalDash
-        : l.on === 'CLOSE' ? NEXT_BAR_STYLE.closeDash : []);
+      ctx.setLineDash(previewLine ? NEXT_BAR_STYLE.previewDash
+        : l.category === 'CONDITIONAL' || l.and ? NEXT_BAR_STYLE.conditionalDash
+          : l.on === 'CLOSE' ? NEXT_BAR_STYLE.closeDash : []);
       ctx.beginPath();
       ctx.moveTo(x0, Math.round(y) + 0.5);
       ctx.lineTo(x1, Math.round(y) + 0.5);
@@ -1570,7 +1587,7 @@ export const findMinMaxPriceRange = (prices) => {
     labels.sort((a, b) => a.y - b.y);
     let lastY = -Infinity;
     labels.forEach(label => {
-      const y = Math.max(label.y, lastY + NEXT_BAR_STYLE.labelGap);
+      const y = Math.max(label.y, lastY + NEXT_BAR_STYLE.labelGap, NEXT_BAR_STYLE.labelTop);
       lastY = y;
       const textWidth = ctx.measureText(label.text).width;
       const right = x0 - 3;

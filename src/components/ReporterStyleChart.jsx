@@ -19,6 +19,7 @@ import {
 } from '../utils/indicatorDescriptions';
 import './nextTriggers/nextBarCard.css';
 import { triggerPlacement } from './nextTriggers/nextTriggersAdapter';
+import { isSetupPreview } from './nextTriggers/nextTriggersFormat';
 import {
   normalizeLevelChart, statusLine, matchTradeAnnotation, byZoneLowThenId, describeZone
 } from '../utils/levelChart';
@@ -619,7 +620,9 @@ const ReporterStyleChart = ({
     () => (placement ? { ...nextTriggers, placement, showInfo: showTriggerInfo } : null),
     [nextTriggers, placement, showTriggerInfo]
   );
-  const hasTriggerInfo = Boolean(nextTriggers?.estimate?.lines.some(l => l.informational && l.price !== null));
+  // the "setup info" toggle only when it changes something: a setup preview is drawn without it
+  const hasTriggerInfo = Boolean(nextTriggers?.estimate?.lines.some(l => l.informational && l.price !== null
+    && !(nextTriggers.preview && isSetupPreview(l))));
 
   const plotRange = useMemo(
     () => plotDateRange(dateRange, sliderRows.map(row => row.ms), triggerSlots),
@@ -1655,6 +1658,11 @@ const ReporterStyleChart = ({
               <span className="price-legend__zone" title={NEXT_BAR_DESCRIPTIONS.lines}>
                 <span className="nbt-legend-swatch" /> next-bar triggers
               </span>
+              {nextBarTriggers.preview && (
+                <span className="price-legend__zone" title={NEXT_BAR_DESCRIPTIONS.preview} data-testid="next-bar-preview-legend">
+                  <span className="nbt-legend-swatch nbt-legend-swatch--preview" /> setup preview
+                </span>
+              )}
               {hasTriggerInfo && (
                 <label className="price-legend__zone" title={NEXT_BAR_DESCRIPTIONS.info}>
                   <input

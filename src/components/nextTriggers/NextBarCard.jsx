@@ -10,7 +10,7 @@ import './nextBarCard.css';
 import {
   actionLines, categoryBadge, distanceText, fmtTriggerPrice, fmtTriggerTs, infoLines, isIntrabarStop,
   kindText, lineText, nextBarLabel, nowVsLineText, partialText, statusText, OUTCOME_TEXT,
-  DEFAULT_EXECUTION_NOTE, isBenchmark, fmtBarKey,
+  DEFAULT_EXECUTION_NOTE, isBenchmark, fmtBarKey, isSetupPreview, setupPreview, previewSentences,
 } from './nextTriggersFormat';
 
 const RUN_KIND_TEXT = { BACKTEST: 'backtest run', SIGNALS: 'signals run', WATCH: 'watch run' };
@@ -37,7 +37,7 @@ const LineRow = ({ line, nowPrice = null, showSource = false }) => {
           intrabar stop
         </span>
       )}
-      {!info && distanceText(line) && (
+      {(!info || isSetupPreview(line)) && distanceText(line) && (
         <span className="nbt-distance" title="Line minus the basis close: price, % and ATR multiples">{distanceText(line)}</span>
       )}
       {now && <span className="nbt-distance text-emerald-700">· {now}</span>}
@@ -47,9 +47,9 @@ const LineRow = ({ line, nowPrice = null, showSource = false }) => {
 };
 
 /** The lines (or the kind sentence) of one estimate. */
-const EstimateBody = ({ estimate, position, nowPrice, showInfo = true, showSource = false }) => {
+const EstimateBody = ({ estimate, position, nowPrice, showInfo = true, showSource = false, hidePreview = false }) => {
   const lines = actionLines(estimate);
-  const infos = showInfo ? infoLines(estimate) : [];
+  const infos = showInfo ? infoLines(estimate).filter(l => !(hidePreview && isSetupPreview(l))) : [];
   const sentence = estimate.kind !== 'LINES' || lines.length === 0
     ? kindText(estimate.kind === 'LINES' ? { ...estimate, kind: 'NONE' } : estimate, position)
     : null;
@@ -63,6 +63,22 @@ const EstimateBody = ({ estimate, position, nowPrice, showInfo = true, showSourc
     </div>
   );
 };
+
+/**
+ * FLAT, no armed setup: where the zone would break out and the runaway price after that breakout
+ * (screener architect.md "setup preview" §3.3). Informational only - never a next-bar order.
+ */
+const SetupPreview = ({ preview, nt }) => (
+  <div className="nbt-preview" data-testid="next-bar-setup-preview">
+    <div className="nbt-preview__head">Setup preview (not a next-bar order)</div>
+    {[preview.arms, preview.runaway].filter(Boolean).map((line, i) => (
+      <LineRow key={i} line={line} showSource={nt.strategies.length > 1} />
+    ))}
+    <div className="nbt-preview__note" data-testid="next-bar-setup-preview-note">
+      {previewSentences(preview, nt).map((s, i) => <div key={i}>{s}</div>)}
+    </div>
+  </div>
+);
 
 const fmtCell = (v) => {
   if (typeof v === 'number') return Number.isFinite(v) ? (Number.isInteger(v) ? String(v) : fmtTriggerPrice(v)) : '—';
@@ -140,6 +156,7 @@ const NextBarCard = ({ nt, compact = false, stale = false }) => {
   const tradingFrom = nt.tradeStart ? `, trading from ${fmtBarKey(nt, nt.tradeStart)}` : '';
   const runKind = RUN_KIND_TEXT[nt.runKind] || 'run';
   const partial = m ? partialText(m) : null;
+  const preview = setupPreview(nt);
 
   return (
     <div
@@ -187,7 +204,11 @@ const NextBarCard = ({ nt, compact = false, stale = false }) => {
         <div className="text-sm text-gray-700">Short positions are not estimated in v1.</div>
       ) : m ? (
         <div data-testid="next-bar-merged">
-          <EstimateBody estimate={m} position={nt.position} nowPrice={nowPrice} showSource={nt.strategies.length > 1} />
+          <EstimateBody
+            estimate={m} position={nt.position} nowPrice={nowPrice} showSource={nt.strategies.length > 1}
+            hidePreview={Boolean(preview)}
+          />
+          {preview && <SetupPreview preview={preview} nt={nt} />}
           {partial && <div className="mt-1 text-xs text-purple-800" data-testid="next-bar-partial">{partial}</div>}
         </div>
       ) : (

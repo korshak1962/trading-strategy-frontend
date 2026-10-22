@@ -28,6 +28,7 @@
 //   PriceRegion: { side, from, to, fromInclusive, toInclusive, and }
 
 import { parseExchangeTs } from '../../utils/dates';
+import { estimatePreview, setupPreview } from './nextTriggersFormat';
 
 const asArray = (v) => (Array.isArray(v) ? v : []);
 const asMap = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
@@ -230,12 +231,20 @@ export const adaptNextTriggers = (raw) => {
  */
 export const chartTriggers = (nt, strategyKey = null) => {
   if (!nt || nt.status !== 'OK') return null;
-  const estimate = strategyKey ? nt.strategyByKey[strategyKey] : nt.merged;
-  if (!estimate) return null;
+  const own = strategyKey ? nt.strategyByKey[strategyKey] : nt.merged;
+  if (!own) return null;
+  // FLAT with nothing actionable: the setup preview (breakout / runaway after breakout) is drawn
+  // even with "setup info" off - otherwise the slot stays empty (screener architect.md §3.5).
+  // The merged estimate carries no info lines, so its preview comes from the strategies.
+  const preview = strategyKey ? estimatePreview(nt, own) : setupPreview(nt);
+  const estimate = preview && !strategyKey
+    ? { ...own, lines: [...own.lines, ...[preview.arms, preview.runaway].filter(l => l && !own.lines.includes(l))] }
+    : own;
   const drawable = estimate.lines.some(l => l.price !== null);
   if (!drawable) return null;
   return {
     estimate,
+    preview: Boolean(preview),
     position: nt.position,
     nextBar: nt.nextBar,
     actual: strategyKey ? null : nt.actual,

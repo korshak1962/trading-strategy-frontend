@@ -88,6 +88,8 @@
 .nbt-cell-buy { color: #15803d; font-weight: 600; }
 .nbt-cell-sell { color: #b91c1c; font-weight: 600; }
 .nbt-cell-none { color: #6b7280; }
+/* a FLAT setup preview (where the zone would break out): grey italic, never green / bold - not an order */
+.nbt-cell-info { color: #6b7280; font-style: italic; }
 .nbt-cell-muted { color: #9ca3af; }
 .nbt-cell--stale { opacity: 0.55; }
 
@@ -110,3 +112,18 @@
   border-top: 2px dashed #16a34a;
   border-bottom: 2px dashed #dc2626;
 }
+
+/* Setup preview: dotted green (breakout) over dotted orange (runaway), like ChartDrawingUtils NEXT_BAR_STYLE */
+.nbt-legend-swatch--preview {
+  border-top: 1px dotted #16a34a;
+  border-bottom: 1px dotted #ff7f0e;
+}
+
+/* NextBarCard "Setup preview (not a next-bar order)" block */
+.nbt-preview {
+  margin-top: 0.35rem;
+  padding-left: 0.5rem;
+  border-left: 2px solid #d1d5db;
+}
+.nbt-preview__head { font-size: 0.75rem; font-weight: 600; color: #6b7280; font-style: italic; }
+.nbt-preview__note { margin-top: 0.15rem; font-size: 0.72rem; color: #4b5563; }
