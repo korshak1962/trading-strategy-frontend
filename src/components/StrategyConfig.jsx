@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import './StrategyConfig.css';
 import { getParamDescription, OPTIMIZE_FIELD_DESCRIPTIONS } from '../utils/paramDescriptions';
+import './screening/SensitivityView.css';
+import { flagLabel } from './screening/screeningFormat';
 
 // Small hover/focus tooltip: an "i" icon followed by a floating description box (CSS-driven,
 // see .param-info-icon / .param-tooltip in StrategyConfig.css).
@@ -12,7 +14,24 @@ const InfoTooltip = ({ text }) => (
   </span>
 );
 
-const StrategyConfig = ({ selectedStrategies, onRemoveStrategy, onUpdateParam, mode, timeFrame }) => {
+// Optimize mode: a small chip on params whose range came from the applied parameter profile
+// (screener BA-021 §8.4). Read-only display; editing the range removes the chip.
+const ProfileChip = ({ chip }) => {
+  const eta = typeof chip.eta2 === 'number' && Number.isFinite(chip.eta2) ? ` · η² ${chip.eta2.toFixed(3)}` : '';
+  const flags = (chip.flags || []).length > 0 ? ` · ${chip.flags.map(flagLabel).join(', ')}` : '';
+  const title = `${chip.frozen ? 'Frozen by the parameter profile' : 'Range from the parameter profile'}`
+    + ` · ${chip.verdict || 'n/a'}${eta}${flags}`;
+  return (
+    <span className={`param-profile-chip${chip.frozen ? ' param-profile-chip--frozen' : ''}`} title={title} data-testid="param-profile-chip">
+      {chip.frozen ? 'frozen by profile' : 'range from profile'}
+    </span>
+  );
+};
+
+/**
+ * profileChips (Optimize only): {strategyName: {paramName: {frozen, verdict, eta2, flags}}}
+ */
+const StrategyConfig = ({ selectedStrategies, onRemoveStrategy, onUpdateParam, mode, timeFrame, profileChips = null }) => {
   // Holds only explicit collapses, not the full strategy set: a strategy absent from this map
   // counts as expanded (see isExpanded). Seeding it from selectedStrategies instead would freeze
   // the set at mount, so a strategy added later would have no entry and render collapsed.
@@ -70,6 +89,9 @@ const StrategyConfig = ({ selectedStrategies, onRemoveStrategy, onUpdateParam, m
                     <div className="param-optimize-name">
                       {paramName}
                       <InfoTooltip text={getParamDescription(strategyName, paramName)} />
+                      {profileChips?.[strategyName]?.[paramName] && (
+                        <ProfileChip chip={profileChips[strategyName][paramName]} />
+                      )}
                     </div>
                     <div className="param-optimize-fields">
                       {[

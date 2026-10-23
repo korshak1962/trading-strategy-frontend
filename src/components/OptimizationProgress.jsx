@@ -25,6 +25,20 @@ const STATUS_TEXT = {
   FAILED: 'Optimization failed',
 };
 
+// Screening job (screener BA-021 §3): same phases, other words.
+const SCREENING_PHASE_TEXT = {
+  QUEUED: 'Queued…',
+  PREPARING: 'Loading prices and detecting the root channel…',
+  GRID: 'Sampling the parameter lattice',
+  FINALIZING: 'Analysing the samples…',
+};
+
+const SCREENING_STATUS_TEXT = {
+  DONE: 'Screening done',
+  CANCELLED: 'Screening stopped',
+  FAILED: 'Screening failed',
+};
+
 const LEVEL_CLASS = {
   BEST: 'text-green-400',
   WARN: 'text-amber-300',
@@ -71,7 +85,7 @@ const Stat = ({ label, value, sub, flash, title }) => (
   </div>
 );
 
-const BestCard = ({ best, objective }) => {
+const BestCard = ({ best, objective, screening = false }) => {
   // Keep the previous snapshot to flash only the values that changed since the last poll
   // (React's "adjust state while rendering" pattern; every poll brings a new `best` object).
   const [snap, setSnap] = useState({ best, prev: null });
@@ -116,7 +130,7 @@ const BestCard = ({ best, objective }) => {
           flash={changed('maxDrawdown', 'maxDrawdownPercent')}
         />
         <Stat label="Trades" value={fmtInt(best.trades)} flash={changed('trades')} />
-        <Stat label="Found at" value={`combination #${fmtInt(best.combination)}`} flash={changed('combination')} />
+        <Stat label="Found at" value={`${screening ? 'sample' : 'combination'} #${fmtInt(best.combination)}`} flash={changed('combination')} />
       </div>
 
       {Object.keys(params).length > 0 && (
@@ -133,7 +147,9 @@ const BestCard = ({ best, objective }) => {
       )}
 
       <p className="mt-2 text-xs text-gray-500">
-        Long side only during the search; short leg and buy-and-hold are added to the final result.
+        {screening
+          ? 'Best sample so far on the fit half (long side). The screening result is the per-param sensitivity, not this sample.'
+          : 'Long side only during the search; short leg and buy-and-hold are added to the final result.'}
       </p>
     </div>
   );
@@ -209,8 +225,13 @@ const LogPanel = ({ lines, truncated }) => {
  * @param {string|null} props.warning  transient poll failure text
  * @param {string|null} [props.notice] informational notice (e.g. attached to an already running job)
  * @param {boolean} [props.lost]    the job is gone from the backend (404)
+ * @param {{k: number, m: number}|null} [props.batch] screening AUTO plan: "batch k of ≤ m"
  */
-const OptimizationProgress = ({ job, logLines, logTruncated, onStop, stopping, warning, notice, lost = false }) => {
+const OptimizationProgress = ({
+  job, logLines, logTruncated, onStop, stopping, warning, notice, lost = false, batch = null,
+}) => {
+  const screening = job?.kind === 'SCREENING';
+  const unit = screening ? 'samples' : 'combinations';
   const status = job?.status || 'QUEUED';
   const terminal = TERMINAL.has(status) || lost;
   const phase = job?.phase || (status === 'QUEUED' ? 'QUEUED' : null);
@@ -225,10 +246,10 @@ const OptimizationProgress = ({ job, logLines, logTruncated, onStop, stopping, w
   const stopDisabled = stopping || !!job?.cancelRequested;
 
   const headerText = lost
-    ? 'Optimization job lost'
+    ? (screening ? 'Screening job lost' : 'Optimization job lost')
     : terminal
-      ? STATUS_TEXT[status]
-      : (PHASE_TEXT[phase] || 'Starting…');
+      ? (screening ? SCREENING_STATUS_TEXT : STATUS_TEXT)[status]
+      : ((screening ? SCREENING_PHASE_TEXT : PHASE_TEXT)[phase] || 'Starting…');
 
   const body = (
     <>
@@ -254,10 +275,12 @@ const OptimizationProgress = ({ job, logLines, logTruncated, onStop, stopping, w
               type="button"
               onClick={onStop}
               disabled={stopDisabled}
-              title="Stops the search after the current combination and shows the best result found so far"
+              title={screening
+                ? 'Stops after the current sample; the samples done are analysed descriptively (partial: no verdicts)'
+                : 'Stops the search after the current combination and shows the best result found so far'}
               className="py-2 px-4 rounded font-semibold bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              {stopDisabled ? 'Stopping…' : 'Stop — keep best so far'}
+              {stopDisabled ? 'Stopping…' : (screening ? 'Stop — partial, no verdicts' : 'Stop — keep best so far')}
             </button>
           )}
         </div>
@@ -266,7 +289,7 @@ const OptimizationProgress = ({ job, logLines, logTruncated, onStop, stopping, w
       {/* 2. Progress bar + counters */}
       <div
         role="progressbar"
-        aria-label="Optimization progress"
+        aria-label={screening ? 'Screening progress' : 'Optimization progress'}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={indeterminate ? undefined : Number(barPercent.toFixed(2))}
@@ -282,13 +305,14 @@ const OptimizationProgress = ({ job, logLines, logTruncated, onStop, stopping, w
           )}
       </div>
       <p className="mt-1 text-sm text-gray-700 tabular-nums">
-        {fmtInt(done)} / {fmtInt(total)} combinations ({percent.toFixed(1)} %)
+        {fmtInt(done)} / {fmtInt(total)} {unit} ({percent.toFixed(1)} %)
+        {batch && !terminal && <span data-testid="screening-batch"> · batch {batch.k} of ≤ {batch.m}</span>}
         {' · '}Elapsed {fmtElapsed(job?.elapsedMs ?? 0)}
         {!terminal && job?.etaMs !== null && job?.etaMs !== undefined && <> · ETA {fmtElapsed(job.etaMs)}</>}
       </p>
 
       {/* 3. Best so far */}
-      {job?.best && <BestCard best={job.best} objective={job.objective} />}
+      {job?.best && <BestCard best={job.best} objective={job.objective} screening={screening} />}
 
       {/* 4. Log */}
       <LogPanel lines={logLines || []} truncated={!!logTruncated} />
@@ -314,7 +338,7 @@ const OptimizationProgress = ({ job, logLines, logTruncated, onStop, stopping, w
     <div className="bg-white p-4 rounded-lg shadow" data-testid="optimization-progress">
       <details open={!job?.hasResult}>
         <summary className={`cursor-pointer select-none text-sm font-semibold ${summaryTone}`}>
-          {headerText} — {fmtInt(done)} / {fmtInt(total)} combinations ({percent.toFixed(1)} %)
+          {headerText} — {fmtInt(done)} / {fmtInt(total)} {unit} ({percent.toFixed(1)} %)
           {' '}in {fmtElapsed(job?.elapsedMs ?? 0)}
           <span className="ml-2 font-normal text-gray-500">(best so far &amp; log)</span>
         </summary>

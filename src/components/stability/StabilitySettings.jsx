@@ -17,8 +17,10 @@ import {
  * @param {(next: Object) => void} props.onChange receives the whole next settings object
  * @param {string} props.strategyTimeFrame the form's timeframe
  * @param {boolean} [props.disabled]
+ * @param {'expected'|'after-detection'|null} [props.profileBadge] provisional clean badge of an applied
+ *   parameter profile (screener BA-021 §5.3); null = no profile applied
  */
-const StabilitySettings = ({ settings, onChange, strategyTimeFrame, disabled = false }) => {
+const StabilitySettings = ({ settings, onChange, strategyTimeFrame, disabled = false, profileBadge = null }) => {
   const [showParams, setShowParams] = useState(false);
   const coarser = isCoarserTimeFrame(settings.channelTimeFrame, strategyTimeFrame);
 
@@ -106,6 +108,25 @@ const StabilitySettings = ({ settings, onChange, strategyTimeFrame, disabled = f
           <p className="mt-2 text-xs text-amber-700">
             Detector params are stored with the snapshot; do not tune them to get a nicer verdict.
           </p>
+          {profileBadge && (
+            <p className="mt-2 text-xs" data-testid="stability-profile-badge" data-state={profileBadge}>
+              {profileBadge === 'expected' ? (
+                <span
+                  className="px-1.5 py-0.5 rounded border border-green-300 bg-green-50 text-green-800 font-semibold"
+                  title="Same start, trade start and channel timeframe as the profile's screening and a later end date: the root midpoint is after the profile's fit end"
+                >
+                  profile: clean (expected)
+                </span>
+              ) : (
+                <span
+                  className="px-1.5 py-0.5 rounded border border-gray-300 bg-gray-50 text-gray-700"
+                  title="The form differs from the profile's screening period; the backend checks the profile's fit end against the root midpoint after detection"
+                >
+                  profile: clean-check after detection
+                </span>
+              )}
+            </p>
+          )}
         </div>
       )}
     </div>

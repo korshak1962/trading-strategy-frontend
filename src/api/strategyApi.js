@@ -227,6 +227,79 @@ export const deleteCase = async (id) => {
   if (!res.ok) throw await jobHttpError(res, 'Delete failed');
 };
 
+// ---------------------------------------------------------------------------------------------
+// Parameter sensitivity screening + parameter profiles (screener BA-021, architect.md rev 3 §4).
+// A screening job shares the optimize job slot and registry: polling and Stop reuse
+// fetchOptimizationJob / stopOptimization (/screening-jobs/{id} is an alias). Errors throw through
+// jobHttpError (`status`, `body`).
+// ---------------------------------------------------------------------------------------------
+
+const SCREENING_URL = `${API_BASE_URL}/screening-jobs`;
+const PROFILES_URL = `${API_BASE_URL}/param-profiles`;
+
+/**
+ * POST /screening-jobs with a ScreeningRequestDTO {config, channels?, objective, sampleCount?,
+ * maxSamples?, seed, minTrades}.
+ * @returns {Promise<{jobId: string, total: number} | {conflict: true, jobId: string|null, error: string|null}>}
+ *   202 → `{ jobId, total }`; 409 (any job running, shared slot) → `{ conflict: true, jobId, error }`.
+ *   400 and other failures throw with the backend message.
+ */
+export const startScreening = async (req) => {
+  const res = await postJson(SCREENING_URL, req);
+  if (res.status === 409) {
+    const data = await res.json().catch(() => null);
+    return { conflict: true, jobId: data?.jobId ?? null, error: data?.error || data?.message || null };
+  }
+  if (!res.ok) throw await jobHttpError(res, 'Screening failed to start');
+  return res.json();
+};
+
+/** GET /screening-jobs/{jobId}/result → ScreeningResultDTO. 409 while running / no result; 404. */
+export const fetchScreeningResult = async (jobId) => {
+  const res = await fetch(`${SCREENING_URL}/${encodeURIComponent(jobId)}/result`);
+  if (!res.ok) throw await jobHttpError(res, 'Screening result fetch failed');
+  return res.json();
+};
+
+/**
+ * POST /screening-jobs/{jobId}/save-profile {searchSpace, allowPartial} → 201 ParamProfileSummaryDTO.
+ * searchSpace null = the recommendations as computed. 409 = not terminal / partial without
+ * allowPartial / no result; 404 = job gone; 400 = bad search space.
+ */
+export const saveProfileFromJob = async (jobId, { searchSpace = null, allowPartial = false } = {}) => {
+  const res = await postJson(`${SCREENING_URL}/${encodeURIComponent(jobId)}/save-profile`, { searchSpace, allowPartial });
+  if (!res.ok) throw await jobHttpError(res, 'Save profile failed');
+  return res.json();
+};
+
+const profileKeyQuery = ({ ticker, strategyKey, timeframe }) =>
+  new URLSearchParams({ ticker, strategyKey, timeframe }).toString();
+
+/** GET /param-profiles/by-key → ParamProfileDTO; 404 → null. */
+export const getProfileByKey = async ({ ticker, strategyKey, timeframe }) => {
+  const res = await fetch(`${PROFILES_URL}/by-key?${profileKeyQuery({ ticker, strategyKey, timeframe })}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw await jobHttpError(res, 'Profile fetch failed');
+  return res.json();
+};
+
+/** GET /param-profiles?ticker=&timeframe= → [ParamProfileSummaryDTO] (CURRENT slot, newest first). */
+export const listProfiles = async ({ ticker, timeframe } = {}) => {
+  const params = new URLSearchParams();
+  if (ticker) params.set('ticker', ticker);
+  if (timeframe) params.set('timeframe', timeframe);
+  const qs = params.toString();
+  const res = await fetch(qs ? `${PROFILES_URL}?${qs}` : PROFILES_URL);
+  if (!res.ok) throw await jobHttpError(res, 'Profiles fetch failed');
+  return res.json();
+};
+
+/** DELETE /param-profiles/by-key → 204 (CURRENT + PREVIOUS). 404 throws. */
+export const deleteProfile = async ({ ticker, strategyKey, timeframe }) => {
+  const res = await fetch(`${PROFILES_URL}/by-key?${profileKeyQuery({ ticker, strategyKey, timeframe })}`, { method: 'DELETE' });
+  if (!res.ok) throw await jobHttpError(res, 'Delete profile failed');
+};
+
 /**
  * Format the strategy configuration object for the API
  * @param {string} ticker - Stock ticker symbol
@@ -251,11 +324,14 @@ export const deleteCase = async (id) => {
  *   Parameter stability by channel (screener architect.md §4.1): Optimize only and only when the
  *   form section is enabled (stabilityFormat.stabilityRequest). null leaves the field out, so the
  *   request is byte-for-byte the pre-feature one.
+ * @param {{profileId: number, version: number, fitEnd: string}|null} [paramProfileRef=null] - the
+ *   applied parameter profile (BA-021 §5.3): sent only together with channelStability, so the
+ *   backend can compute the clean-check; null leaves the field out.
  * @returns {Object} Formatted configuration object
  */
 export const formatStrategyConfig = (
   ticker, timeFrame, startDate, endDate, strategyParams, longOnly = false, tradeStart = null,
-  initialPosition = null, objectiveFunction = null, channelStability = null
+  initialPosition = null, objectiveFunction = null, channelStability = null, paramProfileRef = null
 ) => {
   // Convert JavaScript dates to the LocalDateTime format expected by the Java backend. The
   // pickers hand us calendar days, so the range is inclusive of both ends: start at 00:00:00,
@@ -276,6 +352,7 @@ export const formatStrategyConfig = (
   // Optimize only (OptimizationObjective name); omitted = the backend default LONG_PNL.
   if (objectiveFunction) config.objectiveFunction = objectiveFunction;
   if (channelStability) config.channelStability = channelStability;
+  if (channelStability && paramProfileRef) config.paramProfileRef = paramProfileRef;
   if (initialPosition) {
     const entryDate = initialPosition.entryDate instanceof Date
       ? formatDate(initialPosition.entryDate, '').slice(0, 10)

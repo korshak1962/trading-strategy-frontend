@@ -182,6 +182,19 @@ const ChannelStabilityView = ({
         </div>
       )}
 
+      {stability?.profileCheck && (
+        stability.profileCheck.clean ? (
+          <div className="mt-3 p-3 rounded bg-green-50 border border-green-300 text-green-800 text-sm" role="status" data-testid="stability-profile-check" data-clean="true">
+            <span className="font-medium">Parameter profile v{stability.profileCheck.version ?? '?'}: clean</span> — its fit half ends
+            {' '}{fmtTs(stability.profileCheck.profileFitEnd)}, before the root midpoint {fmtTs(stability.profileCheck.rootMid)}.
+          </div>
+        ) : (
+          <div className="mt-3 p-3 rounded bg-red-50 border border-red-300 text-red-800 text-sm" role="status" data-testid="stability-profile-check" data-clean="false">
+            <span className="font-medium">Parameter profile v{stability.profileCheck.version ?? '?'}: profile period overlaps check halves — check results are not out-of-sample.</span>
+            {' '}Profile fit end {fmtTs(stability.profileCheck.profileFitEnd)} ≥ root midpoint {fmtTs(stability.profileCheck.rootMid)}.
+          </div>
+        )
+      )}
       {stability?.stoppedEarly && (
         <div className="mt-3 p-3 rounded bg-amber-50 border border-amber-300 text-amber-800 text-sm font-medium" role="status" data-testid="stability-stopped-early">
           Stopped early — the chain is computed from {isNum(stability.combinationsTested) ? stability.combinationsTested.toLocaleString('en-US') : '?'}
