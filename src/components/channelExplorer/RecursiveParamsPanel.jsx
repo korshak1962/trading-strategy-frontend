@@ -16,7 +16,12 @@ export const RECURSIVE_DEFAULT_PARAMS = {
 // minSplitGapFrac/minChannelBars/overlapBars are gone, replaced by minBars/minWidthPct, both
 // flat defaults (no per-timeframe table) since the split point structurally can't land at an
 // edge anymore.
-export default function RecursiveParamsPanel({ params, setParam, onReset }) {
+//
+// `constants` (viewInfo[tf].constants of the last detection, or null before one / on an older
+// backend): the fixed confirmation / exit constants of the incremental channels, shown read-only.
+// They are deliberately not editable (TASK_incremental_channels §8): the B view must stay exactly
+// what the strategies saw.
+export default function RecursiveParamsPanel({ params, setParam, onReset, constants = null }) {
   return (
     <div className="ta-params-panel">
       <div className="ta-params-grid">
@@ -76,11 +81,44 @@ export default function RecursiveParamsPanel({ params, setParam, onReset }) {
         />
       </div>
 
+      <p className="ta-params-note">
+        Min / Max Annual Yield are a display filter only: they hide channels, they do not change the
+        channel structure (which channels exist, where they start, when they are confirmed).
+      </p>
+
+      <ConfirmationConstants constants={constants} />
+
       <div className="ta-params-footer">
         <button type="button" className="ta-params-reset" onClick={onReset}>
           Reset to defaults
         </button>
       </div>
+    </div>
+  );
+}
+
+const fmtConst = (v) => (typeof v === 'number' && Number.isFinite(v) ? String(v) : '—');
+
+// Read-only block of the confirmation / exit constants (no inputs - see the panel's comment).
+function ConfirmationConstants({ constants }) {
+  return (
+    <div className="ta-constants" data-testid="ce-constants">
+      <div className="ta-constants-title">
+        Confirmation constants (fixed, read-only)
+        <span
+          className="ta-tooltip-anchor"
+          data-tooltip="A channel is a draft (pencil sketch) until it is at least Min Confirm Bars long and at least Min Confirm Width ATR wide; then it is confirmed (pen) and frozen. A confirmed channel ends when a close is beyond its line by more than Exit Tolerance ATR (ATR of the previous bar). Same rule for every timeframe, in both views; not parameters."
+        >?</span>
+      </div>
+      {constants ? (
+        <div className="ta-constants-grid">
+          <span>Min confirm bars</span><strong>{fmtConst(constants.minConfirmBars)}</strong>
+          <span>Min confirm width</span><strong>{fmtConst(constants.minConfirmWidthAtr)} ATR</strong>
+          <span>Exit tolerance</span><strong>{fmtConst(constants.exitToleranceAtr)} ATR</strong>
+        </div>
+      ) : (
+        <div className="ta-constants-empty">Shown after a detection (the backend reports them).</div>
+      )}
     </div>
   );
 }

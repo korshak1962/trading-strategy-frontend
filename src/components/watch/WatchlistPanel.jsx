@@ -13,7 +13,7 @@ import {
 } from '../../api/watchApi';
 import WatchTable from './WatchTable';
 import WatchSignalFeed from './WatchSignalFeed';
-import { describeError, fmtTs, positionText, zoneShort } from './format';
+import { describeError, fmtTs, notificationKindLabel, positionText, zoneShort } from './format';
 
 const REFRESH_MS = 60_000;
 const FEED_LIMIT = 200;
@@ -303,7 +303,7 @@ const WatchlistPanel = ({ onOpenInBacktest, latestNotificationId = null, onNotif
                   </div>
                   {n.body && <div className="text-xs whitespace-pre-line break-words">{n.body}</div>}
                   <div className="text-xs text-gray-400">
-                    {n.kind} · {n.ticker} {n.timeFrame}{n.watchName ? ` · ${n.watchName}` : ''} · {fmtTs(n.createdAt)} {zoneShort(n.zone, n.ticker)}
+                    {notificationKindLabel(n.kind)} · {n.ticker} {n.timeFrame}{n.watchName ? ` · ${n.watchName}` : ''} · {fmtTs(n.createdAt)} {zoneShort(n.zone, n.ticker)}
                   </div>
                 </button>
                 {!n.read && (

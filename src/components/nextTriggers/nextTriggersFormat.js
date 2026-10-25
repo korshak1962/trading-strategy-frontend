@@ -48,7 +48,8 @@ export const REASON_LABELS = Object.freeze({
   STOP_LOSS: 'stop loss',
   DROP_FROM_PEAK: 'drop from peak',
   REGIME_GATE: 'regime gate',
-  BREACH_BAND: 'channel breach band',
+  BREACH_BAND: 'channel breach band', // pre-incremental-channels next_triggers rows only
+  CHANNEL_EXIT: 'channel exit (close ± 0.5 ATR)',
   SETUP_ARMS: 'setup arms',
   RUNAWAY_AFTER_BREAKOUT: 'runaway after breakout',
   IF_BOUGHT_STOP: 'if bought, initial stop',
@@ -195,9 +196,12 @@ export const kindText = (estimate, position) => {
     case 'UNAVAILABLE': return withReason('unavailable', estimate.reason);
     case 'POSSIBLE_OUTSIDE_BAND': {
       const band = bandOf(estimate);
+      // The band's own reason (CHANNEL_EXIT: close beyond a confirmed channel line ± 0.5 ATR)
+      const bandReason = estimate.lines.find(l => l.category === 'NECESSARY' && l.reason)?.reason;
+      const bandLabel = bandReason ? ` (${reasonLabel(bandReason)})` : '';
       return band
         ? `no signal possible if close stays within [${fmtTriggerPrice(band[0])}, ${fmtTriggerPrice(band[1])}]; `
-          + `possible only if close < ${fmtTriggerPrice(band[0])} or > ${fmtTriggerPrice(band[1])}`
+          + `possible only if close < ${fmtTriggerPrice(band[0])} or > ${fmtTriggerPrice(band[1])}${bandLabel}`
         : withReason('a signal is possible only outside the channel band', estimate.reason);
     }
     case 'POSSIBLE_ANY_PRICE': return withReason('a signal is possible at any price', estimate.reason);

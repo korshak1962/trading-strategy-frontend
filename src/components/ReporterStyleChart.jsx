@@ -213,6 +213,8 @@ const FOCUS_BARS_AFTER = 5;
  *   by channel: the selected chain node (ChainNodeDTO start / mid / end, strategy-TF bars). Draws its
  *   Fit / Check halves and the midpoint line on the price pane, and a new band (or result) opens zoomed
  *   on the node plus 10 % of its length on the left. null = unchanged drawing.
+ * @param {Array|null} [props.channelTree] - channel tree layer of a result with a channel strategy
+ *   (utils/channelLayer.js, A or B view), drawn on the price pane; null = none (as before)
  * @returns {JSX.Element}
  */
 const ReporterStyleChart = ({
@@ -220,7 +222,8 @@ const ReporterStyleChart = ({
   indicatorSelection = null, panes = 'full', dateRange: controlledDateRange = null, onDateRangeChange = null,
   showRangeSlider = true, votes = null, positionSpans = null, longOnly = false,
   priceTitle = 'Price Chart with Signals', showInstructions = true, windowStart = null,
-  focusDate = null, nextTriggers = null, reserveNextBarSlot = false, stabilityBand = null
+  focusDate = null, nextTriggers = null, reserveNextBarSlot = false, stabilityBand = null,
+  channelTree = null
 }) => {
   const fullPanes = panes !== 'signals';
   const containerRef = useRef(null);
@@ -1728,6 +1731,7 @@ const ReporterStyleChart = ({
           nextBarTriggers={nextBarTriggers}
           extraSlots={triggerSlots}
           stabilityBand={stabilitySpan}
+          channelTree={channelTree}
         />
         <Crosshair 
           show={showCrosshair} 

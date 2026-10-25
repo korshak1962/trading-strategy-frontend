@@ -88,6 +88,16 @@ export const MODE_LABELS = {
 };
 export const modeLabel = (m) => MODE_LABELS[m] || m || '—';
 
+// WatchNotificationKind. INFO: an informational notice without a new signal - e.g. "Channel
+// semantics changed: signals were re-baselined" after the switch to incremental channels.
+export const NOTIFICATION_KIND_LABEL = {
+  SIGNALS: 'New signal',
+  RETRACTED: 'Signal withdrawn',
+  BROKEN: 'Watch broken',
+  INFO: 'Info',
+};
+export const notificationKindLabel = (kind) => NOTIFICATION_KIND_LABEL[kind] || 'Watch';
+
 export const STATE_LABELS = {
   BASELINE: 'baseline',
   PROVISIONAL: 'provisional',

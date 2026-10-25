@@ -1,11 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
 import { createChart } from 'lightweight-charts';
-import { formatPct } from './format';
+import { formatPct, formatStatus, formatAge, formatExitSide, formatBarDate, isProvisional } from './format';
 import { exchangeTsSeconds } from '../../utils/dates';
 import './ChannelExplorerChart.css';
 
 const DIRECTION_COLOR = { 1: '#26a69a', '-1': '#ef5350', 0: '#787b86' };
 const SELECTED_COLOR = '#ffd54f';
+
+// Incremental channels (screener TASK_incremental_channels rev 2): a PROVISIONAL channel (the
+// "pencil sketch" - younger than 10 bars or narrower than 5 ATR, redrawn every bar) is drawn in
+// the same hierarchy as the confirmed ones (it is usually the rightmost child of the current
+// channel), only dashed and faded. The CURRENT channel (the deepest visible confirmed frontier
+// channel) gets a thicker line. The last exit per depth (B view) is a marker plus the broken
+// channel's lines, dotted, up to the exit bar.
+const PROVISIONAL_ALPHA = 0.5;
+const EXIT_COLOR = '#ff9800';
+const BROKEN_LINE_COLOR = 'rgba(255, 152, 0, 0.75)';
+
+const hexToRgba = (hex, alpha) => {
+  if (typeof hex !== 'string' || !/^#[0-9a-f]{6}$/i.test(hex)) return hex;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
 const HIT_TEST_PX = 8;
 
 // Hierarchy highlighting: the selection's ancestors (Up) or descendants (Down) are tinted
@@ -114,7 +132,12 @@ const channelKey = (ch) =>
 const defaultExtension = (spanBars, endIdx, lastIdx) =>
   Math.max(0, Math.min(Math.max(Math.round(spanBars * 0.25), 3), lastIdx - endIdx));
 
-export default function ChannelExplorerChart({ prices, channels, zoomChannels, runId }) {
+// `exits` (B view only, else []): viewInfo[tf].lastExits of the visible timeframes, each tagged
+// with its `timeframe` - {depth, side: UP|DOWN, barDate, recompute, broken {id, startDate,
+// upperPoints, lowerPoints}}.
+const NO_EXITS = [];
+
+export default function ChannelExplorerChart({ prices, channels, zoomChannels, runId, exits = NO_EXITS }) {
   const containerRef = useRef(null);
   const wrapperRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -477,7 +500,9 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
       const key = channelKey(ch);
       if (deletedKeysRef.current.has(key)) return;
 
-      const color = DIRECTION_COLOR[ch.direction] ?? '#787b86';
+      const provisional = isProvisional(ch);
+      const directionColor = DIRECTION_COLOR[ch.direction] ?? '#787b86';
+      const color = provisional ? hexToRgba(directionColor, PROVISIONAL_ALPHA) : directionColor;
       const startTs = toTs(ch.startDate);
       const endTs   = toTs(ch.endDate);
       if (startTs === null || endTs === null || endTs <= startTs) return;
@@ -493,7 +518,9 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
       const spanBars = endIdx - startIdx;
       if (spanBars < 1) return;
 
-      const baseWidth = TF_LINE_WIDTH[ch.timeframe] ?? 1;
+      // The current channel one step thicker (capped at 4 like the highlight tiers)
+      const tfWidth = TF_LINE_WIDTH[ch.timeframe] ?? 1;
+      const baseWidth = ch.current ? Math.min(tfWidth + 1, 4) : tfWidth;
       const baseLineOpts = {
         color,
         lineWidth: baseWidth,
@@ -504,8 +531,10 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
       };
       // Projected (unconfirmed) sides render dashed — see OpenChannelMode: the line is a
       // parallel projected through a single extreme bar, not an independently-validated line.
-      const upperSeries = chart.addLineSeries({ ...baseLineOpts, lineStyle: ch.projectedUpper ? 2 : 0 });
-      const lowerSeries = chart.addLineSeries({ ...baseLineOpts, lineStyle: ch.projectedLower ? 2 : 0 });
+      // A provisional channel (draft) is dashed on both sides. lineStyle is never touched by the
+      // highlight repaint (it only sets color / width), so the dash survives selection.
+      const upperSeries = chart.addLineSeries({ ...baseLineOpts, lineStyle: (provisional || ch.projectedUpper) ? 2 : 0 });
+      const lowerSeries = chart.addLineSeries({ ...baseLineOpts, lineStyle: (provisional || ch.projectedLower) ? 2 : 0 });
       allPriceScaleSeries.push(upperSeries, lowerSeries);
 
       const entry = {
@@ -520,6 +549,43 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
       markersByKey.set(key, crossingsForEntry(entry));
       channelEntries.push(entry);
     });
+
+    // Last exit per depth (B view): a marker on the exit bar and the broken channel's own lines
+    // (dotted, not selectable) up to the bar before it. Kept under one reserved marker key so the
+    // per-channel crossing recomputation (drag / delete) never drops them.
+    const exitMarkers = [];
+    (exits || []).forEach(ex => {
+      const ts = toTs(ex?.barDate);
+      if (ts === null) return;
+      const idx = findCandleFloorIndex(candleData, ts);
+      if (idx < 0) return;
+      const up = ex.side === 'UP';
+      exitMarkers.push({
+        time: candleData[idx].time,
+        position: up ? 'aboveBar' : 'belowBar',
+        color: EXIT_COLOR,
+        shape: 'circle',
+        text: `exit d${ex.depth ?? '?'}${ex.recompute ? ' ⟳' : ''}`,
+      });
+      const broken = ex.broken;
+      if (!broken) return;
+      for (const raw of [broken.upperPoints, broken.lowerPoints]) {
+        const pts = buildBasePoints(raw);
+        if (pts.length < 2) continue;
+        const s = chart.addLineSeries({
+          color: BROKEN_LINE_COLOR,
+          lineWidth: 1,
+          lineStyle: 1,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          crosshairMarkerVisible: false,
+          autoscaleInfoProvider: autoscaleProvider,
+        });
+        s.setData(pts.map(({ time, value }) => ({ time, value })));
+        allPriceScaleSeries.push(s);
+      }
+    });
+    if (exitMarkers.length > 0) markersByKey.set('__exits__', exitMarkers);
     refreshMarkers();
 
     // ---- drag handle (a plain DOM element positioned over the chart's own canvas — v4 of
@@ -839,7 +905,7 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
       ro.disconnect();
       chart.remove();
     };
-  }, [prices, channels, zoomChannels, runId]);
+  }, [prices, channels, zoomChannels, runId, exits]);
 
   if (!prices || prices.length === 0) {
     return <div className="ch-chart-empty">No price data available</div>;
@@ -880,9 +946,16 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
       )}
       <div className="ch-chart-container" ref={containerRef} />
       <div className="ch-chart-hint">
-        {selectedChannel && typeof selectedChannel.widthPct === 'number' && (
+        {selectedChannel && (
           <>
-            <strong>Selected channel</strong> — Width: {formatPct(selectedChannel.widthPct)}
+            <strong>Selected channel</strong>
+            {typeof selectedChannel.widthPct === 'number' && <> — Width: {formatPct(selectedChannel.widthPct)}</>}
+            {typeof selectedChannel.widthAtr === 'number' && <> ({selectedChannel.widthAtr.toFixed(2)} ATR)</>}
+            {typeof selectedChannel.depth === 'number' && selectedChannel.depth >= 0 && <> · depth {selectedChannel.depth}</>}
+            {formatStatus(selectedChannel) && <> · {formatStatus(selectedChannel)}</>}
+            {selectedChannel.current && <> · current channel</>}
+            {formatAge(selectedChannel.ageBars) && <> · age {formatAge(selectedChannel.ageBars)}</>}
+            {selectedChannel.builtDate && <> · built {formatBarDate(selectedChannel.builtDate)}</>}
             <br />
           </>
         )}
@@ -891,6 +964,8 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
         · drag the chart to pan, scroll over the price axis to zoom vertically, double-click it to reset
         · ⛶ for full screen, Esc to exit
         {hierarchyAvailable && " · Hierarchy Up/Down tints the selection's parents/children violet, fading with distance"}
+        · dashed faded lines = draft (provisional) channels, a thicker line = the current channel
+        {exits.length > 0 && ` · orange dots = the last exit per depth (${exits.map(e => `d${e.depth ?? '?'} ${formatExitSide(e.side)}`).join(', ')}), dotted orange = the broken channel`}
       </div>
     </div>
   );

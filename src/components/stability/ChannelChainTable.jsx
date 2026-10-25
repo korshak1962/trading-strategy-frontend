@@ -84,7 +84,20 @@ const ChannelChainTable = ({ nodes, selectedIndex, onSelect }) => (
               aria-selected={selected}
               data-testid={`stability-row-${node.level}`}
             >
-              <td className={`${TD} font-semibold`}>{node.level}</td>
+              <td className={`${TD} font-semibold`}>
+                {node.level}
+                {/* Status of the chain node (incremental channels): a draft is younger than 10 bars or
+                    narrower than 5 ATR - display only, absent on an older backend */}
+                {(node.status ?? node.channelStatus) === 'PROVISIONAL' && (
+                  <span
+                    className="ml-1 px-1 rounded border border-dashed border-gray-400 text-[10px] font-normal text-gray-500"
+                    title="Draft (provisional) channel: younger than 10 bars or narrower than 5 ATR, redrawn every bar"
+                    data-testid={`stability-row-draft-${node.level}`}
+                  >
+                    draft
+                  </span>
+                )}
+              </td>
               <td className={TD} title={node.channelStart && node.channelStart !== node.start ? `Channel start ${fmtTs(node.channelStart)}` : undefined}>
                 {fmtTs(node.start)}
                 {node.clippedByTradeStart && <span className="ml-1 text-amber-700" title="Clipped by the trade start">✂</span>}

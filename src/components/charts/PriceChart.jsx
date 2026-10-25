@@ -8,6 +8,7 @@ import {
   drawPriceAxis,
   drawPriceCandlesticks,
   drawChannels,
+  drawChannelTree,
   drawLevelZones,
   drawPriceOverlays,
   drawSignals,
@@ -68,13 +69,15 @@ const EMPTY_RUNS = [];
  *   (plotDateRange extraSlotsRight); counted when sizing the candles
  * @param {{startMs, midMs, endMs}|null} [props.stabilityBand] - Parameter stability by channel: the
  *   selected chain node's Fit / Check halves (ChartDataUtils.stabilityBandSpan); null = nothing drawn
+ * @param {Array|null} [props.channelTree] - the channel tree layer (utils/channelLayer.js, A or B
+ *   view): Channel objects drawn always, under the per-trade channels; null = nothing drawn
  * @returns {JSX.Element}
  */
 const PriceChart = ({
   data, width, height, dateRange, visibleRange = null, highlightTradeIndex = null, signalTradeIndex = null,
   priceSeries = [], levelZoneRuns = EMPTY_RUNS, priceRange = null,
   levelChart = null, showLevelLines = true, showEvents = false, positionSpans = null, preWindowSpan = null,
-  nextBarTriggers = null, extraSlots = 0, stabilityBand = null
+  nextBarTriggers = null, extraSlots = 0, stabilityBand = null, channelTree = null
 }) => {
   const canvasRef = useRef(null);
 
@@ -226,6 +229,9 @@ const PriceChart = ({
     // The axis range stays candle-driven (minMaxPrice is not widened by the overlays).
     drawPriceOverlays(ctx, data.priceIndicators || {}, priceSeries, chartDateRange, minMaxPrice, width, height);
 
+    // Channel tree layer (when on) under the per-trade channels
+    drawChannelTree(ctx, channelTree, chartDateRange, minMaxPrice, width, height);
+
     // Draw channel lines (if any) behind signal markers, in front of candlesticks
     drawChannels(ctx, channels, chartDateRange, minMaxPrice, width, height, highlightTradeIndex);
 
@@ -292,7 +298,7 @@ const PriceChart = ({
       }
     };
   }, [data, width, height, dateRange, visibleRange, highlightTradeIndex, signalTradeIndex, priceSeries, levelZoneRuns, priceRange,
-    levelChart, showLevelLines, showEvents, positionSpans, preWindowSpan, nextBarTriggers, extraSlots, stabilityBand]);
+    levelChart, showLevelLines, showEvents, positionSpans, preWindowSpan, nextBarTriggers, extraSlots, stabilityBand, channelTree]);
 
   return (
     <div className="chart-wrapper">

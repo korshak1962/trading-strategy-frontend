@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
-import { detectChannels, fetchPrices } from '../../api/channelApi';
+import { useState, useEffect, useMemo } from 'react';
+import { detectChannels, fetchPrices, normalizeViewInfo, CHANNEL_VIEW } from '../../api/channelApi';
 import { getAvailableTickers } from '../../api/strategyApi';
 import ChannelExplorerChart, { TF_LINE_WIDTH } from './ChannelExplorerChart';
 import RecursiveParamsPanel, { RECURSIVE_DEFAULT_PARAMS } from './RecursiveParamsPanel';
 import { exchangeToday, exchangeZoneForTicker, addYearsIso } from '../../utils/dates';
+import { isProvisional, formatStatus, formatAge, formatBarDate, formatExitSide } from './format';
 import './ChannelExplorer.css';
 
 const TIMEFRAMES = [
@@ -26,6 +27,17 @@ const finestTf = (tfs) =>
 const DIRECTION_LABEL = { 1: '▲ Ascending', '-1': '▼ Descending', 0: '→ Flat' };
 const DIRECTION_COLOR = { 1: '#26a69a', '-1': '#ef5350', 0: '#787b86' };
 
+// A / B view toggle (screener TASK_incremental_channels rev 2, §8 look-ahead caption).
+const VIEW_OPTIONS = [
+  { value: CHANNEL_VIEW.FULL, label: 'A · As seen today',
+    title: 'Full detection over the whole range: past channels are drawn knowing the bars that came after them (look-ahead by meaning). Good for analysis, not for judging signals by eye.' },
+  { value: CHANNEL_VIEW.INCREMENTAL, label: 'B · As the strategy saw them',
+    title: 'The bar-by-bar replay the channel strategies trade on: the tree after the last closed bar of the range. Confirmed channels never change afterwards.' },
+];
+
+// Replays on intraday timeframes over long ranges take seconds (architect.md §2.4: SPY HOUR 6 years ≈ 4 s).
+const SLOW_REPLAY_TFS = new Set(['MIN5', 'HOUR']);
+
 // Decision 0.18: default range in the EXCHANGE's calendar (the default ticker SPY trades in
 // New York), never toISOString() (UTC) or the browser's date. Computed per mount.
 const defaultTo = () => exchangeToday(exchangeZoneForTicker('SPY'));
@@ -44,6 +56,13 @@ export default function ChannelExplorer() {
   // frontend-only default, the backend's own default for an omitted/false field stays the
   // full unfiltered list.
   const [lastActualChannelsOnly, setLastActualChannelsOnly] = useState(true);
+
+  // A (FULL, default) / B (INCREMENTAL). `resultView` is the view the result on screen was
+  // computed with; `resultRequest` its detection inputs, so the A/B toggle re-runs exactly that
+  // request (not half-edited form fields).
+  const [view, setView] = useState(CHANNEL_VIEW.FULL);
+  const [resultView, setResultView] = useState(null);
+  const [resultRequest, setResultRequest] = useState(null);
 
   const [recursiveParams, setRecursiveParams] = useState({ ...RECURSIVE_DEFAULT_PARAMS });
   const [showParams, setShowParams] = useState(false);
@@ -104,14 +123,34 @@ export default function ChannelExplorer() {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!selectedTfs.length) { setError('Select at least one timeframe.'); return; }
+  const runDetection = async (request) => {
     setLoading(true);
     setError(null);
     setResult(null);
     setPrices([]);
+    try {
+      const data = await detectChannels(
+        request.ticker, request.from, request.to, request.timeframes, request.params,
+        request.lastActualChannelsOnly, request.view
+      );
+      setResult(data);
+      setResultView(request.view);
+      setResultRequest(request);
+      setDetectionRunId(id => id + 1);
+      setVisibleTfs(new Set(request.timeframes));
+      await loadPrices(finestTf(request.timeframes));
+    } catch (err) {
+      setResultView(null);
+      setResultRequest(null);
+      setError('Channel detection failed: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedTfs.length) { setError('Select at least one timeframe.'); return; }
     const apiParams = {
       coveragePct:       recursiveParams.coveragePct,
       minBars:           recursiveParams.minBars,
@@ -120,20 +159,17 @@ export default function ChannelExplorer() {
       maxAnnualYieldPct: recursiveParams.maxAnnualYieldPct,
       logPrice:          true,
     };
+    await runDetection({
+      ticker, from, to, timeframes: selectedTfs, params: apiParams, lastActualChannelsOnly, view,
+    });
+  };
 
-    try {
-      const data = await detectChannels(
-        ticker, from, to, selectedTfs, apiParams, lastActualChannelsOnly
-      );
-      setResult(data);
-      setDetectionRunId(id => id + 1);
-      setVisibleTfs(new Set(selectedTfs));
-      await loadPrices(finestTf(selectedTfs));
-    } catch (err) {
-      setError('Channel detection failed: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
+  // Switching A <-> B with a result on screen re-runs the same request in the other view, so the
+  // two can be compared directly; without a result it only selects the view of the next run.
+  const changeView = (next) => {
+    if (next === view || loading) return;
+    setView(next);
+    if (resultRequest) runDetection({ ...resultRequest, view: next });
   };
 
   const channelsForChart = result
@@ -151,6 +187,27 @@ export default function ChannelExplorer() {
     ? selectedTfs.flatMap(tf => result.channelsByTimeframe?.[tf] ?? [])
     : [];
 
+  // viewInfo per detected timeframe (info = null per TF on an older backend).
+  const viewInfos = useMemo(
+    () => (result && resultRequest
+      ? resultRequest.timeframes.map(tf => ({ tf, info: normalizeViewInfo(result, tf) }))
+      : []),
+    [result, resultRequest]
+  );
+
+  // Read-only confirmation constants for the params panel: the first timeframe that reports them.
+  const constants = viewInfos.find(v => v.info?.constants)?.info.constants || null;
+
+  // Last exits per depth of the visible timeframes - B only (A has no replay, hence no exits).
+  // Memoised: the chart effect depends on it, a new array each render would rebuild the chart.
+  const exitsForChart = useMemo(() => (
+    resultView === CHANNEL_VIEW.INCREMENTAL
+      ? viewInfos.filter(v => visibleTfs.has(v.tf)).flatMap(v => v.info?.lastExits || [])
+      : []
+  ), [viewInfos, visibleTfs, resultView]);
+
+  const slowReplay = view === CHANNEL_VIEW.INCREMENTAL && selectedTfs.some(tf => SLOW_REPLAY_TFS.has(tf));
+
   return (
     <div className="channel-explorer">
       <form className="form" onSubmit={handleSubmit}>
@@ -160,7 +217,7 @@ export default function ChannelExplorer() {
             id="ce-ticker"
             list="ce-ticker-list"
             value={ticker}
-            onChange={e => { setTicker(e.target.value.toUpperCase()); setResult(null); }}
+            onChange={e => { setTicker(e.target.value.toUpperCase()); setResult(null); setResultRequest(null); }}
             placeholder="e.g. SPY"
             autoComplete="off"
             required
@@ -208,6 +265,31 @@ export default function ChannelExplorer() {
           </label>
         </div>
 
+        <div className="form-group ta-view-group">
+          <label>Channels view</label>
+          <div className="ta-view-toggle" role="group" aria-label="Channels view" data-testid="ce-view-toggle">
+            {VIEW_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                className={`ta-view-btn${view === opt.value ? ' ta-view-btn--active' : ''}`}
+                aria-pressed={view === opt.value}
+                disabled={loading}
+                title={opt.title}
+                data-testid={`ce-view-${opt.value}`}
+                onClick={() => changeView(opt.value)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <div className="ta-view-caption" data-testid="ce-view-caption">
+            By default the channels are drawn <strong>as they are seen today</strong>: one detection over the whole
+            range, which already knows how every past channel continued. <strong>The strategy saw different
+            ones</strong> — B shows the channels it traded on (bar by bar, closed bars only). Judge trades by eye only in B.
+          </div>
+        </div>
+
         <div className="ta-form-actions">
           <button type="submit" className="find-btn" disabled={loading || !selectedTfs.length}>
             {loading ? 'Detecting…' : 'Find Channels'}
@@ -228,11 +310,17 @@ export default function ChannelExplorer() {
           params={recursiveParams}
           setParam={setRecursiveParam}
           onReset={() => setRecursiveParams({ ...RECURSIVE_DEFAULT_PARAMS })}
+          constants={constants}
         />
       )}
 
       {error && <div className="error-banner"><strong>Error:</strong> {error}</div>}
-      {loading && <div className="status-msg">Detecting channels…</div>}
+      {loading && (
+        <div className="status-msg" data-testid="ce-loading">
+          {view === CHANNEL_VIEW.INCREMENTAL ? 'Replaying channels bar by bar…' : 'Detecting channels…'}
+          {slowReplay && ' (an intraday replay over a long range can take several seconds)'}
+        </div>
+      )}
 
       {result && (
         <>
@@ -256,18 +344,30 @@ export default function ChannelExplorer() {
             ))}
           </div>
 
+          <ViewInfoBlock viewInfos={viewInfos} resultView={resultView} result={result} />
+
           {pricesLoading
             ? <div className="status-msg">Loading prices…</div>
-            : <ChannelExplorerChart prices={prices} channels={channelsForChart} zoomChannels={allChannelsForChart} runId={detectionRunId} />
+            : <ChannelExplorerChart prices={prices} channels={channelsForChart} zoomChannels={allChannelsForChart} runId={detectionRunId} exits={exitsForChart} />
           }
 
           {channelsForChart.length > 0 && (
             <div className="ta-ch-summary">
               {channelsForChart.map((ch, i) => (
-                <div key={i} className="ta-ch-card">
+                <div
+                  key={i}
+                  className={`ta-ch-card${isProvisional(ch) ? ' ta-ch-card--provisional' : ''}${ch.current ? ' ta-ch-card--current' : ''}`}
+                  data-testid="ce-channel-card"
+                  data-status={ch.status || ''}
+                >
                   <span className="ta-ch-dir" style={{ color: DIRECTION_COLOR[ch.direction] }}>
                     {DIRECTION_LABEL[ch.direction]}
                     <span className="ta-ch-tf">{ch.timeframe}</span>
+                    {typeof ch.depth === 'number' && ch.depth >= 0 && <span className="ta-ch-tf">d{ch.depth}</span>}
+                    {formatStatus(ch) && (
+                      <span className={`ta-ch-badge${isProvisional(ch) ? ' ta-ch-badge--provisional' : ''}`}>{formatStatus(ch)}</span>
+                    )}
+                    {ch.current && <span className="ta-ch-badge ta-ch-badge--current">current</span>}
                   </span>
                   <span className="ta-ch-meta">
                     Score {ch.score?.toFixed(1)} · Width {ch.widthAtr?.toFixed(2)} ATR ·
@@ -275,6 +375,7 @@ export default function ChannelExplorer() {
                   </span>
                   <span className="ta-ch-dates">
                     {ch.startDate?.substring(0, 10)} → {ch.endDate?.substring(0, 10)}
+                    {formatAge(ch.ageBars) && ` · age ${formatAge(ch.ageBars)}`}
                   </span>
                 </div>
               ))}
@@ -292,6 +393,66 @@ export default function ChannelExplorer() {
           Enter a ticker and date range, select timeframes, then click <strong>Find Channels</strong>.
         </div>
       )}
+    </div>
+  );
+}
+
+const VIEW_NAME = { FULL: 'A · as seen today', INCREMENTAL: 'B · as the strategy saw them' };
+
+const fmtMs = (ms) => (ms === null ? null : ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms)} ms`);
+
+// Per-timeframe facts of the result on screen (viewInfo): what was processed, the bar that is
+// still forming (B: drawn as a candle, not processed), the current channel and its age, the last
+// exits, the replay time, and the "too few bars" message (E20). Renders nothing on an older
+// backend that sends no viewInfo.
+function ViewInfoBlock({ viewInfos, resultView, result }) {
+  const shown = viewInfos.filter(v => v.info);
+  if (shown.length === 0) return null;
+  return (
+    <div className="ta-view-info" data-testid="ce-view-info">
+      {shown.map(({ tf, info }) => {
+        const channels = result?.channelsByTimeframe?.[tf] || [];
+        const current = channels.find(c => c.current)
+          || (info.currentChannelId ? channels.find(c => c.id === info.currentChannelId) : null)
+          || null;
+        return (
+          <div key={tf} className="ta-view-info-card" data-testid={`ce-view-info-${tf}`}>
+            <span><strong>{tf}</strong> · {VIEW_NAME[info.view || resultView] || info.view || '?'}</span>
+            {info.message && <span className="ta-view-info-warn" data-testid="ce-view-message">{info.message}</span>}
+            <span>
+              Bars {formatBarDate(info.firstBarDate)} → {formatBarDate(info.lastProcessedBarDate)}
+              {info.barCount !== null && ` (${info.barCount} processed)`}
+            </span>
+            {info.formingBarDate && (
+              <span data-testid="ce-forming-bar">
+                Forming bar {formatBarDate(info.formingBarDate)}: drawn, not processed
+              </span>
+            )}
+            <span data-testid="ce-current-channel">
+              {current ? (
+                <>
+                  Current channel: from {formatBarDate(current.startDate)}
+                  {formatAge(current.ageBars) ? `, age ${formatAge(current.ageBars)}` : ''}
+                  {typeof current.depth === 'number' && current.depth >= 0 ? `, depth ${current.depth}` : ''}
+                </>
+              ) : info.currentChannelId ? (
+                <>
+                  Current channel {info.currentChannelId}
+                  {formatAge(info.currentChannelAgeBars) ? `, age ${formatAge(info.currentChannelAgeBars)}` : ''} (not in the drawn set)
+                </>
+              ) : (
+                <>No current channel</>
+              )}
+            </span>
+            {info.lastExits.length > 0 && (
+              <span data-testid="ce-last-exits">
+                Last exits: {info.lastExits.map(e => `d${e.depth ?? '?'} ${formatExitSide(e.side)} ${formatBarDate(e.barDate)}`).join(' · ')}
+              </span>
+            )}
+            {(info.view || resultView) === CHANNEL_VIEW.INCREMENTAL && fmtMs(info.replayMs) && <span>Replay {fmtMs(info.replayMs)}</span>}
+          </div>
+        );
+      })}
     </div>
   );
 }

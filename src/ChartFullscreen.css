@@ -35,6 +35,21 @@
   margin-bottom: 0;
 }
 
+/* With the channel layer control (results with a channel strategy) the toolbar wraps and the
+   control takes its own full-width row under the picker + fullscreen row, so it never squeezes
+   the picker or pushes the fullscreen button off the card. Still inside the toolbar, so the
+   fullscreen layout measures its height. */
+.chart-toolbar--wrap {
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
+}
+
+.chart-toolbar .channel-layer-row {
+  flex: 1 0 100%;
+  order: 1;
+  min-width: 0;
+}
+
 .fullscreen-toggle-btn {
   margin-left: auto;
   flex-shrink: 0;

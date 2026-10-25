@@ -182,6 +182,15 @@ const ChannelStabilityView = ({
         </div>
       )}
 
+      {/* Channel semantics of the stored result (incremental channels R5): the backend marks FULL_V0
+          only when the case has a channel strategy - its in-run channels were the old full recompute */}
+      {stability?.channelSemantics === 'FULL_V0' && (
+        <div className="mt-3 p-3 rounded bg-amber-50 border border-amber-300 text-amber-800 text-sm" role="status" data-testid="stability-semantics">
+          <span className="font-medium">Computed with full-recompute channels.</span> The channel strategies of this case now
+          trade on incremental channels (confirmed channels never redraw); re-run to refresh these results.
+        </div>
+      )}
+
       {stability?.profileCheck && (
         stability.profileCheck.clean ? (
           <div className="mt-3 p-3 rounded bg-green-50 border border-green-300 text-green-800 text-sm" role="status" data-testid="stability-profile-check" data-clean="true">

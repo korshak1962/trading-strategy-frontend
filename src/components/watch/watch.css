@@ -93,6 +93,7 @@
 }
 .watch-toast--RETRACTED { border-left-color: #9ca3af; border-color: #d1d5db; }
 .watch-toast--BROKEN { border-left-color: #dc2626; border-color: #fecaca; }
+.watch-toast--INFO { border-left-color: #6b7280; border-color: #e5e7eb; background: #f9fafb; }
 
 /* ---- modal ---- */
 .watch-modal-backdrop {

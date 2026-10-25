@@ -4,13 +4,7 @@
 // until closed by hand (BA §6: no auto-hide). Clicking its body opens the Watchlist and marks the
 // notification read (App's onOpen); the ✕ only hides the toast — it stays unread in the badge.
 import './watch.css';
-import { fmtTs, zoneShort } from './format';
-
-const KIND_LABEL = {
-  SIGNALS: 'New signal',
-  RETRACTED: 'Signal withdrawn',
-  BROKEN: 'Watch broken',
-};
+import { fmtTs, zoneShort, notificationKindLabel } from './format';
 
 /**
  * @param {Object} props
@@ -49,7 +43,7 @@ const WatchToasts = ({ toasts, onOpen, onDismiss, onDismissAll }) => {
               title="Open the Watchlist"
             >
               <div className="text-xs text-gray-500">
-                {KIND_LABEL[n.kind] || 'Watch'} · {n.ticker} {n.timeFrame}
+                {notificationKindLabel(n.kind)} · {n.ticker} {n.timeFrame}
                 {n.watchName ? ` · ${n.watchName}` : ''}
               </div>
               <div className="font-semibold text-gray-900 break-words">{n.title}</div>

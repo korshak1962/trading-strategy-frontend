@@ -726,6 +726,56 @@ export const findMinMaxPriceRange = (prices) => {
       });
   };
 
+  // Channel tree layer (screener TASK_incremental_channels rev 2, utils/channelLayer.js): the
+  // detected channels of the result's first channel strategy, A or B view, always drawn when the
+  // layer is on (unlike the per-trade channels above, which need a click). Drawn under the trade
+  // channels, thin, by direction. A PROVISIONAL channel ("draft": younger than 10 bars or narrower
+  // than 5 ATR) stays in the same hierarchy but is dashed and fainter; the CURRENT channel is
+  // thicker. An older backend sends no status: everything is drawn solid, as confirmed.
+  export const CHANNEL_TREE_COLORS = Object.freeze({ 1: '#1baf7a', '-1': '#e34948', 0: '#787b86' });
+  export const CHANNEL_TREE_DASH = [6, 4];
+
+  export const drawChannelTree = (ctx, channels, dateRange, minMax, width, height) => {
+    if (!channels || channels.length === 0) return;
+    if (!dateRange || !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) return;
+    const [startDate, endDate] = dateRange;
+    const { min, max } = minMax;
+    const totalMs = endDate.getTime() - startDate.getTime();
+    if (!(totalMs > 0) || !(max > min)) return;
+
+    const toXY = (point) => ({
+      x: ((parseExchangeTs(point.date).getTime() - startDate.getTime()) / totalMs) * width,
+      y: height - ((point.price - min) / (max - min)) * height,
+    });
+    const drawPolyline = (points) => {
+      if (!points || points.length < 2) return;
+      ctx.beginPath();
+      points.forEach((p, i) => {
+        const { x, y } = toXY(p);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    };
+
+    ctx.save();
+    // Confirmed first, then drafts, then the current channel on top
+    const order = (ch) => (ch.current ? 2 : ch.status === 'PROVISIONAL' ? 1 : 0);
+    [...channels].sort((a, b) => order(a) - order(b)).forEach((ch) => {
+      const first = ch.upperPoints?.[0]?.date ?? ch.startDate;
+      const last = ch.upperPoints?.[ch.upperPoints.length - 1]?.date ?? ch.endDate;
+      if (!first || !last) return;
+      if (parseExchangeTs(last) < startDate || parseExchangeTs(first) > endDate) return;
+      const provisional = ch.status === 'PROVISIONAL';
+      const hex = CHANNEL_TREE_COLORS[ch.direction] ?? CHANNEL_TREE_COLORS[0];
+      ctx.strokeStyle = hexToRgba(hex, provisional ? 0.45 : 0.75);
+      ctx.lineWidth = ch.current ? 2.25 : 1.25;
+      ctx.setLineDash(provisional ? CHANNEL_TREE_DASH : []);
+      drawPolyline(ch.upperPoints);
+      drawPolyline(ch.lowerPoints);
+    });
+    ctx.restore();
+  };
+
   // Level zone bands (LevelBreakoutRetest, see utils/levelZones.js). Strong zones get a medium
   // fill, weak ones a pale fill with no border; the zone the resistanceTrigger line comes from
   // (segment flag `trigger`, its tracker is ARMED) gets a dashed line along its upper edge - the

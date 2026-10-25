@@ -37,6 +37,10 @@ import {
   calendarDayKey, exchangeTodayLocalDate, exchangeZoneForTicker, localDateFromIso, toLocalIsoDate, fmtBarTimestamp,
 } from './utils/dates';
 import { DEFAULT_OBJECTIVE, OBJECTIVES, normalizeObjective } from './utils/objectives';
+import ChannelLayerControl from './components/charts/ChannelLayerControl';
+import { useStrategyChannelLayer } from './hooks/useStrategyChannelLayer';
+import { resolveChannelSource, isChannelSemanticsWarning } from './utils/channelLayer';
+import { CHANNEL_VIEW } from './api/channelApi';
 import StabilitySettings from './components/stability/StabilitySettings';
 import ChannelStabilityView from './components/stability/ChannelStabilityView';
 import {
@@ -250,6 +254,21 @@ const App = () => {
     toggleGroup: toggleIndicatorGroup,
     visibleSeries: visibleIndicatorSeries,
   } = useIndicatorSelection(results?.chartDataDTO);
+
+  // Channel tree layer of the result chart (screener TASK_incremental_channels rev 2): only for a
+  // result whose config contains a channel strategy, built from the first one; A by default, B by
+  // the toggle. The source is the backend's channelSource, else the request of the result (the
+  // recorded backtest config / optimize job request with the best values).
+  const [channelLayerOn, setChannelLayerOn] = useState(true);
+  const [channelLayerView, setChannelLayerView] = useState(CHANNEL_VIEW.FULL);
+  const channelSource = useMemo(() => {
+    if (!results || mode === 'signals') return null;
+    const cfg = mode === 'optimize' ? optConfigRef.current : backtestConfigRef.current;
+    return resolveChannelSource(results, cfg);
+    // The refs are set together with `results` (they are not render state)
+  }, [results, mode]);
+  const channelLayer = useStrategyChannelLayer(channelSource, { enabled: channelLayerOn, view: channelLayerView });
+
   // One object per selection change (not per App render), so the chart's legend memos keyed on it
   // only recompute when the selection actually changes.
   const indicatorSelection = useMemo(() => ({
@@ -1209,7 +1228,13 @@ const App = () => {
             {caseWarnings && (
               <div className="mb-6 p-3 rounded bg-amber-50 border border-amber-300 text-amber-800 text-sm" role="status">
                 <div className="flex items-start justify-between gap-2">
-                  <span className="font-medium">The saved case was adjusted to the current strategies:</span>
+                  <span className="font-medium">
+                    {caseWarnings.every(isChannelSemanticsWarning)
+                      ? 'The saved case was computed with the old channel semantics:'
+                      : caseWarnings.some(isChannelSemanticsWarning)
+                        ? 'The saved case was adjusted to the current strategies and channel semantics:'
+                        : 'The saved case was adjusted to the current strategies:'}
+                  </span>
                   <button
                     type="button"
                     onClick={() => setCaseWarnings(null)}
@@ -1543,7 +1568,7 @@ const App = () => {
                     fill the first screen and StrategyResults follows below at full width. */}
                 <div ref={setChartAreaNode} className={isFullscreen ? 'chart-fullscreen-active' : ''}>
                   {/* Toolbar: indicator picker + fullscreen toggle (also inside fullscreen) */}
-                  <div ref={setChartToolbarNode} className="chart-toolbar">
+                  <div ref={setChartToolbarNode} className={`chart-toolbar${channelSource ? ' chart-toolbar--wrap' : ''}`}>
                     <IndicatorPicker
                       seriesList={indicatorSeriesList}
                       showIndicators={showIndicators}
@@ -1552,6 +1577,16 @@ const App = () => {
                       onToggleSeries={toggleIndicatorSeries}
                       onToggleGroup={toggleIndicatorGroup}
                     />
+                    {channelSource && (
+                      <ChannelLayerControl
+                        source={channelSource}
+                        enabled={channelLayerOn}
+                        onToggle={setChannelLayerOn}
+                        view={channelLayerView}
+                        onViewChange={setChannelLayerView}
+                        layer={channelLayer}
+                      />
+                    )}
                     <button
                       type="button"
                       className="fullscreen-toggle-btn"
@@ -1575,6 +1610,7 @@ const App = () => {
                       windowStart={results.windowStart ?? null}
                       focusDate={mode === 'backtest' && watchContext && !watchContext.edited ? watchContext.focusBarDate : null}
                       nextTriggers={resultTriggers}
+                      channelTree={channelSource && channelLayerOn && channelLayer.channels.length > 0 ? channelLayer.channels : null}
                     />
                   </div>
 

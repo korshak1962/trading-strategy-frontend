@@ -11,8 +11,6 @@ const STRATEGY_PARAM_DESCRIPTIONS = {
     MaxAnnualYieldPct: 'Upper bound on a channel’s annualized slope, as a fraction (e.g. 2.0 = 200%), not a percent. Channels rising steeper than this are rejected.',
     CoveragePct: 'Fraction of bars the channel’s upper/lower envelope must contain (e.g. 0.95 = 95% of bars fall inside the bounds).',
     WarmupBars: 'Bars skipped at the start of the walk-forward loop before entries/exits are evaluated, giving the detector enough history to build an initial channel tree.',
-    BreachTolerancePct: 'Tolerance, as a fraction of the current channel’s width, allowed before a price move outside the extrapolated channel bounds forces a rebuild.',
-    ResyncPeriodBars: 'Maximum number of bars between forced channel-tree rebuilds, even when no breach occurred (periodic resync).',
   },
   DropFromPeakStrategy: {
     LookbackPeriod: 'Number of bars used for the rolling peak (highest high). E.g. 10 DAY bars ≈ 2 trading weeks, 65 ≈ 3 calendar months.',
