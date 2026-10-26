@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useFullscreen } from './hooks/useFullscreen';
 import { useElementSize } from './hooks/useElementSize';
 import { useIndicatorSelection } from './hooks/useIndicatorSelection';
@@ -30,6 +30,10 @@ import ChannelExplorer from './components/channelExplorer/ChannelExplorer';
 import DownloaderPanel from './components/downloader/DownloaderPanel';
 import WatchlistPanel from './components/watch/WatchlistPanel';
 import WatchToasts from './components/watch/WatchToasts';
+import ScreenerPanel from './components/universeScreener/ScreenerPanel';
+import PrepareStrategiesHint from './components/universeScreener/PrepareStrategiesHint';
+import { isMinimalIndicatorsError } from './components/universeScreener/prepareFlow';
+import { useScreenerLatest } from './hooks/useScreenerLatest';
 import { useWatchNotifications } from './hooks/useWatchNotifications';
 import { getWatchBacktestConfig, markNotificationRead } from './api/watchApi';
 import { describeError, fmtDay, fmtPrice, modeLabel } from './components/watch/format';
@@ -99,10 +103,28 @@ const withTimeframe = (strategies, tf) =>
 
 const App = () => {
   // Top-level tab: 'backtest' (strategy configure/run/results flow), 'channels' (channel
-  // explorer), 'downloader' (price download + indicator recalc jobs) or 'watchlist' (signal
-  // watches). The tabs are functionally independent; the Watchlist only opens a watch's run in
-  // Backtest (deep link, openWatchInBacktest).
+  // explorer), 'screener' (universe screener: filters, results, universe), 'downloader' (price
+  // download + indicator recalc jobs) or 'watchlist' (signal watches). The tabs are functionally
+  // independent; the Watchlist only opens a watch's run in Backtest (deep link,
+  // openWatchInBacktest), the Screener opens a ticker in Channels (initialRequest) or Backtest.
   const [activeTab, setActiveTab] = useState('backtest');
+
+  // ---- Universe screener (screener architect.md "Universe screener rev 1" §2.3) ----
+  // Badge "new results", polled from any tab; seen once the Screener tab is open.
+  const screenerLatest = useScreenerLatest();
+  const markScreenerSeen = screenerLatest.markSeen;
+  useEffect(() => {
+    if (activeTab === 'screener') markScreenerSeen();
+  }, [activeTab, markScreenerSeen, screenerLatest.latestRunId]);
+  // Screener → Channels: the request the Explorer fills its form with and detects once ({ticker,
+  // timeframe, startDate, endDate, params, view, nonce}); cleared when the Explorer consumed it so
+  // returning to the tab later does not re-run it.
+  const [channelsRequest, setChannelsRequest] = useState(null);
+  const openInChannels = useCallback((req) => {
+    setChannelsRequest({ ...req, nonce: Date.now() });
+    setActiveTab('channels');
+  }, []);
+  const consumeChannelsRequest = useCallback(() => setChannelsRequest(null), []);
 
   // ---- Signal watch (screener architect.md "Signal watch — design rev 1" §6.2) ----
   // Badge + toasts: polled from any tab.
@@ -959,6 +981,25 @@ const App = () => {
     }
   };
 
+  // Screener → Backtest (after "Prepare for strategies" when needed): the Backtest form with the
+  // ticker on DAY (universe tickers have DAY history only); the strategy setup stays as it is and
+  // nothing runs by itself.
+  const openScreenerTickerInBacktest = (t) => {
+    if (loading || optActive) {
+      setActiveTab('backtest');
+      return; // a run is in flight: do not swap the ticker under it
+    }
+    setActiveTab('backtest');
+    setMode('backtest');
+    setTicker(t);
+    if (timeFrame !== 'DAY') handleTimeFrameChange('DAY');
+    setWatchContext(null);
+    setResults(null);
+    setStoredStability(null);
+    setError(null);
+    clearSignalCharts();
+  };
+
   // Deep link auto-run: once the form state set by openWatchInBacktest has rendered.
   useEffect(() => {
     if (!pendingAutoRun.current) return;
@@ -1134,7 +1175,18 @@ const App = () => {
       case 'channels':
         return (
           <main className="flex-grow w-full px-4 py-8">
-            <ChannelExplorer />
+            <ChannelExplorer initialRequest={channelsRequest} onInitialRequestConsumed={consumeChannelsRequest} />
+          </main>
+        );
+      case 'screener':
+        return (
+          <main className="flex-grow w-full px-4 py-8">
+            <ScreenerPanel
+              onOpenInChannels={openInChannels}
+              onOpenInBacktest={openScreenerTickerInBacktest}
+              onSeenRuns={markScreenerSeen}
+              latestRunId={screenerLatest.latestRunId}
+            />
           </main>
         );
       case 'downloader':
@@ -1455,6 +1507,9 @@ const App = () => {
                   {error}
                 </div>
               )}
+              {error && isMinimalIndicatorsError(error) && ticker && (
+                <PrepareStrategiesHint key={ticker} ticker={ticker.trim()} />
+              )}
             </form>
           </div>
           
@@ -1664,6 +1719,7 @@ const App = () => {
         activeTab={activeTab}
         onChangeTab={setActiveTab}
         watch={watchNotifications.available ? watchNotifications : null}
+        screenerNew={screenerLatest.available && activeTab !== 'screener' ? screenerLatest.newCount : 0}
       />
       <WatchToasts
         toasts={watchNotifications.toasts}

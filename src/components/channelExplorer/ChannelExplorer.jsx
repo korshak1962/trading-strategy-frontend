@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { detectChannels, fetchPrices, normalizeViewInfo, CHANNEL_VIEW } from '../../api/channelApi';
 import { getAvailableTickers } from '../../api/strategyApi';
 import ChannelExplorerChart, { TF_LINE_WIDTH } from './ChannelExplorerChart';
@@ -43,7 +43,16 @@ const SLOW_REPLAY_TFS = new Set(['MIN5', 'HOUR']);
 const defaultTo = () => exchangeToday(exchangeZoneForTicker('SPY'));
 const defaultFrom = () => addYearsIso(defaultTo(), -2);
 
-export default function ChannelExplorer() {
+const DETECTOR_PARAM_KEYS = ['coveragePct', 'minBars', 'minWidthPct', 'minAnnualYieldPct', 'maxAnnualYieldPct'];
+
+/**
+ * @param {Object} props
+ * @param {{ticker: string, timeframe?: string, startDate: string, endDate: string, params?: Object,
+ *   view?: string, nonce: number}|null} [props.initialRequest] deep link (Screener → Channels): a new
+ *   `nonce` fills the form with it and runs the detection once
+ * @param {() => void} [props.onInitialRequestConsumed] called once the request was applied
+ */
+export default function ChannelExplorer({ initialRequest = null, onInitialRequestConsumed = null }) {
   const [ticker, setTicker] = useState('SPY');
   const [tickers, setTickers] = useState([]);
   const [from, setFrom] = useState(defaultFrom);
@@ -111,10 +120,12 @@ export default function ChannelExplorer() {
       return new Set(prev).add(tf);
     });
 
-  const loadPrices = async (tf) => {
+  // The range defaults to the form's; runDetection passes the request's own (a deep link sets the
+  // form and detects in the same tick, before the new form state is visible here).
+  const loadPrices = async (tf, t = ticker, f = from, e = to) => {
     setPricesLoading(true);
     try {
-      const data = await fetchPrices(ticker, tf, from, to);
+      const data = await fetchPrices(t, tf, f, e);
       setPrices(data);
     } catch {
       setPrices([]);
@@ -138,7 +149,7 @@ export default function ChannelExplorer() {
       setResultRequest(request);
       setDetectionRunId(id => id + 1);
       setVisibleTfs(new Set(request.timeframes));
-      await loadPrices(finestTf(request.timeframes));
+      await loadPrices(finestTf(request.timeframes), request.ticker, request.from, request.to);
     } catch (err) {
       setResultView(null);
       setResultRequest(null);
@@ -147,6 +158,42 @@ export default function ChannelExplorer() {
       setLoading(false);
     }
   };
+
+  // Deep link: fill the form with the request and detect once per nonce (the ref also absorbs
+  // StrictMode's double effect run).
+  const appliedNonce = useRef(null);
+  useEffect(() => {
+    if (!initialRequest || appliedNonce.current === initialRequest.nonce) return;
+    appliedNonce.current = initialRequest.nonce;
+    const tf = TIMEFRAMES.some(x => x.value === initialRequest.timeframe) ? initialRequest.timeframe : 'DAY';
+    const params = { ...RECURSIVE_DEFAULT_PARAMS };
+    DETECTOR_PARAM_KEYS.forEach(k => {
+      if (typeof initialRequest.params?.[k] === 'number') params[k] = initialRequest.params[k];
+    });
+    params.logPrice = true;
+    const nextView = initialRequest.view === CHANNEL_VIEW.INCREMENTAL ? CHANNEL_VIEW.INCREMENTAL : CHANNEL_VIEW.FULL;
+    const request = {
+      ticker: String(initialRequest.ticker || '').toUpperCase(),
+      from: initialRequest.startDate,
+      // Through the END of the basis day: DAY bars are stamped 09:00, and a bare date is sent as
+      // T00:00:00, which would drop the basis bar itself (the screener's channel then differs).
+      to: /^\d{4}-\d{2}-\d{2}$/.test(initialRequest.endDate || '') ? `${initialRequest.endDate}T23:59:59` : initialRequest.endDate,
+      timeframes: [tf],
+      params,
+      lastActualChannelsOnly,
+      view: nextView,
+    };
+    setTicker(request.ticker);
+    setFrom(request.from);
+    setTo(String(request.to || '').substring(0, 10));
+    setSelectedTfs([tf]);
+    setRecursiveParams(params);
+    setView(nextView);
+    runDetection(request);
+    onInitialRequestConsumed?.();
+    // Keyed on the nonce only: one detection per deep link.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialRequest?.nonce]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
