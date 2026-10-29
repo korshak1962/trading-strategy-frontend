@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createChart } from 'lightweight-charts';
-import { formatPct, formatStatus, formatAge, formatExitSide, formatBarDate, isProvisional } from './format';
+import { formatPct, formatStatus, formatAge, formatExitSide, formatBarDate, isProvisional, channelKey } from './format';
 import { exchangeTsSeconds } from '../../utils/dates';
 import './ChannelExplorerChart.css';
 
@@ -120,12 +120,6 @@ const findCandleFloorIndex = (candleData, targetTs) => {
   return lo;
 };
 
-// Identifies a channel across re-renders within the same detection run (no backend ID
-// exists). Stable as long as the underlying detection result doesn't change — edits keyed
-// on this are reset whenever `runId` changes (see ChannelExplorerChart's runId prop).
-const channelKey = (ch) =>
-  `${ch.timeframe}|${ch.startDate}|${ch.endDate}|${ch.upper.anchorBarIndex}|${ch.lower.anchorBarIndex}|${ch.direction}`;
-
 // Default line extension past the channel's own detected end: 25% of its span (min 3
 // bars), capped at the last available candle. Draggable from here down to 0 (exactly the
 // detected end) or out to the last candle.
@@ -137,15 +131,21 @@ const defaultExtension = (spanBars, endIdx, lastIdx) =>
 // upperPoints, lowerPoints}}.
 const NO_EXITS = [];
 
-export default function ChannelExplorerChart({ prices, channels, zoomChannels, runId, exits = NO_EXITS }) {
+// Selection is shared with the parent's channel cards: `selectedKey` (a channelKey or null) is
+// the parent's selection, applied in place (no chart rebuild) whenever it differs from the
+// chart's own; `onSelectChannel(key|null)` reports every selection change made on the chart
+// (line click, empty-space click, Delete) or a requested key that cannot be selected here.
+export default function ChannelExplorerChart({
+  prices, channels, zoomChannels, runId, exits = NO_EXITS, selectedKey = null, onSelectChannel = null,
+}) {
   const containerRef = useRef(null);
   const wrapperRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   // The raw selected Channel object (or null), lifted out of selectedKeyRef purely for the
-  // width readout below the chart. Deliberately local React state, not passed up to the
-  // parent - see selectedKeyRef's own comment: a parent re-render on every selection would
-  // give ChannelExplorer's `channelsForChart` a new array reference and tear down/rebuild this
-  // whole chart (losing zoom/pan). Safe here because this effect's own dependency array
+  // width readout below the chart. The selection's KEY is also reported to the parent
+  // (onSelectChannel) for its channel cards; that parent re-render is safe only because the
+  // parent memoises `channelsForChart` / `zoomChannels` - a new array reference would tear
+  // down/rebuild this whole chart (losing zoom/pan). This state is safe because this effect's own dependency array
   // ([prices, channels, zoomChannels, runId]) doesn't include this state, so setting it only
   // re-renders the lightweight JSX below, never re-runs the chart-building effect itself.
   const [selectedChannel, setSelectedChannel] = useState(null);
@@ -160,6 +160,11 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
   const [hierarchyMode, setHierarchyModeState] = useState('up');
   const hierarchyModeRef = useRef('up');
   const repaintRef = useRef(() => {});
+  // Published by the chart-building effect: selects a key coming from the parent in place.
+  const selectFromPropRef = useRef(() => {});
+  // Latest callback, read by the effect's closures (created once per build).
+  const onSelectRef = useRef(onSelectChannel);
+  useEffect(() => { onSelectRef.current = onSelectChannel; }, [onSelectChannel]);
 
   const setHierarchyMode = (mode) => {
     hierarchyModeRef.current = mode;   // ref first: repaint reads the ref, not the state
@@ -612,15 +617,41 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
       handle.style.top = `${(uy + ly) / 2}px`;
     }
 
-    function selectChannel(key) {
+    // `fromProp`: the key came from the parent (a card click) - the parent already knows it, so
+    // it is only told back when the key cannot be selected here (hidden / deleted / not drawn);
+    // the time axis is also scrolled to the channel if it is out of view.
+    function selectChannel(requestedKey, fromProp = false) {
+      const entry = requestedKey ? findEntry(requestedKey) : null;
+      const key = entry ? requestedKey : null;
       selectedKeyRef.current = key;
-      const entry = findEntry(key);
       // Full repaint, not a two-entry swap: the outgoing selection's hierarchy has to be
       // cleared and the incoming one's painted, and those are different sets of lines.
       repaintHighlights();
+      if (fromProp && entry) revealEntry(entry);
       updateHandle();
       setSelectedChannel(entry ? entry.ch : null);
+      if (!fromProp || key !== requestedKey) onSelectRef.current?.(key);
     }
+
+    // Scrolls the time axis (keeping its current zoom when the channel fits) so the channel's
+    // drawn span is visible; does nothing when it already is.
+    function revealEntry(entry) {
+      const ts = chart.timeScale();
+      const range = ts.getVisibleLogicalRange();
+      if (!range) return;
+      const from = entry.startIdx, to = entry.extendedEndIdx;
+      if (from >= range.from && to <= range.to) return;
+      const width = range.to - range.from;
+      const span = to - from;
+      if (span + 4 <= width) {
+        const start = Math.max(0, Math.round((from + to) / 2 - width / 2));
+        ts.setVisibleLogicalRange({ from: start, to: start + width });
+      } else {
+        const pad = Math.max(2, Math.round(span * 0.1));
+        ts.setVisibleLogicalRange({ from: from - pad, to: to + pad });
+      }
+    }
+    selectFromPropRef.current = (key) => selectChannel(key, true);
 
     function distToSegment(px, py, x1, y1, x2, y2) {
       const dx = x2 - x1, dy = y2 - y1;
@@ -723,6 +754,7 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
       repaintHighlights();
       updateHandle();
       setSelectedChannel(null);
+      onSelectRef.current?.(null);
     }
     window.addEventListener('keydown', onKeyDown);
 
@@ -886,7 +918,16 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
       }
     }
 
+    // A selection that survived a rebuild (e.g. a timeframe toggle) but whose channel is no
+    // longer drawn is dropped on both sides.
+    if (selectedKeyRef.current && !findEntry(selectedKeyRef.current)) {
+      selectedKeyRef.current = null;
+      setSelectedChannel(null);
+      onSelectRef.current?.(null);
+    }
+
     return () => {
+      selectFromPropRef.current = () => {};
       // Drop the published repaint before the chart is torn down, so a mode toggle racing a
       // rebuild can't call applyOptions on series belonging to a removed chart.
       repaintRef.current = () => {};
@@ -906,6 +947,12 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
       chart.remove();
     };
   }, [prices, channels, zoomChannels, runId, exits]);
+
+  // Parent -> chart: apply a selection made on a channel card. Declared after the building
+  // effect so that, in a commit that rebuilds the chart too, it runs against the new chart.
+  useEffect(() => {
+    if ((selectedKey ?? null) !== selectedKeyRef.current) selectFromPropRef.current(selectedKey ?? null);
+  }, [selectedKey, prices, channels, zoomChannels, runId, exits]);
 
   if (!prices || prices.length === 0) {
     return <div className="ch-chart-empty">No price data available</div>;
@@ -959,7 +1006,7 @@ export default function ChannelExplorerChart({ prices, channels, zoomChannels, r
             <br />
           </>
         )}
-        Click a channel line to select it · drag the yellow handle to extend/shrink · Delete/Backspace to remove
+        Click a channel line (or its card below) to select it · drag the yellow handle to extend/shrink · Delete/Backspace to remove
         · ▲/▼ arrows mark where a close price crossed a channel boundary
         · drag the chart to pan, scroll over the price axis to zoom vertically, double-click it to reset
         · ⛶ for full screen, Esc to exit

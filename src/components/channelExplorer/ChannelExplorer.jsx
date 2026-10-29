@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { detectChannels, fetchPrices, normalizeViewInfo, CHANNEL_VIEW } from '../../api/channelApi';
 import { getAvailableTickers } from '../../api/strategyApi';
 import ChannelExplorerChart, { TF_LINE_WIDTH } from './ChannelExplorerChart';
 import RecursiveParamsPanel, { RECURSIVE_DEFAULT_PARAMS } from './RecursiveParamsPanel';
 import { exchangeToday, exchangeZoneForTicker, addYearsIso } from '../../utils/dates';
-import { isProvisional, formatStatus, formatAge, formatBarDate, formatExitSide } from './format';
+import { isProvisional, formatStatus, formatAge, formatBarDate, formatExitSide, channelKey } from './format';
 import './ChannelExplorer.css';
 
 const TIMEFRAMES = [
@@ -86,6 +86,27 @@ export default function ChannelExplorer({ initialRequest = null, onInitialReques
   // are otherwise session-only scratch state that must not survive a fresh detection.
   const [detectionRunId, setDetectionRunId] = useState(0);
 
+  // The one selected channel (a channelKey or null), shared by the chart and the channel cards:
+  // a line click on the chart highlights its card, a card click selects the line on the chart.
+  const [selectedChannelKey, setSelectedChannelKey] = useState(null);
+  const cardRefs = useRef(new Map());
+  // Set when the selection came from the chart, so only then the card list scrolls to the card
+  // (a card the user just clicked is already in view).
+  const scrollCardRef = useRef(false);
+  const handleChartSelect = useCallback((key) => {
+    scrollCardRef.current = key !== null;
+    setSelectedChannelKey(key);
+  }, []);
+  const toggleCardSelection = (key) => {
+    scrollCardRef.current = false;
+    setSelectedChannelKey(prev => (prev === key ? null : key));
+  };
+  useEffect(() => {
+    if (!scrollCardRef.current || !selectedChannelKey) return;
+    scrollCardRef.current = false;
+    cardRefs.current.get(selectedChannelKey)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [selectedChannelKey]);
+
   useEffect(() => {
     getAvailableTickers().then(ts => setTickers([...ts].sort())).catch(() => {});
   }, []);
@@ -139,6 +160,7 @@ export default function ChannelExplorer({ initialRequest = null, onInitialReques
     setError(null);
     setResult(null);
     setPrices([]);
+    setSelectedChannelKey(null);
     try {
       const data = await detectChannels(
         request.ticker, request.from, request.to, request.timeframes, request.params,
@@ -219,20 +241,26 @@ export default function ChannelExplorer({ initialRequest = null, onInitialReques
     if (resultRequest) runDetection({ ...resultRequest, view: next });
   };
 
-  const channelsForChart = result
+  // Memoised: the chart rebuilds (losing zoom/pan) whenever these arrays change identity, and
+  // the shared channel selection re-renders this component on every click.
+  const channelsForChart = useMemo(() => (result
     ? selectedTfs
         .filter(tf => visibleTfs.has(tf))
         .flatMap(tf => result.channelsByTimeframe?.[tf] ?? [])
-    : [];
+    : []), [result, selectedTfs, visibleTfs]);
 
   // Union of ALL detected channels across every selected timeframe, regardless
   // of current visibility — used only to compute the chart's auto-zoom range
   // so toggling a timeframe tab never shifts the viewport (see ChannelExplorerChart's
   // `zoomChannels` prop). Only changes when `result` or `selectedTfs` change,
   // i.e. on a fresh detection run, not when `visibleTfs` toggles.
-  const allChannelsForChart = result
+  const allChannelsForChart = useMemo(() => (result
     ? selectedTfs.flatMap(tf => result.channelsByTimeframe?.[tf] ?? [])
-    : [];
+    : []), [result, selectedTfs]);
+
+  // A selection whose channel is no longer listed (its timeframe hidden) counts as none.
+  const channelKeys = useMemo(() => channelsForChart.map(channelKey), [channelsForChart]);
+  const activeSelectedKey = selectedChannelKey && channelKeys.includes(selectedChannelKey) ? selectedChannelKey : null;
 
   // viewInfo per detected timeframe (info = null per TF on an older backend).
   const viewInfos = useMemo(
@@ -395,17 +423,34 @@ export default function ChannelExplorer({ initialRequest = null, onInitialReques
 
           {pricesLoading
             ? <div className="status-msg">Loading prices…</div>
-            : <ChannelExplorerChart prices={prices} channels={channelsForChart} zoomChannels={allChannelsForChart} runId={detectionRunId} exits={exitsForChart} />
+            : <ChannelExplorerChart
+                prices={prices} channels={channelsForChart} zoomChannels={allChannelsForChart}
+                runId={detectionRunId} exits={exitsForChart}
+                selectedKey={activeSelectedKey} onSelectChannel={handleChartSelect}
+              />
           }
 
           {channelsForChart.length > 0 && (
             <div className="ta-ch-summary">
-              {channelsForChart.map((ch, i) => (
+              {channelsForChart.map((ch, i) => {
+                const key = channelKeys[i];
+                const selected = key === activeSelectedKey;
+                return (
                 <div
                   key={i}
-                  className={`ta-ch-card${isProvisional(ch) ? ' ta-ch-card--provisional' : ''}${ch.current ? ' ta-ch-card--current' : ''}`}
+                  ref={el => { if (el) cardRefs.current.set(key, el); else cardRefs.current.delete(key); }}
+                  className={`ta-ch-card${isProvisional(ch) ? ' ta-ch-card--provisional' : ''}${ch.current ? ' ta-ch-card--current' : ''}${selected ? ' ta-ch-card--selected' : ''}`}
                   data-testid="ce-channel-card"
                   data-status={ch.status || ''}
+                  data-selected={selected ? 'true' : 'false'}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={selected}
+                  title={selected ? 'Click to deselect this channel' : 'Click to select this channel on the chart'}
+                  onClick={() => toggleCardSelection(key)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCardSelection(key); }
+                  }}
                 >
                   <span className="ta-ch-dir" style={{ color: DIRECTION_COLOR[ch.direction] }}>
                     {DIRECTION_LABEL[ch.direction]}
@@ -425,7 +470,8 @@ export default function ChannelExplorer({ initialRequest = null, onInitialReques
                     {formatAge(ch.ageBars) && ` · age ${formatAge(ch.ageBars)}`}
                   </span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
 

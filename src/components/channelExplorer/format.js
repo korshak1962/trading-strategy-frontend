@@ -38,3 +38,10 @@ export const formatBarDate = (v) => {
   const time = v.length >= 16 ? v.substring(11, 16) : null;
   return time && time !== '00:00' ? `${day} ${time}` : day;
 };
+
+// Identifies a channel across re-renders within the same detection run (no backend ID
+// exists). Stable as long as the underlying detection result doesn't change — edits keyed
+// on this are reset whenever `runId` changes (see ChannelExplorerChart's runId prop). Also the
+// identity of the selection shared by the chart and the channel cards.
+export const channelKey = (ch) =>
+  `${ch.timeframe}|${ch.startDate}|${ch.endDate}|${ch.upper.anchorBarIndex}|${ch.lower.anchorBarIndex}|${ch.direction}`;

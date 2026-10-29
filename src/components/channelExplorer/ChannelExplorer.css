@@ -616,3 +616,31 @@
   flex-wrap: wrap;
   row-gap: 3px;
 }
+
+/* The channel selected on the chart (shared selection, same yellow as the selected line).
+   Placed after --provisional / --current so it wins the border; a provisional card stays dashed. */
+.ta-ch-card {
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.ta-ch-card:hover {
+  border-color: #3a3f4f;
+}
+
+.ta-ch-card:focus-visible {
+  outline: 1px solid #2962ff;
+  outline-offset: 1px;
+}
+
+.ta-ch-card--current:hover {
+  border-color: #2962ff;
+}
+
+.ta-ch-card--selected,
+.ta-ch-card--selected:hover {
+  border-color: #ffd54f;
+  box-shadow: 0 0 0 1px #ffd54f, 0 0 8px rgba(255, 213, 79, 0.25);
+  background: #1c2135;
+  opacity: 1;
+}
