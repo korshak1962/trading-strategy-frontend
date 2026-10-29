@@ -4,7 +4,10 @@ import { getAvailableTickers } from '../../api/strategyApi';
 import ChannelExplorerChart, { TF_LINE_WIDTH } from './ChannelExplorerChart';
 import RecursiveParamsPanel, { RECURSIVE_DEFAULT_PARAMS } from './RecursiveParamsPanel';
 import { exchangeToday, exchangeZoneForTicker, addYearsIso } from '../../utils/dates';
-import { isProvisional, formatStatus, formatAge, formatBarDate, formatExitSide, channelKey } from './format';
+import {
+  isProvisional, formatStatus, formatAge, formatBarDate, formatExitSide, channelKey, formatPct,
+  formatSlopePctYear, orderChannelsForCards, defaultSelectedChannel,
+} from './format';
 import './ChannelExplorer.css';
 
 const TIMEFRAMES = [
@@ -118,7 +121,8 @@ export default function ChannelExplorer({ initialRequest = null, onInitialReques
   const chartTf = finestTf(selectedTfs);
 
   useEffect(() => {
-    if (!result) return;
+    // No timeframe toggled on -> no candle timeframe; never request prices?timeframe=null (400).
+    if (!result || !chartTf) return;
     loadPrices(chartTf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartTf, ticker, from, to]);
@@ -167,6 +171,11 @@ export default function ChannelExplorer({ initialRequest = null, onInitialReques
         request.lastActualChannelsOnly, request.view
       );
       setResult(data);
+      // Default selection: the first confirmed current channel in card order (finest TF, deepest), on chart and cards
+      // alike, exactly as if it had been clicked. Set once per run - later re-renders never
+      // re-select it, so the user can deselect freely. No current channel -> nothing selected.
+      const initial = defaultSelectedChannel(request.timeframes.flatMap(tf => data?.channelsByTimeframe?.[tf] ?? []));
+      setSelectedChannelKey(initial ? channelKey(initial) : null);
       setResultView(request.view);
       setResultRequest(request);
       setDetectionRunId(id => id + 1);
@@ -261,6 +270,10 @@ export default function ChannelExplorer({ initialRequest = null, onInitialReques
   // A selection whose channel is no longer listed (its timeframe hidden) counts as none.
   const channelKeys = useMemo(() => channelsForChart.map(channelKey), [channelsForChart]);
   const activeSelectedKey = selectedChannelKey && channelKeys.includes(selectedChannelKey) ? selectedChannelKey : null;
+
+  // Card order only (hierarchy, youngest first - see orderChannelsForCards); the chart keeps
+  // receiving channelsForChart unchanged.
+  const cardChannels = useMemo(() => orderChannelsForCards(channelsForChart), [channelsForChart]);
 
   // viewInfo per detected timeframe (info = null per TF on an older backend).
   const viewInfos = useMemo(
@@ -432,12 +445,16 @@ export default function ChannelExplorer({ initialRequest = null, onInitialReques
 
           {channelsForChart.length > 0 && (
             <div className="ta-ch-summary">
-              {channelsForChart.map((ch, i) => {
-                const key = channelKeys[i];
+              {cardChannels.map((ch) => {
+                const key = channelKey(ch);
                 const selected = key === activeSelectedKey;
+                const slope = formatSlopePctYear(ch);
+                const widthAtr = typeof ch.widthAtr === 'number' && Number.isFinite(ch.widthAtr) ? `${ch.widthAtr.toFixed(2)} ATR` : null;
+                const widthPct = typeof ch.widthPct === 'number' && Number.isFinite(ch.widthPct) ? formatPct(ch.widthPct) : null;
+                const width = [widthAtr, widthPct].filter(Boolean).join(' / ');
                 return (
                 <div
-                  key={i}
+                  key={key}
                   ref={el => { if (el) cardRefs.current.set(key, el); else cardRefs.current.delete(key); }}
                   className={`ta-ch-card${isProvisional(ch) ? ' ta-ch-card--provisional' : ''}${ch.current ? ' ta-ch-card--current' : ''}${selected ? ' ta-ch-card--selected' : ''}`}
                   data-testid="ce-channel-card"
@@ -462,12 +479,17 @@ export default function ChannelExplorer({ initialRequest = null, onInitialReques
                     {ch.current && <span className="ta-ch-badge ta-ch-badge--current">current</span>}
                   </span>
                   <span className="ta-ch-meta">
-                    Score {ch.score?.toFixed(1)} · Width {ch.widthAtr?.toFixed(2)} ATR ·
-                    Touches {ch.touchesUpper}↑ {ch.touchesLower}↓
+                    Score {ch.score?.toFixed(1)} · Touches {ch.touchesUpper}↑ {ch.touchesLower}↓
                   </span>
+                  {(slope || width) && (
+                    <span className="ta-ch-meta ta-ch-metrics" data-testid="ce-card-metrics">
+                      {slope && <span>Slope <strong>{slope}</strong></span>}
+                      {width && <span>Width <strong>{width}</strong></span>}
+                    </span>
+                  )}
                   <span className="ta-ch-dates">
-                    {ch.startDate?.substring(0, 10)} → {ch.endDate?.substring(0, 10)}
-                    {formatAge(ch.ageBars) && ` · age ${formatAge(ch.ageBars)}`}
+                    <span className="ta-nowrap">{ch.startDate?.substring(0, 10)} → {ch.endDate?.substring(0, 10)}</span>
+                    {formatAge(ch.ageBars) && <> <span className="ta-nowrap">· age {formatAge(ch.ageBars)}</span></>}
                   </span>
                 </div>
                 );
