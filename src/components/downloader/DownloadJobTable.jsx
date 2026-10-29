@@ -86,14 +86,17 @@ const DownloadJobTable = ({ job }) => {
                 Bars (backfill / new / updated)
               </th>
               <th className="text-right px-3 py-2 font-semibold">Elapsed</th>
-              <th className="text-left px-3 py-2 font-semibold">Error</th>
+              <th className="text-left px-3 py-2 font-semibold">Error / note</th>
             </tr>
           </thead>
           <tbody>
             {items.length === 0 && (
               <tr><td colSpan={6} className="px-3 py-3 text-center text-gray-500">No tickers yet…</td></tr>
             )}
-            {items.map((it) => (
+            {items.map((it) => {
+              // Informational per-ticker note (e.g. "source history starts at 2021-06-14 (...)").
+              const note = typeof it.note === 'string' ? it.note.trim() : '';
+              return (
               <tr key={it.dbTicker || it.ticker} className={`border-t border-gray-200 ${ROW_CLASS[it.status] || ''}`}>
                 <td className="px-3 py-2 font-medium">
                   {it.ticker}
@@ -114,10 +117,14 @@ const DownloadJobTable = ({ job }) => {
                       Backfill stopped{it.stoppedAt ? ` at ${it.stoppedAt}` : ''}{it.stopReason ? `: ${it.stopReason}` : ''}
                     </span>
                   )}
-                  {!it.error && !it.stopReason && !it.stoppedAt && <span className="text-gray-400">—</span>}
+                  {note && (
+                    <span className="block text-xs text-gray-500 break-words">Note: {note}</span>
+                  )}
+                  {!it.error && !it.stopReason && !it.stoppedAt && !note && <span className="text-gray-400">—</span>}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
