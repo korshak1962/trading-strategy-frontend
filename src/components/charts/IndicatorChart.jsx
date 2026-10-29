@@ -116,7 +116,7 @@ const IndicatorChart = ({ data, width, height, dateRange, subSeries = [], preWin
         const axisLabel = visibleBySeries.map(entry => entry.series.name).join(', ');
 
         // Draw chart components
-        drawGrid(ctx, width, height);
+        drawGrid(ctx, width, height, minMaxIndicator);
         visibleBySeries.forEach(({ series, points }) => {
           drawIndicatorLine(ctx, points, chartDateRange, minMaxIndicator, width, height, series.color);
         });

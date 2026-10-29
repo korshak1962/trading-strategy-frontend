@@ -11,6 +11,7 @@ import RangeSlider, { RANGE_SLIDER_HEIGHT, RANGE_SLIDER_DATES_HEIGHT } from './c
 import VoteStrip from './charts/VoteStrip';
 import {
   findMinMaxPriceRange, deriveSignalTradeIndex, signalKey, plotDateRange, DATE_AXIS_BAND,
+  timeToX, xToTime, timeToZoomCoord, zoomCoordToTime,
   windowGlyphPoint, WINDOW_GLYPH_R
 } from '../utils/ChartDrawingUtils';
 import { pointsForSeries, seriesLabel } from '../utils/indicatorSeries';
@@ -779,8 +780,6 @@ const ReporterStyleChart = ({
     // Same x mapping (plot range), drawn set (logical window) and price scale as PriceChart
     const currentDateRange = plotRange || chartData.current.dateRange;
     if (!currentDateRange || currentDateRange.length !== 2) return null;
-    const plotStart = currentDateRange[0];
-    const totalMs = currentDateRange[1].getTime() - plotStart.getTime();
     const [startDate, endDate] = dateRange || currentDateRange;
 
     const minMax = currentPriceScale();
@@ -791,7 +790,7 @@ const ReporterStyleChart = ({
     data.signals.forEach(signal => {
       const sDate = parseExchangeTs(signal.date);
       if (sDate < startDate || sDate > endDate) return;
-      const x = ((sDate.getTime() - plotStart.getTime()) / totalMs) * rect.width;
+      const x = timeToX(sDate.getTime(), currentDateRange, rect.width);
       const y = rect.height - ((signal.price - minMax.min) / (minMax.max - minMax.min)) * rect.height;
       // Vertically zoomed: a marker outside the price range is clipped away (PriceChart), so it
       // must not be clickable at its off-plot position either.
@@ -933,10 +932,8 @@ const ReporterStyleChart = ({
 
     const plotRect = getPlotRect();
     if (prices.length > 0 && currentDateRange.length === 2 && plotRect && plotRect.width > 0) {
-      // Calculate date at mouse position
-      const mouseRatio = mouseX / plotRect.width;
-      const totalTime = currentDateRange[1].getTime() - currentDateRange[0].getTime();
-      const mouseMs = currentDateRange[0].getTime() + mouseRatio * totalTime;
+      // Calculate date at mouse position (through the plot range's bar axis)
+      const mouseMs = xToTime(mouseX, currentDateRange, plotRect.width);
       const containerWidth = containerRef.current?.clientWidth ?? plotRect.width;
       const placement = {
         position: tooltipPos,
@@ -949,9 +946,10 @@ const ReporterStyleChart = ({
 
       // Individual Trade PnL pane: the trade(s) whose bar spans the cursor - not prices.
       if (pane === 'trade') {
-        const slopMs = (TRADE_HIT_SLOP_PX / plotRect.width) * totalTime;
+        // Hit in px: a bar spans open..close on x, give or take the slop
         const hits = trades.filter(trade =>
-          trade.openDate.getTime() - slopMs <= mouseMs && mouseMs <= trade.closeDate.getTime() + slopMs
+          timeToX(trade.openDate.getTime(), currentDateRange, plotRect.width) - TRADE_HIT_SLOP_PX <= mouseX
+          && mouseX <= timeToX(trade.closeDate.getTime(), currentDateRange, plotRect.width) + TRADE_HIT_SLOP_PX
         );
         setTooltipData({ kind: 'trade', date: new Date(mouseMs), trades: hits, legLabel: legSuffix, ...placement });
         return;
@@ -1281,13 +1279,12 @@ const ReporterStyleChart = ({
       return;
     }
 
-    const totalTime = currentDateRange[1].getTime() - currentDateRange[0].getTime();
     // A drag into the half-slot margin must not take the window past the data's own range
     const originalRange = originalDateRange || chartData.current.dateRange;
     const newStartDate = new Date(Math.max(
-      currentDateRange[0].getTime() + startRatio * totalTime, originalRange[0].getTime()));
+      xToTime(startRatio * containerWidth, currentDateRange, containerWidth), originalRange[0].getTime()));
     const newEndDate = new Date(Math.min(
-      currentDateRange[0].getTime() + endRatio * totalTime, originalRange[1].getTime()));
+      xToTime(endRatio * containerWidth, currentDateRange, containerWidth), originalRange[1].getTime()));
     if (newEndDate <= newStartDate) {
       setZoomActive(false);
       return;
@@ -1346,13 +1343,17 @@ const ReporterStyleChart = ({
     
     // Get mouse position relative to the plot width
     const mouseX = e.clientX - plotRect.left;
-    const mouseRatio = mouseX / plotRect.width;
     
     // Calculate current date at mouse position - through the drawn plot range, so the pivot is
-    // the bar actually under the cursor
+    // the bar actually under the cursor. The zoom itself works in the plot range's zoom
+    // coordinate (bar index with a bar axis, see timeToZoomCoord): a wheel step changes the number
+    // of bars in view by the same ratio, whatever nights / weekends lie inside the window.
     const plot = plotRange || currentDateRange;
-    const pivotTime = plot[0].getTime() + mouseRatio * (plot[1].getTime() - plot[0].getTime());
-    const totalTime = currentDateRange[1].getTime() - currentDateRange[0].getTime();
+    const toCoord = (ms) => timeToZoomCoord(ms, plot);
+    const pivotTime = toCoord(xToTime(mouseX, plot, plotRect.width));
+    const windowStart = toCoord(currentDateRange[0].getTime());
+    const totalTime = toCoord(currentDateRange[1].getTime()) - windowStart;
+    if (!(totalTime > 0)) return;
     
     // Determine zoom direction and factor
     // Normalize wheel delta across browsers
@@ -1368,14 +1369,14 @@ const ReporterStyleChart = ({
     
     // Calculate new start and end dates based on the pivot point
     // (clamped: over the half-slot margins the pivot lies just outside the logical window)
-    const pivotRatio = Math.min(1, Math.max(0, (pivotTime - currentDateRange[0].getTime()) / totalTime));
+    const pivotRatio = Math.min(1, Math.max(0, (pivotTime - windowStart) / totalTime));
     const newStartTime = pivotTime - (pivotRatio * newTimespan);
     const newEndTime = newStartTime + newTimespan;
     
     // Apply bounds checking against original date range
     const originalRange = originalDateRange || chartData.current.dateRange;
-    const minStartTime = originalRange[0].getTime();
-    const maxEndTime = originalRange[1].getTime();
+    const minStartTime = toCoord(originalRange[0].getTime());
+    const maxEndTime = toCoord(originalRange[1].getTime());
     const originalTimespan = maxEndTime - minStartTime;
     
     // Don't allow zooming out beyond original range
@@ -1389,8 +1390,8 @@ const ReporterStyleChart = ({
     if (newTimespan < minTimespan) return;
     
     // Apply the zoom, keeping within the original bounds
-    const boundedStart = new Date(Math.max(newStartTime, minStartTime));
-    const boundedEnd = new Date(Math.min(newEndTime, maxEndTime));
+    const boundedStart = new Date(zoomCoordToTime(Math.max(newStartTime, minStartTime), plot));
+    const boundedEnd = new Date(zoomCoordToTime(Math.min(newEndTime, maxEndTime), plot));
     
     setDateRange([boundedStart, boundedEnd]);
   }, [dateRange, plotRange, originalDateRange, getPlotRect, getPricePanePoint, effectivePriceRange, clampPriceRange, boundPriceRange, setDateRange]);

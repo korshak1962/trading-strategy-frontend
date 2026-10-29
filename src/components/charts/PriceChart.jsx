@@ -22,6 +22,8 @@ import {
   drawEventMarkers,
   drawMarkerLabels,
   drawNextBarTriggers,
+  slotWidthPx,
+  barSlotMs,
   DATE_AXIS_BAND
 } from '../../utils/ChartDrawingUtils';
 import { parseExchangeTs, exchangeToday } from '../../utils/dates';
@@ -158,10 +160,10 @@ const PriceChart = ({
     const visibleCandleCount = visiblePrices.length;
     
     // Calculate optimal candle width based on zoom level. dateRange is the plot range
-    // (plotDateRange), whose half-slot margins make width / count exactly one slot per candle,
-    // so the 80% body fits whole even at the edges.
+    // (plotDateRange): with its bar axis every bar has one equal slot (no room for nights /
+    // weekends), and its half-slot margins keep the 80% body whole even at the edges.
     const candleWidthRatio = 0.8; // 80% of available space per candle
-    const candleSpacing = width / Math.max(visibleCandleCount + extraSlots, 1);
+    const candleSpacing = slotWidthPx(chartDateRange, width, visibleCandleCount + extraSlots);
     const candleWidth = Math.min(
       candleSpacing * candleWidthRatio, 
       20 // Maximum width in pixels
@@ -181,7 +183,7 @@ const PriceChart = ({
     }
     
     // Draw chart components
-    drawGrid(ctx, width, height);
+    drawGrid(ctx, width, height, minMaxPrice);
 
     // With a manual (vertically zoomed) price range, bars / lines / zones / markers outside it
     // would run over the date labels and past the top: clip all series drawing to the plot area
@@ -271,16 +273,17 @@ const PriceChart = ({
     }
 
     // Next-bar trigger lines, one bar wide: in the empty slot after the last bar, or on the last
-    // bar while it is in progress. Slot = the plot range's own bar spacing.
+    // bar while it is in progress. Slot = one bar slot of the plot range's bar axis.
     if (nextBarTriggers && prices.length > 0) {
-      const slotMs = (chartDateRange[1].getTime() - chartDateRange[0].getTime())
+      const fallbackSlotMs = (chartDateRange[1].getTime() - chartDateRange[0].getTime())
         / Math.max(visibleCandleCount + extraSlots, 1);
       const lastMs = parseExchangeTs(prices[prices.length - 1].date).getTime();
       const onLastBar = nextBarTriggers.placement === 'lastBar';
+      const [slotStartMs, slotEndMs] = barSlotMs(lastMs, chartDateRange, onLastBar ? 0 : 1, fallbackSlotMs);
       drawNextBarTriggers(ctx, {
         ...nextBarTriggers,
-        slotStartMs: onLastBar ? lastMs - slotMs / 2 : lastMs + slotMs / 2,
-        slotEndMs: onLastBar ? lastMs + slotMs / 2 : lastMs + slotMs * 1.5,
+        slotStartMs,
+        slotEndMs,
       }, chartDateRange, minMaxPrice, width, height);
     }
 

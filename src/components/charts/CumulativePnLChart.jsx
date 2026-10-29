@@ -71,7 +71,7 @@ const CumulativePnLChart = ({ points, hasTrades, width, height, dateRange, preWi
     const span = valueRange.max - valueRange.min;
     const minMax = { min: valueRange.min - span * (DATE_LABEL_BAND / Math.max(1, height - DATE_LABEL_BAND)), max: valueRange.max };
 
-    drawGrid(ctx, width, height);
+    drawGrid(ctx, width, height, minMax);
     drawCumulativePnLLine(ctx, points, dateRange, minMax, width, height);
     // Axes last, so their labels sit on top of the curve
     drawDateAxis(ctx, dateRange, width, height);

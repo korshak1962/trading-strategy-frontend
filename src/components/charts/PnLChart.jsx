@@ -119,7 +119,7 @@ const PnLChart = ({ data, width, height, dateRange, trades, axisTitle, preWindow
           const minMaxPnL = findMinMaxTradeValues(visibleTrades);
           
           // Draw chart components
-          drawGrid(ctx, width, height);
+          drawGrid(ctx, width, height, minMaxPnL);
           drawIndividualTradeBars(ctx, visibleTrades, chartDateRange, minMaxPnL, width, height);
           // Axes last, so their labels sit on top of the bars
           drawDateAxis(ctx, chartDateRange, width, height);

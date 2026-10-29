@@ -55,6 +55,116 @@ export const findMinMaxPriceRange = (prices) => {
     return { min: -absMax - padding, max: absMax + padding };
   };
   
+  // ---------------------------------------------------------------------------------------------
+  // Bar-index ("logical") time axis. Every bar gets one equal slot on x; time between two bars
+  // (nights, weekends, holidays) takes no room - the same as TradingView. For a time between bars
+  // i and i+1 the logical coordinate is v = i + (ms - t_i) / (t_i+1 - t_i); before the first bar
+  // it extrapolates with the first bar spacing, after the last one with the last bar spacing, so
+  // the slot edges of utils/levelZones.js slotEdges (half the neighbouring spacing) fall exactly
+  // on v = i +/- 0.5 at both ends of the series too.
+  //
+  // The axis rides on the plot range itself (plotDateRange sets `range.axis`), so every drawing
+  // function keeps its signature: timeToX / xToTime read it and fall back to the old linear
+  // wall-clock mapping when a range has no axis (a plain [Date, Date]).
+  // ---------------------------------------------------------------------------------------------
+  const FALLBACK_SLOT_MS = 24 * 60 * 60 * 1000;
+
+  /** Bar axis for ascending bar times (non-finite and non-increasing entries dropped), or null. */
+  const buildBarAxis = (barTimes) => {
+    const times = [];
+    (barTimes || []).forEach(ms => {
+      if (Number.isFinite(ms) && (times.length === 0 || ms > times[times.length - 1])) times.push(ms);
+    });
+    const n = times.length;
+    if (n === 0) return null;
+    return {
+      times,
+      headStep: n >= 2 ? times[1] - times[0] : FALLBACK_SLOT_MS,
+      tailStep: n >= 2 ? times[n - 1] - times[n - 2] : FALLBACK_SLOT_MS,
+    };
+  };
+
+  /** ms -> logical bar coordinate on `axis` (binary search). */
+  const msToLogical = (axis, ms) => {
+    const { times, headStep, tailStep } = axis;
+    const n = times.length;
+    if (ms <= times[0]) return (ms - times[0]) / headStep;
+    if (ms >= times[n - 1]) return n - 1 + (ms - times[n - 1]) / tailStep;
+    let lo = 0;
+    let hi = n - 1; // times[lo] <= ms < times[hi]
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (times[mid] <= ms) lo = mid; else hi = mid;
+    }
+    return lo + (ms - times[lo]) / (times[hi] - times[lo]);
+  };
+
+  /** Logical bar coordinate -> ms on `axis` (inverse of msToLogical). */
+  const logicalToMs = (axis, v) => {
+    const { times, headStep, tailStep } = axis;
+    const n = times.length;
+    if (v <= 0) return times[0] + v * headStep;
+    if (v >= n - 1) return times[n - 1] + (v - (n - 1)) * tailStep;
+    const i = Math.floor(v);
+    return times[i] + (v - i) * (times[i + 1] - times[i]);
+  };
+
+  /**
+   * Time (ms) -> x (px) on a plot range. With a bar axis (plotDateRange) bars sit in equal slots
+   * and non-trading time takes no room; a plain [Date, Date] maps wall-clock time linearly.
+   * @param {number} ms
+   * @param {[Date, Date] & {axis?: Object}} range - the plot range
+   * @param {number} width - px
+   */
+  export const timeToX = (ms, range, width) => {
+    const axis = range?.axis;
+    if (axis) return ((msToLogical(axis, ms) - axis.lo) / (axis.hi - axis.lo)) * width;
+    const startMs = range[0].getTime();
+    return ((ms - startMs) / (range[1].getTime() - startMs)) * width;
+  };
+
+  /** x (px) -> time (ms) on a plot range: the inverse of {@link timeToX}. */
+  export const xToTime = (x, range, width) => {
+    const axis = range?.axis;
+    if (axis) return logicalToMs(axis, axis.lo + (x / width) * (axis.hi - axis.lo));
+    const startMs = range[0].getTime();
+    return startMs + (x / width) * (range[1].getTime() - startMs);
+  };
+
+  /**
+   * Time (ms) -> the range's zoom coordinate: the logical bar coordinate with a bar axis, else
+   * the ms itself. Zoom gestures scale / shift in this coordinate, so a wheel step changes the
+   * number of bars in view by the same ratio whatever the gaps inside the window.
+   */
+  export const timeToZoomCoord = (ms, range) => (range?.axis ? msToLogical(range.axis, ms) : ms);
+
+  /** The inverse of {@link timeToZoomCoord}. */
+  export const zoomCoordToTime = (v, range) => (range?.axis ? logicalToMs(range.axis, v) : v);
+
+  /**
+   * Width of one bar slot in px on a plot range with a bar axis; `fallbackSlots` (slots across the
+   * width) is used for a plain range.
+   */
+  export const slotWidthPx = (range, width, fallbackSlots) => {
+    const axis = range?.axis;
+    if (axis) return width / (axis.hi - axis.lo);
+    return width / Math.max(fallbackSlots || 1, 1);
+  };
+
+  /**
+   * One bar slot after the bar at `ms`, in ms: [start, end] of the slot `offset` bars to the right
+   * of the bar (offset 0 = the bar's own slot, 1 = the next, empty slot after the last bar). Uses
+   * the bar axis when there is one, else `fallbackSlotMs`.
+   */
+  export const barSlotMs = (ms, range, offset, fallbackSlotMs) => {
+    const axis = range?.axis;
+    if (axis) {
+      const v = msToLogical(axis, ms) + offset;
+      return [logicalToMs(axis, v - 0.5), logicalToMs(axis, v + 0.5)];
+    }
+    return [ms + (offset - 0.5) * fallbackSlotMs, ms + (offset + 0.5) * fallbackSlotMs];
+  };
+
   /**
    * The drawing ("plot") date range for a logical, zoomed dateRange: the same window widened by
    * half a candle slot on each side, so the first and last candles - centred on their own date -
@@ -62,8 +172,12 @@ export const findMinMaxPriceRange = (prices) => {
    *
    * Every pane draws with, and every mouse <-> time mapping uses, this one range, so the panes,
    * crosshair, tooltip, signals and zoom stay aligned; the logical range (zoom state, slider,
-   * zoom badge) is left as is. A slot is the average bar spacing inside the window, which is the
-   * same `width / visibleCandleCount` the price pane sizes its candles from.
+   * zoom badge) is left as is.
+   *
+   * With bar times the range carries a bar axis (`range.axis`, non-enumerable: {times, headStep,
+   * tailStep, lo, hi}, lo / hi in logical bar coordinates): x is then the bar index, every bar gets
+   * one equal slot and non-trading time takes no room (see timeToX). range[0] / range[1] are the
+   * times at x=0 / x=width, so "is it in view" filters on them keep working.
    *
    * @param {[Date, Date]|null} dateRange - the logical range
    * @param {number[]} barTimes - every bar's epoch ms, ascending
@@ -76,6 +190,15 @@ export const findMinMaxPriceRange = (prices) => {
     if (!dateRange || !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) return dateRange;
     const startMs = dateRange[0].getTime();
     const endMs = dateRange[1].getTime();
+    const axis = buildBarAxis(barTimes);
+    if (axis && Number.isFinite(startMs) && Number.isFinite(endMs)) {
+      const lo = msToLogical(axis, startMs) - 0.5;
+      let hi = msToLogical(axis, Math.max(startMs, endMs)) + 0.5 + extraSlotsRight;
+      if (!(hi > lo)) hi = lo + 1;
+      const range = [new Date(logicalToMs(axis, lo)), new Date(logicalToMs(axis, hi))];
+      Object.defineProperty(range, 'axis', { value: { ...axis, lo, hi }, enumerable: false });
+      return range;
+    }
     const times = barTimes || [];
     let count = 0;
     times.forEach(ms => { if (ms >= startMs && ms <= endMs) count++; });
@@ -101,19 +224,61 @@ export const findMinMaxPriceRange = (prices) => {
     ctx.fillText(message, width / 2, height / 2);
   };
   
-  export const drawGrid = (ctx, width, height) => {
+  /**
+   * "Nice" value ticks for [min, max]: the step is 1, 2, 2.5 or 5 x 10^k, chosen as the finest
+   * one giving at most maxTicks ticks; ticks are the step's multiples inside [min, max].
+   * `decimals` is what the step needs (2.5 -> 1, 0.25 -> 2, 50 -> 0).
+   * @returns {{step: number, decimals: number, ticks: number[]}}
+   */
+  export const niceTicks = (min, max, maxTicks = 6) => {
+    if (!Number.isFinite(min) || !Number.isFinite(max) || !(max > min)) return { step: 0, decimals: 2, ticks: [] };
+    const raw = (max - min) / Math.max(1, maxTicks - 1);
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    let step = 10 * mag;
+    for (const c of [1, 2, 2.5, 5, 10]) {
+      const candidate = c * mag;
+      if (Math.floor(max / candidate) - Math.ceil(min / candidate) + 1 <= maxTicks) {
+        step = candidate;
+        break;
+      }
+    }
+    let decimals = 0;
+    while (decimals < 10 && Math.abs(Math.round(step * 10 ** decimals) - step * 10 ** decimals) > 1e-6) decimals++;
+    const ticks = [];
+    const first = Math.ceil(min / step - 1e-9);
+    const last = Math.floor(max / step + 1e-9);
+    for (let k = first; k <= last; k++) ticks.push(Number((k * step).toFixed(decimals)));
+    return { step, decimals, ticks };
+  };
+
+  // Value ticks of a pane: shared by drawValueAxis (labels) and drawGrid (horizontal lines), so the
+  // grid lines sit at the labelled values. Short panes get fewer, less crowded ticks.
+  const paneValueTicks = (min, max, height) => niceTicks(min, max, height < 120 ? 5 : 6);
+  const valueToY = (value, min, max, height) => height - ((value - min) / (max - min)) * height;
+
+  /**
+   * Background grid. With `minMax` the horizontal lines sit at the value axis's nice ticks (see
+   * drawValueAxis); without it, at fixed fifths of the height.
+   */
+  export const drawGrid = (ctx, width, height, minMax = null) => {
     ctx.strokeStyle = '#ddd';
     ctx.lineWidth = 0.5;
-    
+
     // Draw horizontal grid lines
-    const numHLines = 5;
-    for (let i = 0; i <= numHLines; i++) {
-      const y = (i / numHLines) * height;
+    const ys = [];
+    if (minMax && minMax.max > minMax.min) {
+      paneValueTicks(minMax.min, minMax.max, height).ticks
+        .forEach(value => ys.push(valueToY(value, minMax.min, minMax.max, height)));
+    } else {
+      const numHLines = 5;
+      for (let i = 0; i <= numHLines; i++) ys.push((i / numHLines) * height);
+    }
+    ys.forEach(y => {
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(width, y);
       ctx.stroke();
-    }
+    });
     
     // Draw vertical grid lines
     const numVLines = 10;
@@ -143,19 +308,24 @@ export const findMinMaxPriceRange = (prices) => {
       return;
     }
     
-    const [startDate, endDate] = dateRange;
-    const totalMs = endDate.getTime() - startDate.getTime();
-    
     ctx.fillStyle = '#333';
     ctx.font = '10px Arial';
     ctx.textAlign = 'center';
-    
-    // Draw date labels
+
+    // Draw date labels at equal x. With a bar axis the date is the nearest bar's (a point between
+    // two bars - a night, a weekend - has no trading date of its own); past either end of the
+    // series it is extrapolated. Bar times ascend, so the labels stay chronological.
+    const axis = dateRange.axis;
     const numLabels = Math.min(10, Math.floor(width / 80)); // Ensure labels don't overlap
     for (let i = 0; i <= numLabels; i++) {
       const x = (i / numLabels) * width;
-      const ms = (i / numLabels) * totalMs;
-      const date = new Date(startDate.getTime() + ms);
+      let ms = xToTime(x, dateRange, width);
+      if (axis) {
+        const v = msToLogical(axis, ms);
+        const n = axis.times.length;
+        if (v >= 0 && v <= n - 1) ms = axis.times[Math.min(n - 1, Math.round(v))];
+      }
+      const date = new Date(ms);
       
       // Format date as YYYY-MM-DD. Dates here are UTC-faked exchange wall clock (utils/dates.js,
       // decision 0.18), so toISOString() yields the exchange calendar day in every browser zone.
@@ -187,22 +357,27 @@ export const findMinMaxPriceRange = (prices) => {
    * clear of the date-axis band (the bottom one collided with the first date), and drawn on a
    * light backing so they stay readable over candles/bars.
    */
-  const drawValueAxis = (ctx, min, max, height, axisTitle, format = (v) => v.toFixed(2)) => {
+  const drawValueAxis = (ctx, min, max, height, axisTitle, format = (v, decimals) => v.toFixed(decimals)) => {
     ctx.save();
     ctx.font = '10px Arial';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
 
-    const numLabels = height < 120 ? 4 : 5; // short panes: fewer, less crowded labels
+    // Labels at nice round values (niceTicks; short panes get fewer), the same values drawGrid
+    // draws its horizontal lines at. A tick inside the date-axis band or at the very top is not
+    // labelled (moving its label off the tick would misplace the value); a label close to the
+    // edge is nudged just inside the canvas.
+    const { ticks, decimals } = (max > min) ? paneValueTicks(min, max, height) : { ticks: [], decimals: 2 };
     const top = 7;
     const bottom = height - DATE_AXIS_BAND - 6;
     let lastY = -Infinity;
-    for (let i = numLabels; i >= 0; i--) { // top-down so the gap check keeps the upper labels
-      const rawY = height - (i / numLabels) * height;
+    for (let i = ticks.length - 1; i >= 0; i--) { // top-down so the gap check keeps the upper labels
+      const rawY = valueToY(ticks[i], min, max, height);
+      if (rawY < 2 || rawY > height - DATE_AXIS_BAND - 2) continue;
       const y = Math.min(bottom, Math.max(top, rawY));
       if (y - lastY < MIN_LABEL_GAP) continue;
       lastY = y;
-      const text = format(min + (i / numLabels) * (max - min));
+      const text = format(ticks[i], decimals);
       const textWidth = ctx.measureText(text).width;
       ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
       ctx.fillRect(VALUE_LABEL_X - 2, y - 6, textWidth + 4, 12);
@@ -280,7 +455,6 @@ export const findMinMaxPriceRange = (prices) => {
     
     const [startDate, endDate] = dateRange;
     const { min, max } = minMax;
-    const totalMs = endDate.getTime() - startDate.getTime();
     
     // Default candle width if not provided
     const defaultCandleWidth = Math.min(
@@ -299,7 +473,7 @@ export const findMinMaxPriceRange = (prices) => {
     
     visiblePrices.forEach((price) => {
       const date = parseExchangeTs(price.date);
-      const x = ((date.getTime() - startDate.getTime()) / totalMs) * width;
+      const x = timeToX(date.getTime(), dateRange, width);
       
       // Calculate y coordinates for the price components
       const openY = height - ((price.open - min) / (max - min)) * height;
@@ -354,9 +528,7 @@ export const findMinMaxPriceRange = (prices) => {
       return; // Skip drawing if no valid date range
     }
     
-    const [startDate, endDate] = dateRange;
     const { min, max } = minMax;
-    const totalMs = endDate.getTime() - startDate.getTime();
     
     ctx.strokeStyle = color;
     ctx.lineWidth = 1;
@@ -370,7 +542,7 @@ export const findMinMaxPriceRange = (prices) => {
         return;
       }
       const date = parseExchangeTs(indicator.date);
-      const x = ((date.getTime() - startDate.getTime()) / totalMs) * width;
+      const x = timeToX(date.getTime(), dateRange, width);
       const y = height - ((indicator.value - min) / (max - min)) * height;
       
       if (!started) {
@@ -418,7 +590,7 @@ export const findMinMaxPriceRange = (prices) => {
     const endMs = endDate.getTime();
 
     const toXY = (ms, value) => ({
-      x: ((ms - startMs) / totalMs) * width,
+      x: timeToX(ms, dateRange, width),
       y: height - ((value - min) / (max - min)) * height,
     });
 
@@ -585,13 +757,11 @@ export const findMinMaxPriceRange = (prices) => {
       return; // Skip drawing if no valid date range
     }
 
-    const [startDate, endDate] = dateRange;
     const { min, max } = minMax;
-    const totalMs = endDate.getTime() - startDate.getTime();
 
     signals.forEach(signal => {
       const date = parseExchangeTs(signal.date);
-      const x = ((date.getTime() - startDate.getTime()) / totalMs) * width;
+      const x = timeToX(date.getTime(), dateRange, width);
       const y = height - ((signal.price - min) / (max - min)) * height;
 
       // Halo behind the selected trade's own signal markers - confirms what got clicked, since
@@ -687,11 +857,10 @@ export const findMinMaxPriceRange = (prices) => {
 
     const [startDate, endDate] = dateRange;
     const { min, max } = minMax;
-    const totalMs = endDate.getTime() - startDate.getTime();
 
     const toXY = (point) => {
       const date = parseExchangeTs(point.date);
-      const x = ((date.getTime() - startDate.getTime()) / totalMs) * width;
+      const x = timeToX(date.getTime(), dateRange, width);
       const y = height - ((point.price - min) / (max - min)) * height;
       return { x, y };
     };
@@ -744,7 +913,7 @@ export const findMinMaxPriceRange = (prices) => {
     if (!(totalMs > 0) || !(max > min)) return;
 
     const toXY = (point) => ({
-      x: ((parseExchangeTs(point.date).getTime() - startDate.getTime()) / totalMs) * width,
+      x: timeToX(parseExchangeTs(point.date).getTime(), dateRange, width),
       y: height - ((point.price - min) / (max - min)) * height,
     });
     const drawPolyline = (points) => {
@@ -817,7 +986,7 @@ export const findMinMaxPriceRange = (prices) => {
     const { min, max } = minMax;
     if (totalMs <= 0 || max === min) return;
 
-    const xOf = (ms) => ((ms - startMs) / totalMs) * width;
+    const xOf = (ms) => timeToX(ms, dateRange, width);
     const yOf = (price) => height - ((price - min) / (max - min)) * height;
 
     // Weak under strong, the outlined trigger zone on top.
@@ -856,9 +1025,7 @@ export const findMinMaxPriceRange = (prices) => {
       return; // Skip drawing if no valid date range
     }
     
-    const [startDate, endDate] = dateRange;
     const { min, max } = minMax;
-    const totalMs = endDate.getTime() - startDate.getTime();
     
     const zeroY = height - ((0 - min) / (max - min)) * height;
     
@@ -869,8 +1036,8 @@ export const findMinMaxPriceRange = (prices) => {
       const closeDate = trade.closeDate instanceof Date ? trade.closeDate : parseExchangeTs(trade.closeDate);
       
       // Calculate x positions for open and close dates
-      const openX = ((openDate.getTime() - startDate.getTime()) / totalMs) * width;
-      const closeX = ((closeDate.getTime() - startDate.getTime()) / totalMs) * width;
+      const openX = timeToX(openDate.getTime(), dateRange, width);
+      const closeX = timeToX(closeDate.getTime(), dateRange, width);
       
       // Bar width spans from open to close
       const barWidth = closeX - openX;
@@ -956,7 +1123,7 @@ export const findMinMaxPriceRange = (prices) => {
     let to = from;
     while (to < points.length - 1 && points[to].date.getTime() <= endMs) to++;
 
-    const xOf = (ms) => ((ms - startMs) / totalMs) * width;
+    const xOf = (ms) => timeToX(ms, dateRange, width);
     const yOf = (v) => height - ((v - min) / (max - min)) * height;
     const zeroY = yOf(0);
 
@@ -1052,7 +1219,7 @@ export const findMinMaxPriceRange = (prices) => {
     return {
       startMs,
       endMs,
-      xOf: (ms) => ((ms - startMs) / totalMs) * width,
+      xOf: (ms) => timeToX(ms, dateRange, width),
       yOf: (price) => height - ((price - min) / (max - min)) * height,
     };
   };
@@ -1099,7 +1266,7 @@ export const findMinMaxPriceRange = (prices) => {
     const startMs = dateRange[0].getTime();
     const totalMs = dateRange[1].getTime() - startMs;
     if (!(totalMs > 0) || !Number.isFinite(span.endMs)) return;
-    const x = ((span.endMs - startMs) / totalMs) * width;
+    const x = timeToX(span.endMs, dateRange, width);
     if (x <= 0) return; // the whole view is inside the trading window
     ctx.save();
     ctx.fillStyle = PRE_WINDOW_STYLE.fill;
@@ -1152,7 +1319,7 @@ export const findMinMaxPriceRange = (prices) => {
     const rangeStart = dateRange[0].getTime();
     const totalMs = dateRange[1].getTime() - rangeStart;
     if (!(totalMs > 0)) return;
-    const xOf = (ms) => ((ms - rangeStart) / totalMs) * width;
+    const xOf = (ms) => timeToX(ms, dateRange, width);
     const clamp = (x) => Math.max(0, Math.min(width, x));
     const xStart = xOf(span.startMs);
     const xMid = xOf(span.midMs);
@@ -1483,7 +1650,7 @@ export const findMinMaxPriceRange = (prices) => {
     const endMs = dateRange[1].getTime();
     const totalMs = endMs - startMs;
     if (!(totalMs > 0)) return;
-    const xOf = (ms) => ((ms - startMs) / totalMs) * width;
+    const xOf = (ms) => timeToX(ms, dateRange, width);
     ctx.save();
     ctx.fillStyle = '#f3f4f6';
     ctx.fillRect(0, 0, width, height);
