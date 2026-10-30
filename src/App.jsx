@@ -1,10 +1,13 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useFullscreen } from './hooks/useFullscreen';
 import { useElementSize } from './hooks/useElementSize';
+import { useHashRoute } from './hooks/useHashRoute';
 import { useIndicatorSelection } from './hooks/useIndicatorSelection';
 import './ChartFullscreen.css';
 import './ResultsTabs.css';
 import Header from './components/Header';
+import TabPane from './components/TabPane';
+import { channelsRequestFromScreener } from './navigation/route';
 import StrategySelector from './components/StrategySelector';
 import StrategyConfig from './components/StrategyConfig';
 import DateRangePicker from './components/DateRangePicker';
@@ -106,8 +109,31 @@ const App = () => {
   // explorer), 'screener' (universe screener: filters, results, universe), 'downloader' (price
   // download + indicator recalc jobs) or 'watchlist' (signal watches). The tabs are functionally
   // independent; the Watchlist only opens a watch's run in Backtest (deep link,
-  // openWatchInBacktest), the Screener opens a ticker in Channels (initialRequest) or Backtest.
-  const [activeTab, setActiveTab] = useState('backtest');
+  // openWatchInBacktest), the Screener opens a ticker in Channels or Backtest.
+  //
+  // Browser navigation (screener architect.md "Browser navigation" phase 1): the tab, the Screener
+  // sub-view and the Channels request live in the URL hash / history entry (useHashRoute), so Back
+  // and Forward move between them. A deliberate move pushes an entry (navigate); form typing, sort
+  // and zoom never do. Backtest, Channels and Screener stay mounted once opened (TabPane), so
+  // Back / Forward return to the same results without new requests.
+  const { route, navigate } = useHashRoute();
+  const activeTab = route.tab;
+  const activeTabRef = useRef(activeTab);
+  useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
+  // Last Screener sub-route and Channels request shown: a tab click returns to them (the URL then
+  // names what is on screen instead of resetting the panel).
+  const lastScreenerRoute = useRef(null);
+  const lastChannelsRequest = useRef(null);
+  useEffect(() => {
+    if (route.tab === 'screener') lastScreenerRoute.current = route.screener;
+    if (route.tab === 'channels' && route.channels) lastChannelsRequest.current = route.channels;
+  }, [route]);
+  const changeTab = useCallback((tab) => {
+    if (tab === 'screener') navigate({ tab, screener: lastScreenerRoute.current });
+    else if (tab === 'channels') navigate({ tab, channels: lastChannelsRequest.current });
+    else navigate({ tab });
+  }, [navigate]);
+  const openWatchlistTab = useCallback(() => navigate({ tab: 'watchlist' }), [navigate]);
 
   // ---- Universe screener (screener architect.md "Universe screener rev 1" §2.3) ----
   // Badge "new results", polled from any tab; seen once the Screener tab is open.
@@ -116,15 +142,27 @@ const App = () => {
   useEffect(() => {
     if (activeTab === 'screener') markScreenerSeen();
   }, [activeTab, markScreenerSeen, screenerLatest.latestRunId]);
-  // Screener → Channels: the request the Explorer fills its form with and detects once ({ticker,
-  // timeframe, startDate, endDate, params, view, nonce}); cleared when the Explorer consumed it so
-  // returning to the tab later does not re-run it.
-  const [channelsRequest, setChannelsRequest] = useState(null);
+  // The kept-alive Screener reloads its list in the background: that clears the badge only while
+  // the Screener is the visible tab.
+  const markScreenerRunsSeen = useCallback((runs) => {
+    if (activeTabRef.current === 'screener') markScreenerSeen(runs);
+  }, [markScreenerSeen]);
+  // Screener sub-view changes: a push, or a replace of the current entry (auto-chosen run,
+  // corrected id) - the latter only while the Screener entry is still the current one.
+  const changeScreenerRoute = useCallback((screener, { replace = false } = {}) => {
+    if (replace && activeTabRef.current !== 'screener') return;
+    navigate({ tab: 'screener', screener }, { replace });
+  }, [navigate]);
+  // Screener → Channels: a new history entry carrying the request; the Explorer fills its form
+  // with it and detects (Back returns to the Screener as it was, Forward to the same chart).
   const openInChannels = useCallback((req) => {
-    setChannelsRequest({ ...req, nonce: Date.now() });
-    setActiveTab('channels');
-  }, []);
-  const consumeChannelsRequest = useCallback(() => setChannelsRequest(null), []);
+    navigate({ tab: 'channels', channels: channelsRequestFromScreener(req) });
+  }, [navigate]);
+  // A detection started in the Explorer itself (form / A-B toggle) rewrites the current entry.
+  const changeChannelsRequest = useCallback((request) => {
+    if (activeTabRef.current !== 'channels') return;
+    navigate({ tab: 'channels', channels: request }, { replace: true });
+  }, [navigate]);
 
   // ---- Signal watch (screener architect.md "Signal watch — design rev 1" §6.2) ----
   // Badge + toasts: polled from any tab.
@@ -956,7 +994,7 @@ const App = () => {
     try {
       const dto = await getWatchBacktestConfig(watchId, signalId);
       const cfg = dto?.config || {};
-      setActiveTab('backtest');
+      navigate({ tab: 'backtest' });
       setMode('backtest');
       applyConfig(cfg, { forceTradeStart: true });
       setCaseWarnings(null);
@@ -986,10 +1024,10 @@ const App = () => {
   // nothing runs by itself.
   const openScreenerTickerInBacktest = (t) => {
     if (loading || optActive) {
-      setActiveTab('backtest');
+      navigate({ tab: 'backtest' });
       return; // a run is in flight: do not swap the ticker under it
     }
-    setActiveTab('backtest');
+    navigate({ tab: 'backtest' });
     setMode('backtest');
     setTicker(t);
     if (timeFrame !== 'DAY') handleTimeFrameChange('DAY');
@@ -999,6 +1037,11 @@ const App = () => {
     setError(null);
     clearSignalCharts();
   };
+
+  // Stable for the memoised ScreenerPanel: the latest openScreenerTickerInBacktest through a ref.
+  const screenerBacktestRef = useRef(null);
+  useEffect(() => { screenerBacktestRef.current = openScreenerTickerInBacktest; });
+  const openScreenerBacktest = useCallback((t) => screenerBacktestRef.current?.(t), []);
 
   // Deep link auto-run: once the form state set by openWatchInBacktest has rendered.
   useEffect(() => {
@@ -1012,7 +1055,7 @@ const App = () => {
   // Toast click: open the Watchlist and mark the notification read.
   const handleOpenToast = (n) => {
     watchNotifications.dismiss(n.id);
-    setActiveTab('watchlist');
+    navigate({ tab: 'watchlist' });
     markNotificationRead(n.id).catch(() => {}).finally(() => watchNotifications.refresh());
   };
 
@@ -1170,25 +1213,36 @@ const App = () => {
     ? !!optJobId && !!optJob?.hasResult
     : !!backtestConfigRef.current;
 
+  // Backtest, Channels and Screener: kept alive once opened (TabPane). Downloader and Watchlist
+  // are cheap and poll on their own, so they mount only while shown (as before).
+  const renderKeptAlive = () => (
+    <>
+      <TabPane active={activeTab === 'backtest'}>{renderBacktest()}</TabPane>
+      <TabPane active={activeTab === 'channels'}>
+        <main className="flex-grow w-full px-4 py-8">
+          <ChannelExplorer
+            request={activeTab === 'channels' ? route.channels : null}
+            onRequestChange={changeChannelsRequest}
+          />
+        </main>
+      </TabPane>
+      <TabPane active={activeTab === 'screener'}>
+        <main className="flex-grow w-full px-4 py-8">
+          <ScreenerPanel
+            onOpenInChannels={openInChannels}
+            onOpenInBacktest={openScreenerBacktest}
+            onSeenRuns={markScreenerRunsSeen}
+            latestRunId={screenerLatest.latestRunId}
+            route={activeTab === 'screener' ? route.screener : null}
+            onRouteChange={changeScreenerRoute}
+          />
+        </main>
+      </TabPane>
+    </>
+  );
+
   const renderMain = () => {
     switch (activeTab) {
-      case 'channels':
-        return (
-          <main className="flex-grow w-full px-4 py-8">
-            <ChannelExplorer initialRequest={channelsRequest} onInitialRequestConsumed={consumeChannelsRequest} />
-          </main>
-        );
-      case 'screener':
-        return (
-          <main className="flex-grow w-full px-4 py-8">
-            <ScreenerPanel
-              onOpenInChannels={openInChannels}
-              onOpenInBacktest={openScreenerTickerInBacktest}
-              onSeenRuns={markScreenerSeen}
-              latestRunId={screenerLatest.latestRunId}
-            />
-          </main>
-        );
       case 'downloader':
         return (
           <main className="flex-grow w-full px-4 py-8">
@@ -1210,7 +1264,11 @@ const App = () => {
           </main>
         );
       default:
-        return (
+        return null;
+    }
+  };
+
+  const renderBacktest = () => (
       // Full page width (like the other tabs): a fixed-width parameters column flush at the
       // left gutter, results take all the remaining width. Single column below lg. 410px is the
       // narrowest width (measured) at which the DateRangePicker quick-range buttons stay on one line.
@@ -1226,7 +1284,7 @@ const App = () => {
               onLoad={handleLoadCase}
               disabled={loading}
               runStarts={runStarts}
-              onOpenWatchlist={() => setActiveTab('watchlist')}
+              onOpenWatchlist={openWatchlistTab}
             />
 
             {/* Watch run banner (deep link from the Watchlist) */}
@@ -1583,7 +1641,7 @@ const App = () => {
                       getCaseMeta={() => (mode === 'optimize'
                         ? { ticker, timeframe: timeFrame, longOnly, startDate: toLocalIsoDate(startDate) }
                         : null)}
-                      onOpenWatchlist={() => setActiveTab('watchlist')}
+                      onOpenWatchlist={openWatchlistTab}
                     />
                   )}
                 </div>
@@ -1709,15 +1767,13 @@ const App = () => {
           </div>
         </div>
       </main>
-        );
-    }
-  };
+  );
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       <Header
         activeTab={activeTab}
-        onChangeTab={setActiveTab}
+        onChangeTab={changeTab}
         watch={watchNotifications.available ? watchNotifications : null}
         screenerNew={screenerLatest.available && activeTab !== 'screener' ? screenerLatest.newCount : 0}
       />
@@ -1728,6 +1784,7 @@ const App = () => {
         onDismissAll={watchNotifications.dismissAll}
       />
 
+      {renderKeptAlive()}
       {renderMain()}
 
       <footer className="py-4 bg-gray-800 text-white text-center">

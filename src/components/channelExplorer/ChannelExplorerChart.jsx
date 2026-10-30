@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createChart } from 'lightweight-charts';
 import { formatPct, formatStatus, formatAge, formatExitSide, formatBarDate, isProvisional, channelKey } from './format';
 import { exchangeTsSeconds } from '../../utils/dates';
+import { useTabActive } from '../tabActive';
 import './ChannelExplorerChart.css';
 
 const DIRECTION_COLOR = { 1: '#26a69a', '-1': '#ef5350', 0: '#787b86' };
@@ -165,6 +166,11 @@ export default function ChannelExplorerChart({
   // Latest callback, read by the effect's closures (created once per build).
   const onSelectRef = useRef(onSelectChannel);
   useEffect(() => { onSelectRef.current = onSelectChannel; }, [onSelectChannel]);
+  // Whether the Channels tab is the visible one (keep-alive TabPane): the global Delete key must
+  // not delete the selected channel while another tab is on screen.
+  const tabActive = useTabActive();
+  const tabActiveRef = useRef(tabActive);
+  useEffect(() => { tabActiveRef.current = tabActive; }, [tabActive]);
 
   const setHierarchyMode = (mode) => {
     hierarchyModeRef.current = mode;   // ref first: repaint reads the ref, not the state
@@ -245,6 +251,8 @@ export default function ChannelExplorerChart({
     });
 
     const ro = new ResizeObserver(() => {
+      // 0 wide = the tab is hidden (keep-alive): keep the chart's size; showing it fires again.
+      if (el.clientWidth === 0) return;
       // Height too, not just width: the container is a fixed CSS height normally, but grows
       // to fill the viewport in fullscreen mode (see .ch-chart-wrapper:fullscreen in the
       // stylesheet) — lightweight-charts doesn't auto-track its container's size on its own,
@@ -731,6 +739,7 @@ export default function ChannelExplorerChart({
     // ---- Delete/Backspace removes the selected channel ----
     function onKeyDown(e) {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      if (!tabActiveRef.current) return; // the Channels tab is hidden
       const activeTag = document.activeElement && document.activeElement.tagName;
       if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') return;
       const key = selectedKeyRef.current;

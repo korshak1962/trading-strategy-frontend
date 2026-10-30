@@ -6,7 +6,7 @@
 // opens the Channel Explorer with the filter's window and detector params ending at the run's
 // basis (onOpenInChannels); "Backtest" prepares the full indicator set of a MINIMAL universe ticker
 // first, then opens the Strategy Backtester (onOpenInBacktest).
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './screener.css';
 import '../watch/watch.css';
 import {
@@ -55,9 +55,18 @@ const runDefinition = (run, filter) => run?.definition || filter || null;
  * @param {(ticker: string) => void} props.onOpenInBacktest
  * @param {(runs: Array) => void} [props.onSeenRuns] the latest runs are on screen (clears the badge)
  * @param {number|null} [props.latestRunId] bumps (badge poll) → reload the list
+ * @param {{view: string, filterId: number|null, runId: number|null}|null} [props.route] the
+ *   Screener part of the current history entry (navigation/route.js); null while the tab is hidden.
+ *   A route that differs from what is on screen (Back / Forward, a reload, a pasted link) is
+ *   applied; one that matches changes nothing (no new requests)
+ * @param {(route: {view, filterId?, runId?}, opts?: {replace?: boolean}) => void} [props.onRouteChange]
+ *   a deliberate move (sub-tab, filter, run, Run now) pushes an entry; the auto-chosen latest run and
+ *   corrected ids replace the current one
  */
-export default function ScreenerPanel({ onOpenInChannels, onOpenInBacktest, onSeenRuns, latestRunId = null }) {
-  const [view, setView] = useState('filters');
+function ScreenerPanel({
+  onOpenInChannels, onOpenInBacktest, onSeenRuns, latestRunId = null, route = null, onRouteChange = null,
+}) {
+  const [view, setView] = useState(() => route?.view || 'filters');
   const [meta, setMeta] = useState(null);
   const [schedules, setSchedules] = useState([]);
   const [filters, setFilters] = useState(null);
@@ -81,6 +90,13 @@ export default function ScreenerPanel({ onOpenInChannels, onOpenInBacktest, onSe
   const runSeq = useRef(0);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; runSeq.current += 1; }; }, []);
+
+  // Latest route / callback for the async loaders (an auto-chosen run is written into the entry only
+  // while that entry is still the one on screen).
+  const routeRef = useRef(route);
+  const onRouteChangeRef = useRef(onRouteChange);
+  useEffect(() => { routeRef.current = route; onRouteChangeRef.current = onRouteChange; }, [route, onRouteChange]);
+  const pushRoute = (next) => onRouteChange?.(next);
 
   const detectorDefaults = useMemo(() => detectorDefaultsOf(meta), [meta]);
   const schedulesById = useMemo(() => new Map(schedules.map((s) => [s.id, s])), [schedules]);
@@ -166,7 +182,18 @@ export default function ScreenerPanel({ onOpenInChannels, onOpenInBacktest, onSe
       }
       loadFilters();
     } catch (err) {
-      if (seq === runSeq.current) setRunError(describeApiError(err));
+      if (seq !== runSeq.current) return;
+      if (err.status === 404) {
+        // An unknown run id (a stale or hand-edited link): say so and drop it from the URL.
+        setRunId(null);
+        setRunError(`Run #${id} not found.`);
+        const r = routeRef.current;
+        if (r?.view === 'results' && r.runId === id) {
+          onRouteChangeRef.current?.({ view: 'results', filterId: r.filterId, runId: null }, { replace: true });
+        }
+        return;
+      }
+      setRunError(describeApiError(err));
     }
   }, [loadFilters]);
 
@@ -174,14 +201,29 @@ export default function ScreenerPanel({ onOpenInChannels, onOpenInBacktest, onSe
     setView('results');
     setResultsFilterId(filterId);
     setRuns([]);
+    // The run is known (or "none yet") right away, so the route reconciliation below sees the
+    // state it asked for and does not load the run a second time.
+    runSeq.current += 1;
+    // Any later showRun / openResults / route reset bumps runSeq: this list response is then stale.
+    const seq = runSeq.current;
+    setRunId(preferRunId);
+    setRun(null);
+    setDiff(null);
+    setRunError(null);
     if (filterId == null) { showRun(null); return; }
     try {
       const rs = await listFilterRuns(filterId, 30);
-      if (!alive.current) return;
+      if (!alive.current || seq !== runSeq.current) return;
       setRuns(rs);
       const target = preferRunId ?? rs[0]?.id ?? null;
       showRun(target);
+      // The latest run was chosen for a bare "?filter=": write it into the same history entry.
+      const r = routeRef.current;
+      if (preferRunId == null && target != null && r?.view === 'results' && r.filterId === filterId && r.runId == null) {
+        onRouteChangeRef.current?.({ view: 'results', filterId, runId: target }, { replace: true });
+      }
     } catch (err) {
+      if (!alive.current || seq !== runSeq.current) return;
       setRunError(describeApiError(err));
       if (preferRunId != null) showRun(preferRunId);
     }
@@ -209,11 +251,14 @@ export default function ScreenerPanel({ onOpenInChannels, onOpenInBacktest, onSe
     try {
       const r = await runFilterNow(f.id);
       setBusyId(null);
-      openResults(f.id, r?.runId ?? r?.id ?? null);
+      const newRunId = r?.runId ?? r?.id ?? null;
+      openResults(f.id, newRunId);
+      pushRoute({ view: 'results', filterId: f.id, runId: newRunId });
     } catch (err) {
       setBusyId(null);
       if (err.status === 409 && err.runId != null) {
         openResults(f.id, err.runId);
+        pushRoute({ view: 'results', filterId: f.id, runId: err.runId });
         return;
       }
       setRowMessage(f.id, { kind: 'error', text: err.status === 409 ? 'This filter is already queued or running.' : describeApiError(err) });
@@ -322,10 +367,65 @@ export default function ScreenerPanel({ onOpenInChannels, onOpenInBacktest, onSe
     setBacktestMsg({ ticker: row.ticker, text: result.text });
   };
 
+  // Deliberate moves: the state changes here and an entry is pushed with the same values, so the
+  // reconciliation below finds nothing to do.
   const switchView = (v) => {
+    if (v === view) return;
     setView(v);
-    if (v === 'results' && resultsFilterId == null && filters?.length) openResults(filters[0].id);
+    if (v !== 'results') { pushRoute({ view: v }); return; }
+    if (resultsFilterId == null && filters?.length) {
+      openResults(filters[0].id);
+      pushRoute({ view: 'results', filterId: filters[0].id, runId: null });
+      return;
+    }
+    pushRoute({ view: 'results', filterId: resultsFilterId, runId: resultsFilterId != null ? runId : null });
   };
+
+  const selectFilter = (filterId) => {
+    openResults(filterId);
+    pushRoute({ view: 'results', filterId, runId: null });
+  };
+
+  const selectRun = (id) => {
+    showRun(id);
+    pushRoute({ view: 'results', filterId: resultsFilterId, runId: id });
+  };
+
+  // Route → state (Back / Forward, a reload, a pasted link). Waits for the filter list to check the
+  // filter id; an unknown one is reported and dropped from the URL (replace).
+  const filtersLoaded = filters !== null;
+  useEffect(() => {
+    if (!route) return; // hidden tab: nothing to apply
+    if (route.view !== view) setView(route.view);
+    if (route.view !== 'results') return;
+    const clearResults = () => {
+      runSeq.current += 1;
+      setResultsFilterId(null);
+      setRuns([]);
+      setRunId(null);
+      setRun(null);
+      setDiff(null);
+    };
+    if (route.filterId == null) {
+      if (resultsFilterId != null) clearResults();
+      return;
+    }
+    if (route.filterId !== resultsFilterId) {
+      if (!filtersLoaded) return;
+      if (!(filters || []).some((f) => f.id === route.filterId)) {
+        clearResults();
+        setRunError(`Filter #${route.filterId} not found.`);
+        onRouteChange?.({ view: 'results', filterId: null, runId: null }, { replace: true });
+        return;
+      }
+      openResults(route.filterId, route.runId);
+      return;
+    }
+    if (route.runId != null && route.runId !== runId) showRun(route.runId);
+    // Only a route change (or the filter list arriving) is applied; the panel's own moves already
+    // match the route they push.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route, filtersLoaded]);
 
   return (
     <div className="flex flex-col gap-6" data-testid="screener-panel">
@@ -365,7 +465,7 @@ export default function ScreenerPanel({ onOpenInChannels, onOpenInBacktest, onSe
           rowMessages={rowMessages}
           onNew={handleNew}
           onRunNow={handleRunNow}
-          onResults={(f) => openResults(f.id)}
+          onResults={(f) => selectFilter(f.id)}
           onEdit={handleEdit}
           onDuplicate={handleDuplicate}
           onDelete={handleDelete}
@@ -379,7 +479,7 @@ export default function ScreenerPanel({ onOpenInChannels, onOpenInBacktest, onSe
             <div>
               <label className="block text-xs text-gray-600 mb-1" htmlFor="sr-filter">Filter</label>
               <select id="sr-filter" className="p-2 border rounded text-sm bg-white min-w-[14rem]" value={resultsFilterId ?? ''}
-                onChange={(e) => openResults(e.target.value === '' ? null : Number(e.target.value))}>
+                onChange={(e) => selectFilter(e.target.value === '' ? null : Number(e.target.value))}>
                 <option value="">—</option>
                 {(filters || []).map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
@@ -387,9 +487,9 @@ export default function ScreenerPanel({ onOpenInChannels, onOpenInBacktest, onSe
             <div>
               <label className="block text-xs text-gray-600 mb-1" htmlFor="sr-run">Run</label>
               <select id="sr-run" className="p-2 border rounded text-sm bg-white min-w-[16rem]" value={runId ?? ''}
-                onChange={(e) => showRun(e.target.value === '' ? null : Number(e.target.value))} disabled={!runs.length && runId == null}>
+                onChange={(e) => selectRun(e.target.value === '' ? null : Number(e.target.value))} disabled={!runs.length && runId == null}>
                 {runId != null && !runs.some((r) => r.id === runId) && <option value={runId}>#{runId} (current)</option>}
-                {runs.length === 0 && runId == null && <option value="">no runs</option>}
+                {runId == null && <option value="">{runs.length ? '—' : 'no runs'}</option>}
                 {runs.map((r) => (
                   <option key={r.id} value={r.id}>
                     #{r.id} · {fmtDay(r.basisDay)} · {r.status}{r.passCount != null ? ` · PASS ${r.passCount}` : ''}{r.triggerKind ? ` · ${r.triggerKind}` : ''}
@@ -421,7 +521,9 @@ export default function ScreenerPanel({ onOpenInChannels, onOpenInBacktest, onSe
           {resultsFilterId == null ? (
             <p className="text-sm text-gray-500">Choose a filter.</p>
           ) : runId == null ? (
-            <p className="text-sm text-gray-500">This filter has no runs yet — press “Run now”.</p>
+            runs.length === 0 && !runError
+              ? <p className="text-sm text-gray-500">This filter has no runs yet — press “Run now”.</p>
+              : <p className="text-sm text-gray-500">Choose a run.</p>
           ) : !run ? (
             <p className="text-sm text-gray-500">Loading the run…</p>
           ) : !RUN_TERMINAL.has(run.status) ? (
@@ -448,3 +550,5 @@ export default function ScreenerPanel({ onOpenInChannels, onOpenInBacktest, onSe
     </div>
   );
 }
+
+export default memo(ScreenerPanel);

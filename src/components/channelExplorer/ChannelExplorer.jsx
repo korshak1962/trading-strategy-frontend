@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { memo, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { detectChannels, fetchPrices, normalizeViewInfo, CHANNEL_VIEW } from '../../api/channelApi';
 import { getAvailableTickers } from '../../api/strategyApi';
 import ChannelExplorerChart, { TF_LINE_WIDTH } from './ChannelExplorerChart';
 import RecursiveParamsPanel, { RECURSIVE_DEFAULT_PARAMS } from './RecursiveParamsPanel';
+import { channelsRequestKey } from '../../navigation/route';
 import { exchangeToday, exchangeZoneForTicker, addYearsIso } from '../../utils/dates';
 import {
   isProvisional, formatStatus, formatAge, formatBarDate, formatExitSide, channelKey, formatPct,
@@ -46,16 +47,20 @@ const SLOW_REPLAY_TFS = new Set(['MIN5', 'HOUR']);
 const defaultTo = () => exchangeToday(exchangeZoneForTicker('SPY'));
 const defaultFrom = () => addYearsIso(defaultTo(), -2);
 
-const DETECTOR_PARAM_KEYS = ['coveragePct', 'minBars', 'minWidthPct', 'minAnnualYieldPct', 'maxAnnualYieldPct'];
-
 /**
+ * Mounted once and kept alive while hidden (TabPane), so Back / Forward to the same request shows
+ * the chart on screen without detecting again.
+ *
  * @param {Object} props
- * @param {{ticker: string, timeframe?: string, startDate: string, endDate: string, params?: Object,
- *   view?: string, nonce: number}|null} [props.initialRequest] deep link (Screener → Channels): a new
- *   `nonce` fills the form with it and runs the detection once
- * @param {() => void} [props.onInitialRequestConsumed] called once the request was applied
+ * @param {{ticker: string, from: string, to: string, timeframes: string[], params: Object,
+ *   lastActualChannelsOnly: boolean, view: string}|null} [props.request] the request of the current
+ *   history entry (navigation/route.js, normalised): one that differs from the detection on screen
+ *   (or in flight) fills the form and detects; null (the tab is hidden, or a bare #/channels)
+ *   changes nothing
+ * @param {(request: Object) => void} [props.onRequestChange] a detection started from the form (or
+ *   the A/B toggle): the current history entry is rewritten with its request
  */
-export default function ChannelExplorer({ initialRequest = null, onInitialRequestConsumed = null }) {
+function ChannelExplorer({ request = null, onRequestChange = null }) {
   const [ticker, setTicker] = useState('SPY');
   const [tickers, setTickers] = useState([]);
   const [from, setFrom] = useState(defaultFrom);
@@ -147,19 +152,30 @@ export default function ChannelExplorer({ initialRequest = null, onInitialReques
 
   // The range defaults to the form's; runDetection passes the request's own (a deep link sets the
   // form and detects in the same tick, before the new form state is visible here).
+  // pricesSeq: only the latest request's candles land (an older detection's prices must not end
+  // up under newer channels after Back / Forward).
+  const pricesSeq = useRef(0);
   const loadPrices = async (tf, t = ticker, f = from, e = to) => {
+    const seq = ++pricesSeq.current;
     setPricesLoading(true);
     try {
       const data = await fetchPrices(t, tf, f, e);
-      setPrices(data);
+      if (seq === pricesSeq.current) setPrices(data);
     } catch {
-      setPrices([]);
+      if (seq === pricesSeq.current) setPrices([]);
     } finally {
-      setPricesLoading(false);
+      if (seq === pricesSeq.current) setPricesLoading(false);
     }
   };
 
+  // Key (channelsRequestKey) of the last detection started, in flight or on screen; detectSeq drops
+  // the response of a detection that a newer one replaced (Back / Forward while detecting).
+  const startedKey = useRef(null);
+  const detectSeq = useRef(0);
+
   const runDetection = async (request) => {
+    startedKey.current = channelsRequestKey(request);
+    const seq = ++detectSeq.current;
     setLoading(true);
     setError(null);
     setResult(null);
@@ -170,6 +186,7 @@ export default function ChannelExplorer({ initialRequest = null, onInitialReques
         request.ticker, request.from, request.to, request.timeframes, request.params,
         request.lastActualChannelsOnly, request.view
       );
+      if (seq !== detectSeq.current) return;
       setResult(data);
       // Default selection: the first confirmed current channel in card order (finest TF, deepest), on chart and cards
       // alike, exactly as if it had been clicked. Set once per run - later re-renders never
@@ -182,49 +199,32 @@ export default function ChannelExplorer({ initialRequest = null, onInitialReques
       setVisibleTfs(new Set(request.timeframes));
       await loadPrices(finestTf(request.timeframes), request.ticker, request.from, request.to);
     } catch (err) {
+      if (seq !== detectSeq.current) return;
       setResultView(null);
       setResultRequest(null);
       setError('Channel detection failed: ' + err.message);
     } finally {
-      setLoading(false);
+      if (seq === detectSeq.current) setLoading(false);
     }
   };
 
-  // Deep link: fill the form with the request and detect once per nonce (the ref also absorbs
-  // StrictMode's double effect run).
-  const appliedNonce = useRef(null);
+  // The history entry's request (Screener → Channels, Back / Forward, a reload or a pasted link):
+  // fill the form with it and detect, unless it is the detection already on screen or in flight
+  // (the ref also absorbs StrictMode's double effect run).
+  const requestKey = channelsRequestKey(request);
   useEffect(() => {
-    if (!initialRequest || appliedNonce.current === initialRequest.nonce) return;
-    appliedNonce.current = initialRequest.nonce;
-    const tf = TIMEFRAMES.some(x => x.value === initialRequest.timeframe) ? initialRequest.timeframe : 'DAY';
-    const params = { ...RECURSIVE_DEFAULT_PARAMS };
-    DETECTOR_PARAM_KEYS.forEach(k => {
-      if (typeof initialRequest.params?.[k] === 'number') params[k] = initialRequest.params[k];
-    });
-    params.logPrice = true;
-    const nextView = initialRequest.view === CHANNEL_VIEW.INCREMENTAL ? CHANNEL_VIEW.INCREMENTAL : CHANNEL_VIEW.FULL;
-    const request = {
-      ticker: String(initialRequest.ticker || '').toUpperCase(),
-      from: initialRequest.startDate,
-      // Through the END of the basis day: DAY bars are stamped 09:00, and a bare date is sent as
-      // T00:00:00, which would drop the basis bar itself (the screener's channel then differs).
-      to: /^\d{4}-\d{2}-\d{2}$/.test(initialRequest.endDate || '') ? `${initialRequest.endDate}T23:59:59` : initialRequest.endDate,
-      timeframes: [tf],
-      params,
-      lastActualChannelsOnly,
-      view: nextView,
-    };
+    if (!request || !requestKey || requestKey === startedKey.current) return;
     setTicker(request.ticker);
     setFrom(request.from);
     setTo(String(request.to || '').substring(0, 10));
-    setSelectedTfs([tf]);
-    setRecursiveParams(params);
-    setView(nextView);
+    setSelectedTfs(request.timeframes);
+    setRecursiveParams({ ...request.params });
+    setLastActualChannelsOnly(request.lastActualChannelsOnly);
+    setView(request.view);
     runDetection(request);
-    onInitialRequestConsumed?.();
-    // Keyed on the nonce only: one detection per deep link.
+    // Keyed on the request's identity only: one detection per distinct request.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialRequest?.nonce]);
+  }, [requestKey]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -237,9 +237,10 @@ export default function ChannelExplorer({ initialRequest = null, onInitialReques
       maxAnnualYieldPct: recursiveParams.maxAnnualYieldPct,
       logPrice:          true,
     };
-    await runDetection({
-      ticker, from, to, timeframes: selectedTfs, params: apiParams, lastActualChannelsOnly, view,
-    });
+    const next = { ticker, from, to, timeframes: selectedTfs, params: apiParams, lastActualChannelsOnly, view };
+    const running = runDetection(next);
+    onRequestChange?.(next);
+    await running;
   };
 
   // Switching A <-> B with a result on screen re-runs the same request in the other view, so the
@@ -247,7 +248,11 @@ export default function ChannelExplorer({ initialRequest = null, onInitialReques
   const changeView = (next) => {
     if (next === view || loading) return;
     setView(next);
-    if (resultRequest) runDetection({ ...resultRequest, view: next });
+    if (resultRequest) {
+      const request = { ...resultRequest, view: next };
+      runDetection(request);
+      onRequestChange?.(request);
+    }
   };
 
   // Memoised: the chart rebuilds (losing zoom/pan) whenever these arrays change identity, and
@@ -305,7 +310,11 @@ export default function ChannelExplorer({ initialRequest = null, onInitialReques
             id="ce-ticker"
             list="ce-ticker-list"
             value={ticker}
-            onChange={e => { setTicker(e.target.value.toUpperCase()); setResult(null); setResultRequest(null); }}
+            onChange={e => {
+              setTicker(e.target.value.toUpperCase()); setResult(null); setResultRequest(null);
+              // Nothing is on screen any more: returning to an entry (Back / Forward) detects it again.
+              startedKey.current = null;
+            }}
             placeholder="e.g. SPY"
             autoComplete="off"
             required
@@ -571,3 +580,5 @@ function ViewInfoBlock({ viewInfos, resultView, result }) {
     </div>
   );
 }
+
+export default memo(ChannelExplorer);
