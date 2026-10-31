@@ -49,6 +49,14 @@ const Header = ({ activeTab, onChangeTab, watch = null, screenerNew = 0 }) => {
           </button>
           <button
             type="button"
+            className={`header-tab${activeTab === 'constructor' ? ' header-tab--active' : ''}`}
+            onClick={() => onChangeTab('constructor')}
+            data-testid="tab-constructor"
+          >
+            Strategy Constructor
+          </button>
+          <button
+            type="button"
             className={`header-tab${activeTab === 'downloader' ? ' header-tab--active' : ''}`}
             onClick={() => onChangeTab('downloader')}
           >

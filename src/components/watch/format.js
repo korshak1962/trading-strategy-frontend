@@ -53,6 +53,8 @@ export const actionOf = (s) => {
   if (s?.action === 'BUY' || s?.action === 'SELL') return s.action;
   if (s?.type === 'LongOpen') return 'BUY';
   if (s?.type === 'LongClose') return 'SELL';
+  // never a watch signal (watches track the merged legs), named as everywhere else in the UI
+  if (s?.type === 'LongBlock' || s?.action === 'LongBlock') return 'LongBlock';
   return s?.type || '?';
 };
 

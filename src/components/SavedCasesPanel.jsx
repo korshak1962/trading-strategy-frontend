@@ -187,7 +187,17 @@ const SavedCasesPanel = ({ ticker, casesVersion, onChanged, onLoad, disabled, ru
                 <li key={c.id} className="py-2" title={c.note || undefined}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="text-sm font-medium text-gray-900 break-words">{c.name}</div>
+                      <div className="text-sm font-medium text-gray-900 break-words">
+                        {c.name}
+                        {/* A case of a deleted constructed strategy (Q8): loads with a warning, does not run */}
+                        {c.runBlocked === true && (
+                          <span className="ml-1 px-1 rounded bg-red-100 text-red-800 text-xs font-normal"
+                            title={c.blockedReason || 'References a deleted constructed strategy: loads, does not run'}
+                            data-testid="case-run-blocked-badge">
+                            cannot run
+                          </span>
+                        )}
+                      </div>
                       <div className="text-xs text-gray-500">
                         {c.ticker} {c.timeframe} · {dayOf(c.startDate)}..{dayOf(c.endDate)}
                         {/* null = traded from the start date (older cases, or saved without one) */}

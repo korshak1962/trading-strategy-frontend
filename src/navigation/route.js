@@ -11,6 +11,8 @@
 //   #/screener/universe
 //   #/downloader
 //   #/watchlist
+//   #/constructor                       (strategy constructor: the list)
+//   #/constructor?id=12                 (… with strategy 12 open in the editor)
 //
 // The URL of a Channels entry holds only the readable part of the request; the full request
 // (detector params, lastActualChannelsOnly) travels in history.state.channelsRequest. Without it
@@ -18,7 +20,7 @@
 
 import { RECURSIVE_DEFAULT_PARAMS } from '../components/channelExplorer/RecursiveParamsPanel';
 
-export const TABS = ['backtest', 'channels', 'screener', 'downloader', 'watchlist'];
+export const TABS = ['backtest', 'channels', 'screener', 'constructor', 'downloader', 'watchlist'];
 export const DEFAULT_TAB = 'backtest';
 
 const SCREENER_VIEWS = ['filters', 'results', 'universe'];
@@ -93,7 +95,7 @@ const sameReadable = (a, b) => !!a && !!b && a.ticker === b.ticker && a.from ===
 
 /**
  * Parses a location hash (with its history.state) into a route:
- * {tab, screener: {view, filterId, runId} | null, channels: request | null}.
+ * {tab, screener: {view, filterId, runId} | null, channels: request | null, constructed: {id} | null} (constructor tab).
  * Unknown tab or garbage → the default tab; invalid ids are dropped. The caller compares
  * formatHash(route) with the hash to canonicalise the URL.
  */
@@ -108,7 +110,11 @@ export const parseHash = (hash, state = null) => {
     const view = SCREENER_VIEWS.includes(segments[1]) ? segments[1] : 'filters';
     const filterId = view === 'results' ? parseId(query.get('filter')) : null;
     const runId = view === 'results' && filterId != null ? parseId(query.get('run')) : null;
-    return { tab, screener: { view, filterId, runId }, channels: null };
+    return { tab, screener: { view, filterId, runId }, channels: null, constructed: null };
+  }
+
+  if (tab === 'constructor') {
+    return { tab, screener: null, channels: null, constructed: { id: parseId(query.get('id')) } };
   }
 
   if (tab === 'channels') {
@@ -123,10 +129,10 @@ export const parseHash = (hash, state = null) => {
     const fromState = normalizeChannelsRequest(state?.channelsRequest);
     const channels = fromState && (!fromUrl || sameReadable(fromState, fromUrl)) && query.get('ticker')
       ? fromState : fromUrl;
-    return { tab, screener: null, channels };
+    return { tab, screener: null, channels, constructed: null };
   }
 
-  return { tab, screener: null, channels: null };
+  return { tab, screener: null, channels: null, constructed: null };
 };
 
 /** The canonical hash of a route. */
@@ -144,6 +150,10 @@ export const formatHash = (route) => {
     }
     const qs = q.toString();
     return `#/screener/results${qs ? `?${qs}` : ''}`;
+  }
+  if (tab === 'constructor') {
+    const id = route.constructed?.id;
+    return Number.isInteger(id) && id > 0 ? `#/constructor?id=${id}` : '#/constructor';
   }
   if (tab === 'channels') {
     const r = normalizeChannelsRequest(route.channels);

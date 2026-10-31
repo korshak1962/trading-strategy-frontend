@@ -71,8 +71,8 @@ const SignalPane = ({
   const title = (
     <div className="signal-pane__title" data-testid="signal-pane-title">
       <h3 className="chart-title signal-pane__name">
-        {merged ? 'Merged result' : pane.key}
-        {!merged && pane.strategyClass && pane.strategyClass !== pane.key && (
+        {merged ? 'Merged result' : (pane.displayName || pane.key)}
+        {!merged && pane.strategyClass && pane.strategyClass !== pane.key && !pane.displayName && (
           <span className="signal-pane__class"> ({pane.strategyClass})</span>
         )}
       </h3>

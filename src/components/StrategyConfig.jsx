@@ -4,6 +4,10 @@ import './StrategyConfig.css';
 import { getParamDescription, OPTIMIZE_FIELD_DESCRIPTIONS } from '../utils/paramDescriptions';
 import './screening/SensitivityView.css';
 import { flagLabel } from './screening/screeningFormat';
+import {
+  currentVersionOf, groupThresholds, isConstructedKey, parseConstructedKey, parseThresholdName, strategyDisplayName,
+} from './strategyConstructor/constructedFormat';
+import ConstructedAttempts from './strategyConstructor/ConstructedAttempts';
 
 // Small hover/focus tooltip: an "i" icon followed by a floating description box (CSS-driven,
 // see .param-info-icon / .param-tooltip in StrategyConfig.css).
@@ -28,10 +32,64 @@ const ProfileChip = ({ chip }) => {
   );
 };
 
+// Constructed thresholds R1.C2.tolerancePct → "C2 tolerance %" inside the rule's group.
+const paramLabel = (paramName) => {
+  const t = parseThresholdName(paramName);
+  return t ? t.label.replace(/^R\d+ · /, '') : paramName;
+};
+
+// Params of one strategy as titled groups: a constructed strategy's thresholds by rule, else one group.
+const paramGroups = (strategyName, params) => {
+  if (!isConstructedKey(strategyName)) return [{ title: null, entries: Object.entries(params) }];
+  return groupThresholds(params).map(({ rule, entries }) => ({
+    title: rule != null ? `Rule R${rule}` : 'Other',
+    entries,
+  }));
+};
+
+// Header of a constructed strategy: display name, pinned version, newer version / deleted.
+const ConstructedName = ({ strategyKey, availableStrategies, onUpdateVersion }) => {
+  const pinned = parseConstructedKey(strategyKey);
+  const current = currentVersionOf(strategyKey, availableStrategies);
+  const newer = current && current.version != null && current.version > pinned.version;
+  return (
+    <div className="strategy-name flex flex-wrap items-center gap-1" title={strategyKey} data-testid="constructed-config-name">
+      <span>{strategyDisplayName(strategyKey, availableStrategies).replace(/ v\d+$/, '')}</span>
+      <span className="px-1.5 rounded bg-indigo-100 text-indigo-800 text-xs font-medium">v{pinned.version}</span>
+      <span className="text-xs font-normal text-gray-500">constructed</span>
+      {!current && availableStrategies.length > 0 && (
+        <span className="px-1.5 rounded bg-red-100 text-red-800 text-xs" title="Not in the list of strategies: deleted in the constructor">
+          deleted
+        </span>
+      )}
+      {newer && (
+        <button
+          type="button"
+          className="px-1.5 rounded border border-amber-400 bg-amber-50 text-amber-800 text-xs hover:bg-amber-100"
+          title={`A newer version v${current.version} exists. Update? Thresholds take the v${current.version} defaults.`}
+          onClick={(e) => { e.stopPropagation(); onUpdateVersion?.(strategyKey); }}
+          data-testid="constructed-update-version"
+        >
+          new version v{current.version} available — update?
+        </button>
+      )}
+    </div>
+  );
+};
+
 /**
  * profileChips (Optimize only): {strategyName: {paramName: {frozen, verdict, eta2, flags}}}
+ * Constructed strategies (key Constructed:<id>@<v>, screener architect.md "Конструктор стратегий"
+ * §4.9): shown by display name with the pinned version; "vN available — update" when the
+ * constructor has a newer one (O2: never switched silently); thresholds grouped by rule.
+ * availableStrategies: the StrategyInfoDTO list (display names, current versions).
+ * onUpdateVersion(key): replace the pinned version with the current one.
+ * ticker / attemptsRefresh: the attempt counter line (Q14).
  */
-const StrategyConfig = ({ selectedStrategies, onRemoveStrategy, onUpdateParam, mode, timeFrame, profileChips = null }) => {
+const StrategyConfig = ({
+  selectedStrategies, onRemoveStrategy, onUpdateParam, mode, timeFrame, profileChips = null,
+  availableStrategies = [], onUpdateVersion = null, ticker = '', attemptsRefresh = 0,
+}) => {
   // Holds only explicit collapses, not the full strategy set: a strategy absent from this map
   // counts as expanded (see isExpanded). Seeding it from selectedStrategies instead would freeze
   // the set at mount, so a strategy added later would have no entry and render collapsed.
@@ -59,7 +117,15 @@ const StrategyConfig = ({ selectedStrategies, onRemoveStrategy, onUpdateParam, m
             className="strategy-header"
             onClick={() => toggleExpand(strategyName)}
           >
-            <div className="strategy-name">{strategyName}</div>
+            {isConstructedKey(strategyName) ? (
+              <ConstructedName
+                strategyKey={strategyName}
+                availableStrategies={availableStrategies}
+                onUpdateVersion={onUpdateVersion}
+              />
+            ) : (
+              <div className="strategy-name">{strategyName}</div>
+            )}
             <div className="strategy-actions">
               <button
                 type="button"
@@ -83,11 +149,19 @@ const StrategyConfig = ({ selectedStrategies, onRemoveStrategy, onUpdateParam, m
               {Object.keys(params).length === 0 && (
                 <p className="param-no-params">No parameters</p>
               )}
-              {Object.entries(params).map(([paramName, param]) => (
+              {isConstructedKey(strategyName) && (
+                <div className="px-1 pb-1">
+                  <ConstructedAttempts strategyKey={strategyName} ticker={ticker} timeFrame={timeFrame} refreshKey={attemptsRefresh} compact />
+                </div>
+              )}
+              {paramGroups(strategyName, params).map(({ title, entries }) => (
+                <div key={title || 'all'}>
+                {title && <div className="param-group-title text-xs font-semibold text-gray-600 mt-2 mb-1">{title}</div>}
+                {entries.map(([paramName, param]) => (
                 mode === 'optimize' ? (
                   <div key={paramName} className="param-optimize-card">
-                    <div className="param-optimize-name">
-                      {paramName}
+                    <div className="param-optimize-name" title={paramName}>
+                      {paramLabel(paramName)}
                       <InfoTooltip text={getParamDescription(strategyName, paramName)} />
                       {profileChips?.[strategyName]?.[paramName] && (
                         <ProfileChip chip={profileChips[strategyName][paramName]} />
@@ -116,7 +190,7 @@ const StrategyConfig = ({ selectedStrategies, onRemoveStrategy, onUpdateParam, m
                 ) : (
                   <div key={paramName} className="param-row">
                     <label className="param-label">
-                      <span className="param-name" title={paramName}>{paramName}:</span>
+                      <span className="param-name" title={paramName}>{paramLabel(paramName)}:</span>
                       <InfoTooltip text={getParamDescription(strategyName, paramName)} />
                     </label>
                     <input
@@ -148,6 +222,8 @@ const StrategyConfig = ({ selectedStrategies, onRemoveStrategy, onUpdateParam, m
                     </select>
                   </div>
                 )
+                ))}
+                </div>
               ))}
             </div>
           )}

@@ -34,6 +34,8 @@ import DownloaderPanel from './components/downloader/DownloaderPanel';
 import WatchlistPanel from './components/watch/WatchlistPanel';
 import WatchToasts from './components/watch/WatchToasts';
 import ScreenerPanel from './components/universeScreener/ScreenerPanel';
+import StrategyConstructorPanel from './components/strategyConstructor/StrategyConstructorPanel';
+import { currentVersionOf, isConstructedKey, strategyDisplayName } from './components/strategyConstructor/constructedFormat';
 import PrepareStrategiesHint from './components/universeScreener/PrepareStrategiesHint';
 import { isMinimalIndicatorsError } from './components/universeScreener/prepareFlow';
 import { useScreenerLatest } from './hooks/useScreenerLatest';
@@ -124,13 +126,16 @@ const App = () => {
   // names what is on screen instead of resetting the panel).
   const lastScreenerRoute = useRef(null);
   const lastChannelsRequest = useRef(null);
+  const lastConstructorRoute = useRef(null);
   useEffect(() => {
     if (route.tab === 'screener') lastScreenerRoute.current = route.screener;
+    if (route.tab === 'constructor') lastConstructorRoute.current = route.constructed;
     if (route.tab === 'channels' && route.channels) lastChannelsRequest.current = route.channels;
   }, [route]);
   const changeTab = useCallback((tab) => {
     if (tab === 'screener') navigate({ tab, screener: lastScreenerRoute.current });
     else if (tab === 'channels') navigate({ tab, channels: lastChannelsRequest.current });
+    else if (tab === 'constructor') navigate({ tab, constructed: lastConstructorRoute.current });
     else navigate({ tab });
   }, [navigate]);
   const openWatchlistTab = useCallback(() => navigate({ tab: 'watchlist' }), [navigate]);
@@ -157,6 +162,11 @@ const App = () => {
   // with it and detects (Back returns to the Screener as it was, Forward to the same chart).
   const openInChannels = useCallback((req) => {
     navigate({ tab: 'channels', channels: channelsRequestFromScreener(req) });
+  }, [navigate]);
+  // Strategy constructor: the strategy open in its editor (#/constructor?id=12).
+  const changeConstructorRoute = useCallback((id, { replace = false } = {}) => {
+    if (activeTabRef.current !== 'constructor') return;
+    navigate({ tab: 'constructor', constructed: { id } }, { replace });
   }, [navigate]);
   // A detection started in the Explorer itself (form / A-B toggle) rewrites the current entry.
   const changeChannelsRequest = useCallback((request) => {
@@ -295,6 +305,12 @@ const App = () => {
   const [casesVersion, setCasesVersion] = useState(0);
   const bumpCasesVersion = () => setCasesVersion((v) => v + 1);
   const [caseWarnings, setCaseWarnings] = useState(null); // reconcile warnings of the last loaded case
+  // A loaded case that references a deleted constructed strategy (StrategyCaseDTO.runBlocked, Q8):
+  // {reason, keys} - it loads with its warning, and Run / Optimize / Signals stay off while any of
+  // those strategies is still in the form.
+  const [caseBlock, setCaseBlock] = useState(null);
+  const runBlocked = caseBlock && (caseBlock.keys.length === 0 || caseBlock.keys.some((k) => k in selectedStrategies))
+    ? `This case cannot run: ${caseBlock.reason}` : null;
   // Bumped on every run start (backtest and optimize). SavedCasesPanel ignores a Load response if
   // a run started while it was pending, even when that run has already finished.
   const [runStarts, setRunStarts] = useState(0);
@@ -363,17 +379,21 @@ const App = () => {
   );
   const fullscreenChartWidth = Math.max(600, chartAreaSize.width - 20);
 
+  // Available strategies: on mount and after a constructed strategy is saved / deleted in the
+  // Strategy constructor (each one is listed with its current version).
+  const reloadStrategies = useCallback(async () => {
+    try {
+      const strategies = await getAvailableStrategies();
+      setAvailableStrategies(Array.isArray(strategies) ? strategies : []);
+    } catch (err) {
+      setError('Failed to load available strategies');
+      console.error(err);
+    }
+  }, []);
+
   // Fetch available strategies on component mount
   useEffect(() => {
-    const fetchStrategies = async () => {
-      try {
-        const strategies = await getAvailableStrategies();
-        setAvailableStrategies(strategies);
-      } catch (err) {
-        setError('Failed to load available strategies');
-        console.error(err);
-      }
-    };
+    const fetchStrategies = reloadStrategies;
 
     const fetchTickers = async () => {
       try {
@@ -386,7 +406,7 @@ const App = () => {
 
     fetchStrategies();
     fetchTickers();
-  }, []);
+  }, [reloadStrategies]);
 
   // Sets the trade start state (and datesRef) in one go; touched false = follow startDate.
   // Only state setters and a ref: safe to call from the poll loop.
@@ -628,6 +648,11 @@ const App = () => {
 
   const handleSubmit = async (e) => {
     e?.preventDefault();
+    if (runBlocked) {
+      setResults(null);
+      setError(runBlocked);
+      return;
+    }
     // Client-side validation. Every error clears the previous result so a stale result is
     // never shown next to an error message.
     if (!ticker || !ticker.trim()) {
@@ -679,7 +704,7 @@ const App = () => {
       try {
         const raw = await fetchSignalCharts(config);
         if (seq !== signalSeq.current) return; // the form changed meanwhile
-        setSignalCharts({ seq, charts: adaptSignalCharts(raw) });
+        setSignalCharts({ seq, charts: adaptSignalCharts(raw, { displayNameOf: (key) => strategyDisplayName(key, availableStrategies) }) });
       } catch (err) {
         if (seq !== signalSeq.current) return;
         setSignalCharts(null);
@@ -717,6 +742,7 @@ const App = () => {
   const handleScreen = async () => {
     if (loading || optActive) return;
     const fail = (msg) => { setScreeningView(null); setError(msg); };
+    if (runBlocked) { fail(runBlocked); return; }
     if (!ticker || !ticker.trim()) { fail('Ticker is required'); return; }
     if (calendarDayKey(startDate) > calendarDayKey(endDate)) { fail('Start date must be on or before end date'); return; }
     const requestTradeStart = tradeStartTouched && tradeStart
@@ -857,6 +883,27 @@ const App = () => {
     });
   };
 
+  // Constructed strategy pinned to an older version (O2): replace it by the current version the
+  // available strategies list, with that version's default thresholds. Never automatic.
+  const handleUpdateConstructedVersion = (oldKey) => {
+    const current = currentVersionOf(oldKey, availableStrategies);
+    if (!current || current.key === oldKey || !current.info) return;
+    markWatchEdited();
+    setResults(null);
+    clearSignalCharts();
+    const params = (current.info.parameters || []).reduce((acc, param) => {
+      acc[param.paramName] = { ...param, timeframe: timeFrame };
+      return acc;
+    }, {});
+    setSelectedStrategies((prev) => Object.fromEntries(Object.entries(prev)
+      .map(([name, p]) => (name === oldKey ? [current.key, params] : [name, p]))));
+    setRangeOrigin((prev) => {
+      const next = { ...prev, [current.key]: 'default' };
+      delete next[oldKey];
+      return next;
+    });
+  };
+
   // field: 'value' | 'min' | 'max' | 'step' | 'timeframe'
   const handleUpdateParam = (strategyName, paramName, field, value) => {
     markWatchEdited();
@@ -885,6 +932,7 @@ const App = () => {
   // cfg.channelStability (off when the config has none).
   const applyConfig = (cfg, { fallback = {}, forceTradeStart = false, keepStability = false } = {}) => {
     const tf = cfg.timeFrame || fallback.timeframe || timeFrame;
+    setCaseBlock(null);
     if (!keepStability) {
       const restored = settingsFromRequest(cfg.channelStability, tf);
       setStabilitySettings((prev) => restored
@@ -928,6 +976,11 @@ const App = () => {
     setObjective(normalizeObjective(savedCase?.config?.objectiveFunction ?? savedCase?.objective));
     setWatchContext(null);
     setCaseWarnings(Array.isArray(savedCase.warnings) && savedCase.warnings.length > 0 ? savedCase.warnings : null);
+    // A case of a deleted constructed strategy: loads, does not run (Q8)
+    setCaseBlock(savedCase?.runBlocked === true ? {
+      reason: savedCase.blockedReason || 'The case references a constructed strategy that was deleted.',
+      keys: Object.keys(savedCase?.config?.strategyNameToParams || {}).filter(isConstructedKey),
+    } : null);
     // A case saved from an optimize job with channel stability carries the stored snapshot + results
     setStoredStability(savedCase?.channelStability
       ? { stability: savedCase.channelStability, config: savedCase.config || null, name: savedCase.name || null, savedAt: savedCase.savedAt || null }
@@ -1190,6 +1243,8 @@ const App = () => {
     ? batchInfo(optJob?.total, effectivePlan(screeningSettings, optJob?.timeFrame || timeFrame))
     : null;
   const formGrid = useMemo(() => formGridSize(selectedStrategies), [selectedStrategies]);
+  // Attempt counters (constructed strategies, Q14) refetch when a run starts / its result arrives.
+  const attemptsRefresh = `${runStarts}-${results ? 'r' : ''}-${optJob?.status || ''}`;
   const formTunable = useMemo(() => tunableCount(selectedStrategies), [selectedStrategies]);
   // A stored-profile view belongs to its key; a live screening result stays until the next run.
   const showScreeningView = mode === 'optimize' && !!screeningView
@@ -1213,7 +1268,7 @@ const App = () => {
     ? !!optJobId && !!optJob?.hasResult
     : !!backtestConfigRef.current;
 
-  // Backtest, Channels and Screener: kept alive once opened (TabPane). Downloader and Watchlist
+  // Backtest, Channels, Screener and Strategy constructor: kept alive once opened (TabPane). Downloader and Watchlist
   // are cheap and poll on their own, so they mount only while shown (as before).
   const renderKeptAlive = () => (
     <>
@@ -1235,6 +1290,16 @@ const App = () => {
             latestRunId={screenerLatest.latestRunId}
             route={activeTab === 'screener' ? route.screener : null}
             onRouteChange={changeScreenerRoute}
+          />
+        </main>
+      </TabPane>
+      <TabPane active={activeTab === 'constructor'}>
+        <main className="flex-grow w-full px-4 py-8">
+          <StrategyConstructorPanel
+            route={activeTab === 'constructor' ? (route.constructed || { id: null }) : null}
+            onRouteChange={changeConstructorRoute}
+            onStrategiesChanged={reloadStrategies}
+            tickers={availableTickers}
           />
         </main>
       </TabPane>
@@ -1489,7 +1554,7 @@ const App = () => {
                   tunable={formTunable}
                   stability={stabilitySettings}
                   onRun={handleScreen}
-                  disabled={loading || optActive}
+                  disabled={loading || optActive || !!runBlocked}
                   activeJob={screeningActive ? optJob : null}
                 />
               )}
@@ -1541,15 +1606,27 @@ const App = () => {
                     mode={mode}
                     timeFrame={timeFrame}
                     profileChips={mode === 'optimize' ? formProfileChips : null}
+                    availableStrategies={availableStrategies}
+                    onUpdateVersion={handleUpdateConstructedVersion}
+                    ticker={ticker}
+                    attemptsRefresh={attemptsRefresh}
                   />
                 </div>
               )}
               
+              {runBlocked && (
+                <div className="mb-3 p-3 rounded bg-red-50 border border-red-300 text-red-800 text-sm" role="alert" data-testid="case-run-blocked">
+                  {runBlocked} Remove that strategy (or load another case) to run.
+                </div>
+              )}
+
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={loading || Object.keys(selectedStrategies).length === 0}
+                disabled={loading || Object.keys(selectedStrategies).length === 0 || !!runBlocked}
+                title={runBlocked || undefined}
                 className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 disabled:bg-gray-400"
+                data-testid="run-submit"
               >
                 {loading
                   ? (mode === 'optimize'
@@ -1732,6 +1809,11 @@ const App = () => {
                   <StrategyResults
                     results={results}
                     mode={mode}
+                    constructed={{
+                      config: mode === 'optimize' ? optConfigRef.current : backtestConfigRef.current,
+                      availableStrategies,
+                      refreshKey: attemptsRefresh,
+                    }}
                     fileContext={{ ticker, timeFrame, selectedStrategies, startDate, endDate }}
                     stability={results.channelStability ? {
                       baseConfig: stabilityBaseConfig,

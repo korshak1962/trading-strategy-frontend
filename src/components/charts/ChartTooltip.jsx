@@ -5,7 +5,7 @@ import { fmtExchangeIntl } from '../../utils/dates';
 import {
   OUTCOME_TEXT, NOT_TRADED_TEXT, ENTRY_TRIGGER_TEXT, EXIT_REASON_LONG_TEXT, isConfirmedOutcome, barsHeld
 } from '../../utils/levelChart';
-import { voteText, VOTE_COLORS } from '../signals/signalPanes';
+import { voteText, VOTE_COLORS, blockedByText } from '../signals/signalPanes';
 
 // Bar timestamp in the exchange wall clock (decision 0.18): price.date is a UTC-faked Date.
 const TOOLTIP_TS_FORMAT = { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' };
@@ -385,15 +385,22 @@ const ChartTooltip = ({ tooltipData }) => {
           <div style={{ fontWeight: 'bold' }}>Signals:</div>
           {signals.map((signal, index) => (
             <div key={index} style={{
-              color: signal.type.includes('Long')
-                ? (signal.type === 'LongOpen' ? 'green' : 'red')
-                : (signal.type === 'ShortOpen' ? 'blue' : 'orange')
+              color: signal.type === 'LongBlock'
+                ? '#4b5563'
+                : signal.type.includes('Long')
+                  ? (signal.type === 'LongOpen' ? 'green' : 'red')
+                  : (signal.type === 'ShortOpen' ? 'blue' : 'orange')
             }}>
               {signal.type} @ {signal.price.toFixed(2)}
               {/* Signals mode: a strategy signal the merge did not execute / the merged trade's sources */}
               {signal.reason === 'OUTSIDE_WINDOW'
                 ? <span className="chart-tooltip-muted"> (not executed — before trade start)</span>
-                : signal.executed === false && <span className="chart-tooltip-muted"> (not executed in the merge)</span>}
+                : signal.executed === false && (
+                  <span className="chart-tooltip-muted">
+                    {/* a PD LongOpen that lost the bar to a constructed strategy's LongBlock */}
+                    {blockedByText(signal.blockedBy) ? ` (${blockedByText(signal.blockedBy)})` : ' (not executed in the merge)'}
+                  </span>
+                )}
               {Array.isArray(signal.sources) && signal.sources.length > 0 && (
                 <div className="chart-tooltip-muted">from: {signal.sources.join(', ')}</div>
               )}

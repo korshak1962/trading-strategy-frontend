@@ -760,6 +760,9 @@ export const findMinMaxPriceRange = (prices) => {
     const { min, max } = minMax;
 
     signals.forEach(signal => {
+      // LongBlock is not an order (a constructed strategy's "do not enter"): it is drawn on the vote
+      // strip only, never as a marker - skipped defensively should one ever arrive here.
+      if (signal.type === 'LongBlock') return;
       const date = parseExchangeTs(signal.date);
       const x = timeToX(date.getTime(), dateRange, width);
       const y = height - ((signal.price - min) / (max - min)) * height;

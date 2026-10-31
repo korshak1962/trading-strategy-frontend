@@ -6,12 +6,15 @@ import { adaptNextTriggers } from './nextTriggers/nextTriggersAdapter';
 import PerformanceMetricsTable from './PerformanceMetricsTable';
 import TradeStatisticsTable from './TradeStatisticsTable';
 import ChannelStabilityView from './stability/ChannelStabilityView';
+import ConstructedResultInfo from './strategyConstructor/ConstructedResultInfo';
 import { formatNumber, formatPercent, formatSigned, formatSignedPercent } from '../utils/formatters';
 import '../ResultsTabs.css';
 
 // stability (Optimize only, when results.channelStability is present): {baseConfig, onApplyParams,
 // busy, totalCombinations} for the Channels tab (ChannelStabilityView).
-const StrategyResults = ({ results, mode, fileContext, stability = null }) => {
+// constructed: {config, availableStrategies, refreshKey} - the Summary card of constructed
+// strategies (thresholds in sweep / trades, attempt counter); shown only when the config has one.
+const StrategyResults = ({ results, mode, fileContext, stability = null, constructed = null }) => {
   const [activeTab, setActiveTab] = useState(mode === 'optimize' ? 'best-params' : 'summary');
   const hasParams = results.paramsDTO && results.paramsDTO.length > 0;
   // Parameter stability by channel: present only on Optimize results of a request with channelStability
@@ -128,6 +131,14 @@ const StrategyResults = ({ results, mode, fileContext, stability = null }) => {
       {activeTab === 'summary' && (
         <div className="grid grid-cols-1 gap-4">
           {nextTriggers && <NextBarCard nt={nextTriggers} />}
+          {constructed?.config && (
+            <ConstructedResultInfo
+              results={results}
+              config={constructed.config}
+              availableStrategies={constructed.availableStrategies || []}
+              refreshKey={constructed.refreshKey}
+            />
+          )}
           {!nextTriggers && mode === 'optimize' && (
             <div className="text-sm text-gray-500" data-testid="next-bar-optimize-hint">
               Next-bar trigger prices: run the best combination as a Backtest to see them.

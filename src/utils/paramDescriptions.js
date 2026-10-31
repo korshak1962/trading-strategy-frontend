@@ -70,7 +70,20 @@ const GENERIC_PARAM_DESCRIPTIONS = {
   Length: 'Period, in bars, of the underlying indicator.',
 };
 
+// Thresholds of a constructed strategy (key Constructed:<id>@<v>), named R<rule>.C<cond>.<field>
+// (screener architect.md "Конструктор стратегий" D5). Fixed by default (min = max = the value in
+// the rule); set a range in Optimize to sweep one.
+const CONSTRUCTED_THRESHOLD_DESCRIPTIONS = {
+  tolerancePct: 'Tolerance of the comparison, %: the right side is multiplied by (1 + tolerance / 100). Plus makes ">" stricter, minus loosens it. Fixed at the rule\'s value unless you set a range.',
+  'left.n': 'Length of the SMA on the left side of the comparison (5..200 bars of its TF). Fixed at the rule\'s value unless you set a range.',
+  'right.n': 'Length of the SMA on the right side of the comparison (5..200 bars of its TF). Fixed at the rule\'s value unless you set a range.',
+  'right.const': 'The constant on the right side of the comparison. Fixed at the rule\'s value unless you set a range.',
+};
+const CONSTRUCTED_THRESHOLD_RE = /^R\d+\.C\d+\.(tolerancePct|left\.n|right\.n|right\.const)$/;
+
 export function getParamDescription(strategyName, paramName) {
+  const threshold = CONSTRUCTED_THRESHOLD_RE.exec(paramName || '');
+  if (threshold) return CONSTRUCTED_THRESHOLD_DESCRIPTIONS[threshold[1]];
   return (
     STRATEGY_PARAM_DESCRIPTIONS[strategyName]?.[paramName] ||
     GENERIC_PARAM_DESCRIPTIONS[paramName] ||

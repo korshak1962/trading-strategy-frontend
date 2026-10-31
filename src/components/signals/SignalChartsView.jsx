@@ -82,9 +82,12 @@ const SignalChartsView = ({ charts }) => {
     : PANE_HEIGHT_PX;
 
   const hasVotes = strategies.some(s => Array.isArray(s.votes));
-  const voteTypes = charts.longOnly
-    ? ['LongOpen', 'LongClose', 'ShortOpen']
-    : ['LongOpen', 'LongClose', 'ShortOpen', 'ShortClose'];
+  // LongBlock (a constructed strategy's "do not enter") joins the legend when some strip has it
+  const hasLongBlock = strategies.some(s => Array.isArray(s.votes) && s.votes.some(v => v.type === 'LongBlock'));
+  const voteTypes = [
+    ...(charts.longOnly ? ['LongOpen', 'LongClose', 'ShortOpen'] : ['LongOpen', 'LongClose', 'ShortOpen', 'ShortClose']),
+    ...(hasLongBlock ? ['LongBlock'] : []),
+  ];
   const largeRange = charts.prices.length > LARGE_RANGE_BARS;
 
   return (

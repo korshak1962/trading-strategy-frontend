@@ -12,9 +12,12 @@
 //     prices: [{date, open, high, low, close, volume}],
 //     positionSpans: [{from, to, side: 'LONG'|'SHORT'}],
 //     strategies: [{ key, strategyClass, positionDependent, params: [{paramName, value}], hasSignals,
-//                    signals: [{date, price, type, comment, executed, reason?}],
-//                    (reason 'OUTSIDE_WINDOW' = proposed on a warm-up bar before tradeStart)
-//                    votes: [{from, to, type}] | null,
+//                    signals: [{date, price, type, comment, executed, reason?, blockedBy?}],
+//                    (reason 'OUTSIDE_WINDOW' = proposed on a warm-up bar before tradeStart;
+//                     blockedBy [{strategyKey, rule}] = a PD LongOpen that lost to a LongBlock)
+//                    votes: [{from, to, type}] - type may be 'LongBlock' (a constructed strategy's
+//                     "do not enter": strip only, never a marker) |
+//                     null,
 //                    priceIndicators: {name: [{date, value}]}, indicators: {...},
 //                    channels: [...], levelZones: [...], levelChart: {...} | null }],
 //     merged: { signals: [{date, price, type, comment, sources: [key]}] } | null,
@@ -48,7 +51,15 @@ const adaptParams = (raw) => {
   }));
 };
 
-const adaptSignal = (s) => ({
+// [{strategyKey, rule}] of a LongOpen that lost to a LongBlock; display name via the caller's lookup.
+const adaptBlockedBy = (raw, displayNameOf) => (Array.isArray(raw) && raw.length > 0
+  ? raw.filter(b => b && (b.strategyKey || b.key)).map(b => {
+    const strategyKey = String(b.strategyKey ?? b.key);
+    return { strategyKey, rule: b.rule ?? null, displayName: displayNameOf ? displayNameOf(strategyKey) : strategyKey };
+  })
+  : undefined);
+
+const adaptSignal = (s, displayNameOf = null) => ({
   date: s.date,
   price: Number(s.price),
   type: s.type,
@@ -58,11 +69,15 @@ const adaptSignal = (s) => ({
   // 'OUTSIDE_WINDOW' on a strategy pane's warm-up signal (drawn muted); absent otherwise
   reason: typeof s.reason === 'string' ? s.reason : undefined,
   sources: Array.isArray(s.sources) ? s.sources.map(String) : undefined,
+  // a PD LongOpen not executed because a constructed strategy's LongBlock won the bar
+  blockedBy: adaptBlockedBy(s.blockedBy, displayNameOf),
 });
 
-const adaptSignals = (raw, longOnly) => asArray(raw)
+const adaptSignals = (raw, longOnly, displayNameOf = null) => asArray(raw)
   .filter(s => s && s.date && s.type)
-  .map(adaptSignal)
+  .map(s => adaptSignal(s, displayNameOf))
+  // LongBlock is not an order: it lives on the vote strip only, never as a marker (§2.2)
+  .filter(s => s.type !== 'LongBlock')
   // The backend already drops Short* in long-only (§2.3); filtered here too so the rule holds anyway.
   .filter(s => !longOnly || isLongSignal(s));
 
@@ -70,11 +85,14 @@ const adaptVotes = (raw) => (Array.isArray(raw)
   ? raw.filter(v => v && v.from && v.type).map(v => ({ from: v.from, to: v.to ?? v.from, type: v.type }))
   : null);
 
-const adaptStrategy = (raw, index, longOnly) => {
+const adaptStrategy = (raw, index, longOnly, displayNameOf = null) => {
   const key = String(raw?.key ?? raw?.strategyClass ?? `strategy-${index}`);
-  const signals = adaptSignals(raw?.signals, longOnly);
+  const signals = adaptSignals(raw?.signals, longOnly, displayNameOf);
+  const displayName = displayNameOf ? displayNameOf(key) : key;
   return {
     key,
+    // a constructed strategy's "<name> v3" instead of its key Constructed:<id>@<v>
+    displayName: displayName && displayName !== key ? displayName : null,
     strategyClass: raw?.strategyClass ?? key,
     positionDependent: raw?.positionDependent === true,
     params: adaptParams(raw?.params),
@@ -93,12 +111,13 @@ const adaptStrategy = (raw, index, longOnly) => {
 
 /**
  * Maps the raw signal-charts JSON to the view model. Never throws on missing optional parts.
+ * `displayNameOf(key)` (optional): display name of a strategy key (constructed strategies).
  * @returns {{ticker, timeFrame, startDate, endDate, tradeStart, windowStart, warnings: string[],
  *   longOnly: boolean, prices: Array,
  *   positionSpans: Array<{from, to, side}>, strategies: Array, merged: {signals: Array}|null,
  *   nextTriggers: Object|null}}
  */
-export const adaptSignalCharts = (raw) => {
+export const adaptSignalCharts = (raw, { displayNameOf = null } = {}) => {
   const longOnly = raw?.longOnly === true;
   const merged = raw?.merged && typeof raw.merged === 'object'
     ? { signals: adaptSignals(raw.merged.signals, longOnly) }
@@ -118,7 +137,7 @@ export const adaptSignalCharts = (raw) => {
       .filter(span => span && span.from)
       .filter(span => !longOnly || span.side !== 'SHORT')
       .map(span => ({ from: span.from, to: span.to ?? null, side: span.side === 'SHORT' ? 'SHORT' : 'LONG' })),
-    strategies: asArray(raw?.strategies).map((s, i) => adaptStrategy(s, i, longOnly)),
+    strategies: asArray(raw?.strategies).map((s, i) => adaptStrategy(s, i, longOnly, displayNameOf)),
     merged,
     // Next-bar trigger prices: per strategy (by request key == pane key) and merged
     nextTriggers: adaptNextTriggers(raw?.nextTriggers),
@@ -220,6 +239,11 @@ export const normalizeVotes = (votes, geometry) => (Array.isArray(votes)
 // Pane summaries and texts
 // ---------------------------------------------------------------------------------------------
 
+/** "blocked by LongBlock of SMA200 regime v2 (R1)" of a signal's blockedBy, or null. */
+export const blockedByText = (blockedBy) => (Array.isArray(blockedBy) && blockedBy.length > 0
+  ? `blocked by ${blockedBy.map(b => `LongBlock of ${b.displayName || b.strategyKey}${b.rule ? ` (${b.rule})` : ''}`).join(', ')}`
+  : null);
+
 /** {total, executed} over a strategy pane's signals. */
 export const executionSummary = (signals) => {
   const list = asArray(signals);
@@ -237,6 +261,8 @@ export const VOTE_COLORS = Object.freeze({
   LongClose: 'rgba(220, 38, 38, 0.75)',
   ShortOpen: 'rgba(37, 99, 235, 0.75)',
   ShortClose: 'rgba(234, 88, 12, 0.75)',
+  // neutral grey "entry forbidden", apart from the red LongClose (architect §5.2)
+  LongBlock: 'rgba(107, 114, 128, 0.75)',
 });
 
 /** What a vote means on the strip; in long-only a ShortOpen vote acts as a long exit (§2.3). */
@@ -246,6 +272,7 @@ export const voteText = (type, longOnly) => {
     case 'LongClose': return 'LongClose: be out (veto)';
     case 'ShortOpen': return longOnly ? 'ShortOpen: acts as a long exit (long only)' : 'ShortOpen: be short';
     case 'ShortClose': return 'ShortClose: cover the short';
+    case 'LongBlock': return 'LongBlock: do not enter (entry blocked)';
     default: return String(type);
   }
 };
