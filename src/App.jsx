@@ -36,6 +36,7 @@ import WatchToasts from './components/watch/WatchToasts';
 import ScreenerPanel from './components/universeScreener/ScreenerPanel';
 import StrategyConstructorPanel from './components/strategyConstructor/StrategyConstructorPanel';
 import { currentVersionOf, isConstructedKey, strategyDisplayName } from './components/strategyConstructor/constructedFormat';
+import useConstructedNames from './components/strategyConstructor/useConstructedNames';
 import PrepareStrategiesHint from './components/universeScreener/PrepareStrategiesHint';
 import { isMinimalIndicatorsError } from './components/universeScreener/prepareFlow';
 import { useScreenerLatest } from './hooks/useScreenerLatest';
@@ -1120,6 +1121,9 @@ const App = () => {
 
   // ---- Parameter profile of the current key (BA-021 §5.1) ----
   const strategyKey = useMemo(() => profileKey(selectedStrategies), [selectedStrategies]);
+  // Names of the constructed strategies on screen, deleted ones too (labels only, minor #11)
+  useConstructedNames([...Object.keys(selectedStrategies || {}), ...(strategyKey ? strategyKey.split('+') : [])],
+    availableStrategies);
   const lookupKey = mode === 'optimize' && strategyKey && ticker && ticker.trim()
     ? `${ticker.trim()}|${strategyKey}|${timeFrame}` : null;
 

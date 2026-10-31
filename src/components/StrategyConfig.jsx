@@ -5,7 +5,7 @@ import { getParamDescription, OPTIMIZE_FIELD_DESCRIPTIONS } from '../utils/param
 import './screening/SensitivityView.css';
 import { flagLabel } from './screening/screeningFormat';
 import {
-  currentVersionOf, groupThresholds, isConstructedKey, parseConstructedKey, parseThresholdName, strategyDisplayName,
+  constructedLabel, currentVersionOf, groupThresholds, isConstructedKey, parseConstructedKey, parseThresholdName,
 } from './strategyConstructor/constructedFormat';
 import ConstructedAttempts from './strategyConstructor/ConstructedAttempts';
 
@@ -54,7 +54,7 @@ const ConstructedName = ({ strategyKey, availableStrategies, onUpdateVersion }) 
   const newer = current && current.version != null && current.version > pinned.version;
   return (
     <div className="strategy-name flex flex-wrap items-center gap-1" title={strategyKey} data-testid="constructed-config-name">
-      <span>{strategyDisplayName(strategyKey, availableStrategies).replace(/ v\d+$/, '')}</span>
+      <span>{constructedLabel(strategyKey, availableStrategies, { withVersion: false, markDeleted: false })}</span>
       <span className="px-1.5 rounded bg-indigo-100 text-indigo-800 text-xs font-medium">v{pinned.version}</span>
       <span className="text-xs font-normal text-gray-500">constructed</span>
       {!current && availableStrategies.length > 0 && (

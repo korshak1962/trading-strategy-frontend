@@ -12,6 +12,7 @@ import {
   kindText, lineText, nextBarLabel, nowVsLineText, partialText, statusText, OUTCOME_TEXT,
   DEFAULT_EXECUTION_NOTE, isBenchmark, fmtBarKey, isSetupPreview, setupPreview, previewSentences,
 } from './nextTriggersFormat';
+import { isConstructedKey, strategyLabel } from '../strategyConstructor/constructedFormat';
 
 const RUN_KIND_TEXT = { BACKTEST: 'backtest run', SIGNALS: 'signals run', WATCH: 'watch run' };
 
@@ -106,8 +107,8 @@ const StrategyBreakdown = ({ nt }) => (
     {nt.strategies.map(s => (
       <div key={s.key} className="border-l-2 border-gray-200 pl-2" data-testid="next-bar-strategy" data-key={s.key}>
         <div className="text-sm font-medium text-gray-800">
-          {s.key}
-          {s.strategyClass && s.strategyClass !== s.key && <span className="font-normal text-gray-500"> ({s.strategyClass})</span>}
+          {strategyLabel(s.key)}
+          {s.strategyClass && s.strategyClass !== s.key && !isConstructedKey(s.key) && <span className="font-normal text-gray-500"> ({s.strategyClass})</span>}
           {s.kind !== 'LINES' && !isBenchmark(s) && (
             <span className="ml-2 nbt-badge">{s.kind.toLowerCase().replace(/_/g, ' ')}</span>
           )}

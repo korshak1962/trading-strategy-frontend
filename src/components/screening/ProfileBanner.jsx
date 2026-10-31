@@ -37,15 +37,33 @@ const ProfileBanner = ({
   const warnings = Array.isArray(profile?.warnings) ? profile.warnings.filter(Boolean) : [];
   const added = addedParams(profile?.searchSpace);
   // Reviewer M5: a param held fixed during the screening is in provenance.fixedParams, not in the
-  // search space; it is not "missing" from the profile. Keys are compared on the simple class name.
+  // search space; it is not "missing" from the profile. Keys are compared on the simple class name,
+  // a constructed strategy on its whole request key (its threshold names contain dots).
   const simple = (k) => shortStrategy(String(k).split('.').pop());
-  const fixedKeys = new Set(Object.entries(p.fixedParams || {})
-    .flatMap(([k, m]) => Object.keys(m || {}).map((n) => `${simple(k)}.${n}`)));
+  const fixedEntries = Object.entries(p.fixedParams || {})
+    .flatMap(([k, m]) => Object.keys(m || {}).map((n) => [k, n]));
+  const fixedKeys = new Set(fixedEntries.map(([k, n]) => `${simple(k)}.${n}`));
+  const fixedExact = new Set(fixedEntries.map(([k, n]) => `${k}.${n}`));
   const notCovered = missing.filter((m) => {
+    if (fixedExact.has(m)) return false;
     const dot = String(m).lastIndexOf('.');
     return dot < 0 || !fixedKeys.has(`${simple(m.slice(0, dot))}.${m.slice(dot + 1)}`);
   });
-  const keyText = `${ticker} · ${String(strategyKey).split('+').map(shortStrategy).join(' + ')} · ${timeFrame}`;
+  // "Strategy.param" of the form → "<name v3>.param" for a constructed strategy (minor #11)
+  const missingLabel = (m) => {
+    const k = String(m).match(/^(Constructed:\d+@\d+)\.(.+)$/);
+    return k ? `${shortStrategy(k[1])}.${k[2]}` : m;
+  };
+  // A constructed part of the key is the token Constructed:<id>; label it with the screened version
+  const screenedKeys = [
+    ...Object.keys(p.fixedParams || {}),
+    ...(Array.isArray(profile?.result?.params) ? profile.result.params.map((x) => x?.strategyKey) : []),
+  ].filter(Boolean);
+  const partLabel = (part) => {
+    const screened = screenedKeys.find((k) => k.startsWith(`${part}@`));
+    return shortStrategy(screened || part);
+  };
+  const keyText = `${ticker} · ${String(strategyKey).split('+').map(partLabel).join(' + ')} · ${timeFrame}`;
 
   const facts = [
     `screened ${day(profile?.screenedAt)}`,
@@ -111,7 +129,7 @@ const ProfileBanner = ({
         </div>
       )}
       {state !== 'available' && notCovered.length > 0 && (
-        <div className="mt-1 text-xs text-amber-800">Not in the profile (range kept): {notCovered.join(', ')}</div>
+        <div className="mt-1 text-xs text-amber-800">Not in the profile (range kept): {notCovered.map(missingLabel).join(', ')}</div>
       )}
       {warnings.length > 0 && (
         <ul className="mt-1 list-disc pl-5 text-xs text-amber-800">

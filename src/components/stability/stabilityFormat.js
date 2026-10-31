@@ -7,6 +7,7 @@
 // Terms: the fit half / check half of a chain node; UI labels "Fit" / "Check".
 
 import { fmtBarTimestamp } from '../../utils/dates';
+import { strategyLabel } from '../strategyConstructor/constructedFormat';
 
 // MIN5 < HOUR < DAY < WEEK < MONTH. The channel timeframe must not be coarser than the strategy's.
 export const TIME_FRAME_ORDER = ['MIN5', 'HOUR', 'DAY', 'WEEK', 'MONTH'];
@@ -170,8 +171,14 @@ export const fmtParams = (params) => {
     .join(', ');
 };
 
-/** "PriceAboveMaStrategy" → "PriceAboveMa". */
-export const shortStrategy = (name) => String(name || '').replace(/Strategy$/, '');
+/**
+ * "PriceAboveMaStrategy" → "PriceAboveMa"; a constructed key / token → its name (strategyLabel,
+ * minor #11), the bare class "ConstructedStrategy" → "constructed strategy". Display only.
+ */
+export const shortStrategy = (name) => {
+  const label = strategyLabel(String(name || ''));
+  return label === String(name || '') ? label.replace(/Strategy$/, '') : label;
+};
 
 /** Bar / snapshot timestamp as received (no zone conversion); missing → "—". */
 export const fmtTs = (v) => fmtBarTimestamp(v) || '—';

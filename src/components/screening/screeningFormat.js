@@ -9,7 +9,8 @@
 // search-space <-> form mapping (Apply changes min / max / step only, Q3) and the provisional
 // clean rule (§5.3).
 
-import { isNum } from '../stability/stabilityFormat';
+import { isNum, shortStrategy } from '../stability/stabilityFormat';
+import { parseConstructedKey } from '../strategyConstructor/constructedFormat';
 
 // ---- sample plan per timeframe (architect.md §7a.3, ScreeningSettings.defaultsFor) ----------------
 // DAY / WEEK / MONTH: adaptive 5000 → 10000; HOUR: adaptive 2000 → 5000 (batch 500); MIN5: FIXED 500
@@ -189,13 +190,21 @@ export const batchInfo = (total, plan) => {
 
 // ---- profile key + form mapping ---------------------------------------------------------------------
 
-/** Simple class name of a form strategy (params carry strategyClass; the map key is the class name). */
+/**
+ * Profile key part of a form strategy (backend StrategyKeys.token): a constructed strategy
+ * `Constructed:<id>@<version>` → `Constructed:<id>` (per strategy id, no version: a new version keeps
+ * the profile, which turns stale); otherwise the simple class name (params carry strategyClass; the
+ * map key is the class name). Never the class `ConstructedStrategy`: that would mix different
+ * constructed strategies. It is also the `strategyClass` of the profile's search-space entries.
+ */
 export const strategyClassOf = (name, params) => {
+  const constructed = parseConstructedKey(name);
+  if (constructed) return `Constructed:${constructed.id}`;
   const first = Object.values(params || {})[0];
   return (first && first.strategyClass) || name;
 };
 
-/** Canonical key: simple class names, sorted, joined by '+' (backend StrategyKeys.canonicalKey). */
+/** Canonical key: key parts (strategyClassOf), sorted, joined by '+' (backend StrategyKeys.canonicalKey). */
 export const profileKey = (selectedStrategies) =>
   Object.entries(selectedStrategies || {})
     .map(([name, params]) => strategyClassOf(name, params))
@@ -400,6 +409,13 @@ export const fmtPlan = (plan) => {
 /** Search-space entries of params the strategy gained after the screening (reconcile E9). */
 export const addedParams = (searchSpace) =>
   (searchSpace || []).filter((e) => e && e.added).map((e) => e.paramName);
+
+/**
+ * Strategy label of a result param row: a constructed axis by its request key (name + screened
+ * version), any other by its class.
+ */
+export const paramStrategyLabel = (p) =>
+  shortStrategy(parseConstructedKey(p?.strategyKey) ? p.strategyKey : (p?.strategyClass || p?.strategyKey));
 
 /** Stable key of a result param row. */
 export const paramRowKey = (p) => `${p.strategyClass || p.strategyKey}.${p.paramName}`;

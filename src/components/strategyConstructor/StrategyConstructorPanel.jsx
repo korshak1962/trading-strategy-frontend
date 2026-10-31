@@ -19,7 +19,7 @@ import {
 import { describeApiError } from '../../api/httpClient';
 import { exchangeToday, addYearsIso, fmtExchangeIntl } from '../../utils/dates';
 import {
-  newDraft, newRule, rulesSignature, validateDraft, runTfsOf, runTfError,
+  newDraft, newRule, rulesSignature, validateDraft, runTfsOf, runTfError, strategyLabel,
 } from './constructedFormat';
 
 const input = 'w-full p-2 border rounded';
@@ -44,7 +44,7 @@ function ReferencesList({ references }) {
         <li key={`w${w.id}`}>watch «{w.name || `#${w.id}`}»{w.status ? ` · ${w.status}` : ''}</li>
       ))}
       {references.profiles.map((p, i) => (
-        <li key={`p${i}`}>parameter profile {p.ticker} {p.timeframe}{p.strategyKey ? ` · ${p.strategyKey}` : ''}</li>
+        <li key={`p${i}`}>parameter profile {p.ticker} {p.timeframe}{p.strategyKey ? ` · ${String(p.strategyKey).split('+').map((x) => strategyLabel(x)).join(' + ')}` : ''}</li>
       ))}
     </ul>
   );

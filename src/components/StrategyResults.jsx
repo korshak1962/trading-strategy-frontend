@@ -7,6 +7,7 @@ import PerformanceMetricsTable from './PerformanceMetricsTable';
 import TradeStatisticsTable from './TradeStatisticsTable';
 import ChannelStabilityView from './stability/ChannelStabilityView';
 import ConstructedResultInfo from './strategyConstructor/ConstructedResultInfo';
+import { CONSTRUCTED_CLASS, constructedKeyOfParam, strategyLabel } from './strategyConstructor/constructedFormat';
 import { formatNumber, formatPercent, formatSigned, formatSignedPercent } from '../utils/formatters';
 import '../ResultsTabs.css';
 
@@ -14,6 +15,18 @@ import '../ResultsTabs.css';
 // busy, totalCombinations} for the Channels tab (ChannelStabilityView).
 // constructed: {config, availableStrategies, refreshKey} - the Summary card of constructed
 // strategies (thresholds in sweep / trades, attempt counter); shown only when the config has one.
+// Strategy column of Best Parameters (minor #11): a constructed strategy's params carry only the
+// class ConstructedStrategy - the run's config tells which constructed strategy has that param.
+const bestParamStrategy = (p, constructed) => {
+  const avail = constructed?.availableStrategies || [];
+  if (p.strategy) return strategyLabel(p.strategy, avail);
+  if (p.strategyClass === CONSTRUCTED_CLASS) {
+    const key = constructedKeyOfParam(p.paramName, constructed?.config?.strategyNameToParams);
+    return strategyLabel(key || CONSTRUCTED_CLASS, avail);
+  }
+  return p.strategyClass || '';
+};
+
 const StrategyResults = ({ results, mode, fileContext, stability = null, constructed = null }) => {
   const [activeTab, setActiveTab] = useState(mode === 'optimize' ? 'best-params' : 'summary');
   const hasParams = results.paramsDTO && results.paramsDTO.length > 0;
@@ -115,7 +128,7 @@ const StrategyResults = ({ results, mode, fileContext, stability = null, constru
             <tbody>
               {results.paramsDTO.map((p, i) => (
                 <tr key={i} className="border-b last:border-0">
-                  <td className="py-2 px-3 text-gray-600">{p.strategy || p.strategyClass || ''}</td>
+                  <td className="py-2 px-3 text-gray-600">{bestParamStrategy(p, constructed)}</td>
                   <td className="py-2 px-3">{p.paramName}</td>
                   <td className="py-2 px-3 text-right font-bold text-blue-700">
                     {typeof p.value === 'number' ? p.value.toFixed(4) : p.value}

@@ -14,9 +14,9 @@ import SensitivityTable from './SensitivityTable';
 import TopSamplesTable from './TopSamplesTable';
 import { saveProfileFromJob } from '../../api/strategyApi';
 import { objectiveLabel } from '../../utils/objectives';
-import { fmtDetectorParams, fmtParams, fmtTs, isNum, shortStrategy } from '../stability/stabilityFormat';
+import { fmtDetectorParams, fmtParams, fmtTs, isNum } from '../stability/stabilityFormat';
 import {
-  fmtDuration, fmtGrid, fmtMsPerRun, fmtPlan, indexSearchSpace, levelCount, paramRowKey,
+  fmtDuration, fmtGrid, fmtMsPerRun, fmtPlan, indexSearchSpace, levelCount, paramRowKey, paramStrategyLabel,
 } from './screeningFormat';
 
 // Initial edit state of a row: the recommendation (live result) or the stored search space (profile).
@@ -163,7 +163,7 @@ const SensitivityView = ({
     }
   };
 
-  const strategies = [...new Set(params.map((p) => shortStrategy(p.strategyClass || p.strategyKey)))].join(' + ') || result?.strategyKey;
+  const strategies = [...new Set(params.map(paramStrategyLabel))].join(' + ') || result?.strategyKey;
 
   return (
     <div className="bg-white p-6 rounded-lg shadow" data-testid="sensitivity-view">

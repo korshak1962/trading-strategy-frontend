@@ -30,13 +30,92 @@ export const isConstructedInfo = (s) => s?.kind === 'CONSTRUCTED' || isConstruct
  * strategies, which list the CURRENT version of every non-deleted one; a pinned older version
  * keeps its own number), otherwise the key itself.
  */
-export const strategyDisplayName = (key, availableStrategies = []) => {
-  const k = parseConstructedKey(key);
-  if (!k) return key;
-  const info = (availableStrategies || []).find((s) => isConstructedInfo(s)
-    && (s.constructedId ?? parseConstructedKey(s.name)?.id) === k.id);
-  const name = info?.displayName || `Constructed #${k.id}`;
-  return `${name} v${k.version}`;
+export const strategyDisplayName = (key, availableStrategies = []) =>
+  constructedLabel(key, availableStrategies) ?? key;
+
+// ---- display names (minor #11): one helper for every label of a constructed strategy ----
+//
+// Labels only - the keys sent to the backend never change (request key `Constructed:<id>@<v>`,
+// profile key part `Constructed:<id>`).
+
+const TOKEN_RE = /^Constructed:(\d+)(?:@(\d+))?$/;
+
+/** The class every constructed strategy runs as (a param's strategyClass); never a name. */
+export const CONSTRUCTED_CLASS = 'ConstructedStrategy';
+
+/** `Constructed:12@3` → {id: 12, version: 3}; the profile token `Constructed:12` → {id: 12, version: null}. */
+export const parseConstructedRef = (s) => {
+  const m = typeof s === 'string' ? TOKEN_RE.exec(s) : null;
+  return m ? { id: Number(m[1]), version: m[2] != null ? Number(m[2]) : null } : null;
+};
+
+// id → stored name, filled from available-strategies (non-deleted) and from version reads (also
+// deleted strategies). `listed` = the ids of the last loaded available-strategies; null = not loaded.
+const names = new Map();
+let listed = null;
+
+const infoId = (s) => s.constructedId ?? parseConstructedKey(s.name)?.id;
+
+/** Records the constructed strategies of an available-strategies list (StrategyInfoDTO[]). */
+export const rememberAvailableStrategies = (availableStrategies) => {
+  const ids = new Set();
+  (availableStrategies || []).filter(isConstructedInfo).forEach((s) => {
+    const id = infoId(s);
+    if (id == null) return;
+    ids.add(id);
+    if (s.displayName) names.set(id, s.displayName);
+  });
+  listed = ids;
+};
+
+/** Records a stored name (e.g. from GET /constructed/{id}/versions/{v}, which serves deleted ones too). */
+export const rememberConstructedName = (id, name) => {
+  if (id != null && name) names.set(Number(id), name);
+};
+
+/** true when the name of `id` is known. */
+export const hasConstructedName = (id) => names.has(Number(id));
+
+/**
+ * Label of a constructed strategy from its request key or profile token: "<name> v3" (version
+ * only when the key carries one and `withVersion`), "<name> (deleted) v3" when it is no longer in
+ * the loaded available strategies (`markDeleted`), "deleted strategy #12" when its name is unknown
+ * ("constructed strategy #12" while the list is not loaded yet). null when `s` is not a
+ * constructed key/token.
+ */
+export const constructedLabel = (s, availableStrategies = null, { withVersion = true, markDeleted = true } = {}) => {
+  const ref = parseConstructedRef(s);
+  if (!ref) return null;
+  const info = (availableStrategies || []).find((x) => isConstructedInfo(x) && infoId(x) === ref.id);
+  const name = info?.displayName || names.get(ref.id) || null;
+  // deleted = not in a loaded available-strategies list; before the list loads nothing is "deleted"
+  const deleted = !info && listed != null && !listed.has(ref.id);
+  const base = name
+    ? (deleted && markDeleted ? `${name} (deleted)` : name)
+    : `${deleted ? 'deleted strategy' : 'constructed strategy'} #${ref.id}`;
+  return withVersion && ref.version != null ? `${base} v${ref.version}` : base;
+};
+
+/**
+ * Display label of any strategy key / class name: a constructed key or token → its name;
+ * the bare class `ConstructedStrategy` (no id known) → "constructed strategy"; anything else as is.
+ */
+export const strategyLabel = (s, availableStrategies = null, opts = {}) => {
+  const c = constructedLabel(s, availableStrategies, opts);
+  if (c) return c;
+  return s === CONSTRUCTED_CLASS ? 'constructed strategy' : s;
+};
+
+/**
+ * The constructed request key of a result param (StrategyResultDTO.paramsDTO carries only the
+ * class `ConstructedStrategy`): the config's one constructed key that has this param name; null
+ * when none or several match.
+ */
+export const constructedKeyOfParam = (paramName, strategyNameToParams) => {
+  const hits = Object.entries(strategyNameToParams || {})
+    .filter(([k, params]) => isConstructedKey(k) && params && Object.prototype.hasOwnProperty.call(params, paramName))
+    .map(([k]) => k);
+  return hits.length === 1 ? hits[0] : null;
 };
 
 /**

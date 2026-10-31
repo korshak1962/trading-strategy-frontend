@@ -9,9 +9,9 @@
 
 import { Fragment, useState } from 'react';
 import ParamCurveCanvas from './ParamCurveCanvas';
-import { isNum, shortStrategy } from '../stability/stabilityFormat';
+import { isNum } from '../stability/stabilityFormat';
 import {
-  SCREENING_VERDICT_STYLE, flagLabel, fmtEta, fmtEtaCi, fmtLevel, fmtShare, maxInvalidShare, paramRowKey,
+  SCREENING_VERDICT_STYLE, flagLabel, fmtEta, fmtEtaCi, fmtLevel, fmtShare, maxInvalidShare, paramRowKey, paramStrategyLabel,
 } from './screeningFormat';
 
 const ImportanceBar = ({ p, scale }) => {
@@ -81,7 +81,7 @@ const SensitivityTable = ({ params, edits, onEdit, multiStrategy, readOnly = fal
             return (
               <Fragment key={key}>
                 <tr data-testid={`sens-row-${p.paramName}`}>
-                  {multiStrategy && <td className="whitespace-nowrap">{shortStrategy(p.strategyClass || p.strategyKey)}</td>}
+                  {multiStrategy && <td className="whitespace-nowrap">{paramStrategyLabel(p)}</td>}
                   <td className="whitespace-nowrap font-medium">
                     {p.paramName}
                     {p.kind === 'CATEGORICAL' && <span className="sens-chip ml-1" title="Categorical: no order between levels">cat.</span>}
