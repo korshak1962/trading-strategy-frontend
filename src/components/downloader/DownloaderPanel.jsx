@@ -509,6 +509,11 @@ export default function DownloaderPanel() {
                     Scheduled: <span className="font-medium">{job.scheduleName || `#${job.scheduleId ?? '?'}`}</span>
                   </span>
                 )}
+                {job.trigger === 'REFILL' && (
+                  <span className="text-sm text-gray-700" title="Refill of missing days from a probe (insert-only)">
+                    Refill{job.ticker || job.items?.[0]?.dbTicker ? <>: <span className="font-medium">{job.ticker || job.items[0].dbTicker}</span></> : ''}
+                  </span>
+                )}
                 <span className="text-xs text-gray-500 break-all">{job.jobId}</span>
               </div>
               {(job.market || job.source || job.timeFrame) && (
@@ -546,8 +551,15 @@ export default function DownloaderPanel() {
         jobActive={isActive}
       />
 
-      {/* Data check: gap finder + one-sided delete (TASK_downloader_gaps.md §3) */}
-      <DataCheckPanel tickers={tickers} market={market} jobActive={isActive} />
+      {/* Data check: gap finder + one-sided delete (TASK_downloader_gaps.md §3) + refill
+          (architect_refill_gaps.md §7.3): a refill runs as a download job shown above. */}
+      <DataCheckPanel
+        tickers={tickers}
+        market={market}
+        jobActive={isActive}
+        job={jobLost ? null : job}
+        onJobStarted={(id, status) => attachToJob(id, status || 'QUEUED')}
+      />
     </div>
   );
 }

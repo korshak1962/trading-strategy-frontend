@@ -21,3 +21,9 @@ export const pickTimeFrame = (preferred, source, fallback = 'DAY') => {
   if (tfs.includes(fallback)) return fallback;
   return tfs[0];
 };
+
+// Refill gaps (screener architect_refill_gaps.md §1.1): raw fill levels (WEEK / MONTH are always
+// aggregated) and the reference tickers whose calendar the gap scan uses — they cannot see their
+// own gaps and need an explicit day list plus a separate confirmation.
+export const REFILL_TIMEFRAMES = TIMEFRAMES.map((t) => t.value);
+export const REFERENCE_TICKERS = new Set(['SPY', 'SBER_MOEX']);

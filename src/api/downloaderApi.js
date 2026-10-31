@@ -137,6 +137,79 @@ export const deleteRange = async ({ ticker, timeFrame, side, boundary, cascade, 
   return res.json();
 };
 
+// ---- Refill gaps (screener logs/agents/architect_refill_gaps.md §7.1) ----
+
+// Error for a refill call: `status`, `detail` (backend text) and, for a 409, the blocking
+// `jobId` / `probeId` from the body `{probeId|jobId, error}`.
+const refillError = async (res, what) => {
+  const body = res.status === 409 ? await res.clone().json().catch(() => null) : null;
+  const err = await httpError(res, what);
+  err.jobId = body?.jobId ?? null;
+  err.probeId = body?.probeId ?? null;
+  return err;
+};
+
+/**
+ * POST /refill/probe — read-only dry run: asks the source for the missing days, writes nothing.
+ * @param {Object} body { ticker, timeFrame?, source?, gaps?: [lastBefore...], days?: ['yyyy-MM-dd'],
+ *   confirmReference? }  `days` is mandatory for a reference ticker (SPY / SBER_MOEX).
+ * @returns {Promise<{probeId: string}>} 202.
+ * 409 (a probe / download job / gap delete is running) and 400 throw an Error with `status`,
+ * `detail`, `jobId`, `probeId`.
+ */
+export const probeRefill = async (body) => {
+  const res = await fetch(`${API_BASE_URL}/refill/probe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await refillError(res, 'Probe failed to start');
+  return res.json();
+};
+
+/**
+ * GET /refill/probe/{id} → { probeId, status: RUNNING|DONE|FAILED, ticker, timeFrame, source,
+ *   totals: {gaps, days, bars}, gaps: [{lastBefore, firstAfter, days: [{day, bars, expectedBars,
+ *   coverage, verdict}], neighbourCheck: {before, after, verdict}, continuity, volumeRatio,
+ *   verdict, reason}] }.
+ * 404 (unknown or expired: probes live 30 min in memory) throws with `status` 404.
+ */
+export const fetchRefillProbe = async (probeId) => {
+  const res = await fetch(`${API_BASE_URL}/refill/probe/${encodeURIComponent(probeId)}`);
+  if (!res.ok) throw await httpError(res, 'Probe fetch failed');
+  return res.json();
+};
+
+/**
+ * POST /refill/probe/{id}/apply — writes exactly the bars the probe showed, as a download job.
+ * @param {Object} body { gaps: [lastBefore...], acceptSuspect: [...], acceptUnverified: [...],
+ *   includePartial: false, confirmReference? }
+ * @returns {Promise<{jobId: string}>} 202.
+ * 409 (job running → `jobId`), 404 / 410 (probe gone / expired) and 400 throw with `status`.
+ */
+export const applyRefill = async (probeId, body) => {
+  const res = await fetch(`${API_BASE_URL}/refill/probe/${encodeURIComponent(probeId)}/apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await refillError(res, 'Apply failed');
+  return res.json();
+};
+
+/**
+ * GET /refill/reference-hints?ticker=SPY — hint for a reference ticker, which cannot see its own
+ * gaps: days where ≥ 50 % of the market's tickers have a DAY bar and the reference does not.
+ * @returns {Promise<Array<{day, tickersWithBar, tickersTotal}>|null>} null when the backend
+ *   does not offer the hint (404).
+ */
+export const fetchReferenceHints = async (ticker) => {
+  const res = await fetch(`${API_BASE_URL}/refill/reference-hints?${new URLSearchParams({ ticker })}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw await httpError(res, 'Loading the hint list failed');
+  return res.json();
+};
+
 // ---- Scheduled downloads (TASK_download_schedule.md §3.5) ----
 
 /**

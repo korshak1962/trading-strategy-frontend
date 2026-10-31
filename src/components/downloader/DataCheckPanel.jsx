@@ -3,8 +3,11 @@
 // "Data check" section of the Downloader tab: find gaps in a ticker's stored history and
 // delete one side of a gap (dry run first, then the real delete, then an automatic re-scan).
 // Contract: screener TASK_downloader_gaps.md §2.1 (GET /gaps), §2.2 (POST /delete), §3 (UI).
-import { useState, Fragment } from 'react';
+// Refill of missing days (probe → apply): architect_refill_gaps.md §7.3, see RefillPanel.jsx.
+import { useState, useCallback, Fragment } from 'react';
 import { fetchGaps, deleteRange } from '../../api/downloaderApi';
+import RefillPanel from './RefillPanel';
+import { REFILL_TIMEFRAMES, REFERENCE_TICKERS } from './timeFrames';
 
 const GAP_TIMEFRAMES = ['MIN5', 'HOUR', 'DAY', 'WEEK', 'MONTH'];
 const MOEX_SUFFIX = '_MOEX';
@@ -54,9 +57,11 @@ const gapKey = (tf, g) => `${tf}|${g.lastBefore}|${g.firstAfter}`;
 /**
  * @param {string[]} tickers  the chips of the download form (dropdown options)
  * @param {string}   market   'US' | 'MOEX' (decides the `_MOEX` suffix of the options)
- * @param {boolean}  jobActive a download job is QUEUED/RUNNING → delete buttons disabled
+ * @param {boolean}  jobActive a download job is QUEUED/RUNNING → delete / refill buttons disabled
+ * @param {Object}   job       the job of the job panel (a refill job's end triggers a re-scan)
+ * @param {Function} onJobStarted (jobId, placeholderStatus) → the job panel attaches to a refill job
  */
-export default function DataCheckPanel({ tickers, market, jobActive }) {
+export default function DataCheckPanel({ tickers, market, jobActive, job, onJobStarted }) {
   const options = [...new Set((tickers || []).map((t) => toDbTicker(t, market)))];
   // null = not edited yet → prefilled with the first chip
   const [tickerInput, setTickerInput] = useState(null);
@@ -70,8 +75,10 @@ export default function DataCheckPanel({ tickers, market, jobActive }) {
   const [busyKey, setBusyKey] = useState(null); // gapKey whose dry run / delete is in flight
   const [actionError, setActionError] = useState(null); // { key, message }
   const [notice, setNotice] = useState(null);
+  // Open refill block: { nonce, ticker, tf, gaps: [lastBefore] | null }. A new nonce remounts it.
+  const [refill, setRefill] = useState(null);
 
-  const scan = async (t) => {
+  const scan = useCallback(async (t) => {
     setScanning(true);
     setScanError(null);
     try {
@@ -83,13 +90,21 @@ export default function DataCheckPanel({ tickers, market, jobActive }) {
     } finally {
       setScanning(false);
     }
+  }, []);
+
+  const openRefill = (tf, gaps) => {
+    setPending(null);
+    setRefill({ nonce: Date.now(), ticker: result.ticker, tf, gaps });
   };
+  const refillTicker = refill?.ticker;
+  const rescanAfterRefill = useCallback(() => { if (refillTicker) scan(refillTicker); }, [refillTicker, scan]);
 
   const handleFind = async (e) => {
     e.preventDefault();
     setNotice(null);
     setPending(null);
     setActionError(null);
+    setRefill(null);
     if (!ticker) { setScanError('Enter a ticker'); return; }
     await scan(ticker);
   };
@@ -159,13 +174,16 @@ export default function DataCheckPanel({ tickers, market, jobActive }) {
   };
 
   const deleteDisabled = jobActive || busyKey !== null;
+  const refillDisabled = jobActive || busyKey !== null;
+  const isReference = !!result && REFERENCE_TICKERS.has(result.ticker);
 
   return (
     <div className="bg-white p-6 rounded-lg shadow mt-8">
       <h2 className="text-xl font-bold mb-1">Data check</h2>
       <p className="mb-4 text-sm text-gray-600">
         Find gaps in a ticker&apos;s stored history (trading calendar = SPY for US, SBER_MOEX for MOEX)
-        and delete one side of a gap. The smaller side is usually the one to delete; both bar counts are shown.
+        and either refill the missing days from a source (probe first, nothing is written until Apply) or
+        delete one side of a gap. The smaller side is usually the one to delete; both bar counts are shown.
       </p>
 
       <form onSubmit={handleFind} className="flex flex-wrap items-end gap-2" noValidate>
@@ -205,6 +223,39 @@ export default function DataCheckPanel({ tickers, market, jobActive }) {
         </div>
       )}
 
+      {result && isReference && !refill && (
+        <div className="mt-3 p-2 rounded bg-slate-50 border border-slate-300 text-slate-700 text-sm flex flex-wrap items-center gap-2">
+          <span>{result.ticker} is the reference calendar and never shows its own gaps.</span>
+          <button
+            type="button"
+            onClick={() => openRefill(
+              REFILL_TIMEFRAMES.find((t) => result.blocks.some((b) => b.timeFrame === t && b.bars > 0)) || 'DAY',
+              null,
+            )}
+            disabled={refillDisabled}
+            title={jobActive ? JOB_RUNNING_MESSAGE : 'Refill an explicit list of days'}
+            className="px-2 py-0.5 rounded border border-blue-600 text-blue-600 hover:bg-blue-50 text-xs disabled:border-gray-300 disabled:text-gray-400 disabled:hover:bg-transparent"
+          >
+            Refill days…
+          </button>
+        </div>
+      )}
+
+      {refill && result && refill.ticker === result.ticker && (
+        <RefillPanel
+          key={refill.nonce}
+          ticker={refill.ticker}
+          blocks={result.blocks}
+          initialTf={refill.tf}
+          initialGaps={refill.gaps}
+          jobActive={jobActive}
+          job={job}
+          onJobStarted={onJobStarted}
+          onRescan={rescanAfterRefill}
+          onClose={() => setRefill(null)}
+        />
+      )}
+
       {result && (
         <div className="mt-4 space-y-6">
           {result.blocks.length === 0 && (
@@ -226,6 +277,22 @@ export default function DataCheckPanel({ tickers, market, jobActive }) {
                   )}
                   {b.bars > 0 && gaps.length === 0 && (
                     <span className="text-sm text-green-700 font-medium">no gaps</span>
+                  )}
+                  {gaps.length > 0 && REFILL_TIMEFRAMES.includes(b.timeFrame) && (
+                    <button
+                      type="button"
+                      onClick={() => openRefill(b.timeFrame, null)}
+                      disabled={refillDisabled}
+                      title={jobActive ? JOB_RUNNING_MESSAGE : `Probe all ${gaps.length} ${b.timeFrame} gaps, then apply`}
+                      className="px-2 py-0.5 rounded border border-blue-600 text-blue-600 hover:bg-blue-50 text-xs disabled:border-gray-300 disabled:text-gray-400 disabled:hover:bg-transparent"
+                    >
+                      Refill all gaps of this TF…
+                    </button>
+                  )}
+                  {gaps.length > 0 && !REFILL_TIMEFRAMES.includes(b.timeFrame) && (
+                    <span className="text-xs text-gray-400" title="WEEK / MONTH are always aggregated from DAY">
+                      refill via a lower timeframe
+                    </span>
                   )}
                 </div>
 
@@ -267,6 +334,17 @@ export default function DataCheckPanel({ tickers, market, jobActive }) {
                                 <td className="px-2 py-1 text-right">{fmtInt(g.barsAfter)}</td>
                                 <td className="px-2 py-1">
                                   <div className="flex flex-wrap items-center gap-2">
+                                    {REFILL_TIMEFRAMES.includes(b.timeFrame) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => openRefill(b.timeFrame, [g.lastBefore])}
+                                        disabled={refillDisabled}
+                                        title={jobActive ? JOB_RUNNING_MESSAGE : 'Probe the missing days from a source, then apply'}
+                                        className="px-2 py-0.5 rounded border border-blue-600 text-blue-600 hover:bg-blue-50 text-xs disabled:border-gray-300 disabled:text-gray-400 disabled:hover:bg-transparent"
+                                      >
+                                        Refill…
+                                      </button>
+                                    )}
                                     <button
                                       type="button"
                                       onClick={() => handlePreview(b.timeFrame, g, 'BEFORE')}
