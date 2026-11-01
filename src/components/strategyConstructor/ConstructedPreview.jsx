@@ -1,7 +1,7 @@
 // src/components/strategyConstructor/ConstructedPreview.jsx
 //
 // Preview of a constructed strategy WITHOUT merge (screener architect.md §4.8, BA spec §4.2 p. 5):
-// ticker / run TF (DAY | WEEK) / dates → the strategy's own signals on the canvas price chart
+// ticker / run TF (DAY | WEEK; stage 3a: any TF for RUN-only rules) / dates → the strategy's own signals on the canvas price chart
 // (the backtester's ReporterStyleChart) with a vote strip of what it emits on each bar, and a table
 // per rule: "fired N of M bars (x %), not evaluated K of M (reasons)", the state-rule warnings
 // (fire rate > 20 %, Q11) and the thresholds in the sweep. Not counted as an attempt (O3).
@@ -47,9 +47,11 @@ const runsOf = (prices, items) => {
  * @param {string[]} props.tickers
  * @param {string[]} props.timeframes run TFs (meta)
  * @param {number} props.stateRuleFireRate
+ * @param {string[]} [props.runTfs] the TFs this strategy can run on (stage 3a: RUN-only → any TF)
+ * @param {string|null} [props.errorHint] a plain-language hint under the error (stage-3a 400s)
  */
 export default function ConstructedPreview({
-  form, onFormChange, onRun, busy, error, preview, stale, tickers, timeframes, stateRuleFireRate,
+  form, onFormChange, onRun, busy, error, preview, stale, tickers, timeframes, stateRuleFireRate, runTfs = null, errorHint = null,
 }) {
   const [ruleFilter, setRuleFilter] = useState('all');
 
@@ -107,7 +109,9 @@ export default function ConstructedPreview({
           <label className={label} htmlFor="cp-tf">Run TF</label>
           <select id="cp-tf" className="p-2 border rounded text-sm bg-white" value={form.timeFrame}
             onChange={(e) => onFormChange({ timeFrame: e.target.value })} data-testid="preview-tf">
-            {timeframes.map((tf) => <option key={tf} value={tf}>{tf}</option>)}
+            {timeframes.map((tf) => (
+              <option key={tf} value={tf}>{tf}{runTfs && !runTfs.includes(tf) ? ' (not for these conditions)' : ''}</option>
+            ))}
           </select>
         </div>
         <div>
@@ -127,7 +131,12 @@ export default function ConstructedPreview({
         </button>
       </div>
 
-      {error && <div className="form-error mb-3" role="alert" data-testid="preview-error">{error}</div>}
+      {error && (
+        <div className="form-error mb-3" role="alert" data-testid="preview-error">
+          {error}
+          {errorHint && <div className="mt-1 text-xs font-normal" data-testid="preview-error-hint">{errorHint}</div>}
+        </div>
+      )}
       {!preview && !error && !busy && <p className="text-sm text-gray-500">Run a preview to see the signals of every rule.</p>}
 
       {preview && (

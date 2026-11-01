@@ -10,7 +10,7 @@ import './nextBarCard.css';
 import {
   actionLines, categoryBadge, distanceText, fmtTriggerPrice, fmtTriggerTs, infoLines, isIntrabarStop,
   kindText, lineText, nextBarLabel, nowVsLineText, partialText, statusText, OUTCOME_TEXT,
-  DEFAULT_EXECUTION_NOTE, isBenchmark, fmtBarKey, isSetupPreview, setupPreview, previewSentences,
+  DEFAULT_EXECUTION_NOTE, isBenchmark, fmtBarKey, isSetupPreview, setupPreview, previewSentences, lineRuleText,
 } from './nextTriggersFormat';
 import { isConstructedKey, strategyLabel } from '../strategyConstructor/constructedFormat';
 
@@ -42,7 +42,12 @@ const LineRow = ({ line, nowPrice = null, showSource = false }) => {
         <span className="nbt-distance" title="Line minus the basis close: price, % and ATR multiples">{distanceText(line)}</span>
       )}
       {now && <span className="nbt-distance text-emerald-700">· {now}</span>}
-      {showSource && line.source && <span className="nbt-distance">· {line.source}</span>}
+      {showSource && line.source && <span className="nbt-distance">· {strategyLabel(line.source)}</span>}
+      {lineRuleText(line) && (
+        <span className="nbt-distance font-mono" title="The rule of the constructed strategy this line is solved from" data-testid="next-bar-line-rule">
+          · {lineRuleText(line)}
+        </span>
+      )}
     </div>
   );
 };

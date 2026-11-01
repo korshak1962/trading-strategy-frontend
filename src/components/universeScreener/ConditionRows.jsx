@@ -6,7 +6,7 @@
 // Each row shows its live caption and its validation errors.
 import { METRICS, OPERATORS, SCREEN_TFS, LEVELS } from '../../api/screenerApi';
 import OperandPicker from './OperandPicker';
-import { conditionCaption } from './conditionFormat';
+import { conditionCaption, fmtNum } from './conditionFormat';
 
 const sel = 'p-1 border rounded text-sm bg-white';
 const LEVEL_LABEL = { 0: '0 · current', 1: '1 · parent', 2: '2 · grandparent' };
@@ -68,25 +68,52 @@ export function MetricConditionRow({ condition, onChange, evalTf, ...shell }) {
   );
 }
 
-export function CompareConditionRow({ condition, onChange, evalTf, ...shell }) {
+/**
+ * Optional props (constructed strategies, stage 3a; the screener passes none):
+ *   allowRun            - operands may take the TF "RUN"
+ *   renderLink(suffix)  - a link control for the threshold `left.n` / `right.n` / `right.const` /
+ *                         `tolerancePct` (null = none)
+ *   linkedValue(suffix) - the linked value of that threshold (a number) or null: the input is then
+ *                         replaced by the value
+ *   caption             - overrides the live caption (e.g. with "($Gap = 2)")
+ *   smaMin / smaMax     - SMA length bounds (meta.indicators)
+ */
+export function CompareConditionRow({
+  condition, onChange, evalTf, allowRun = false, renderLink = null, linkedValue = null, caption = null,
+  smaMin, smaMax, ...shell
+}) {
   const set = (patch) => onChange({ ...condition, ...patch });
+  const sideProps = (side) => ({
+    allowRun,
+    smaMin,
+    smaMax,
+    linkSlot: renderLink ? (field) => renderLink(`${side}.${field}`) : null,
+    linkedValue: linkedValue ? (field) => linkedValue(`${side}.${field}`) : null,
+  });
+  const tolLinked = linkedValue ? linkedValue('tolerancePct') : null;
   return (
-    <RowShell {...shell} caption={conditionCaption(condition, evalTf)} testId="compare-condition">
+    <RowShell {...shell} caption={caption ?? conditionCaption(condition, evalTf)} testId="compare-condition">
       <span className="text-xs font-semibold text-teal-700">Compare</span>
       <OperandPicker side="left" value={condition.left} evalTf={evalTf} disabled={shell.disabled}
-        onChange={(left) => set({ left })} testId="operand-left" />
+        onChange={(left) => set({ left })} testId="operand-left" {...sideProps('left')} />
       <select className={sel} value={condition.op} disabled={shell.disabled} onChange={(e) => set({ op: e.target.value })} aria-label="operator">
         {OPERATORS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
       <OperandPicker side="right" value={condition.right} evalTf={evalTf} disabled={shell.disabled}
-        onChange={(right) => set({ right })} testId="operand-right" />
+        onChange={(right) => set({ right })} testId="operand-right" {...sideProps('right')} />
       <label className="inline-flex items-center gap-1 text-xs text-gray-600"
         title="right × (1 + tolerance / 100). Plus makes > stricter (breakout with a margin), minus loosens it.">
         tolerance
-        <input type="number" step="0.1" className="p-1 border rounded text-sm w-16" value={condition.tolerancePct}
-          disabled={shell.disabled} onChange={(e) => set({ tolerancePct: e.target.value })} aria-label="tolerance %" />
+        {tolLinked != null ? (
+          <span className="px-1.5 py-1 border rounded text-sm bg-indigo-50 border-indigo-300 text-indigo-900 font-mono"
+            title="Linked: the tolerance comes from the axes" data-testid="linked-tolerance">{fmtNum(tolLinked)}</span>
+        ) : (
+          <input type="number" step="0.1" className="p-1 border rounded text-sm w-16" value={condition.tolerancePct}
+            disabled={shell.disabled} onChange={(e) => set({ tolerancePct: e.target.value })} aria-label="tolerance %" />
+        )}
         %
       </label>
+      {renderLink?.('tolerancePct')}
     </RowShell>
   );
 }

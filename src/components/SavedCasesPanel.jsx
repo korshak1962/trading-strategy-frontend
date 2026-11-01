@@ -189,10 +189,11 @@ const SavedCasesPanel = ({ ticker, casesVersion, onChanged, onLoad, disabled, ru
                     <div className="min-w-0">
                       <div className="text-sm font-medium text-gray-900 break-words">
                         {c.name}
-                        {/* A case of a deleted constructed strategy (Q8): loads with a warning, does not run */}
+                        {/* A case of a deleted strategy (a deleted constructed one, Q8, or a removed strategy
+                            class replaced by a constructed template, stage 3a #2): loads with a warning, does not run */}
                         {c.runBlocked === true && (
                           <span className="ml-1 px-1 rounded bg-red-100 text-red-800 text-xs font-normal"
-                            title={c.blockedReason || 'References a deleted constructed strategy: loads, does not run'}
+                            title={c.blockedReason || 'References a strategy that no longer exists: loads, does not run'}
                             data-testid="case-run-blocked-badge">
                             cannot run
                           </span>

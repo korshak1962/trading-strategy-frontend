@@ -17,7 +17,7 @@ const fmtUpdated = (v) => (v ? fmtExchangeIntl(v, {
  * @param {number|null} props.selectedId the strategy open in the editor
  * @param {number|null} props.busyId row being deleted
  */
-export default function ConstructedStrategyList({ items, selectedId, busyId, onNew, onEdit, onDelete, onRefresh }) {
+export default function ConstructedStrategyList({ items, selectedId, busyId, onNew, onFromTemplate = null, onEdit, onDelete, onRefresh }) {
   return (
     <div className="bg-white p-6 rounded-lg shadow" data-testid="constructed-list">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
@@ -25,6 +25,13 @@ export default function ConstructedStrategyList({ items, selectedId, busyId, onN
         <div className="flex gap-2">
           <button type="button" onClick={onRefresh} className="py-1 px-2 border rounded text-gray-700 hover:bg-gray-100 text-sm"
             title="Reload the list" aria-label="Reload the list">↻</button>
+          {onFromTemplate && (
+            <button type="button" onClick={onFromTemplate}
+              className="py-1 px-3 border border-blue-600 text-blue-600 rounded hover:bg-blue-50 text-sm"
+              title="Create a strategy from a code template (Price vs MA, MA crossover, …)" data-testid="constructed-from-template">
+              Create from template…
+            </button>
+          )}
           <button type="button" onClick={onNew}
             className="py-1 px-3 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm" data-testid="constructed-new">
             + New strategy
@@ -55,7 +62,13 @@ export default function ConstructedStrategyList({ items, selectedId, busyId, onN
             <tbody>
               {items.map((s) => (
                 <tr key={s.id} className={`border-t ${s.id === selectedId ? 'bg-blue-50' : ''}`} data-testid="constructed-row">
-                  <td className="px-2 py-1.5 font-medium">{s.name}</td>
+                  <td className="px-2 py-1.5 font-medium">
+                    {s.name}
+                    {s.templateId && (
+                      <span className="ml-1 px-1.5 rounded bg-indigo-100 text-indigo-800 text-xs font-normal"
+                        title={`Created from the template «${s.templateId}»`} data-testid="constructed-row-template">template</span>
+                    )}
+                  </td>
                   <td className="px-2 py-1.5">v{s.version}</td>
                   <td className="px-2 py-1.5">{s.ruleCount ?? '—'}</td>
                   <td className="px-2 py-1.5">

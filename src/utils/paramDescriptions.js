@@ -37,10 +37,6 @@ const STRATEGY_PARAM_DESCRIPTIONS = {
     WarmupBars: 'Bars skipped at the start of the walk-forward loop before entries/exits are evaluated, letting the zone detector build up history. Fixed (min = max) because it is part of the detector cache key and must not be swept.',
     AtrLength: 'Period, in bars, of the ATR that every buffer/tolerance above is measured in. Fixed (min = max) because it is part of the detector cache key and must not be swept.',
   },
-  MaCrossoverStrategy: {
-    FastLength: 'Period, in bars, of the fast moving average.',
-    Spread: 'Added to FastLength to derive the slow MA’s period (SlowLength = FastLength + Spread), so the slow MA is always longer than the fast one.',
-  },
   MeanReversionStrategy: {
     lookback: 'Number of bars in the rolling window used to compute the mean, standard deviation, and Z-score.',
     zEntry: 'Z-score entry threshold: opens a long once price falls this many standard deviations below the rolling mean (e.g. -2.0).',
@@ -49,10 +45,6 @@ const STRATEGY_PARAM_DESCRIPTIONS = {
     rsiSell: 'RSI must be above this value (with Z-score > 0.5) to confirm a mean-reversion exit.',
     volumeFactor: 'Entry requires the bar’s volume to exceed this fraction of the rolling average volume (e.g. 0.7 = 70% of the average).',
     rsiLength: 'Period, in bars, of the RSI indicator used by the buy/sell filters.',
-  },
-  PriceAboveMaStrategy: {
-    MaLength: 'Period, in bars, of the simple moving average the price is compared against.',
-    Gap: 'Percent buffer around the moving average. Buy when price > MA×(1+Gap/100), sell when price < MA×(1-Gap/100). Gap = 0 means buy/sell exactly at the MA crossing.',
   },
   SimpleStoplossStrategy: {
     StopLossPercent: 'Percent drop below the entry price that triggers a stop-loss exit.',
@@ -81,7 +73,17 @@ const CONSTRUCTED_THRESHOLD_DESCRIPTIONS = {
 };
 const CONSTRUCTED_THRESHOLD_RE = /^R\d+\.C\d+\.(tolerancePct|left\.n|right\.n|right\.const)$/;
 
-export function getParamDescription(strategyName, paramName) {
+// An axis of a constructed strategy ($Name, stage 3a): one parameter shared by its linked thresholds.
+const AXIS_RE = /^\$[A-Za-z][A-Za-z0-9]{0,31}$/;
+const AXIS_DESCRIPTION = 'Axis (linked parameter): every threshold linked to it takes its value ($A, −$A or $A ± $B), so the optimizer sweeps it as ONE parameter. Its range here is the sweep in Optimize.';
+
+/**
+ * Tooltip of a parameter. `note`: the description the backend gives (an axis note of a constructed
+ * strategy, StrategyInfoDTO.paramNotes) - wins over everything else.
+ */
+export function getParamDescription(strategyName, paramName, note = null) {
+  if (note) return note;
+  if (AXIS_RE.test(paramName || '')) return AXIS_DESCRIPTION;
   const threshold = CONSTRUCTED_THRESHOLD_RE.exec(paramName || '');
   if (threshold) return CONSTRUCTED_THRESHOLD_DESCRIPTIONS[threshold[1]];
   return (

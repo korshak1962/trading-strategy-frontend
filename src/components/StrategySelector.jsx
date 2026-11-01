@@ -3,10 +3,11 @@ import './StrategySelector.css';
 import { isConstructedInfo, parseConstructedKey } from './strategyConstructor/constructedFormat';
 
 // A constructed strategy (StrategyInfoDTO kind CONSTRUCTED, name = request key Constructed:<id>@<v>)
-// is listed by its display name and version; selecting it pins that version (O2).
+// is listed by its display name and version; selecting it pins that version (O2). One created from
+// a code template (stage 3a, StrategyInfoDTO.templateId) is marked "template".
 const constructedLabel = (s) => {
   const version = s.version ?? parseConstructedKey(s.name)?.version;
-  return `${s.displayName || s.name}${version != null ? ` · v${version}` : ''}`;
+  return `${s.displayName || s.name}${version != null ? ` · v${version}` : ''}${s.templateId ? ' · template' : ''}`;
 };
 
 const StrategySelector = ({ availableStrategies, onAddStrategy }) => {

@@ -5,7 +5,7 @@ import { getParamDescription, OPTIMIZE_FIELD_DESCRIPTIONS } from '../utils/param
 import './screening/SensitivityView.css';
 import { flagLabel } from './screening/screeningFormat';
 import {
-  constructedLabel, currentVersionOf, groupThresholds, isConstructedKey, parseConstructedKey, parseThresholdName,
+  constructedLabel, currentVersionOf, groupThresholds, isAxisName, isConstructedKey, parseConstructedKey, parseThresholdName,
 } from './strategyConstructor/constructedFormat';
 import ConstructedAttempts from './strategyConstructor/ConstructedAttempts';
 
@@ -32,8 +32,10 @@ const ProfileChip = ({ chip }) => {
   );
 };
 
-// Constructed thresholds R1.C2.tolerancePct → "C2 tolerance %" inside the rule's group.
+// Constructed thresholds R1.C2.tolerancePct → "C2 tolerance %" inside the rule's group; an axis
+// ($Gap, stage 3a) keeps its name.
 const paramLabel = (paramName) => {
+  if (isAxisName(paramName)) return paramName;
   const t = parseThresholdName(paramName);
   return t ? t.label.replace(/^R\d+ · /, '') : paramName;
 };
@@ -42,9 +44,17 @@ const paramLabel = (paramName) => {
 const paramGroups = (strategyName, params) => {
   if (!isConstructedKey(strategyName)) return [{ title: null, entries: Object.entries(params) }];
   return groupThresholds(params).map(({ rule, entries }) => ({
-    title: rule != null ? `Rule R${rule}` : 'Other',
+    title: rule === 'axes' ? 'Axes (linked parameters)' : rule != null ? `Rule R${rule}` : 'Other',
     entries,
   }));
+};
+
+// Description of an axis of a constructed strategy: its note (StrategyInfoDTO.paramNotes of the
+// listed version, stage 3a §4.3), else null (the generic text of paramDescriptions).
+const axisNote = (strategyName, paramName, availableStrategies) => {
+  if (!isConstructedKey(strategyName) || !isAxisName(paramName)) return null;
+  const note = currentVersionOf(strategyName, availableStrategies)?.info?.paramNotes?.[paramName];
+  return typeof note === 'string' && note ? note : null;
 };
 
 // Header of a constructed strategy: display name, pinned version, newer version / deleted.
@@ -162,7 +172,7 @@ const StrategyConfig = ({
                   <div key={paramName} className="param-optimize-card">
                     <div className="param-optimize-name" title={paramName}>
                       {paramLabel(paramName)}
-                      <InfoTooltip text={getParamDescription(strategyName, paramName)} />
+                      <InfoTooltip text={getParamDescription(strategyName, paramName, axisNote(strategyName, paramName, availableStrategies))} />
                       {profileChips?.[strategyName]?.[paramName] && (
                         <ProfileChip chip={profileChips[strategyName][paramName]} />
                       )}
@@ -191,7 +201,7 @@ const StrategyConfig = ({
                   <div key={paramName} className="param-row">
                     <label className="param-label">
                       <span className="param-name" title={paramName}>{paramLabel(paramName)}:</span>
-                      <InfoTooltip text={getParamDescription(strategyName, paramName)} />
+                      <InfoTooltip text={getParamDescription(strategyName, paramName, axisNote(strategyName, paramName, availableStrategies))} />
                     </label>
                     <input
                       type="number"
@@ -206,6 +216,8 @@ const StrategyConfig = ({
                       onChange={(e) => onUpdateParam(strategyName, paramName, 'value', e.target.value)}
                       className="param-input"
                     />
+                    {/* #12: a constructed strategy's conditions carry their own TF (or RUN): the param TF is dead */}
+                    {!isConstructedKey(strategyName) && (
                     <select
                       // App keeps every param's timeframe equal to the global timeFrame
                       // (handleTimeFrameChange); timeFrame is only the fallback for a param that
@@ -220,6 +232,7 @@ const StrategyConfig = ({
                       <option value="WEEK">WEEK</option>
                       <option value="MONTH">MONTH</option>
                     </select>
+                    )}
                   </div>
                 )
                 ))}

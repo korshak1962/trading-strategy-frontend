@@ -84,7 +84,19 @@ export const conditionShort = (c, i) => {
 
 // ---- validation (copy of FilterValidator) ----
 
-const validateOperand = (o, side) => {
+/**
+ * Unit of an operand's value (stage 3a E2, copy of the backend ValueUnit): price fields and SMA →
+ * PRICE, volume → VOLUME, a constant → null (compatible with any unit).
+ */
+export const operandUnit = (o) => {
+  if (!o || o.kind === 'CONST') return null;
+  return o.kind === 'VOLUME' ? 'VOLUME' : 'PRICE';
+};
+
+/** The TF "the run's TF" of a constructed strategy's operand (never in a screener filter). */
+export const RUN_TF = 'RUN';
+
+const validateOperand = (o, side, allowRun) => {
   const errs = [];
   const kinds = side === 'left' ? OPERAND_KINDS : RIGHT_KINDS;
   if (!o || !kinds.includes(o.kind)) {
@@ -95,7 +107,8 @@ const validateOperand = (o, side) => {
     if (!isFiniteNum(o.value)) errs.push('the constant must be a number');
     return errs;
   }
-  if (!SCREEN_TFS.includes(o.tf)) errs.push(`${side} TF must be DAY or WEEK`);
+  if (o.tf === RUN_TF && !allowRun) errs.push('RUN is for constructed strategies');
+  else if (!SCREEN_TFS.includes(o.tf) && o.tf !== RUN_TF) errs.push(`${side} TF must be ${allowRun ? 'RUN, DAY or WEEK' : 'DAY or WEEK'}`);
   const off = Number(o.offset);
   if (!Number.isInteger(off) || off < OFFSET_MIN || off > OFFSET_MAX) {
     errs.push(`${side} offset must be an integer from ${OFFSET_MIN} to ${OFFSET_MAX}`);
@@ -107,8 +120,11 @@ const validateOperand = (o, side) => {
   return errs;
 };
 
-/** Errors of one condition (array of strings, empty = valid). */
-export const validateCondition = (c) => {
+/**
+ * Errors of one condition (array of strings, empty = valid). `allowRun`: the RUN operand TF is
+ * accepted (constructed strategies only; a screener filter never passes it).
+ */
+export const validateCondition = (c, { allowRun = false } = {}) => {
   const errs = [];
   if (c.type === 'CHANNEL_METRIC') {
     if (!SCREEN_TFS.includes(c.tf)) errs.push('TF must be DAY or WEEK');
@@ -123,8 +139,13 @@ export const validateCondition = (c) => {
     return errs;
   }
   if (c.type === 'COMPARE') {
-    errs.push(...validateOperand(c.left, 'left'));
-    errs.push(...validateOperand(c.right, 'right'));
+    errs.push(...validateOperand(c.left, 'left', allowRun));
+    errs.push(...validateOperand(c.right, 'right', allowRun));
+    const lu = operandUnit(c.left);
+    const ru = operandUnit(c.right);
+    if (lu && ru && lu !== ru) {
+      errs.push(`UNIT_MISMATCH: ${operandCaption(c.left)} (${lu}) vs ${operandCaption(c.right)} (${ru}) — compare values of one unit (a constant fits any)`);
+    }
     if (!OPERATORS.some((o) => o.value === c.op)) errs.push('unknown operator');
     if (!isFiniteNum(c.tolerancePct)) errs.push('tolerance must be a number');
     else if (Math.abs(Number(c.tolerancePct)) >= TOLERANCE_LIMIT) {

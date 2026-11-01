@@ -28,7 +28,7 @@ const EXACT_DESCRIPTIONS = {
 
 // Generic name patterns: [regex, (match) => description].
 const PATTERN_DESCRIPTIONS = [
-  [/^SMA_(\d+)$/i, (m) => `Simple moving average of the close over the last ${m[1]} bars. Used by the MA-based strategies (MaCrossover fast/slow MA, PriceAboveMa, Tilt) as the trend reference.`],
+  [/^SMA_(\d+)$/i, (m) => `Simple moving average of the close over the last ${m[1]} bars. Used as the trend reference by the MA-based strategies (Tilt, the constructed templates 'Price vs MA' and 'MA crossover').`],
   [/^MA\s*(\d+)$/i, (m) => `Rolling mean of the close over the last ${m[1]} bars (MeanReversion’s lookback mean, the middle of its Bollinger bands).`],
   [/^RSI\s*(\d+)$/i, (m) => `Relative Strength Index over ${m[1]} bars (0–100). Low values mean oversold, high values overbought; MeanReversion uses it with rsiBuy / rsiSell as an entry / exit filter.`],
 ];

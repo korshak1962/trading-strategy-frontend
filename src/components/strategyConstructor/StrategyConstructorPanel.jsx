@@ -7,19 +7,26 @@
 // delete → soft delete; with references the backend answers 409 HAS_REFERENCES: the references are
 // listed and "Delete anyway" confirms (O4). The URL names the strategy open in the editor
 // (#/constructor?id=12).
+// Stage 3a (architect.md §2-§4): axes and linked thresholds (AxesEditor / LinkPicker), the RUN
+// operand TF (any run TF for RUN-only strategies), "Create from template" (TemplatePickerDialog)
+// and hints under the stage-3a 400s (UNIT_MISMATCH, "arrives in stage 3b", grid points).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ConstructedStrategyList from './ConstructedStrategyList';
 import RuleEditor from './RuleEditor';
 import ImportFromFilterDialog from './ImportFromFilterDialog';
 import ConstructedPreview from './ConstructedPreview';
+import AxesEditor from './AxesEditor';
+import TemplatePickerDialog from './TemplatePickerDialog';
 import {
   DEFAULT_META, getConstructedMeta, listConstructed, getConstructed, createConstructed, updateConstructed,
-  deleteConstructed, previewConstructed, toConstructedRequest, toRuleRequest, normalizeMeta, referenceCount,
+  deleteConstructed, previewConstructed, toConstructedRequest, toDefinitionRequest, normalizeMeta, referenceCount,
+  CONSTRUCTED_TFS, linkValue,
 } from '../../api/constructedApi';
 import { describeApiError } from '../../api/httpClient';
 import { exchangeToday, addYearsIso, fmtExchangeIntl } from '../../utils/dates';
 import {
-  newDraft, newRule, rulesSignature, validateDraft, runTfsOf, runTfError, strategyLabel,
+  newDraft, newRule, definitionSignature, validateDraft, runTfsOf, runTfsHint, runTfError, strategyLabel, axisUsage, newAxis,
+  constructedErrorHint,
 } from './constructedFormat';
 
 const input = 'w-full p-2 border rounded';
@@ -32,6 +39,17 @@ const defaultPreviewForm = () => {
   const today = exchangeToday();
   return { ticker: 'SPY', timeFrame: 'DAY', startDay: addYearsIso(today, -5), endDay: today };
 };
+
+/** A server error with the stage-3a hint under it. */
+function ErrorWithHint({ text, testId }) {
+  const hint = constructedErrorHint(text);
+  return (
+    <div className="form-error mt-4" role="alert" data-testid={testId}>
+      {text}
+      {hint && <div className="mt-1 text-xs font-normal" data-testid="constructed-error-hint">{hint}</div>}
+    </div>
+  );
+}
 
 /** References of a strategy as list items (cases, watches, parameter profiles). */
 function ReferencesList({ references }) {
@@ -74,6 +92,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
   const [saveError, setSaveError] = useState(null);
   const [saveMessage, setSaveMessage] = useState(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
 
   const [previewForm, setPreviewForm] = useState(defaultPreviewForm);
   const [preview, setPreview] = useState(null);
@@ -120,7 +139,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
       const dto = await getConstructed(id);
       if (seq !== loadSeq.current) return;
       setSaved(dto);
-      setDraft({ ...dto, rules: dto.rules });
+      setDraft({ ...dto, rules: dto.rules, axes: dto.axes || [] });
       resetEditorState();
     } catch (err) {
       if (seq !== loadSeq.current) return;
@@ -140,14 +159,20 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeId, openStrategy]);
 
-  const dirtyRules = !!draft && (!saved || rulesSignature(draft.rules) !== rulesSignature(saved.rules));
+  const draftSig = draft ? definitionSignature(draft) : null;
+  const dirtyRules = !!draft && (!saved || draftSig !== definitionSignature(saved));
   const dirty = !!draft && (dirtyRules || !saved || (draft.name || '') !== (saved.name || '') || (draft.note || '') !== (saved.note || ''));
   const validation = useMemo(
     () => (draft ? validateDraft(draft, { allowedTypes: meta.signalTypes, maxRules: meta.maxRules, maxConditions: meta.maxConditions }) : null),
     [draft, meta],
   );
   const runTfs = draft ? runTfsOf(draft.rules) : ['DAY', 'WEEK'];
-  const previewTfs = meta.timeframes.filter((tf) => ['DAY', 'WEEK'].includes(tf));
+  const previewTfs = meta.timeframes.filter((tf) => CONSTRUCTED_TFS.includes(tf));
+  const usage = useMemo(() => axisUsage(draft?.rules), [draft]);
+  const smaBounds = useMemo(() => {
+    const n = (meta.indicators || []).find((d) => d.name === 'SMA')?.params?.find((x) => x.name === 'n');
+    return { smaMin: n?.min ?? undefined, smaMax: n?.max ?? undefined };
+  }, [meta]);
   const evalTf = previewForm.timeFrame;
 
   const confirmDiscard = () => !dirty || window.confirm('Discard the unsaved changes of this strategy?');
@@ -188,6 +213,69 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
     return { ...d, rules: rs };
   });
   const addRule = () => setDraft((d) => ({ ...d, rules: [...d.rules, newRule(meta.signalTypes[0] || 'LongOpen')] }));
+
+  // ---- axes (stage 3a) ----
+  const mapConditions = (d, fn) => ({
+    ...d,
+    rules: d.rules.map((r) => ({ ...r, conditions: r.conditions.map((c) => fn(c)) })),
+  });
+  const addAxis = (axis) => setDraft((d) => ({ ...d, axes: [...(d.axes || []), axis] }));
+  // A rename follows into every link; a kind change is only offered while the axis is unused
+  const setAxis = (i, patch) => setDraft((d) => {
+    const old = d.axes[i];
+    const axes = d.axes.map((a, j) => (j === i ? { ...a, ...patch } : a));
+    const next = { ...d, axes };
+    if (patch.name == null || patch.name === old.name || axes.some((a, j) => j !== i && a.name === old.name)) return next;
+    return mapConditions(next, (c) => ({
+      ...c,
+      links: Object.fromEntries(Object.entries(c.links || {}).map(([sfx, terms]) => [sfx,
+        terms.map((t) => (t.axis === old.name ? { ...t, axis: patch.name } : t))])),
+    }));
+  });
+  // Removing an axis unlinks its thresholds; each keeps the value it had through the link
+  const removeAxis = (i) => {
+    const axis = draft.axes[i];
+    const n = usage[axis.name] || 0;
+    if (n > 0 && !window.confirm(`${axis.name} is used by ${n} threshold${n === 1 ? '' : 's'}. Remove it and unlink them (they keep the current value)?`)) return;
+    setDraft((d) => {
+      const kept = mapConditions(d, (c) => {
+        const links = { ...(c.links || {}) };
+        const cond = { ...c.condition, left: { ...c.condition.left }, right: { ...c.condition.right } };
+        Object.entries(c.links || {}).forEach(([sfx, terms]) => {
+          if (!terms.some((t) => t.axis === axis.name)) return;
+          const v = linkValue(terms, d.axes);
+          if (v != null) {
+            if (sfx === 'tolerancePct') cond.tolerancePct = v;
+            else if (sfx === 'left.n') cond.left.n = v;
+            else if (sfx === 'right.n') cond.right.n = v;
+            else if (sfx === 'right.const') cond.right.value = v;
+          }
+          delete links[sfx];
+        });
+        return { ...c, condition: cond, links };
+      });
+      return { ...kept, axes: kept.axes.filter((_, j) => j !== i) };
+    });
+  };
+  // "link" on a threshold with no axis of its kind yet: a new fixed axis from its current value
+  const createAxisFrom = (kind, value) => {
+    const axis = newAxis(draft?.axes || [], kind, value);
+    addAxis(axis);
+    return axis.name;
+  };
+
+  const handleTemplateCreated = async (dto) => {
+    setTemplateOpen(false);
+    setNotice(`Created «${dto.name}» v${dto.version} from the template.`);
+    loadSeq.current += 1;
+    setSaved(dto);
+    setDraft(dto);
+    setLoadError(null);
+    resetEditorState();
+    await refreshList();
+    onStrategiesChanged?.();
+    if (dto.id != null) onRouteChange(dto.id);
+  };
 
   const handleImport = ({ ruleIndex, signalType }, conditions, source) => {
     const rows = conditions.map((condition) => ({ id: null, condition }));
@@ -275,13 +363,13 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
       return;
     }
     const seq = ++previewSeq.current;
-    const sig = rulesSignature(draft.rules);
+    const sig = definitionSignature(draft);
     setPreviewBusy(true);
     try {
       const useKey = !!saved && !dirtyRules && !!saved.key;
       const p = await previewConstructed({
         key: useKey ? saved.key : null,
-        definition: useKey ? null : { rules: draft.rules.map(toRuleRequest) },
+        definition: useKey ? null : toDefinitionRequest(draft),
         ticker,
         timeFrame: previewForm.timeFrame,
         startDay: previewForm.startDay,
@@ -306,9 +394,9 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
     return m;
   }, [preview]);
 
-  const usage = saved?.usage || [];
-  const backtests = usage.reduce((s, u) => s + u.backtests, 0);
-  const optimizations = usage.reduce((s, u) => s + u.optimizations, 0);
+  const runs = saved?.usage || [];
+  const backtests = runs.reduce((s, u) => s + u.backtests, 0);
+  const optimizations = runs.reduce((s, u) => s + u.optimizations, 0);
   const err = (x) => (showErrors ? x : null);
 
   return (
@@ -347,6 +435,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
         selectedId={draft?.id ?? null}
         busyId={busyId}
         onNew={handleNew}
+        onFromTemplate={() => { if (confirmDiscard()) setTemplateOpen(true); }}
         onEdit={handleEdit}
         onDelete={(s) => handleDelete(s)}
         onRefresh={refreshList}
@@ -359,14 +448,18 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
           <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
             <h2 className="text-xl font-bold">
               {draft.id != null ? `Edit strategy (v${saved?.version ?? draft.version})` : 'New strategy'}
+              {saved?.templateId && (
+                <span className="ml-2 px-1.5 rounded bg-indigo-100 text-indigo-800 text-xs font-medium align-middle"
+                  title={`Created from the template «${saved.templateId}»`} data-testid="constructed-template-badge">template</span>
+              )}
               {dirtyRules && draft.id != null && (
-                <span className="ml-2 text-sm font-normal text-amber-700">rules changed: saving creates v{(saved?.version ?? 0) + 1}</span>
+                <span className="ml-2 text-sm font-normal text-amber-700">definition changed: saving creates v{(saved?.version ?? 0) + 1}</span>
               )}
             </h2>
             <div className="text-sm text-gray-600" data-testid="constructed-run-tfs">
               Runs on <b>{runTfs.join(' or ')}</b>
               <span className="ml-1 text-xs text-gray-500">
-                {runTfs.length === 1 ? '(it has DAY conditions)' : '(only WEEK conditions)'} · request key{' '}
+                {runTfsHint(runTfs)} · request key{' '}
                 <code>{saved?.key || 'assigned on save'}</code>
               </span>
             </div>
@@ -392,7 +485,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
               {saved.version} version{saved.version === 1 ? '' : 's'} · {backtests} backtest{backtests === 1 ? '' : 's'} ·{' '}
               {optimizations} optimization{optimizations === 1 ? '' : 's'}
               <span className="ml-1 text-xs text-gray-500">(previews and the Signals tab are not counted)</span>
-              {usage.length > 0 && (
+              {runs.length > 0 && (
                 <details className="mt-1">
                   <summary className="cursor-pointer text-xs text-blue-700">by version, ticker and TF</summary>
                   <table className="mt-1 text-xs">
@@ -402,7 +495,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
                       <th className="pr-3 text-right">Combinations</th><th className="text-left">Last run</th>
                     </tr></thead>
                     <tbody>
-                      {usage.map((u, i) => (
+                      {runs.map((u, i) => (
                         <tr key={i}>
                           <td className="pr-3">v{u.version}</td><td className="pr-3">{u.ticker}</td><td className="pr-3">{u.timeframe}</td>
                           <td className="pr-3 text-right">{u.backtests}</td><td className="pr-3 text-right">{u.optimizations}</td>
@@ -435,8 +528,11 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
                 maxConditions={meta.maxConditions}
                 evalTf={evalTf}
                 errors={err(validation.rules[i])}
-                stats={r.id != null && previewSig === rulesSignature(draft.rules) ? statsByRule.get(r.id) || null : null}
+                stats={r.id != null && previewSig === draftSig ? statsByRule.get(r.id) || null : null}
                 disabled={saving}
+                axes={draft.axes || []}
+                onCreateAxis={createAxisFrom}
+                smaBounds={smaBounds}
               />
             ))}
             {draft.rules.length === 0 && <p className="text-sm text-gray-500">No rules yet.</p>}
@@ -452,15 +548,26 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
             </button>
             <span className="text-xs text-gray-500 self-center">
               Thresholds (tolerance %, SMA lengths, constants) become parameters fixed at these values; set a range in Optimize to sweep one.
+              “link” makes several thresholds one parameter (an axis below). TF “RUN” = the TF the strategy runs on.
             </span>
           </div>
+
+          <AxesEditor
+            axes={draft.axes || []}
+            onChange={setAxis}
+            onAdd={addAxis}
+            onRemove={removeAxis}
+            usage={usage}
+            errors={showErrors ? validation.axes : null}
+            disabled={saving}
+          />
 
           {showErrors && validation.general.length > 0 && (
             <ul className="mt-4 text-sm text-red-600 list-disc list-inside" data-testid="constructed-errors">
               {validation.general.map((e) => <li key={e}>{e}</li>)}
             </ul>
           )}
-          {saveError && <div className="form-error mt-4" role="alert" data-testid="constructed-save-error">{saveError}</div>}
+          {saveError && <ErrorWithHint text={saveError} testId="constructed-save-error" />}
           {saveMessage && <div className="mt-4 text-sm text-green-700" role="status" data-testid="constructed-save-message">{saveMessage}</div>}
 
           <div className="mt-6 flex flex-wrap items-end gap-3 border-t pt-4">
@@ -483,11 +590,17 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
           busy={previewBusy}
           error={previewError}
           preview={preview}
-          stale={!!preview && previewSig !== rulesSignature(draft.rules)}
+          stale={!!preview && previewSig !== draftSig}
           tickers={tickers}
-          timeframes={previewTfs.length ? previewTfs : ['DAY', 'WEEK']}
+          timeframes={previewTfs.length ? previewTfs : [...CONSTRUCTED_TFS]}
+          runTfs={runTfs}
+          errorHint={constructedErrorHint(previewError)}
           stateRuleFireRate={meta.stateRuleFireRate}
         />
+      )}
+
+      {templateOpen && (
+        <TemplatePickerDialog onCreated={handleTemplateCreated} onClose={() => setTemplateOpen(false)} />
       )}
 
       {importOpen && draft && (

@@ -35,7 +35,7 @@ import WatchlistPanel from './components/watch/WatchlistPanel';
 import WatchToasts from './components/watch/WatchToasts';
 import ScreenerPanel from './components/universeScreener/ScreenerPanel';
 import StrategyConstructorPanel from './components/strategyConstructor/StrategyConstructorPanel';
-import { currentVersionOf, isConstructedKey, strategyDisplayName } from './components/strategyConstructor/constructedFormat';
+import { constructedErrorHint, currentVersionOf, isConstructedKey, strategyDisplayName } from './components/strategyConstructor/constructedFormat';
 import useConstructedNames from './components/strategyConstructor/useConstructedNames';
 import PrepareStrategiesHint from './components/universeScreener/PrepareStrategiesHint';
 import { isMinimalIndicatorsError } from './components/universeScreener/prepareFlow';
@@ -978,9 +978,12 @@ const App = () => {
     setWatchContext(null);
     setCaseWarnings(Array.isArray(savedCase.warnings) && savedCase.warnings.length > 0 ? savedCase.warnings : null);
     // A case of a deleted constructed strategy: loads, does not run (Q8)
+    // Stage 3a #2: also a removed strategy class (replaced by a constructed template) - the blocking
+    // keys are then the ones that are not in the available strategies.
     setCaseBlock(savedCase?.runBlocked === true ? {
-      reason: savedCase.blockedReason || 'The case references a constructed strategy that was deleted.',
-      keys: Object.keys(savedCase?.config?.strategyNameToParams || {}).filter(isConstructedKey),
+      reason: savedCase.blockedReason || 'The case references a strategy that no longer exists.',
+      keys: Object.keys(savedCase?.config?.strategyNameToParams || {}).filter((k) => isConstructedKey(k)
+        || (availableStrategies.length > 0 && !availableStrategies.some((s) => s.name === k))),
     } : null);
     // A case saved from an optimize job with channel stability carries the stored snapshot + results
     setStoredStability(savedCase?.channelStability
@@ -1644,6 +1647,10 @@ const App = () => {
               {error && (
                 <div className="form-error" role="alert">
                   {error}
+                  {/* Stage 3a hints (reviewer #35): the same as in the constructor, for a constructed strategy */}
+                  {Object.keys(selectedStrategies).some((k) => isConstructedKey(k)) && constructedErrorHint(error) && (
+                    <div className="mt-1 text-xs font-normal" data-testid="constructed-error-hint">{constructedErrorHint(error)}</div>
+                  )}
                 </div>
               )}
               {error && isMinimalIndicatorsError(error) && ticker && (

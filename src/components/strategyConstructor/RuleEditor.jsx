@@ -6,8 +6,14 @@
 // operands, offsets and captions are the same as in a filter. Channel conditions are not offered
 // (stage 4). The rule's and its conditions' permanent ids are kept when rows move or change: the
 // threshold names R<rule>.C<cond>.* depend on them.
+// Stage 3a: operands may take the TF RUN; every threshold (SMA length, constant, tolerance) can be
+// linked to an axis (LinkPicker); a linked threshold shows the axes' value instead of its input.
 import { CompareConditionRow } from '../universeScreener/ConditionRows';
-import { newRuleCondition, ruleCaption, SIGNAL_TYPE_CLASS, SIGNAL_TYPE_HINT } from './constructedFormat';
+import { pruneLinks } from '../../api/constructedApi';
+import {
+  newRuleCondition, ruleCaption, ruleConditionCaption, linkedThresholdValue, SIGNAL_TYPE_CLASS, SIGNAL_TYPE_HINT,
+} from './constructedFormat';
+import LinkPicker from './LinkPicker';
 
 const sel = 'p-1 border rounded text-sm bg-white';
 const iconBtn = 'px-1.5 text-gray-500 hover:text-gray-800 disabled:text-gray-300';
@@ -26,14 +32,38 @@ const iconBtn = 'px-1.5 text-gray-500 hover:text-gray-800 disabled:text-gray-300
  * @param {{general: string[], conditions: string[][]}|null} props.errors shown after a save / preview attempt
  * @param {Object|null} props.stats the rule's line of the last preview (RulePreviewDTO), or null
  * @param {boolean} props.disabled
+ * @param {Array} props.axes the strategy's axes (stage 3a)
+ * @param {(kind: string, value: number|null) => string|null} props.onCreateAxis creates an axis from
+ *   a threshold's value, returns its name
+ * @param {{smaMin?: number, smaMax?: number}} props.smaBounds SMA length bounds (meta.indicators)
  */
 export default function RuleEditor({
   rule, index, count, onChange, onRemove, onMove, signalTypes, maxConditions, evalTf, errors, stats, disabled,
+  axes = [], onCreateAxis = null, smaBounds = {},
 }) {
   const set = (patch) => onChange({ ...rule, ...patch });
+  // An operand change can drop a linkable threshold (SMA → close, CONST → field): its link goes too
   const setCondition = (i, condition) => set({
-    conditions: rule.conditions.map((c, j) => (j === i ? { ...c, condition } : c)),
+    conditions: rule.conditions.map((c, j) => (j === i ? { ...c, condition, links: pruneLinks(condition, c.links) } : c)),
   });
+  const setLink = (i, suffix, terms) => set({
+    conditions: rule.conditions.map((c, j) => {
+      if (j !== i) return c;
+      const links = { ...(c.links || {}) };
+      if (terms && terms.length) links[suffix] = terms;
+      else delete links[suffix];
+      return { ...c, links };
+    }),
+  });
+  // The threshold's current literal: the value a new axis starts from
+  const literalOf = (c, suffix) => {
+    const cond = c.condition;
+    if (suffix === 'tolerancePct') return Number(cond.tolerancePct) || 0;
+    if (suffix === 'left.n') return Number(cond.left?.n);
+    if (suffix === 'right.n') return Number(cond.right?.n);
+    if (suffix === 'right.const') return Number(cond.right?.value);
+    return null;
+  };
   const removeCondition = (i) => set({ conditions: rule.conditions.filter((_, j) => j !== i) });
   const moveCondition = (i, delta) => {
     const cs = [...rule.conditions];
@@ -97,6 +127,24 @@ export default function RuleEditor({
             errors={errors?.conditions?.[i] || []}
             onRemove={() => removeCondition(i)}
             onMove={(d) => moveCondition(i, d)}
+            allowRun
+            smaMin={smaBounds.smaMin}
+            smaMax={smaBounds.smaMax}
+            caption={ruleConditionCaption(c, evalTf, axes)}
+            linkedValue={(suffix) => linkedThresholdValue(c, suffix, axes)}
+            renderLink={(suffix) => (
+              <LinkPicker
+                suffix={suffix}
+                terms={c.links?.[suffix] || null}
+                axes={axes}
+                disabled={disabled}
+                onChange={(terms) => setLink(i, suffix, terms)}
+                onCreateAxis={onCreateAxis ? (kind) => {
+                  const v = literalOf(c, suffix);
+                  return onCreateAxis(kind, Number.isFinite(v) ? v : null);
+                } : null}
+              />
+            )}
           />
         ))}
         {rule.conditions.length === 0 && <p className="text-sm text-gray-500">No conditions yet.</p>}
@@ -109,7 +157,7 @@ export default function RuleEditor({
         </button>
         <span className="text-xs text-gray-500">Conditions are AND-ed. For OR add another rule with the same signal type.</span>
       </div>
-      <div className="mt-2 text-xs font-mono text-gray-700" data-testid="rule-caption">{ruleCaption(rule, evalTf)}</div>
+      <div className="mt-2 text-xs font-mono text-gray-700" data-testid="rule-caption">{ruleCaption(rule, evalTf, axes)}</div>
       {stats && (
         <div className="mt-1 text-xs text-gray-600" data-testid="rule-inline-stats">
           Last preview: fired {stats.fired} of {stats.bars} bars

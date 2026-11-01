@@ -6,7 +6,12 @@
 // (architect.md §2.12): prices with 2 decimals (the API keeps the full double), "≈" for APPROX only,
 // strict inequalities kept ("above 780.00" means 780.00 itself does not buy).
 
+import { strategyLabel } from '../strategyConstructor/constructedFormat';
+
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+
+/** Short name of a strategy key: a constructed key → its display name, a class → without "Strategy". */
+export const strategyShortName = (key) => strategyLabel(key).replace(/Strategy$/, '');
 
 /** A price with 2 decimals (4 below 1), '—' when absent. */
 export const fmtTriggerPrice = (v) => {
@@ -45,6 +50,7 @@ export const REASON_LABELS = Object.freeze({
   TAKE_PROFIT: 'take profit',
   MA_CROSS: 'MA cross',
   PRICE_VS_MA: 'price vs MA',
+  CONDITION: 'rule condition', // a constructed strategy's rule (stage 3a §5), not a canonical MA form
   STOP_LOSS: 'stop loss',
   DROP_FROM_PEAK: 'drop from peak',
   REGIME_GATE: 'regime gate',
@@ -69,6 +75,18 @@ export const conditionText = (cond) => (cond
   : '');
 
 const thresholdText = (line) => `${ON[line.on] || 'close'} ${OP[line.direction] || '?'} ${priceText(line)}`;
+
+/**
+ * The rule a line of a constructed strategy comes from (stage 3a §5: `meta {rule, condition}`):
+ * "R1: RUN close[0] > RUN SMA(100)[0]"; '' for any other line.
+ */
+export const lineRuleText = (line) => {
+  const rule = line?.meta?.rule;
+  if (typeof rule !== 'string' && typeof rule !== 'number') return '';
+  const r = String(rule);
+  const head = /^R/.test(r) ? r : `R${r}`;
+  return typeof line.meta.condition === 'string' && line.meta.condition ? `${head}: ${line.meta.condition}` : head;
+};
 
 /** An intrabar stop (fills at the line, can be placed as a stop order). */
 export const isIntrabarStop = (line) => line.side === 'SELL' && line.on === 'LOW';
@@ -343,7 +361,7 @@ export const nextBarLabel = (nt) => {
   return day !== '—' ? day : 'next bar';
 };
 
-const partialNames = (estimate) => estimate.partialBecause.map(p => p.key.replace(/Strategy$/, '')).join(', ');
+const partialNames = (estimate) => estimate.partialBecause.map(p => strategyShortName(p.key)).join(', ');
 
 /** Partial wording (architect §2.5): certain-but-incomplete vs may-veto, as the backend gives it. */
 export const partialText = (estimate) => {
@@ -352,8 +370,8 @@ export const partialText = (estimate) => {
   const details = estimate.partialBecause
     .map(p => {
       const band = p.kind === 'POSSIBLE_OUTSIDE_BAND' ? bandOf(p) : null;
-      if (band) return `${p.key.replace(/Strategy$/, '')} possible only if close < ${fmtTriggerPrice(band[0])} or > ${fmtTriggerPrice(band[1])}`;
-      return p.reason ? `${p.key.replace(/Strategy$/, '')}: ${p.reason}` : null;
+      if (band) return `${strategyShortName(p.key)} possible only if close < ${fmtTriggerPrice(band[0])} or > ${fmtTriggerPrice(band[1])}`;
+      return p.reason ? `${strategyShortName(p.key)}: ${p.reason}` : null;
     })
     .filter(Boolean);
   if (details.length) return `partial: ${details.join('; ')}`;
