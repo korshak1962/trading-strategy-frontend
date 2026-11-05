@@ -1,5 +1,6 @@
 // src/components/Header.jsx
 import './Header.css';
+import ThemeSwitch from './ThemeSwitch';
 
 /**
  * @param {Object} props
@@ -82,6 +83,7 @@ const Header = ({ activeTab, onChangeTab, watch = null, screenerNew = 0 }) => {
             )}
           </button>
         </nav>
+        <ThemeSwitch />
       </div>
     </header>
   );

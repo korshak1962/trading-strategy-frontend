@@ -212,9 +212,10 @@ const spanToSlots = (geometry, from, to) => {
   };
 };
 
+// Theme tokens (var() strings; drawPositionShading resolves them at draw time).
 const POSITION_FILL = Object.freeze({
-  LONG: 'rgba(16, 185, 129, 0.10)',
-  SHORT: 'rgba(239, 68, 68, 0.08)',
+  LONG: 'var(--chart-position-long)',
+  SHORT: 'var(--chart-position-short)',
 });
 
 /** Merged position spans for drawPositionShading: [{startMs, endMs, side, fill}]. */
@@ -255,14 +256,15 @@ export const formatParams = (params) => asArray(params)
   .map(p => `${p.name}=${p.value === null || p.value === undefined ? '–' : p.value}`)
   .join(', ');
 
-/** Vote strip colours, the same hues as the signal markers (drawSignals). */
+/** Vote strip colours, the same hues as the signal markers (drawSignals). Theme tokens: var()
+ *  strings, used as is by the DOM swatches and resolved by drawVoteStrip. */
 export const VOTE_COLORS = Object.freeze({
-  LongOpen: 'rgba(22, 163, 74, 0.75)',
-  LongClose: 'rgba(220, 38, 38, 0.75)',
-  ShortOpen: 'rgba(37, 99, 235, 0.75)',
-  ShortClose: 'rgba(234, 88, 12, 0.75)',
+  LongOpen: 'var(--chart-vote-long-open)',
+  LongClose: 'var(--chart-vote-long-close)',
+  ShortOpen: 'var(--chart-vote-short-open)',
+  ShortClose: 'var(--chart-vote-short-close)',
   // neutral grey "entry forbidden", apart from the red LongClose (architect §5.2)
-  LongBlock: 'rgba(107, 114, 128, 0.75)',
+  LongBlock: 'var(--chart-vote-block)',
 });
 
 /** What a vote means on the strip; in long-only a ShortOpen vote acts as a long exit (§2.3). */

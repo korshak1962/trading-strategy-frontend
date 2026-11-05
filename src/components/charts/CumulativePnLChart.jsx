@@ -9,6 +9,7 @@ import {
   drawCumulativePnLLine,
   drawPreWindowShading
 } from '../../utils/ChartDrawingUtils';
+import { useTheme } from '../../theme/useTheme';
 
 /**
  * CumulativePnLChart - realized cumulative trade PnL pane of the Reporter-style chart.
@@ -28,6 +29,8 @@ const DATE_LABEL_BAND = 16; // px kept clear at the bottom for drawDateAxis
 
 const CumulativePnLChart = ({ points, hasTrades, width, height, dateRange, preWindowSpan = null }) => {
   const canvasRef = useRef(null);
+  // Colours are read from the theme tokens at draw time: redraw on a theme switch
+  const { theme } = useTheme();
 
   useEffect(() => {
     const canvasElement = canvasRef.current;
@@ -76,7 +79,7 @@ const CumulativePnLChart = ({ points, hasTrades, width, height, dateRange, preWi
     // Axes last, so their labels sit on top of the curve
     drawDateAxis(ctx, dateRange, width, height);
     drawPnLAxis(ctx, minMax, width, height, 'Cum. PnL');
-  }, [points, hasTrades, width, height, dateRange, preWindowSpan]);
+  }, [points, hasTrades, width, height, dateRange, preWindowSpan, theme]);
 
   return (
     <div className="chart-wrapper">

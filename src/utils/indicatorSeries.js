@@ -11,15 +11,17 @@
 // unambiguous.
 
 // Fixed palette, assigned by position in the series list (series without a SERIES_STYLE entry).
+// Theme tokens (src/theme/tokens.css): DOM swatches use the var() strings directly, the canvas
+// resolves them at draw time (theme.js resolveColor), so a theme switch recolours both.
 export const INDICATOR_PALETTE = [
-  '#1f77b4', // blue
-  '#ff7f0e', // orange
-  '#2ca02c', // green
-  '#9467bd', // purple
-  '#8c564b', // brown
-  '#e377c2', // pink
-  '#17becf', // cyan
-  '#bcbd22', // olive
+  'var(--chart-series-1)', // blue
+  'var(--chart-series-2)', // orange
+  'var(--chart-series-3)', // green
+  'var(--chart-series-4)', // purple
+  'var(--chart-series-5)', // brown
+  'var(--chart-series-6)', // pink
+  'var(--chart-series-7)', // cyan
+  'var(--chart-series-8)', // olive
 ];
 
 export const seriesId = (kind, name) => `${kind}:${name}`;
@@ -47,15 +49,15 @@ export const SERIES_GROUP_LABELS = Object.freeze({ [DETAILS_GROUP]: 'Details' })
 // (Exit line = max(Initial stop, Support line) and the stop is rarely above it); it stays offered
 // whenever it differs somewhere, or when the two never overlap (e.g. SupportTracking = 0).
 export const SERIES_STYLE = Object.freeze({
-  effectiveExit: { label: 'Exit line', color: '#d62728', stepped: true },
-  projectedExit: { label: 'Exit line (flat)', color: '#d62728', stepped: true, dashed: true },
-  resistanceTrigger: { label: 'Breakout line', color: '#16a34a' },
+  effectiveExit: { label: 'Exit line', color: 'var(--chart-series-exit)', stepped: true },
+  projectedExit: { label: 'Exit line (flat)', color: 'var(--chart-series-exit)', stepped: true, dashed: true },
+  resistanceTrigger: { label: 'Breakout line', color: 'var(--chart-series-breakout)' },
   stopLevel: {
-    label: 'Initial stop', color: '#1f77b4', stepped: true, defaultHidden: true, group: DETAILS_GROUP,
+    label: 'Initial stop', color: 'var(--chart-series-stop)', stepped: true, defaultHidden: true, group: DETAILS_GROUP,
     redundantWith: 'effectiveExit',
   },
   supportExitLine: {
-    label: 'Support line', color: '#9467bd', stepped: true, defaultHidden: true, group: DETAILS_GROUP,
+    label: 'Support line', color: 'var(--chart-series-support)', stepped: true, defaultHidden: true, group: DETAILS_GROUP,
     redundantWith: 'effectiveExit',
   },
 });

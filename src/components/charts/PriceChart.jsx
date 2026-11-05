@@ -27,6 +27,7 @@ import {
   DATE_AXIS_BAND
 } from '../../utils/ChartDrawingUtils';
 import { parseExchangeTs, exchangeToday } from '../../utils/dates';
+import { useTheme } from '../../theme/useTheme';
 import { matchTradeAnnotation, markerLabel, MARKER_LABEL_LIMIT } from '../../utils/levelChart';
 
 const EMPTY_RUNS = [];
@@ -82,6 +83,8 @@ const PriceChart = ({
   nextBarTriggers = null, extraSlots = 0, stabilityBand = null, channelTree = null
 }) => {
   const canvasRef = useRef(null);
+  // Colours are read from the theme tokens at draw time: redraw on a theme switch
+  const { theme } = useTheme();
 
   useEffect(() => {
     const canvasElement = canvasRef.current;
@@ -301,7 +304,8 @@ const PriceChart = ({
       }
     };
   }, [data, width, height, dateRange, visibleRange, highlightTradeIndex, signalTradeIndex, priceSeries, levelZoneRuns, priceRange,
-    levelChart, showLevelLines, showEvents, positionSpans, preWindowSpan, nextBarTriggers, extraSlots, stabilityBand, channelTree]);
+    levelChart, showLevelLines, showEvents, positionSpans, preWindowSpan, nextBarTriggers, extraSlots, stabilityBand, channelTree,
+    theme]);
 
   return (
     <div className="chart-wrapper">

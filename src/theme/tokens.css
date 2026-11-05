@@ -1,0 +1,408 @@
+/* src/theme/tokens.css - semantic, chart and Channel Explorer colour tokens.
+   Light values on :root are exactly the colours used before the tokens (Light looks the same);
+   the dark set is under :root[data-theme="dark"] (src/theme/theme.js keeps data-theme in sync with
+   the Light / Dark / System switch). Palette tokens (--c-*, --fg-*) and the Tailwind remap are in
+   palette.css. Canvas code reads --chart-* through theme.js chartColor() / resolveColor().
+   Text tokens are checked against the surface they sit on: >= 4.5:1 in both themes. */
+
+:root {
+  color-scheme: light;
+
+  /* ---- app ------------------------------------------------------------------------------- */
+  --app-bg: #f9fafb;
+  --app-text: #213547;
+  --control-bg: #f9f9f9;            /* bare <button> default (index.css base layer) */
+  --shadow-rgb: 0 0 0;              /* box-shadow colour: rgb(var(--shadow-rgb) / a) */
+  --backdrop: rgba(17, 24, 39, 0.45);
+  --swatch-border: rgba(0, 0, 0, 0.15);
+
+  /* header (dark blue band in Light; the tabs are white-on-band in both themes) */
+  --header-bg: #1e40af;
+  --header-text: #ffffff;
+  --header-muted: #bfdbfe;
+  --header-tab-bg: rgba(255, 255, 255, 0.08);
+  --header-tab-border: rgba(255, 255, 255, 0.25);
+  --header-tab-hover-bg: rgba(255, 255, 255, 0.16);
+  --header-tab-active-bg: #ffffff;
+  --header-tab-active-text: #1e40af;
+  --header-warn: #fbbf24;
+  --header-warn-active: #d97706;
+
+  /* trade table row tints */
+  --row-long-tint: rgba(5, 150, 105, 0.05);
+  --row-short-tint: rgba(220, 38, 38, 0.05);
+
+  /* ---- result charts (canvas panes, tooltips, legends) ---------------------------------- */
+  --chart-surface: #ffffff;
+  --chart-text: #333333;
+  --chart-text-muted: #666666;
+  --chart-heading: #1e3a5f;
+  --chart-border: #dddddd;
+  --chart-divider: #eeeeee;
+  --chart-crosshair: rgba(100, 100, 100, 0.5);
+  --chart-tooltip-bg: rgba(255, 255, 255, 0.95);
+  --chart-btn-bg: #f0f0f0;
+  --chart-btn-hover: #e0e0e0;
+  --chart-accent: #2196f3;
+  --chart-accent-soft: rgba(33, 150, 243, 0.1);
+  --chart-float-btn-bg: rgba(255, 255, 255, 0.7);
+  --chart-float-btn-hover: rgba(255, 255, 255, 0.95);
+  --chart-selection-fill: rgba(33, 150, 243, 0.2);
+  --chart-selection-edge: rgba(33, 150, 243, 0.5);
+
+  /* axes, grid, labels */
+  --chart-axis-text: #333333;
+  --chart-axis-title: #555555;
+  --chart-no-data: #888888;
+  --chart-grid: #dddddd;
+  --chart-zero-line: #666666;
+  --chart-label-bg: rgba(255, 255, 255, 0.8);
+
+  /* candles */
+  --chart-candle-up: #22c55e;
+  --chart-candle-up-fill: rgba(34, 197, 94, 0.5);
+  --chart-candle-down: #ef4444;
+  --chart-candle-down-fill: rgba(239, 68, 68, 0.5);
+
+  /* signal markers (canvas) and their tooltip text */
+  --chart-long-open: green;
+  --chart-long-close: red;
+  --chart-short-open: blue;
+  --chart-short-close: orange;
+  --chart-signal-other: gray;
+  --chart-hollow-fill: rgba(255, 255, 255, 0.9);
+  --chart-highlight-fill: rgba(255, 210, 0, 0.35);
+  --chart-highlight-edge: rgba(180, 140, 0, 0.9);
+  --chart-long-open-text: green;
+  --chart-long-close-text: #dc2626;  /* was 'red' (4.0:1 on white) - darkened to 4.8:1 (T4) */
+  --chart-short-open-text: blue;
+  --chart-short-close-text: #c2410c; /* was 'orange' (2.0:1 on white) - darkened to 5.2:1 (T4) */
+  --chart-signal-muted-text: #4b5563;
+
+  /* per-trade channel palette (hex: alpha is added in code) */
+  --chart-channel-1: #2a78d6;
+  --chart-channel-2: #eb6834;
+  --chart-channel-3: #1baf7a;
+  --chart-channel-4: #eda100;
+  --chart-channel-5: #e87ba4;
+  --chart-channel-6: #008300;
+  --chart-channel-7: #4a3aa7;
+  --chart-channel-8: #e34948;
+
+  /* channel tree layer (hex: alpha is added in code) */
+  --chart-tree-up: #1baf7a;
+  --chart-tree-down: #e34948;
+  --chart-tree-flat: #787b86;
+
+  /* level zones */
+  --chart-zone-strong: rgba(74, 58, 167, 0.26);
+  --chart-zone-weak: rgba(74, 58, 167, 0.09);
+  --chart-zone-armed: rgba(192, 38, 211, 0.95);
+
+  /* trade PnL bars + cumulative PnL */
+  --chart-pnl-pos-fill: rgba(0, 128, 0, 0.4);
+  --chart-pnl-pos-edge: rgba(0, 100, 0, 0.8);
+  --chart-pnl-pos-grad-from: rgba(0, 128, 0, 0.1);
+  --chart-pnl-pos-grad-to: rgba(0, 128, 0, 0.5);
+  --chart-pnl-neg-fill: rgba(255, 0, 0, 0.4);
+  --chart-pnl-neg-edge: rgba(180, 0, 0, 0.8);
+  --chart-pnl-neg-grad-from: rgba(255, 0, 0, 0.1);
+  --chart-pnl-neg-grad-to: rgba(255, 0, 0, 0.5);
+  --chart-pnl-label: #000000;
+  --chart-cum-pos-fill: rgba(0, 128, 0, 0.15);
+  --chart-cum-neg-fill: rgba(255, 0, 0, 0.15);
+  --chart-cum-line: #2196f3;
+
+  /* LevelBreakoutRetest annotations */
+  --chart-level-position: rgba(16, 185, 129, 0.07);
+  --chart-level-support-fill: rgba(44, 160, 44, 0.2);
+  --chart-level-support-edge: rgba(21, 128, 61, 0.75);
+  --chart-level-retest: rgba(34, 197, 94, 0.16);
+  --chart-level-runaway: #ff7f0e;
+  --chart-level-base: #2563eb;
+  --chart-level-fail: rgba(220, 38, 38, 0.4);
+  --chart-glyph-traded: #16a34a;
+  --chart-glyph-not-traded: #d97706;
+  --chart-glyph-failed: #dc2626;
+  --chart-glyph-missed: #6b7280;
+  --chart-glyph-outline: #ffffff;
+  --chart-level-upgrade: #15803d;
+  --chart-level-label-bg: rgba(255, 255, 255, 0.85);
+  --chart-event-broken-up: #ea580c;
+  --chart-event-failed: #dc2626;
+  --chart-event-missed: #6b7280;
+  --chart-event-broken-down: #7c3aed;
+  --chart-marker-entry-text: #166534;
+  --chart-marker-exit-text: #991b1b;
+
+  /* warm-up before the trading window */
+  --chart-prewindow-fill: rgba(107, 114, 128, 0.12);
+  --chart-prewindow-line: rgba(75, 85, 99, 0.8);
+  --chart-prewindow-text: rgba(55, 65, 81, 0.95);
+
+  /* parameter stability band */
+  --chart-stability-fit: rgba(59, 130, 246, 0.07);
+  --chart-stability-check: rgba(245, 158, 11, 0.14);
+  --chart-stability-edge: rgba(37, 99, 235, 0.55);
+  --chart-stability-mid: rgba(180, 83, 9, 0.9);
+  --chart-stability-fit-text: rgba(30, 64, 175, 0.95);
+  --chart-stability-check-text: rgba(146, 64, 14, 0.95);
+
+  /* Signals mode: position shading, vote strip, legend swatches */
+  --chart-position-long: rgba(16, 185, 129, 0.1);
+  --chart-position-short: rgba(239, 68, 68, 0.08);
+  --chart-vote-strip-bg: #f3f4f6;
+  --chart-vote-long-open: rgba(22, 163, 74, 0.75);
+  --chart-vote-long-close: rgba(220, 38, 38, 0.75);
+  --chart-vote-short-open: rgba(37, 99, 235, 0.75);
+  --chart-vote-short-close: rgba(234, 88, 12, 0.75);
+  --chart-vote-block: rgba(107, 114, 128, 0.75);
+  --chart-vote-other: rgba(107, 114, 128, 0.6);
+  --chart-vote-missing: #9ca3af;
+  --chart-legend-long: rgba(16, 185, 129, 0.25);
+  --chart-legend-short: rgba(239, 68, 68, 0.2);
+  --chart-legend-warmup: rgba(107, 114, 128, 0.25);
+
+  /* next-bar trigger prices */
+  --chart-next-buy: #16a34a;
+  --chart-next-sell: #dc2626;
+  --chart-next-veto: #6b7280;
+  --chart-next-info: rgba(107, 114, 128, 0.85);
+  --chart-next-veto-fill: rgba(107, 114, 128, 0.16);
+  --chart-next-band-fill: rgba(107, 114, 128, 0.14);
+  --chart-next-slot-fill: rgba(37, 99, 235, 0.04);
+  --chart-next-actual: #111827;
+  --chart-next-label-bg: rgba(255, 255, 255, 0.88);
+
+  /* indicator series (assigned by position; named series in indicatorSeries.js SERIES_STYLE) */
+  --chart-series-1: #1f77b4;
+  --chart-series-2: #ff7f0e;
+  --chart-series-3: #2ca02c;
+  --chart-series-4: #9467bd;
+  --chart-series-5: #8c564b;
+  --chart-series-6: #e377c2;
+  --chart-series-7: #17becf;
+  --chart-series-8: #bcbd22;
+  --chart-series-exit: #d62728;
+  --chart-series-breakout: #16a34a;
+  --chart-series-stop: #1f77b4;
+  --chart-series-support: #9467bd;
+  --chart-indicator-default: purple;
+
+  /* range slider (recharts Brush) */
+  --chart-slider-line: #8884d8;
+  --chart-slider-fill: #f5f5f5;
+
+  /* screening param curve */
+  --chart-curve-median: #2563eb;
+  --chart-curve-p90: #7c3aed;
+  --chart-curve-enrich: rgba(16, 185, 129, 0.22);
+  --chart-curve-enrich-ref: rgba(16, 185, 129, 0.8);
+  --chart-curve-invalid: #9ca3af;
+  --chart-curve-invalid-rgb: 156, 163, 175;
+  --chart-curve-hull: rgba(59, 130, 246, 0.1);
+  --chart-curve-frozen: #dc2626;
+  --chart-curve-axis: #9ca3af;
+  --chart-curve-text: #6b7280;
+
+  /* ---- Channel Explorer (TradingView-style dark panel in BOTH themes: it always was dark
+          inside the light page, so these have no dark override) ------------------------------ */
+  --tv-page: #0f111a;
+  --tv-panel: #161b2e;
+  --tv-panel-selected: #1c2135;
+  --tv-input: #1e2230;
+  --tv-border: #2a2e39;
+  --tv-border-strong: #3a3e4a;
+  --tv-border-hover: #3a3f4f;
+  --tv-text: #d1d4dc;
+  --tv-text-soft: #c7cad4;
+  --tv-text-dates: #b2b5be;
+  --tv-text-muted: #787b86;
+  --tv-text-hint: #4a4e5a;
+  --tv-accent: #2962ff;
+  --tv-accent-hover: #1e53e5;
+  --tv-on-accent: #ffffff;
+  --tv-badge-bg: #1a3a8f;
+  --tv-badge-text: #93c5fd;
+  --tv-warn: #f6ad55;
+  --tv-error-bg: #2d1b1b;
+  --tv-error-border: #e53e3e;
+  --tv-error-text: #fc8181;
+  --tv-selected: #ffd54f;
+  --tv-selected-glow: rgba(255, 213, 79, 0.25);
+  --tv-overlay: rgba(19, 23, 34, 0.85);
+  --tv-shadow: rgba(0, 0, 0, 0.5);
+  --tv-shadow-strong: rgba(0, 0, 0, 0.6);
+  --tv-depth: #b388ff;
+  --tv-depth-soft: rgba(179, 136, 255, 0.18);
+  /* lightweight-charts: read by ChannelExplorerChart through useThemeTokens + applyOptions */
+  --tv-chart-bg: #131722;
+  --tv-chart-text: #787b86;
+  --tv-chart-grid: #1e2030;
+  --tv-chart-border: #2a2e39;
+  --tv-chart-crosshair: #9598a1;        /* lightweight-charts v4 default */
+  --tv-chart-crosshair-label: #131722;  /* lightweight-charts v4 default */
+  --tv-candle-up: #26a69a;
+  --tv-candle-down: #ef5350;
+  --tv-direction-flat: #787b86;
+  --tv-exit: #ff9800;
+  --tv-broken-line: rgba(255, 152, 0, 0.75);
+  --tv-depth-rgb: 179, 136, 255;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --app-bg: #0f1420;
+  --app-text: #dde1e7;
+  --control-bg: #232b3a;
+  --backdrop: rgba(0, 0, 0, 0.6);
+  --swatch-border: rgba(255, 255, 255, 0.25);
+
+  --header-bg: #111a33;
+  --header-text: #f3f4f6;
+  --header-muted: #bfdbfe;
+  --header-tab-active-bg: #2563eb;
+  --header-tab-active-text: #ffffff;
+  --header-warn-active: #fde68a;
+
+  --row-long-tint: rgba(16, 185, 129, 0.1);
+  --row-short-tint: rgba(239, 68, 68, 0.1);
+
+  --chart-surface: #171d29;
+  --chart-text: #dde1e7;
+  --chart-text-muted: #9aa3b0;
+  --chart-heading: #bfdbfe;
+  --chart-border: #2e3747;
+  --chart-divider: #2e3747;
+  --chart-crosshair: rgba(180, 186, 197, 0.55);
+  --chart-tooltip-bg: rgba(28, 35, 48, 0.96);
+  --chart-btn-bg: #232b3a;
+  --chart-btn-hover: #2e3747;
+  --chart-accent: #64b5f6;
+  --chart-accent-soft: rgba(100, 181, 246, 0.15);
+  --chart-float-btn-bg: rgba(23, 29, 41, 0.7);
+  --chart-float-btn-hover: rgba(23, 29, 41, 0.95);
+  --chart-selection-fill: rgba(100, 181, 246, 0.2);
+  --chart-selection-edge: rgba(100, 181, 246, 0.6);
+
+  --chart-axis-text: #c9cfd8;
+  --chart-axis-title: #9aa3b0;
+  --chart-no-data: #808b9a;
+  --chart-grid: #2a3241;
+  --chart-zero-line: #808b9a;
+  --chart-label-bg: rgba(23, 29, 41, 0.8);
+
+  --chart-long-open: #2fb344;
+  --chart-short-open: #5b8def;
+  --chart-signal-other: #9aa3b0;
+  --chart-hollow-fill: rgba(23, 29, 41, 0.9);
+  --chart-highlight-edge: rgba(255, 213, 79, 0.9);
+  --chart-long-open-text: #4ade80;
+  --chart-long-close-text: #f87171;
+  --chart-short-open-text: #93c5fd;
+  --chart-short-close-text: #fdba74;
+  --chart-signal-muted-text: #b3bac5;
+
+  --chart-channel-1: #4d94e8;
+  --chart-channel-6: #2fb344;
+  --chart-channel-7: #8b7cf0;
+
+  --chart-tree-flat: #9aa3b0;
+
+  --chart-zone-strong: rgba(139, 124, 240, 0.3);
+  --chart-zone-weak: rgba(139, 124, 240, 0.12);
+  --chart-zone-armed: rgba(232, 121, 249, 0.95);
+
+  --chart-pnl-pos-fill: rgba(34, 197, 94, 0.4);
+  --chart-pnl-pos-edge: rgba(74, 222, 128, 0.8);
+  --chart-pnl-pos-grad-from: rgba(34, 197, 94, 0.1);
+  --chart-pnl-pos-grad-to: rgba(34, 197, 94, 0.5);
+  --chart-pnl-neg-fill: rgba(239, 68, 68, 0.4);
+  --chart-pnl-neg-edge: rgba(248, 113, 113, 0.8);
+  --chart-pnl-neg-grad-from: rgba(239, 68, 68, 0.1);
+  --chart-pnl-neg-grad-to: rgba(239, 68, 68, 0.5);
+  --chart-pnl-label: #f3f4f6;
+  --chart-cum-pos-fill: rgba(34, 197, 94, 0.18);
+  --chart-cum-neg-fill: rgba(239, 68, 68, 0.18);
+  --chart-cum-line: #64b5f6;
+
+  --chart-level-position: rgba(16, 185, 129, 0.1);
+  --chart-level-support-fill: rgba(74, 222, 128, 0.18);
+  --chart-level-support-edge: rgba(74, 222, 128, 0.75);
+  --chart-level-retest: rgba(34, 197, 94, 0.2);
+  --chart-level-base: #60a5fa;
+  --chart-level-fail: rgba(248, 113, 113, 0.5);
+  --chart-glyph-traded: #22c55e;
+  --chart-glyph-not-traded: #f59e0b;
+  --chart-glyph-failed: #f87171;
+  --chart-glyph-missed: #9aa3b0;
+  --chart-glyph-outline: #171d29;
+  --chart-level-upgrade: #4ade80;
+  --chart-level-label-bg: rgba(23, 29, 41, 0.85);
+  --chart-event-broken-up: #fb923c;
+  --chart-event-failed: #f87171;
+  --chart-event-missed: #9aa3b0;
+  --chart-event-broken-down: #a78bfa;
+  --chart-marker-entry-text: #86efac;
+  --chart-marker-exit-text: #fca5a5;
+
+  --chart-prewindow-fill: rgba(154, 163, 176, 0.12);
+  --chart-prewindow-line: rgba(154, 163, 176, 0.8);
+  --chart-prewindow-text: rgba(201, 207, 216, 0.95);
+
+  --chart-stability-fit: rgba(96, 165, 250, 0.1);
+  --chart-stability-check: rgba(245, 158, 11, 0.16);
+  --chart-stability-edge: rgba(96, 165, 250, 0.7);
+  --chart-stability-mid: rgba(251, 191, 36, 0.9);
+  --chart-stability-fit-text: rgba(147, 197, 253, 0.95);
+  --chart-stability-check-text: rgba(253, 230, 138, 0.95);
+
+  --chart-position-long: rgba(16, 185, 129, 0.14);
+  --chart-position-short: rgba(239, 68, 68, 0.12);
+  --chart-vote-strip-bg: #232b3a;
+  --chart-vote-long-open: rgba(34, 197, 94, 0.8);
+  --chart-vote-long-close: rgba(239, 68, 68, 0.8);
+  --chart-vote-short-open: rgba(96, 165, 250, 0.8);
+  --chart-vote-short-close: rgba(251, 146, 60, 0.8);
+  --chart-vote-block: rgba(154, 163, 176, 0.75);
+  --chart-vote-other: rgba(154, 163, 176, 0.6);
+  --chart-vote-missing: #808b9a;
+  --chart-legend-long: rgba(16, 185, 129, 0.3);
+  --chart-legend-short: rgba(239, 68, 68, 0.28);
+  --chart-legend-warmup: rgba(154, 163, 176, 0.25);
+
+  --chart-next-buy: #4ade80;
+  --chart-next-sell: #f87171;
+  --chart-next-veto: #9aa3b0;
+  --chart-next-info: rgba(154, 163, 176, 0.85);
+  --chart-next-veto-fill: rgba(154, 163, 176, 0.16);
+  --chart-next-band-fill: rgba(154, 163, 176, 0.14);
+  --chart-next-slot-fill: rgba(96, 165, 250, 0.06);
+  --chart-next-actual: #f3f4f6;
+  --chart-next-label-bg: rgba(23, 29, 41, 0.88);
+
+  --chart-series-1: #4d9be0;
+  --chart-series-3: #3fbf3f;
+  --chart-series-4: #b394dd;
+  --chart-series-5: #c48b7f;
+  --chart-series-exit: #f05454;
+  --chart-series-breakout: #22c55e;
+  --chart-series-stop: #4d9be0;
+  --chart-series-support: #b394dd;
+  --chart-indicator-default: #c084fc;
+
+  --chart-slider-line: #9d99f0;
+  --chart-slider-fill: #1c2330;
+
+  --chart-curve-median: #60a5fa;
+  --chart-curve-p90: #a78bfa;
+  --chart-curve-enrich: rgba(16, 185, 129, 0.28);
+  --chart-curve-enrich-ref: rgba(52, 211, 153, 0.85);
+  --chart-curve-invalid: #808b9a;
+  --chart-curve-invalid-rgb: 128, 139, 154;
+  --chart-curve-hull: rgba(96, 165, 250, 0.14);
+  --chart-curve-frozen: #f87171;
+  --chart-curve-axis: #808b9a;
+  --chart-curve-text: #9aa3b0;
+}

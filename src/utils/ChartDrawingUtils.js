@@ -1,6 +1,9 @@
 // src/utils/ChartDrawingUtils.js
 import { parseExchangeTs } from './dates';
 import { SERIES_STYLE } from './indicatorSeries';
+// Colours come from the theme tokens (src/theme/tokens.css, --chart-*), read at draw time: the
+// panes redraw on a theme switch (useTheme().theme in their effect dependencies).
+import { chartColor, resolveColor, withAlpha } from '../theme/theme';
 
 // Helper functions for finding min/max values
 export const findMinMaxPriceRange = (prices) => {
@@ -217,7 +220,7 @@ export const findMinMaxPriceRange = (prices) => {
 
   // Canvas drawing functions
   export const drawNoDataMessage = (ctx, width, height, message = "No data available") => {
-    ctx.fillStyle = '#888';
+    ctx.fillStyle = chartColor('no-data');
     ctx.font = '16px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -261,7 +264,7 @@ export const findMinMaxPriceRange = (prices) => {
    * drawValueAxis); without it, at fixed fifths of the height.
    */
   export const drawGrid = (ctx, width, height, minMax = null) => {
-    ctx.strokeStyle = '#ddd';
+    ctx.strokeStyle = chartColor('grid');
     ctx.lineWidth = 0.5;
 
     // Draw horizontal grid lines
@@ -296,7 +299,7 @@ export const findMinMaxPriceRange = (prices) => {
     if (!dateRange || !dateRange[0] || !dateRange[1] || 
         !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) {
       // Draw a generic axis if no valid date range is provided
-      ctx.fillStyle = '#333';
+      ctx.fillStyle = chartColor('axis-text');
       ctx.font = '10px Arial';
       ctx.textAlign = 'center';
       
@@ -308,7 +311,7 @@ export const findMinMaxPriceRange = (prices) => {
       return;
     }
     
-    ctx.fillStyle = '#333';
+    ctx.fillStyle = chartColor('axis-text');
     ctx.font = '10px Arial';
     ctx.textAlign = 'center';
 
@@ -337,9 +340,9 @@ export const findMinMaxPriceRange = (prices) => {
       // Light backing so the dates stay legible over bars / lines running along the bottom
       const textWidth = ctx.measureText(dateString).width;
       const boxLeft = i === 0 ? labelX : i === numLabels ? labelX - textWidth : labelX - textWidth / 2;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.fillStyle = chartColor('label-bg');
       ctx.fillRect(boxLeft - 2, height - 14, textWidth + 4, 12);
-      ctx.fillStyle = '#333';
+      ctx.fillStyle = chartColor('axis-text');
       ctx.fillText(dateString, labelX, height - 5);
     }
     ctx.textAlign = 'center';
@@ -379,9 +382,9 @@ export const findMinMaxPriceRange = (prices) => {
       lastY = y;
       const text = format(ticks[i], decimals);
       const textWidth = ctx.measureText(text).width;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.fillStyle = chartColor('label-bg');
       ctx.fillRect(VALUE_LABEL_X - 2, y - 6, textWidth + 4, 12);
-      ctx.fillStyle = '#333';
+      ctx.fillStyle = chartColor('axis-text');
       ctx.fillText(text, VALUE_LABEL_X, y);
     }
 
@@ -389,7 +392,7 @@ export const findMinMaxPriceRange = (prices) => {
       ctx.translate(8, (height - DATE_AXIS_BAND) / 2);
       ctx.rotate(-Math.PI / 2);
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#555';
+      ctx.fillStyle = chartColor('axis-title');
       ctx.fillText(axisTitle, 0, 0);
     }
     ctx.restore();
@@ -403,7 +406,7 @@ export const findMinMaxPriceRange = (prices) => {
     const { min, max } = minMax;
     // Zero line first so the labels' backing sits on top of it
     const zeroY = height - ((0 - min) / (max - min)) * height;
-    ctx.strokeStyle = '#666';
+    ctx.strokeStyle = chartColor('zero-line');
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, zeroY);
@@ -486,11 +489,11 @@ export const findMinMaxPriceRange = (prices) => {
       
       // Set colors based on candle direction
       if (isUp) {
-        ctx.strokeStyle = '#22c55e'; // Green for up candles
-        ctx.fillStyle = 'rgba(34, 197, 94, 0.5)'; // Semi-transparent green
+        ctx.strokeStyle = chartColor('candle-up'); // Green for up candles
+        ctx.fillStyle = chartColor('candle-up-fill'); // Semi-transparent green
       } else {
-        ctx.strokeStyle = '#ef4444'; // Red for down candles
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.5)'; // Semi-transparent red
+        ctx.strokeStyle = chartColor('candle-down'); // Red for down candles
+        ctx.fillStyle = chartColor('candle-down-fill'); // Semi-transparent red
       }
       
       // Draw the high-low wick (vertical line)
@@ -521,7 +524,7 @@ export const findMinMaxPriceRange = (prices) => {
     });
   };
   
-  export const drawIndicatorLine = (ctx, indicators, dateRange, minMax, width, height, color = 'purple') => {
+  export const drawIndicatorLine = (ctx, indicators, dateRange, minMax, width, height, color = null) => {
     // Guard against undefined or incomplete dateRange
     if (!dateRange || !dateRange[0] || !dateRange[1] || 
         !(dateRange[0] instanceof Date) || !(dateRange[1] instanceof Date)) {
@@ -530,7 +533,7 @@ export const findMinMaxPriceRange = (prices) => {
     
     const { min, max } = minMax;
     
-    ctx.strokeStyle = color;
+    ctx.strokeStyle = resolveColor(color) || chartColor('indicator-default');
     ctx.lineWidth = 1;
     ctx.beginPath();
     
@@ -615,7 +618,7 @@ export const findMinMaxPriceRange = (prices) => {
       const to = Math.min(points.length - 1, lastVisible + 1);
 
       ctx.save();
-      ctx.strokeStyle = entry.color;
+      ctx.strokeStyle = resolveColor(entry.color);
       // Dash state lives inside this save/restore, so it never leaks into the next series.
       if (entry.dashed) {
         ctx.setLineDash([5, 4]);
@@ -723,11 +726,16 @@ export const findMinMaxPriceRange = (prices) => {
     ctx.restore();
   };
 
-  // Hollow (not executed) marker: the filled shape's outline over a white body; short markers are
-  // already outlines, so theirs is dashed. Same size / position, so hit-testing is unchanged.
-  const HOLLOW_COLOR = Object.freeze({ LongOpen: 'green', LongClose: 'red', ShortOpen: 'blue', ShortClose: 'orange' });
+  // Signal marker colour tokens (--chart-long-open, ...), shared by the filled and hollow markers.
+  const SIGNAL_TOKEN = Object.freeze({
+    LongOpen: 'long-open', LongClose: 'long-close', ShortOpen: 'short-open', ShortClose: 'short-close',
+  });
+  const signalColor = (type) => chartColor(SIGNAL_TOKEN[type] || 'signal-other');
+
+  // Hollow (not executed) marker: the filled shape's outline over a surface-coloured body; short
+  // markers are already outlines, so theirs is dashed. Same size / position, so hit-testing is unchanged.
   const drawHollowSignal = (ctx, type, x, y) => {
-    const color = HOLLOW_COLOR[type] || 'gray';
+    const color = signalColor(type);
     const isShort = type === 'ShortOpen' || type === 'ShortClose';
     const size = isShort ? SHORT_MARKER_SIZE : 7;
     ctx.save();
@@ -735,7 +743,7 @@ export const findMinMaxPriceRange = (prices) => {
     else if (type === 'LongClose' || type === 'ShortOpen') traceDownTriangle(ctx, x, y, size);
     else { ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); }
     if (!isShort) {
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.fillStyle = chartColor('hollow-fill');
       ctx.fill();
     }
     ctx.strokeStyle = color;
@@ -771,8 +779,8 @@ export const findMinMaxPriceRange = (prices) => {
       // its channels can sit far away in time (see drawChannels' highlightTradeIndex).
       if (highlightTradeIndex !== null && signalTradeIndex?.get(signalKey(signal)) === highlightTradeIndex) {
         ctx.save();
-        ctx.fillStyle = 'rgba(255, 210, 0, 0.35)';
-        ctx.strokeStyle = 'rgba(180, 140, 0, 0.9)';
+        ctx.fillStyle = chartColor('highlight-fill');
+        ctx.strokeStyle = chartColor('highlight-edge');
         ctx.lineWidth = 1.5;
         drawCircle(ctx, x, y, 11);
         ctx.restore();
@@ -797,53 +805,38 @@ export const findMinMaxPriceRange = (prices) => {
 
       // Set color based on signal type
       if (signal.type === 'LongOpen') {
-        ctx.fillStyle = 'green';
+        ctx.fillStyle = signalColor('LongOpen');
         drawUpTriangle(ctx, x, y, 7); // Up triangle for open signals
       } else if (signal.type === 'LongClose') {
-        ctx.fillStyle = 'red';
+        ctx.fillStyle = signalColor('LongClose');
         drawDownTriangle(ctx, x, y, 7); // Down triangle for close signals
       } else if (signal.type === 'ShortOpen') {
         // Sell to open: down triangle. Short markers are outlined and larger than the filled long
         // ones, so on a reversal bar (LongClose + ShortOpen at the same date/price) both stay
         // visible - the outline rings the filled marker - and the hit-test point is unchanged.
-        strokeShortMarker(ctx, 'blue', () => traceDownTriangle(ctx, x, y, SHORT_MARKER_SIZE));
+        strokeShortMarker(ctx, signalColor('ShortOpen'), () => traceDownTriangle(ctx, x, y, SHORT_MARKER_SIZE));
       } else if (signal.type === 'ShortClose') {
         // Buy to cover: up triangle (rings a same-point LongOpen on a short->long reversal).
-        strokeShortMarker(ctx, 'orange', () => traceUpTriangle(ctx, x, y, SHORT_MARKER_SIZE));
+        strokeShortMarker(ctx, signalColor('ShortClose'), () => traceUpTriangle(ctx, x, y, SHORT_MARKER_SIZE));
       } else {
         // Default for unknown signal types
-        ctx.fillStyle = 'gray';
+        ctx.fillStyle = signalColor(null);
         drawCircle(ctx, x, y, 6);
       }
     });
   };
   
-  // Validated categorical palette (light mode), fixed order - see the dataviz skill's
-  // references/palette.md. Colors a trade's parent/entryChild/resumptionLeg trio together so
+  // Validated categorical palette, fixed order - see the dataviz skill's references/palette.md;
+  // tokens --chart-channel-1..8 (hex; the dark set brightens the darkest hues). Colors a trade's parent/entryChild/resumptionLeg trio together so
   // adjacent/overlapping trades' channels are visually distinguishable, instead of every channel
   // drawing in one indistinguishable blue. Cycles past 8 trades (acceptable here since trades are
   // temporally ordered and rarely visually adjacent that many apart, unlike a fixed-category
   // legend where reuse would be misleading).
-  const CHANNEL_TRADE_PALETTE = [
-    '#2a78d6', // blue
-    '#eb6834', // orange
-    '#1baf7a', // aqua
-    '#eda100', // yellow
-    '#e87ba4', // magenta
-    '#008300', // green
-    '#4a3aa7', // violet
-    '#e34948', // red
-  ];
-
-  const hexToRgba = (hex, alpha) => {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  };
+  // blue, orange, aqua, yellow, magenta, green, violet, red
+  const CHANNEL_TRADE_PALETTE_SIZE = 8;
 
   export const colorForTradeIndex = (tradeIndex, alpha = 0.6) =>
-    hexToRgba(CHANNEL_TRADE_PALETTE[tradeIndex % CHANNEL_TRADE_PALETTE.length], alpha);
+    withAlpha(chartColor(`channel-${(tradeIndex % CHANNEL_TRADE_PALETTE_SIZE) + 1}`), alpha);
 
   export const drawChannels = (ctx, channelGroups, dateRange, minMax, width, height, highlightTradeIndex = null) => {
     // Nothing selected - draw no channels at all. Channels only appear once a signal is clicked
@@ -904,7 +897,10 @@ export const findMinMaxPriceRange = (prices) => {
   // channels, thin, by direction. A PROVISIONAL channel ("draft": younger than 10 bars or narrower
   // than 5 ATR) stays in the same hierarchy but is dashed and fainter; the CURRENT channel is
   // thicker. An older backend sends no status: everything is drawn solid, as confirmed.
-  export const CHANNEL_TREE_COLORS = Object.freeze({ 1: '#1baf7a', '-1': '#e34948', 0: '#787b86' });
+  // var() strings: DOM legends use them as is, the canvas resolves them (withAlpha).
+  export const CHANNEL_TREE_COLORS = Object.freeze({
+    1: 'var(--chart-tree-up)', '-1': 'var(--chart-tree-down)', 0: 'var(--chart-tree-flat)',
+  });
   export const CHANNEL_TREE_DASH = [6, 4];
 
   export const drawChannelTree = (ctx, channels, dateRange, minMax, width, height) => {
@@ -938,8 +934,8 @@ export const findMinMaxPriceRange = (prices) => {
       if (!first || !last) return;
       if (parseExchangeTs(last) < startDate || parseExchangeTs(first) > endDate) return;
       const provisional = ch.status === 'PROVISIONAL';
-      const hex = CHANNEL_TREE_COLORS[ch.direction] ?? CHANNEL_TREE_COLORS[0];
-      ctx.strokeStyle = hexToRgba(hex, provisional ? 0.45 : 0.75);
+      const color = CHANNEL_TREE_COLORS[ch.direction] ?? CHANNEL_TREE_COLORS[0];
+      ctx.strokeStyle = withAlpha(color, provisional ? 0.45 : 0.75);
       ctx.lineWidth = ch.current ? 2.25 : 1.25;
       ctx.setLineDash(provisional ? CHANNEL_TREE_DASH : []);
       drawPolyline(ch.upperPoints);
@@ -954,11 +950,11 @@ export const findMinMaxPriceRange = (prices) => {
   // edge the trigger sits a buffer above. The edge is fuchsia and dashed so it does not read as
   // the (solid, green) resistanceTrigger line drawn just above it: fuchsia is not in
   // the indicator palette (utils/indicatorSeries.js), nor a candle / signal colour.
-  // Keep the swatches in ReporterStyleChart.css in sync.
+  // The swatches in ReporterStyleChart.css read the same tokens.
   export const LEVEL_ZONE_STYLE = Object.freeze({
-    strongFill: 'rgba(74, 58, 167, 0.26)', // violet, from the channel palette
-    weakFill: 'rgba(74, 58, 167, 0.09)',
-    armedEdge: 'rgba(192, 38, 211, 0.95)', // fuchsia
+    get strongFill() { return chartColor('zone-strong'); }, // violet, from the channel palette
+    get weakFill() { return chartColor('zone-weak'); },
+    get armedEdge() { return chartColor('zone-armed'); }, // fuchsia
     armedEdgeWidth: 2,
     armedEdgeDash: [6, 4],
   });
@@ -1052,23 +1048,19 @@ export const findMinMaxPriceRange = (prices) => {
       const y = trade.pnl >= 0 ? zeroY - barHeight : zeroY;
       
       // Draw bar
-      ctx.fillStyle = trade.pnl >= 0 ? 'rgba(0, 128, 0, 0.4)' : 'rgba(255, 0, 0, 0.4)';
+      ctx.fillStyle = chartColor(trade.pnl >= 0 ? 'pnl-pos-fill' : 'pnl-neg-fill');
       ctx.fillRect(openX, y, barWidth, barHeight);
       
       // Draw outline
-      ctx.strokeStyle = trade.pnl >= 0 ? 'rgba(0, 100, 0, 0.8)' : 'rgba(180, 0, 0, 0.8)';
+      ctx.strokeStyle = chartColor(trade.pnl >= 0 ? 'pnl-pos-edge' : 'pnl-neg-edge');
       ctx.lineWidth = 1;
       ctx.strokeRect(openX, y, barWidth, barHeight);
       
       // Add gradient for visual appeal
       const gradient = ctx.createLinearGradient(openX, y, closeX, y + barHeight);
-      if (trade.pnl >= 0) {
-        gradient.addColorStop(0, 'rgba(0, 128, 0, 0.1)');
-        gradient.addColorStop(1, 'rgba(0, 128, 0, 0.5)');
-      } else {
-        gradient.addColorStop(0, 'rgba(255, 0, 0, 0.1)');
-        gradient.addColorStop(1, 'rgba(255, 0, 0, 0.5)');
-      }
+      const side = trade.pnl >= 0 ? 'pos' : 'neg';
+      gradient.addColorStop(0, chartColor(`pnl-${side}-grad-from`));
+      gradient.addColorStop(1, chartColor(`pnl-${side}-grad-to`));
       
       // Apply gradient to draw a decorative overlay
       ctx.fillStyle = gradient;
@@ -1076,7 +1068,7 @@ export const findMinMaxPriceRange = (prices) => {
       
       // Draw a small label if the bar is wide enough
       if (barWidth > 30) {
-        ctx.fillStyle = '#000';
+        ctx.fillStyle = chartColor('pnl-label');
         ctx.font = '9px Arial';
         ctx.textAlign = 'center';
         // Position text in middle of bar
@@ -1160,18 +1152,18 @@ export const findMinMaxPriceRange = (prices) => {
     ctx.beginPath();
     ctx.rect(0, 0, width, zeroY);
     ctx.clip();
-    ctx.fillStyle = 'rgba(0, 128, 0, 0.15)';
+    ctx.fillStyle = chartColor('cum-pos-fill');
     ctx.fill(area);
     ctx.restore();
     ctx.save();
     ctx.beginPath();
     ctx.rect(0, zeroY, width, height - zeroY);
     ctx.clip();
-    ctx.fillStyle = 'rgba(255, 0, 0, 0.15)';
+    ctx.fillStyle = chartColor('cum-neg-fill');
     ctx.fill(area);
     ctx.restore();
 
-    ctx.strokeStyle = '#2196F3';
+    ctx.strokeStyle = chartColor('cum-line');
     ctx.lineWidth = 2;
     ctx.stroke(line);
     ctx.restore();
@@ -1182,34 +1174,40 @@ export const findMinMaxPriceRange = (prices) => {
   // utils/levelChart.js). Same x/y mapping as every other price-pane layer. Layer order is set by
   // PriceChart: shading -> level zones -> support segments -> setup windows -> candles ->
   // overlays -> window-end glyphs / "↑" / events -> signals -> marker labels.
-  // Keep the legend swatches in ReporterStyleChart.css in sync with LEVEL_CHART_STYLE.
+  // The legend swatches in ReporterStyleChart.css read the same --chart-level-* tokens.
   // ---------------------------------------------------------------------------------------------
   export const LEVEL_CHART_STYLE = Object.freeze({
-    positionFill: 'rgba(16, 185, 129, 0.07)',
-    supportFill: 'rgba(44, 160, 44, 0.20)',
-    supportEdge: 'rgba(21, 128, 61, 0.75)',
-    retestBand: 'rgba(34, 197, 94, 0.16)',
-    runawayLine: '#ff7f0e', // orange, dashed (no longer the Breakout line's colour - that is green)
+    get positionFill() { return chartColor('level-position'); },
+    get supportFill() { return chartColor('level-support-fill'); },
+    get supportEdge() { return chartColor('level-support-edge'); },
+    get retestBand() { return chartColor('level-retest'); },
+    // orange, dashed (no longer the Breakout line's colour - that is green)
+    get runawayLine() { return chartColor('level-runaway'); },
     runawayDash: [5, 4],
-    baseLine: '#2563eb', // blue, short dashes: rev 2.9 "Base high" (base entry on a close above it)
+    // blue, short dashes: rev 2.9 "Base high" (base entry on a close above it)
+    get baseLine() { return chartColor('level-base'); },
     baseDash: [2, 3],
-    failLine: 'rgba(220, 38, 38, 0.40)',
-    glyphTraded: '#16a34a',
-    glyphNotTraded: '#d97706',
-    glyphFailed: '#dc2626',
-    glyphMissed: '#6b7280',
-    glyphDropped: '#6b7280',
-    upgrade: '#15803d',
-    labelBacking: 'rgba(255, 255, 255, 0.85)',
+    get failLine() { return chartColor('level-fail'); },
+    get glyphTraded() { return chartColor('glyph-traded'); },
+    get glyphNotTraded() { return chartColor('glyph-not-traded'); },
+    get glyphFailed() { return chartColor('glyph-failed'); },
+    get glyphMissed() { return chartColor('glyph-missed'); },
+    get glyphDropped() { return chartColor('glyph-missed'); },
+    // outline of a filled glyph / body of a hollow one: the pane surface (white in Light)
+    get glyphOutline() { return chartColor('glyph-outline'); },
+    get upgrade() { return chartColor('level-upgrade'); },
+    get labelBacking() { return chartColor('level-label-bg'); },
   });
 
+  const eventStyle = (token, label) => Object.freeze({ get color() { return chartColor(token); }, label });
   const EVENT_STYLE = Object.freeze({
-    BROKEN_UP: { color: '#ea580c', label: 'BU' },
-    FAILED: { color: '#dc2626', label: 'F' },
-    MISSED_TIMEOUT: { color: '#6b7280', label: 'MT' },
-    MISSED_DWELL: { color: '#6b7280', label: 'MD' },
-    BROKEN_DOWN: { color: '#7c3aed', label: 'BD' },
+    BROKEN_UP: eventStyle('event-broken-up', 'BU'),
+    FAILED: eventStyle('event-failed', 'F'),
+    MISSED_TIMEOUT: eventStyle('event-missed', 'MT'),
+    MISSED_DWELL: eventStyle('event-missed', 'MD'),
+    BROKEN_DOWN: eventStyle('event-broken-down', 'BD'),
   });
+  const UNKNOWN_EVENT_STYLE = eventStyle('event-missed', '?');
 
   /** x/y mapping for the price pane, or null when the range is unusable. */
   const priceMapper = (dateRange, minMax, width, height) => {
@@ -1241,7 +1239,7 @@ export const findMinMaxPriceRange = (prices) => {
       const x0 = Math.max(0, map.xOf(span.startMs));
       const x1 = Math.min(width, map.xOf(span.endMs));
       // `fill`: the Signals mode's merged spans colour long / short apart
-      ctx.fillStyle = span.fill || LEVEL_CHART_STYLE.positionFill;
+      ctx.fillStyle = resolveColor(span.fill) || LEVEL_CHART_STYLE.positionFill;
       if (x1 > x0) ctx.fillRect(x0, 0, x1 - x0, height);
     });
     ctx.restore();
@@ -1250,11 +1248,11 @@ export const findMinMaxPriceRange = (prices) => {
   // Warm-up before the trading window (screener tradeStart): neutral grey, so it never reads as
   // the green / red position shading. Same look on every pane (price, PnL, cumulative, indicator).
   export const PRE_WINDOW_STYLE = Object.freeze({
-    fill: 'rgba(107, 114, 128, 0.12)',
-    line: 'rgba(75, 85, 99, 0.8)',
+    get fill() { return chartColor('prewindow-fill'); },
+    get line() { return chartColor('prewindow-line'); },
     dash: [4, 3],
     label: 'trade start',
-    labelColor: 'rgba(55, 65, 81, 0.95)',
+    get labelColor() { return chartColor('prewindow-text'); },
   });
 
   /**
@@ -1301,15 +1299,15 @@ export const findMinMaxPriceRange = (prices) => {
   // (stronger tint, the recent stretch the fit-best params are checked on), a solid node-start
   // line, a dashed midpoint line and the labels "Fit" / "Check".
   export const STABILITY_BAND_STYLE = Object.freeze({
-    fitFill: 'rgba(59, 130, 246, 0.07)',
-    checkFill: 'rgba(245, 158, 11, 0.14)',
-    edge: 'rgba(37, 99, 235, 0.55)',
-    midLine: 'rgba(180, 83, 9, 0.9)',
+    get fitFill() { return chartColor('stability-fit'); },
+    get checkFill() { return chartColor('stability-check'); },
+    get edge() { return chartColor('stability-edge'); },
+    get midLine() { return chartColor('stability-mid'); },
     dash: [5, 4],
     fitLabel: 'Fit',
     checkLabel: 'Check',
-    fitLabelColor: 'rgba(30, 64, 175, 0.95)',
-    checkLabelColor: 'rgba(146, 64, 14, 0.95)',
+    get fitLabelColor() { return chartColor('stability-fit-text'); },
+    get checkLabelColor() { return chartColor('stability-check-text'); },
   });
 
   /**
@@ -1514,7 +1512,7 @@ export const findMinMaxPriceRange = (prices) => {
       if (outcome.startsWith('CONFIRMED')) {
         ctx.lineWidth = 1.5;
         ctx.fillStyle = win.traded ? LEVEL_CHART_STYLE.glyphTraded : LEVEL_CHART_STYLE.glyphNotTraded;
-        ctx.strokeStyle = 'white';
+        ctx.strokeStyle = LEVEL_CHART_STYLE.glyphOutline;
         ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
@@ -1526,7 +1524,7 @@ export const findMinMaxPriceRange = (prices) => {
         ctx.stroke();
       } else if (outcome.startsWith('MISSED')) {
         ctx.lineWidth = 1.5;
-        ctx.fillStyle = 'white';
+        ctx.fillStyle = LEVEL_CHART_STYLE.glyphOutline;
         ctx.strokeStyle = LEVEL_CHART_STYLE.glyphMissed;
         ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.fill();
@@ -1576,11 +1574,11 @@ export const findMinMaxPriceRange = (prices) => {
     const s = 3.5;
     events.forEach(event => {
       if (event.ms < map.startMs || event.ms > map.endMs) return;
-      const style = EVENT_STYLE[event.type] || { color: '#6b7280', label: '?' };
+      const style = EVENT_STYLE[event.type] || UNKNOWN_EVENT_STYLE;
       const x = map.xOf(event.ms);
       const y = map.yOf(event.price);
       ctx.fillStyle = style.color;
-      ctx.strokeStyle = 'white';
+      ctx.strokeStyle = LEVEL_CHART_STYLE.glyphOutline;
       ctx.beginPath();
       ctx.moveTo(x, y - s); ctx.lineTo(x + s, y); ctx.lineTo(x, y + s); ctx.lineTo(x - s, y);
       ctx.closePath();
@@ -1634,7 +1632,7 @@ export const findMinMaxPriceRange = (prices) => {
       ctx.textBaseline = below ? 'top' : 'bottom';
       ctx.fillStyle = LEVEL_CHART_STYLE.labelBacking;
       ctx.fillRect(box.x0, box.y0, box.x1 - box.x0, MARKER_LABEL_BOX_H);
-      ctx.fillStyle = below ? '#166534' : '#991b1b';
+      ctx.fillStyle = chartColor(below ? 'marker-entry-text' : 'marker-exit-text');
       ctx.fillText(label, x, box.textY);
     });
     ctx.restore();
@@ -1655,14 +1653,14 @@ export const findMinMaxPriceRange = (prices) => {
     if (!(totalMs > 0)) return;
     const xOf = (ms) => timeToX(ms, dateRange, width);
     ctx.save();
-    ctx.fillStyle = '#f3f4f6';
+    ctx.fillStyle = chartColor('vote-strip-bg');
     ctx.fillRect(0, 0, width, height);
     (votes || []).forEach(vote => {
       if (vote.endMs < startMs || vote.startMs > endMs) return;
       const x0 = Math.max(0, xOf(vote.startMs));
       const x1 = Math.min(width, xOf(vote.endMs));
       if (!(x1 > x0)) return;
-      ctx.fillStyle = colors?.[vote.type] || 'rgba(107, 114, 128, 0.6)';
+      ctx.fillStyle = resolveColor(colors?.[vote.type]) || chartColor('vote-other');
       // at least 1px, so a one-bar vote stays visible when zoomed out
       ctx.fillRect(x0, 0, Math.max(1, x1 - x0), height);
     });
@@ -1672,29 +1670,29 @@ export const findMinMaxPriceRange = (prices) => {
   // ---------------------------------------------------------------------------------------------
   // Next-bar trigger prices (screener architect.md "nextTriggers" §3): short horizontal segments
   // one bar wide - in an empty slot after the last bar, or on the last bar while it is in progress.
-  // Keep nextTriggers/nextBarCard.css (.nbt-legend-swatch, .nbt-side--*) in sync.
+  // Colours: --chart-next-* tokens; keep nextTriggers/nextBarCard.css (.nbt-legend-swatch, .nbt-side--*) in sync.
   // ---------------------------------------------------------------------------------------------
   export const NEXT_BAR_STYLE = Object.freeze({
-    BUY: '#16a34a',
-    SELL: '#dc2626',
-    VETO: '#6b7280',
-    INFO: 'rgba(107, 114, 128, 0.85)',
-    NECESSARY: '#6b7280',
+    get BUY() { return chartColor('next-buy'); },
+    get SELL() { return chartColor('next-sell'); },
+    get VETO() { return chartColor('next-veto'); },
+    get INFO() { return chartColor('next-info'); },
+    get NECESSARY() { return chartColor('next-veto'); },
     closeDash: [5, 3],
     conditionalDash: [2, 2],
-    vetoFill: 'rgba(107, 114, 128, 0.16)',
-    bandFill: 'rgba(107, 114, 128, 0.14)',
-    slotFill: 'rgba(37, 99, 235, 0.04)',
-    actual: '#111827',
-    labelBacking: 'rgba(255, 255, 255, 0.88)',
+    get vetoFill() { return chartColor('next-veto-fill'); },
+    get bandFill() { return chartColor('next-band-fill'); },
+    get slotFill() { return chartColor('next-slot-fill'); },
+    get actual() { return chartColor('next-actual'); },
+    get labelBacking() { return chartColor('next-label-bg'); },
     labelGap: 12,
     // first label row: below the "trade start" text (drawPreWindowShading, y 4..15), never cut at the top
     labelTop: 20,
     // Setup preview (FLAT, no armed setup): 1 px dotted, the breakout one in the Breakout line's
     // green (it continues that line into the next slot), the runaway one in the setup window's
     // runaway orange - never the 2 px dashed look of a next-bar BUY
-    SETUP_ARMS: SERIES_STYLE.resistanceTrigger.color,
-    RUNAWAY_AFTER_BREAKOUT: '#ff7f0e',
+    get SETUP_ARMS() { return resolveColor(SERIES_STYLE.resistanceTrigger.color); },
+    get RUNAWAY_AFTER_BREAKOUT() { return chartColor('level-runaway'); },
     previewDash: [1, 3],
   });
 

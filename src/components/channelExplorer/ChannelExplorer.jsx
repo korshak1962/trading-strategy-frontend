@@ -29,7 +29,8 @@ const finestTf = (tfs) =>
   (!tfs || !tfs.length) ? null : tfs.reduce((a, b) => (TF_RANK[b] < TF_RANK[a] ? b : a));
 
 const DIRECTION_LABEL = { 1: '▲ Ascending', '-1': '▼ Descending', 0: '→ Flat' };
-const DIRECTION_COLOR = { 1: '#26a69a', '-1': '#ef5350', 0: '#787b86' };
+// Theme tokens (src/theme/tokens.css --tv-*), the same hues as the chart's channel lines.
+const DIRECTION_COLOR = { 1: 'var(--tv-candle-up)', '-1': 'var(--tv-candle-down)', 0: 'var(--tv-direction-flat)' };
 
 // A / B view toggle (screener TASK_incremental_channels rev 2, §8 look-ahead caption).
 const VIEW_OPTIONS = [

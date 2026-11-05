@@ -1474,8 +1474,8 @@ const ReporterStyleChart = ({
           top: 0,
           width,
           height: '100%',
-          backgroundColor: 'rgba(33, 150, 243, 0.2)',
-          border: '1px solid rgba(33, 150, 243, 0.5)',
+          backgroundColor: 'var(--chart-selection-fill)',
+          border: '1px solid var(--chart-selection-edge)',
           pointerEvents: 'none'
         }}
       />

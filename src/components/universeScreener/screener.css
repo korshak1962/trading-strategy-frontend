@@ -4,14 +4,14 @@
 .screener-subtabs {
   display: flex;
   gap: 4px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--c-gray-200);
 }
 
 .screener-subtab {
   padding: 8px 16px;
   font-size: 0.9rem;
   font-weight: 500;
-  color: #4b5563;
+  color: var(--fg-gray-600);
   background: transparent;
   border: 1px solid transparent;
   border-bottom: none;
@@ -21,13 +21,13 @@
 }
 
 .screener-subtab:hover {
-  color: #1f2937;
-  background: #f3f4f6;
+  color: var(--fg-gray-800);
+  background: var(--c-gray-100);
 }
 
 .screener-subtab--active {
-  color: #1d4ed8;
-  background: #fff;
-  border-color: #e5e7eb;
-  border-bottom: 1px solid #fff;
+  color: var(--fg-blue-700);
+  background: var(--c-white);
+  border-color: var(--c-gray-200);
+  border-bottom: 1px solid var(--c-white);
 }

@@ -3,17 +3,17 @@
 
 /* ---- signal states (feed rows, last-signal cells) ---- */
 .watch-sig--CONFIRMED {
-  color: #111827;
+  color: var(--fg-gray-900);
 }
 .watch-sig--PROVISIONAL {
-  color: #9ca3af;
+  color: var(--fg-gray-400);
 }
 .watch-sig--RETRACTED {
-  color: #9ca3af;
+  color: var(--fg-gray-400);
   text-decoration: line-through;
 }
 .watch-sig--BASELINE {
-  color: #6b7280;
+  color: var(--fg-gray-500);
   opacity: 0.75;
 }
 
@@ -27,10 +27,10 @@
   text-decoration: none;
   white-space: nowrap;
 }
-.watch-state-badge--CONFIRMED { background: #dcfce7; color: #166534; border-color: #86efac; }
-.watch-state-badge--PROVISIONAL { background: #f3f4f6; color: #6b7280; border-color: #d1d5db; }
-.watch-state-badge--RETRACTED { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
-.watch-state-badge--BASELINE { background: #f9fafb; color: #6b7280; border-color: #e5e7eb; }
+.watch-state-badge--CONFIRMED { background: var(--c-green-100); color: var(--fg-green-800); border-color: var(--c-green-300); }
+.watch-state-badge--PROVISIONAL { background: var(--c-gray-100); color: var(--fg-gray-500); border-color: var(--c-gray-300); }
+.watch-state-badge--RETRACTED { background: var(--c-red-50); color: var(--fg-red-800); border-color: var(--c-red-200); }
+.watch-state-badge--BASELINE { background: var(--c-gray-50); color: var(--fg-gray-500); border-color: var(--c-gray-200); }
 
 .watch-flag {
   display: inline-block;
@@ -38,14 +38,14 @@
   border-radius: 4px;
   font-size: 0.7rem;
   line-height: 1.1rem;
-  background: #fef3c7;
-  color: #92400e;
-  border: 1px solid #fcd34d;
+  background: var(--c-amber-100);
+  color: var(--fg-amber-800);
+  border: 1px solid var(--c-amber-300);
   white-space: nowrap;
 }
 
-.watch-action--BUY { color: #15803d; font-weight: 700; }
-.watch-action--SELL { color: #b91c1c; font-weight: 700; }
+.watch-action--BUY { color: var(--fg-green-700); font-weight: 700; }
+.watch-action--SELL { color: var(--fg-red-700); font-weight: 700; }
 
 /* ---- health ---- */
 .watch-health {
@@ -55,19 +55,19 @@
   white-space: nowrap;
   cursor: help;
 }
-.watch-health--ok { color: #16a34a; }
-.watch-health--stale { color: #d97706; }
-.watch-health--error { color: #dc2626; }
+.watch-health--ok { color: var(--fg-green-600); }
+.watch-health--stale { color: var(--fg-amber-600); }
+.watch-health--error { color: var(--fg-red-600); }
 
 /* ---- table rows ---- */
 .watch-row {
   cursor: pointer;
 }
 .watch-row:hover {
-  background: #eff6ff;
+  background: var(--c-blue-50);
 }
 .watch-row--inactive {
-  color: #9ca3af;
+  color: var(--fg-gray-400);
 }
 
 /* ---- toasts (top right, above everything) ---- */
@@ -82,25 +82,25 @@
   width: min(380px, calc(100vw - 32px));
 }
 .watch-toast {
-  background: #fff;
-  border: 1px solid #93c5fd;
-  border-left: 4px solid #2563eb;
+  background: var(--c-white);
+  border: 1px solid var(--c-blue-300);
+  border-left: 4px solid var(--c-blue-600);
   border-radius: 6px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 6px 16px rgb(var(--shadow-rgb) / 0.15);
   padding: 10px 12px;
   font-size: 0.875rem;
-  color: #1f2937;
+  color: var(--fg-gray-800);
 }
-.watch-toast--RETRACTED { border-left-color: #9ca3af; border-color: #d1d5db; }
-.watch-toast--BROKEN { border-left-color: #dc2626; border-color: #fecaca; }
-.watch-toast--INFO { border-left-color: #6b7280; border-color: #e5e7eb; background: #f9fafb; }
+.watch-toast--RETRACTED { border-left-color: var(--c-gray-400); border-color: var(--c-gray-300); }
+.watch-toast--BROKEN { border-left-color: var(--c-red-600); border-color: var(--c-red-200); }
+.watch-toast--INFO { border-left-color: var(--c-gray-500); border-color: var(--c-gray-200); background: var(--c-gray-50); }
 
 /* ---- modal ---- */
 .watch-modal-backdrop {
   position: fixed;
   inset: 0;
   z-index: 900;
-  background: rgba(17, 24, 39, 0.45);
+  background: var(--backdrop);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -108,9 +108,9 @@
   padding: 48px 16px;
 }
 .watch-modal {
-  background: #fff;
+  background: var(--c-white);
   border-radius: 8px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 10px 30px rgb(var(--shadow-rgb) / 0.25);
   width: min(560px, 100%);
   padding: 20px;
 }

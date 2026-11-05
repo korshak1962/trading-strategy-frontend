@@ -9,7 +9,7 @@
   bottom: 0;
   width: 30%;
   border-radius: inherit;
-  background-color: #2563eb; /* blue-600, same as the determinate bar */
+  background-color: var(--c-blue-600); /* blue-600, same as the determinate bar */
   animation: opt-indeterminate 1.4s ease-in-out infinite;
 }
 
@@ -30,7 +30,7 @@
 }
 
 @keyframes opt-flash {
-  0% { background-color: #fde68a; } /* amber-200 */
+  0% { background-color: var(--c-amber-200); } /* amber-200 */
   100% { background-color: transparent; }
 }
 

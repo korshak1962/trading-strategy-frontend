@@ -11,6 +11,7 @@ import {
 } from '../../utils/ChartDrawingUtils';
 import { extractTradesFromSignals } from '../../utils/ChartDataUtils';
 import { parseExchangeTs, exchangeToday } from '../../utils/dates';
+import { useTheme } from '../../theme/useTheme';
 
 /**
  * PnLChart component renders the profit/loss chart for trades
@@ -27,6 +28,8 @@ import { parseExchangeTs, exchangeToday } from '../../utils/dates';
  */
 const PnLChart = ({ data, width, height, dateRange, trades, axisTitle, preWindowSpan = null }) => {
   const canvasRef = useRef(null);
+  // Colours are read from the theme tokens at draw time: redraw on a theme switch
+  const { theme } = useTheme();
 
   useEffect(() => {
     const canvasElement = canvasRef.current;
@@ -141,7 +144,7 @@ const PnLChart = ({ data, width, height, dateRange, trades, axisTitle, preWindow
         ctx.clearRect(0, 0, width, height);
       }
     };
-  }, [data, width, height, dateRange, trades, axisTitle, preWindowSpan]);
+  }, [data, width, height, dateRange, trades, axisTitle, preWindowSpan, theme]);
 
   return (
     <div className="chart-wrapper">

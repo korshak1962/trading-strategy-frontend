@@ -66,7 +66,7 @@ const Row = ({ label, children }) => (
 /** Entry marker of a level trade: trigger, zone band, entry price, initial stop and exit line. */
 const EntryTooltipBody = ({ trade }) => (
   <>
-    <div style={{ fontWeight: 'bold', marginBottom: '5px', color: 'green' }}>
+    <div style={{ fontWeight: 'bold', marginBottom: '5px', color: 'var(--chart-long-open-text)' }}>
       Entry: {ENTRY_TRIGGER_TEXT[trade.entryTrigger] || trade.entryTrigger || 'long'}
     </div>
     <div className="chart-tooltip-muted">{fmtBarDate(trade.entryMs)}</div>
@@ -93,7 +93,7 @@ const ExitTooltipBody = ({ trade }) => {
   const held = barsHeld(trade);
   return (
     <>
-      <div style={{ fontWeight: 'bold', marginBottom: '5px', color: 'red' }}>
+      <div style={{ fontWeight: 'bold', marginBottom: '5px', color: 'var(--chart-long-close-text)' }}>
         Exit: {EXIT_REASON_LONG_TEXT[trade.exitReason] || trade.exitReason || 'close'}
       </div>
       <div className="chart-tooltip-muted">{fmtBarDate(trade.exitMs)}</div>
@@ -227,7 +227,7 @@ const VoteTooltipBody = ({ vote, longOnly }) => {
   return (
     <>
       <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
-        <span className="vote-swatch" style={{ backgroundColor: VOTE_COLORS[vote.type] || '#9ca3af' }} />
+        <span className="vote-swatch" style={{ backgroundColor: VOTE_COLORS[vote.type] || 'var(--chart-vote-missing)' }} />
         Vote: {voteText(vote.type, longOnly)}
       </div>
       <div className="chart-tooltip-muted">
@@ -352,7 +352,7 @@ const ChartTooltip = ({ tooltipData }) => {
 
       {/* Level strategy status for this bar (flat / waiting / in position) */}
       {status && (
-        <div className="chart-tooltip-status" style={{ marginTop: '5px', paddingTop: '5px', borderTop: '1px solid #eee', maxWidth: 260 }}>
+        <div className="chart-tooltip-status" style={{ marginTop: '5px', paddingTop: '5px', borderTop: '1px solid var(--chart-divider)', maxWidth: 260 }}>
           {status.text}
           {status.note && <div className="chart-tooltip-muted" style={{ fontSize: '0.8em' }}>{status.note}</div>}
         </div>
@@ -381,15 +381,15 @@ const ChartTooltip = ({ tooltipData }) => {
 
       {/* Show signals if available */}
       {signals.length > 0 && (
-        <div style={{ marginTop: '5px', paddingTop: '5px', borderTop: '1px solid #eee' }}>
+        <div style={{ marginTop: '5px', paddingTop: '5px', borderTop: '1px solid var(--chart-divider)' }}>
           <div style={{ fontWeight: 'bold' }}>Signals:</div>
           {signals.map((signal, index) => (
             <div key={index} style={{
               color: signal.type === 'LongBlock'
-                ? '#4b5563'
+                ? 'var(--chart-signal-muted-text)'
                 : signal.type.includes('Long')
-                  ? (signal.type === 'LongOpen' ? 'green' : 'red')
-                  : (signal.type === 'ShortOpen' ? 'blue' : 'orange')
+                  ? (signal.type === 'LongOpen' ? 'var(--chart-long-open-text)' : 'var(--chart-long-close-text)')
+                  : (signal.type === 'ShortOpen' ? 'var(--chart-short-open-text)' : 'var(--chart-short-close-text)')
             }}>
               {signal.type} @ {signal.price.toFixed(2)}
               {/* Signals mode: a strategy signal the merge did not execute / the merged trade's sources */}

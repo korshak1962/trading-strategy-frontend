@@ -13,19 +13,23 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import '../ReporterStyleChart.css';
 import { isNum } from '../stability/stabilityFormat';
 import { fmtLevel, fmtShare } from './screeningFormat';
+import { chartColor } from '../../theme/theme';
+import { useTheme } from '../../theme/useTheme';
 
-const COLORS = {
-  median: '#2563eb',
-  p75: '#2563eb',
-  p90: '#7c3aed',
-  enrich: 'rgba(16, 185, 129, 0.22)',
-  enrichRef: 'rgba(16, 185, 129, 0.8)',
-  invalid: '#9ca3af',
-  hull: 'rgba(59, 130, 246, 0.10)',
-  frozen: '#dc2626',
-  axis: '#9ca3af',
-  text: '#6b7280',
-};
+// Theme tokens (--chart-curve-*), read at draw time; the canvas redraws on a theme switch.
+const COLORS = Object.freeze({
+  get median() { return chartColor('curve-median'); },
+  get p75() { return chartColor('curve-median'); },
+  get p90() { return chartColor('curve-p90'); },
+  get enrich() { return chartColor('curve-enrich'); },
+  get enrichRef() { return chartColor('curve-enrich-ref'); },
+  get invalid() { return chartColor('curve-invalid'); },
+  get invalidRgb() { return chartColor('curve-invalid-rgb'); },
+  get hull() { return chartColor('curve-hull'); },
+  get frozen() { return chartColor('curve-frozen'); },
+  get axis() { return chartColor('curve-axis'); },
+  get text() { return chartColor('curve-text'); },
+});
 
 const fmt = (v, d = 3) => (isNum(v) ? Number(v.toFixed(d)).toString() : 'n/a');
 
@@ -42,6 +46,7 @@ const fmt = (v, d = 3) => (isNum(v) ? Number(v.toFixed(d)).toString() : 'n/a');
 const ParamCurveCanvas = ({ curve, offAtZero = false, hull = null, width, height, large = false, onClick }) => {
   const canvasRef = useRef(null);
   const [hover, setHover] = useState(null); // {index, x, y}
+  const { theme } = useTheme();
 
   const levels = useMemo(() => (Array.isArray(curve) ? curve : []), [curve]);
   const n = levels.length;
@@ -152,7 +157,7 @@ const ParamCurveCanvas = ({ curve, offAtZero = false, hull = null, width, height
     const stripY = padT + plotH + 2;
     levels.forEach((l, i) => {
       const share = isNum(l.invalidShare) ? Math.max(0, Math.min(1, l.invalidShare)) : 0;
-      ctx.fillStyle = `rgba(156, 163, 175, ${0.1 + 0.9 * share})`;
+      ctx.fillStyle = `rgba(${COLORS.invalidRgb}, ${0.1 + 0.9 * share})`;
       ctx.fillRect(padL + slotW * i + 0.5, stripY, Math.max(1, slotW - 1), stripH);
     });
 
@@ -176,7 +181,7 @@ const ParamCurveCanvas = ({ curve, offAtZero = false, hull = null, width, height
       ctx.lineWidth = 1;
       ctx.strokeRect(padL, padT, plotW, plotH);
     }
-  }, [levels, n, width, height, hull, large, offAtZero, padL, padT, plotH, plotW, slotW, stripH]);
+  }, [levels, n, width, height, hull, large, offAtZero, padL, padT, plotH, plotW, slotW, stripH, theme]);
 
   const handleMove = (e) => {
     if (n === 0) return;

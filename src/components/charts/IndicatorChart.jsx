@@ -10,6 +10,7 @@ import {
   drawPreWindowShading
 } from '../../utils/ChartDrawingUtils';
 import { parseExchangeTs, exchangeToday } from '../../utils/dates';
+import { useTheme } from '../../theme/useTheme';
 
 /**
  * IndicatorChart component renders the sub-pane technical indicators (data.indicators) - every
@@ -26,6 +27,8 @@ import { parseExchangeTs, exchangeToday } from '../../utils/dates';
  */
 const IndicatorChart = ({ data, width, height, dateRange, subSeries = [], preWindowSpan = null }) => {
   const canvasRef = useRef(null);
+  // Colours are read from the theme tokens at draw time: redraw on a theme switch
+  const { theme } = useTheme();
 
   useEffect(() => {
     const canvasElement = canvasRef.current;
@@ -137,7 +140,7 @@ const IndicatorChart = ({ data, width, height, dateRange, subSeries = [], preWin
         ctx.clearRect(0, 0, width, height);
       }
     };
-  }, [data, width, height, dateRange, subSeries, preWindowSpan]);
+  }, [data, width, height, dateRange, subSeries, preWindowSpan, theme]);
 
   return (
     <div className="chart-wrapper">

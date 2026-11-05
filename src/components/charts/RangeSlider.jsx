@@ -51,7 +51,7 @@ const RangeSlider = ({ rows, startIndex, endIndex, onChange, width }) => {
   const panorama = useMemo(() => (
     <LineChart>
       <YAxis hide domain={['dataMin', 'dataMax']} />
-      <Line type="linear" dataKey="close" stroke="#8884d8" strokeWidth={1} dot={false} isAnimationActive={false} />
+      <Line type="linear" dataKey="close" stroke="var(--chart-slider-line)" strokeWidth={1} dot={false} isAnimationActive={false} />
     </LineChart>
   ), []);
 
@@ -74,8 +74,8 @@ const RangeSlider = ({ rows, startIndex, endIndex, onChange, width }) => {
         <Brush
           dataKey="ms"
           height={RANGE_SLIDER_HEIGHT}
-          stroke="#8884d8"
-          fill="#f5f5f5"
+          stroke="var(--chart-slider-line)"
+          fill="var(--chart-slider-fill)"
           travellerWidth={10}
           gap={5}
           startIndex={startIndex}

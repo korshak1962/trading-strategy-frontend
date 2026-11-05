@@ -1,0 +1,370 @@
+/* src/theme/palette.css - palette tokens + the Tailwind remap for Dark. Maintained BY HAND (it was
+   bootstrapped once by a throw-away script, see logs/agents/frontend_dev.md; edit it directly).
+   --c-*  : backgrounds, borders, shadows. Dark: the light end becomes dark surfaces / tints.
+   --fg-* : text. Dark: dark text becomes light; neutral is inverted.
+   Light values are exactly the hex the CSS used before the tokens (Light looks the same).
+
+   RULE of the Dark Tailwind remap (each Tailwind shade variable gets ONE role):
+     - white, gray/slate 50..300, chromatic 50..300  -> SURFACE (bg / border) colours
+     - gray/slate 400..950                            -> TEXT colours
+     - chromatic 400..950                             -> unchanged (buttons, accents)
+   A class that uses a shade in the OTHER role (text-*-50..300, chromatic text-*-500+, text-white,
+   bg-gray-700+) needs a line in the @layer utilities block at the end of this file - and so does
+   every such class (with its hover: / disabled: variants) added to the JSX later. */
+
+:root {
+  --c-white: #ffffff;
+  --c-slate-50: #f8fafc;
+  --c-slate-100: #f1f5f9;
+  --c-slate-200: #e2e8f0;
+  --c-slate-300: #cbd5e1;
+  --c-slate-600: #475569;
+  --c-slate-700: #334155;
+  --c-gray-50: #f9fafb;
+  --c-gray-100: #f3f4f6;
+  --c-gray-200: #e5e7eb;
+  --c-gray-300: #d1d5db;
+  --c-gray-400: #9ca3af;
+  --c-gray-500: #6b7280;
+  --c-gray-600: #4b5563;
+  --c-gray-700: #374151;
+  --c-gray-800: #1f2937;
+  --c-gray-900: #111827;
+  --c-red-50: #fef2f2;
+  --c-red-100: #fee2e2;
+  --c-red-200: #fecaca;
+  --c-red-300: #fca5a5;
+  --c-red-400: #f87171;
+  --c-red-500: #ef4444;
+  --c-red-600: #dc2626;
+  --c-red-700: #b91c1c;
+  --c-red-800: #991b1b;
+  --c-orange-50: #fff7ed;
+  --c-orange-100: #ffedd5;
+  --c-orange-200: #fed7aa;
+  --c-orange-300: #fdba74;
+  --c-orange-400: #fb923c;
+  --c-orange-600: #ea580c;
+  --c-orange-700: #c2410c;
+  --c-orange-800: #9a3412;
+  --c-amber-50: #fffbeb;
+  --c-amber-100: #fef3c7;
+  --c-amber-200: #fde68a;
+  --c-amber-300: #fcd34d;
+  --c-amber-400: #fbbf24;
+  --c-amber-500: #f59e0b;
+  --c-amber-600: #d97706;
+  --c-amber-700: #b45309;
+  --c-amber-800: #92400e;
+  --c-amber-900: #78350f;
+  --c-yellow-200: #fef08a;
+  --c-green-50: #f0fdf4;
+  --c-green-100: #dcfce7;
+  --c-green-200: #bbf7d0;
+  --c-green-300: #86efac;
+  --c-green-400: #4ade80;
+  --c-green-600: #16a34a;
+  --c-green-700: #15803d;
+  --c-green-800: #166534;
+  --c-emerald-50: #ecfdf5;
+  --c-emerald-200: #a7f3d0;
+  --c-emerald-600: #059669;
+  --c-emerald-700: #047857;
+  --c-teal-700: #0f766e;
+  --c-sky-50: #f0f9ff;
+  --c-sky-100: #e0f2fe;
+  --c-blue-50: #eff6ff;
+  --c-blue-100: #dbeafe;
+  --c-blue-200: #bfdbfe;
+  --c-blue-300: #93c5fd;
+  --c-blue-400: #60a5fa;
+  --c-blue-500: #3b82f6;
+  --c-blue-600: #2563eb;
+  --c-blue-700: #1d4ed8;
+  --c-blue-800: #1e40af;
+  --c-blue-900: #1e3a8a;
+  --c-indigo-50: #eef2ff;
+  --c-indigo-100: #e0e7ff;
+  --c-indigo-300: #a5b4fc;
+  --c-indigo-500: #6366f1;
+  --c-indigo-700: #4338ca;
+  --c-indigo-800: #3730a3;
+  --c-indigo-900: #312e81;
+  --c-purple-50: #faf5ff;
+  --c-purple-200: #e9d5ff;
+  --c-purple-400: #c084fc;
+  --c-purple-700: #7e22ce;
+  --c-purple-800: #6b21a8;
+  --c-rose-100: #ffe4e6;
+  --c-rose-800: #9f1239;
+  --fg-white: #ffffff;
+  --fg-slate-300: #cbd5e1;
+  --fg-slate-600: #475569;
+  --fg-slate-700: #334155;
+  --fg-gray-50: #f9fafb;
+  --fg-gray-100: #f3f4f6;
+  --fg-gray-300: #d1d5db;
+  --fg-gray-400: #9ca3af;
+  --fg-gray-500: #6b7280;
+  --fg-gray-600: #4b5563;
+  --fg-gray-700: #374151;
+  --fg-gray-800: #1f2937;
+  --fg-gray-900: #111827;
+  --fg-red-500: #ef4444;
+  --fg-red-600: #dc2626;
+  --fg-red-700: #b91c1c;
+  --fg-red-800: #991b1b;
+  --fg-orange-600: #ea580c;
+  --fg-orange-700: #c2410c;
+  --fg-orange-800: #9a3412;
+  --fg-amber-300: #fcd34d;
+  --fg-amber-400: #fbbf24;
+  --fg-amber-500: #f59e0b;
+  --fg-amber-600: #d97706;
+  --fg-amber-700: #b45309;
+  --fg-amber-800: #92400e;
+  --fg-amber-900: #78350f;
+  --fg-green-600: #16a34a;
+  --fg-green-700: #15803d;
+  --fg-green-800: #166534;
+  --fg-emerald-500: #10b981;
+  --fg-emerald-600: #059669;
+  --fg-emerald-700: #047857;
+  --fg-emerald-800: #065f46;
+  --fg-teal-700: #0f766e;
+  --fg-blue-200: #bfdbfe;
+  --fg-blue-500: #3b82f6;
+  --fg-blue-600: #2563eb;
+  --fg-blue-700: #1d4ed8;
+  --fg-blue-800: #1e40af;
+  --fg-blue-900: #1e3a8a;
+  --fg-indigo-500: #6366f1;
+  --fg-indigo-700: #4338ca;
+  --fg-indigo-800: #3730a3;
+  --fg-indigo-900: #312e81;
+  --fg-purple-700: #7e22ce;
+  --fg-purple-800: #6b21a8;
+  --fg-rose-800: #9f1239;
+}
+
+:root[data-theme="dark"] {
+  --c-white: #171d29;
+  --c-slate-50: #222937;
+  --c-slate-100: #283140;
+  --c-slate-200: #323c4c;
+  --c-slate-300: #404b5b;
+  --c-slate-600: #475569;
+  --c-slate-700: #334155;
+  --c-gray-50: #1c2330;
+  --c-gray-100: #232b3a;
+  --c-gray-200: #2e3747;
+  --c-gray-300: #3d4757;
+  --c-gray-400: #5b6676;
+  --c-gray-500: #6b7280;
+  --c-gray-600: #4b5563;
+  --c-gray-700: #374151;
+  --c-gray-800: #1f2937;
+  --c-gray-900: #111827;
+  --c-red-50: #31222c;
+  --c-red-100: #42252e;
+  --c-red-200: #582931;
+  --c-red-300: #782f35;
+  --c-red-400: #f87171;
+  --c-red-500: #ef4444;
+  --c-red-600: #dc2626;
+  --c-red-700: #b91c1c;
+  --c-red-800: #991b1b;
+  --c-orange-50: #322727;
+  --c-orange-100: #442e25;
+  --c-orange-200: #5b3723;
+  --c-orange-300: #7d4420;
+  --c-orange-400: #fb923c;
+  --c-orange-600: #ea580c;
+  --c-orange-700: #c2410c;
+  --c-orange-800: #9a3412;
+  --c-amber-50: #322c25;
+  --c-amber-100: #433723;
+  --c-amber-200: #5a4420;
+  --c-amber-300: #7b571c;
+  --c-amber-400: #fbbf24;
+  --c-amber-500: #f59e0b;
+  --c-amber-600: #d97706;
+  --c-amber-700: #b45309;
+  --c-amber-800: #92400e;
+  --c-amber-900: #78350f;
+  --c-yellow-200: #564a1f;
+  --c-green-50: #18312f;
+  --c-green-100: #193f34;
+  --c-green-200: #1a4f39;
+  --c-green-300: #1c6941;
+  --c-green-400: #4ade80;
+  --c-green-600: #16a34a;
+  --c-green-700: #15803d;
+  --c-green-800: #166534;
+  --c-emerald-50: #163034;
+  --c-emerald-200: #154c43;
+  --c-emerald-600: #059669;
+  --c-emerald-700: #047857;
+  --c-teal-700: #0f766e;
+  --c-sky-50: #162d40;
+  --c-sky-100: #15384f;
+  --c-blue-50: #1b2942;
+  --c-blue-100: #1e3152;
+  --c-blue-200: #223b67;
+  --c-blue-300: #274a85;
+  --c-blue-400: #60a5fa;
+  --c-blue-500: #3b82f6;
+  --c-blue-600: #2563eb;
+  --c-blue-700: #1d4ed8;
+  --c-blue-800: #1e40af;
+  --c-blue-900: #1e3a8a;
+  --c-indigo-50: #202641;
+  --c-indigo-100: #262c51;
+  --c-indigo-300: #393e83;
+  --c-indigo-500: #6366f1;
+  --c-indigo-700: #4338ca;
+  --c-indigo-800: #3730a3;
+  --c-indigo-900: #312e81;
+  --c-purple-50: #282442;
+  --c-purple-200: #432e67;
+  --c-purple-400: #c084fc;
+  --c-purple-700: #7e22ce;
+  --c-purple-800: #6b21a8;
+  --c-rose-100: #432434;
+  --c-rose-800: #9f1239;
+  --fg-slate-300: #687284;
+  --fg-slate-600: #b7bec9;
+  --fg-slate-700: #c9d0d9;
+  --fg-gray-50: #f9fafb;
+  --fg-gray-100: #f3f4f6;
+  --fg-gray-300: #6b7685;
+  --fg-gray-400: #808b9a;
+  --fg-gray-500: #9aa3b0;
+  --fg-gray-600: #b3bac5;
+  --fg-gray-700: #c9cfd8;
+  --fg-gray-800: #dde1e7;
+  --fg-gray-900: #eef0f3;
+  --fg-red-500: #f87171;
+  --fg-red-600: #f87171;
+  --fg-red-700: #fca5a5;
+  --fg-red-800: #fecaca;
+  --fg-orange-600: #fb923c;
+  --fg-orange-700: #fdba74;
+  --fg-orange-800: #fed7aa;
+  --fg-amber-400: #fbbf24;
+  --fg-amber-500: #fbbf24;
+  --fg-amber-600: #fbbf24;
+  --fg-amber-700: #fcd34d;
+  --fg-amber-800: #fde68a;
+  --fg-amber-900: #fef3c7;
+  --fg-green-600: #4ade80;
+  --fg-green-700: #86efac;
+  --fg-green-800: #bbf7d0;
+  --fg-emerald-500: #34d399;
+  --fg-emerald-600: #34d399;
+  --fg-emerald-700: #6ee7b7;
+  --fg-emerald-800: #a7f3d0;
+  --fg-teal-700: #5eead4;
+  --fg-blue-200: #bfdbfe;
+  --fg-blue-500: #60a5fa;
+  --fg-blue-600: #60a5fa;
+  --fg-blue-700: #93c5fd;
+  --fg-blue-800: #bfdbfe;
+  --fg-blue-900: #dbeafe;
+  --fg-indigo-500: #818cf8;
+  --fg-indigo-700: #a5b4fc;
+  --fg-indigo-800: #c7d2fe;
+  --fg-indigo-900: #e0e7ff;
+  --fg-purple-700: #d8b4fe;
+  --fg-purple-800: #e9d5ff;
+  --fg-rose-800: #fecdd3;
+
+  /* Tailwind palette variables (bg-*, border-*, text-* utilities read these) */
+  --color-white: var(--c-white);
+  --color-slate-50: var(--c-slate-50);
+  --color-slate-100: var(--c-slate-100);
+  --color-slate-300: var(--c-slate-300);
+  --color-slate-600: var(--fg-slate-600);
+  --color-slate-700: var(--fg-slate-700);
+  --color-gray-50: var(--c-gray-50);
+  --color-gray-100: var(--c-gray-100);
+  --color-gray-200: var(--c-gray-200);
+  --color-gray-300: var(--c-gray-300);
+  --color-gray-400: var(--fg-gray-400);
+  --color-gray-500: var(--fg-gray-500);
+  --color-gray-600: var(--fg-gray-600);
+  --color-gray-700: var(--fg-gray-700);
+  --color-gray-800: var(--fg-gray-800);
+  --color-gray-900: var(--fg-gray-900);
+  --color-red-50: var(--c-red-50);
+  --color-red-100: var(--c-red-100);
+  --color-red-200: var(--c-red-200);
+  --color-red-300: var(--c-red-300);
+  --color-orange-50: var(--c-orange-50);
+  --color-orange-100: var(--c-orange-100);
+  --color-orange-300: var(--c-orange-300);
+  --color-amber-50: var(--c-amber-50);
+  --color-amber-100: var(--c-amber-100);
+  --color-amber-200: var(--c-amber-200);
+  --color-amber-300: var(--c-amber-300);
+  --color-yellow-200: var(--c-yellow-200);
+  --color-green-50: var(--c-green-50);
+  --color-green-100: var(--c-green-100);
+  --color-green-200: var(--c-green-200);
+  --color-green-300: var(--c-green-300);
+  --color-emerald-50: var(--c-emerald-50);
+  --color-emerald-200: var(--c-emerald-200);
+  --color-blue-50: var(--c-blue-50);
+  --color-blue-100: var(--c-blue-100);
+  --color-blue-200: var(--c-blue-200);
+  --color-blue-300: var(--c-blue-300);
+  --color-indigo-50: var(--c-indigo-50);
+  --color-indigo-100: var(--c-indigo-100);
+  --color-indigo-300: var(--c-indigo-300);
+  --color-purple-50: var(--c-purple-50);
+  --color-rose-100: var(--c-rose-100);
+}
+
+/* Classes whose role differs from the variable above: chromatic text 500+ (the variable keeps
+   the button / border shade), white text on coloured buttons, dark neutral fills (terminal
+   log boxes, footer) and the light text on them. Same specificity as the utility, later in
+   the same layer, so it wins; :hover variants are listed so hover keeps working. */
+@layer utilities {
+  :where(:root[data-theme="dark"]) .text-white { color: var(--fg-white); }
+  /* light text shades: WARN log lines on the dark log box, placeholder / disabled text */
+  :where(:root[data-theme="dark"]) .text-amber-300 { color: var(--fg-amber-300); }
+  :where(:root[data-theme="dark"]) .text-gray-300,
+  :where(:root[data-theme="dark"]) .disabled\:text-gray-300:disabled { color: var(--fg-gray-300); }
+  :where(:root[data-theme="dark"]) .text-amber-700 { color: var(--fg-amber-700); }
+  :where(:root[data-theme="dark"]) .text-amber-800 { color: var(--fg-amber-800); }
+  :where(:root[data-theme="dark"]) .text-amber-900 { color: var(--fg-amber-900); }
+  :where(:root[data-theme="dark"]) .hover\:text-amber-900:hover { color: var(--fg-amber-900); }
+  :where(:root[data-theme="dark"]) .text-blue-600 { color: var(--fg-blue-600); }
+  :where(:root[data-theme="dark"]) .hover\:text-blue-600:hover { color: var(--fg-blue-600); }
+  :where(:root[data-theme="dark"]) .text-blue-700 { color: var(--fg-blue-700); }
+  :where(:root[data-theme="dark"]) .text-blue-800 { color: var(--fg-blue-800); }
+  :where(:root[data-theme="dark"]) .text-blue-900 { color: var(--fg-blue-900); }
+  :where(:root[data-theme="dark"]) .hover\:text-blue-900:hover { color: var(--fg-blue-900); }
+  :where(:root[data-theme="dark"]) .text-emerald-700 { color: var(--fg-emerald-700); }
+  :where(:root[data-theme="dark"]) .text-gray-100 { color: var(--fg-gray-100); }
+  :where(:root[data-theme="dark"]) .text-green-600 { color: var(--fg-green-600); }
+  :where(:root[data-theme="dark"]) .text-green-700 { color: var(--fg-green-700); }
+  :where(:root[data-theme="dark"]) .text-green-800 { color: var(--fg-green-800); }
+  :where(:root[data-theme="dark"]) .text-indigo-700 { color: var(--fg-indigo-700); }
+  :where(:root[data-theme="dark"]) .text-indigo-800 { color: var(--fg-indigo-800); }
+  :where(:root[data-theme="dark"]) .text-indigo-900 { color: var(--fg-indigo-900); }
+  :where(:root[data-theme="dark"]) .text-orange-600 { color: var(--fg-orange-600); }
+  :where(:root[data-theme="dark"]) .text-orange-700 { color: var(--fg-orange-700); }
+  :where(:root[data-theme="dark"]) .text-orange-800 { color: var(--fg-orange-800); }
+  :where(:root[data-theme="dark"]) .text-purple-700 { color: var(--fg-purple-700); }
+  :where(:root[data-theme="dark"]) .text-purple-800 { color: var(--fg-purple-800); }
+  :where(:root[data-theme="dark"]) .text-red-600 { color: var(--fg-red-600); }
+  :where(:root[data-theme="dark"]) .hover\:text-red-600:hover { color: var(--fg-red-600); }
+  :where(:root[data-theme="dark"]) .text-red-700 { color: var(--fg-red-700); }
+  :where(:root[data-theme="dark"]) .text-red-800 { color: var(--fg-red-800); }
+  :where(:root[data-theme="dark"]) .hover\:text-red-800:hover { color: var(--fg-red-800); }
+  :where(:root[data-theme="dark"]) .text-rose-800 { color: var(--fg-rose-800); }
+  :where(:root[data-theme="dark"]) .text-teal-700 { color: var(--fg-teal-700); }
+  :where(:root[data-theme="dark"]) .bg-gray-800 { background-color: var(--c-gray-800); }
+  :where(:root[data-theme="dark"]) .bg-gray-900 { background-color: var(--c-gray-900); }
+}

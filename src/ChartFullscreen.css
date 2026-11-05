@@ -7,7 +7,7 @@
 .chart-fullscreen-active {
   /* A fullscreened element with no background lets the browser's default black ::backdrop
      show through wherever nothing else opaque covers it. */
-  background-color: #ffffff;
+  background-color: var(--c-white);
 }
 
 .chart-fullscreen-active:fullscreen {
@@ -57,13 +57,13 @@
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #374151;
-  background-color: white;
-  border: 1px solid #d1d5db;
+  color: var(--fg-gray-700);
+  background-color: var(--c-white);
+  border: 1px solid var(--c-gray-300);
   border-radius: 0.25rem;
   cursor: pointer;
 }
 
 .fullscreen-toggle-btn:hover {
-  background-color: #f3f4f6;
+  background-color: var(--c-gray-100);
 }

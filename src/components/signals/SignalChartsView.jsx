@@ -21,12 +21,18 @@ const FULLSCREEN_CHROME_PX = 160;
 const PANES_PER_SCREEN = 2;
 
 // Legend glyph mirroring drawSignals / drawHollowSignal (ChartDrawingUtils): filled = executed long,
-// hollow = white body (not-executed long), outline = executed short, dashed = not-executed short.
+// hollow = surface-coloured body (not-executed long), outline = executed short, dashed = not-executed
+// short. Colours: the same --chart-* signal tokens as the canvas markers.
+const LONG_OPEN = 'var(--chart-long-open)';
+const LONG_CLOSE = 'var(--chart-long-close)';
+const SHORT_OPEN = 'var(--chart-short-open)';
+const SHORT_CLOSE = 'var(--chart-short-close)';
+
 const Triangle = ({ color, hollow = false, outline = false, dashed = false, down = false }) => (
   <svg width="14" height="12" viewBox="0 0 14 12" aria-hidden="true" className="signals-legend__glyph">
     <polygon
       points={down ? '1.5,1.5 12.5,1.5 7,10.5' : '7,1.5 12.5,10.5 1.5,10.5'}
-      fill={outline || dashed ? 'none' : hollow ? '#fff' : color}
+      fill={outline || dashed ? 'none' : hollow ? 'var(--chart-hollow-fill)' : color}
       stroke={color}
       strokeWidth={outline ? 2 : 1.5}
       strokeDasharray={dashed ? '3,2' : undefined}
@@ -145,8 +151,8 @@ const SignalChartsView = ({ charts }) => {
             : "The strategy's signal became a trade in the merged result. Longs are filled (green open / red close); "
               + 'shorts are drawn as outlines (blue ▼ open / orange ▲ close)'}
         >
-          <Triangle color="green" /><Triangle color="red" down />
-          {!charts.longOnly && <><Triangle color="blue" outline down /><Triangle color="orange" outline /></>}
+          <Triangle color={LONG_OPEN} /><Triangle color={LONG_CLOSE} down />
+          {!charts.longOnly && <><Triangle color={SHORT_OPEN} outline down /><Triangle color={SHORT_CLOSE} outline /></>}
           {' '}executed
         </span>
         <span
@@ -156,8 +162,8 @@ const SignalChartsView = ({ charts }) => {
             : 'The strategy emitted the signal, but the merge did not trade it (vetoed / no transition). '
               + 'Longs get a white body; shorts get a dashed outline'}
         >
-          <Triangle color="green" hollow /><Triangle color="red" hollow down />
-          {!charts.longOnly && <><Triangle color="blue" dashed down /><Triangle color="orange" dashed /></>}
+          <Triangle color={LONG_OPEN} hollow /><Triangle color={LONG_CLOSE} hollow down />
+          {!charts.longOnly && <><Triangle color={SHORT_OPEN} dashed down /><Triangle color={SHORT_CLOSE} dashed /></>}
           {' '}not executed
         </span>
         {hasWarmup && (
@@ -167,7 +173,7 @@ const SignalChartsView = ({ charts }) => {
             data-testid="signals-legend-warmup"
           >
             <span className="signals-legend__swatch signals-legend__swatch--warmup" />
-            <span className="signals-legend__muted"><Triangle color="green" hollow /><Triangle color="red" hollow down /></span>
+            <span className="signals-legend__muted"><Triangle color={LONG_OPEN} hollow /><Triangle color={LONG_CLOSE} hollow down /></span>
             {' '}muted = before trade start (warm-up)
           </span>
         )}

@@ -9,14 +9,14 @@
   align-items: center;
   gap: 0.25rem;
   margin-bottom: 1rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--c-gray-200);
 }
 
 .chart-view-tab {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #6b7280;
+  color: var(--fg-gray-500);
   background-color: transparent;
   border: 1px solid transparent;
   border-bottom: 3px solid transparent;
@@ -26,14 +26,14 @@
 }
 
 .chart-view-tab:hover {
-  color: #374151;
-  background-color: #f3f4f6;
+  color: var(--fg-gray-700);
+  background-color: var(--c-gray-100);
 }
 
 .chart-view-tab--active,
 .chart-view-tab--active:hover {
-  color: #111827;
+  color: var(--fg-gray-900);
   font-weight: 700;
-  background-color: #e5e7eb;
-  border-bottom-color: #3b82f6;
+  background-color: var(--c-gray-200);
+  border-bottom-color: var(--c-blue-500);
 }

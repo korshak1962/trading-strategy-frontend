@@ -1,8 +1,8 @@
 /* Header styles */
 .header {
-    background-color: #1e40af;
-    color: white;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    background-color: var(--header-bg);
+    color: var(--header-text);
+    box-shadow: 0 4px 6px rgb(var(--shadow-rgb) / 0.1);
     padding: 1.5rem 0;
   }
   
@@ -13,7 +13,7 @@
   }
   
   .header-subtitle {
-    color: #bfdbfe;
+    color: var(--header-muted);
     margin: 0;
   }
 
@@ -31,9 +31,9 @@
   }
 
   .header-tab {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    color: #bfdbfe;
+    background: var(--header-tab-bg);
+    border: 1px solid var(--header-tab-border);
+    color: var(--header-muted);
     border-radius: 4px;
     padding: 8px 16px;
     font-size: 0.875rem;
@@ -44,14 +44,14 @@
   }
 
   .header-tab:hover {
-    background: rgba(255, 255, 255, 0.16);
-    color: #fff;
+    background: var(--header-tab-hover-bg);
+    color: var(--header-text);
   }
 
   .header-tab--active {
-    background: #fff;
-    border-color: #fff;
-    color: #1e40af;
+    background: var(--header-tab-active-bg);
+    border-color: var(--header-tab-active-bg);
+    color: var(--header-tab-active-text);
   }
 
   /* Watchlist tab: unread badge + warning icon */
@@ -61,8 +61,8 @@
     min-width: 18px;
     padding: 0 5px;
     border-radius: 9999px;
-    background: #dc2626;
-    color: #fff;
+    background: var(--c-red-600);
+    color: var(--fg-white);
     font-size: 0.7rem;
     line-height: 18px;
     text-align: center;
@@ -71,9 +71,54 @@
 
   .header-tab-warn {
     margin-left: 6px;
-    color: #fbbf24;
+    color: var(--header-warn);
   }
 
   .header-tab--active .header-tab-warn {
-    color: #d97706;
+    color: var(--header-warn-active);
+  }
+
+  /* Light / Dark / System switch (ThemeSwitch.jsx): a compact segmented control on the band */
+  .theme-switch {
+    display: inline-flex;
+    border: 1px solid var(--header-tab-border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .theme-switch__btn {
+    background: var(--header-tab-bg);
+    border: none;
+    border-radius: 0;
+    color: var(--header-muted);
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .theme-switch__btn + .theme-switch__btn {
+    border-left: 1px solid var(--header-tab-border);
+  }
+
+  .theme-switch__btn:hover {
+    background: var(--header-tab-hover-bg);
+    color: var(--header-text);
+  }
+
+  .theme-switch__btn--active,
+  .theme-switch__btn--active:hover {
+    background: var(--header-tab-active-bg);
+    color: var(--header-tab-active-text);
+  }
+
+  /* Keyboard focus: drawn inside the button (inset), so the group's overflow: hidden never clips it */
+  .theme-switch__btn:focus-visible {
+    outline: 2px solid var(--header-text);
+    outline-offset: -3px;
+  }
+
+  .theme-switch__btn--active:focus-visible {
+    outline-color: var(--header-tab-active-text);
   }

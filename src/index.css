@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* Theme tokens (Light on :root, Dark on :root[data-theme="dark"]) - see src/theme/theme.js */
+@import "./theme/tokens.css";
+@import "./theme/palette.css";
 
 /* App-wide element defaults. They live in the base layer so Tailwind utilities on an element
    (p-2, border-gray-300, bg-blue-600, text-lg, ...) override them; elements without utility
@@ -10,8 +13,8 @@
     font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
     line-height: 1.5;
     font-weight: 400;
-    color: #213547;
-    background-color: #f9fafb;
+    color: var(--app-text);
+    background-color: var(--app-bg);
   }
 
   body {
@@ -45,18 +48,18 @@
   input, select, button, textarea {
     font-size: 1rem;
     padding: 0.5rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--c-gray-300);
     border-radius: 0.25rem;
   }
 
   button {
     cursor: pointer;
-    background-color: #f9f9f9;
+    background-color: var(--control-bg);
     transition: background-color 0.2s;
   }
 
   button:hover {
-    background-color: #e5e7eb;
+    background-color: var(--c-gray-200);
   }
 
   button:disabled {
@@ -91,8 +94,8 @@
 .form-error {
   margin-top: 1rem;
   padding: .75rem;
-  background: #fee2e2;
-  color: #b91c1c;
-  border: 1px solid #fecaca;
+  background: var(--c-red-100);
+  color: var(--fg-red-700);
+  border: 1px solid var(--c-red-200);
   border-radius: .25rem;
 }

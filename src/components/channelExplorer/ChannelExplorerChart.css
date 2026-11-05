@@ -1,6 +1,6 @@
 .ch-chart-wrapper {
-  background: #131722;
-  border: 1px solid #2a2e39;
+  background: var(--tv-chart-bg);
+  border: 1px solid var(--tv-border);
   border-radius: 6px;
   overflow: hidden;
   margin-bottom: 12px;
@@ -44,10 +44,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(19, 23, 34, 0.85);
-  border: 1px solid #2a2e39;
+  background: var(--tv-overlay);
+  border: 1px solid var(--tv-border);
   border-radius: 4px;
-  color: #d1d4dc;
+  color: var(--tv-text);
   cursor: pointer;
   font-size: 15px;
   line-height: 1;
@@ -55,8 +55,8 @@
 }
 
 .ch-chart-fullscreen-btn:hover {
-  background: #1e2230;
-  border-color: #3a3e49;
+  background: var(--tv-input);
+  border-color: var(--tv-border-strong);
 }
 
 .ch-chart-handle {
@@ -66,27 +66,27 @@
   margin-left: -6px;
   margin-top: -6px;
   border-radius: 50%;
-  background: #ffd54f;
-  border: 2px solid #131722;
+  background: var(--tv-selected);
+  border: 2px solid var(--tv-chart-bg);
   cursor: ew-resize;
   z-index: 3;
-  box-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 4px var(--tv-shadow-strong);
 }
 
 .ch-chart-hint {
   padding: 6px 10px;
   font-size: 11px;
-  color: #787b86;
-  border-top: 1px solid #2a2e39;
+  color: var(--tv-text-muted);
+  border-top: 1px solid var(--tv-border);
 }
 
 .ch-chart-empty {
   text-align: center;
-  color: #787b86;
+  color: var(--tv-text-muted);
   padding: 80px 24px;
   font-size: 13px;
-  background: #131722;
-  border: 1px solid #2a2e39;
+  background: var(--tv-chart-bg);
+  border: 1px solid var(--tv-border);
   border-radius: 6px;
   margin-bottom: 12px;
 }
@@ -104,13 +104,13 @@
   gap: 2px;
   height: 28px;
   padding: 0 4px;
-  background: rgba(19, 23, 34, 0.85);
-  border: 1px solid #2a2e39;
+  background: var(--tv-overlay);
+  border: 1px solid var(--tv-border);
   border-radius: 4px;
 }
 
 .ch-hierarchy-label {
-  color: #787b86;
+  color: var(--tv-text-muted);
   font-size: 10px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -122,7 +122,7 @@
   background: transparent;
   border: none;
   border-radius: 3px;
-  color: #d1d4dc;
+  color: var(--tv-text);
   cursor: pointer;
   font-size: 11px;
   line-height: 1;
@@ -131,12 +131,12 @@
 }
 
 .ch-hierarchy-btn:hover {
-  background: #1e2230;
+  background: var(--tv-input);
 }
 
 /* Tinted with the same violet the highlighting itself paints, so the active segment states
    which colour it is about to apply rather than using a generic accent. */
 .ch-hierarchy-btn--active {
-  background: rgba(179, 136, 255, 0.18);
-  color: #b388ff;
+  background: var(--tv-depth-soft);
+  color: var(--tv-depth);
 }

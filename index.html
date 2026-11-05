@@ -5,6 +5,21 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vite + React</title>
+    <!-- Page background before the app CSS arrives (the dev server injects the CSS from JS, which
+         flashed white in Dark): same values as --app-bg / color-scheme in src/theme/tokens.css -->
+    <style>
+      :root[data-theme="light"] { color-scheme: light; background: #f9fafb; }
+      :root[data-theme="dark"] { color-scheme: dark; background: #0f1420; }
+    </style>
+    <!-- Theme before first paint (no light flash in Dark): same rule as src/theme/theme.js -->
+    <script>
+      (function () {
+        var mode = 'system';
+        try { mode = localStorage.getItem('tsf.theme') || 'system'; } catch (e) { /* no storage */ }
+        var dark = mode === 'dark' || (mode !== 'light' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -3,10 +3,52 @@ import { createChart } from 'lightweight-charts';
 import { formatPct, formatStatus, formatAge, formatExitSide, formatBarDate, isProvisional, channelKey } from './format';
 import { exchangeTsSeconds } from '../../utils/dates';
 import { useTabActive } from '../tabActive';
+import { withAlpha } from '../../theme/theme';
+import { useThemeTokens } from '../../theme/useTheme';
 import './ChannelExplorerChart.css';
 
-const DIRECTION_COLOR = { 1: '#26a69a', '-1': '#ef5350', 0: '#787b86' };
-const SELECTED_COLOR = '#ffd54f';
+// Colours: the Channel Explorer theme tokens (src/theme/tokens.css, --tv-*), resolved for the
+// current theme by useThemeTokens. The chart is built with them and re-themed in place through
+// applyOptions on a theme switch (no rebuild: zoom, pan, selection and edits survive).
+const TV_CHART_TOKENS = Object.freeze({
+  bg: '--tv-chart-bg',
+  text: '--tv-chart-text',
+  grid: '--tv-chart-grid',
+  border: '--tv-chart-border',
+  crosshair: '--tv-chart-crosshair',
+  crosshairLabel: '--tv-chart-crosshair-label',
+  up: '--tv-candle-up',
+  down: '--tv-candle-down',
+  flat: '--tv-direction-flat',
+  selected: '--tv-selected',
+  exit: '--tv-exit',
+  brokenLine: '--tv-broken-line',
+  depthRgb: '--tv-depth-rgb',
+});
+
+/** Chart-level options (layout, grid, crosshair, scales) for a resolved token set. */
+const chartThemeOptions = (tv) => ({
+  layout: { background: { type: 'solid', color: tv.bg }, textColor: tv.text },
+  grid: { vertLines: { color: tv.grid }, horzLines: { color: tv.grid } },
+  crosshair: {
+    vertLine: { color: tv.crosshair, labelBackgroundColor: tv.crosshairLabel },
+    horzLine: { color: tv.crosshair, labelBackgroundColor: tv.crosshairLabel },
+  },
+  rightPriceScale: { borderColor: tv.border },
+  timeScale: { borderColor: tv.border },
+});
+
+/** Candle colours for a resolved token set. */
+const candleThemeOptions = (tv) => ({
+  upColor: tv.up,
+  downColor: tv.down,
+  borderUpColor: tv.up,
+  borderDownColor: tv.down,
+  wickUpColor: tv.up,
+  wickDownColor: tv.down,
+});
+
+const directionColor = (tv, direction) => ({ 1: tv.up, '-1': tv.down }[direction] ?? tv.flat);
 
 // Incremental channels (screener TASK_incremental_channels rev 2): a PROVISIONAL channel (the
 // "pencil sketch" - younger than 10 bars or narrower than 5 ATR, redrawn every bar) is drawn in
@@ -15,24 +57,15 @@ const SELECTED_COLOR = '#ffd54f';
 // channel) gets a thicker line. The last exit per depth (B view) is a marker plus the broken
 // channel's lines, dotted, up to the exit bar.
 const PROVISIONAL_ALPHA = 0.5;
-const EXIT_COLOR = '#ff9800';
-const BROKEN_LINE_COLOR = 'rgba(255, 152, 0, 0.75)';
-
-const hexToRgba = (hex, alpha) => {
-  if (typeof hex !== 'string' || !/^#[0-9a-f]{6}$/i.test(hex)) return hex;
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-};
 const HIT_TEST_PX = 8;
 
 // Hierarchy highlighting: the selection's ancestors (Up) or descendants (Down) are tinted
 // violet, with DEPTH CARRIED BY ALPHA rather than by line width — width is already spoken for
 // by TF_LINE_WIDTH (timeframe coarseness), so grading it here would collide with that meaning.
-// Alpha floors at 0.35 so a deep node stays visible against the #131722 background.
-const hierarchyColor = (depth) =>
-  `rgba(179, 136, 255, ${Math.max(0.35, 1 - 0.18 * (depth - 1)).toFixed(3)})`;
+// Alpha floors at 0.35 so a deep node stays visible against the dark chart background.
+// depthRgb: the --tv-depth-rgb token ("179, 136, 255").
+const hierarchyColor = (depthRgb, depth) =>
+  `rgba(${depthRgb}, ${Math.max(0.35, 1 - 0.18 * (depth - 1)).toFixed(3)})`;
 
 // Line width scales with timeframe coarseness so multiple timeframes' channels
 // can be distinguished on one combined chart (color still encodes direction).
@@ -142,6 +175,12 @@ export default function ChannelExplorerChart({
   const containerRef = useRef(null);
   const wrapperRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Theme colours: read by the chart-building effect through the ref (a theme switch must not
+  // rebuild the chart), applied in place by the theme effect below.
+  const tv = useThemeTokens(TV_CHART_TOKENS);
+  const tvRef = useRef(tv);
+  const chartRef = useRef(null);
+  const priceSeriesRef = useRef(null);
   // The raw selected Channel object (or null), lifted out of selectedKeyRef purely for the
   // width readout below the chart. The selection's KEY is also reported to the parent
   // (onSelectChannel) for its channel cards; that parent re-render is safe only because the
@@ -228,27 +267,20 @@ export default function ChannelExplorerChart({
       setSelectedChannel(null);
     }
 
+    const theme = tvRef.current;
     const chart = createChart(el, {
       width: el.clientWidth,
       height: el.clientHeight,
-      layout: {
-        background: { type: 'solid', color: '#131722' },
-        textColor: '#787b86',
-      },
-      grid: {
-        vertLines: { color: '#1e2030' },
-        horzLines: { color: '#1e2030' },
-      },
       rightPriceScale: {
-        borderColor: '#2a2e39',
         scaleMargins: { top: 0.08, bottom: 0.05 },
       },
       timeScale: {
-        borderColor: '#2a2e39',
         timeVisible: true,
         secondsVisible: false,
       },
     });
+    chart.applyOptions(chartThemeOptions(theme));
+    chartRef.current = chart;
 
     const ro = new ResizeObserver(() => {
       // 0 wide = the tab is hidden (keep-alive): keep the chart's size; showing it fires again.
@@ -283,17 +315,13 @@ export default function ChannelExplorerChart({
     }
 
     const priceSeries = chart.addCandlestickSeries({
-      upColor: '#26a69a',
-      downColor: '#ef5350',
-      borderUpColor: '#26a69a',
-      borderDownColor: '#ef5350',
-      wickUpColor: '#26a69a',
-      wickDownColor: '#ef5350',
+      ...candleThemeOptions(theme),
       lastValueVisible: false,
       priceLineVisible: false,
       autoscaleInfoProvider: autoscaleProvider,
     });
     priceSeries.setData(candleData);
+    priceSeriesRef.current = priceSeries;
 
     const allPriceScaleSeries = [priceSeries];
     const lastIdx = candleData.length - 1;
@@ -324,9 +352,9 @@ export default function ChannelExplorerChart({
           const delta = close - val;
           if (prevDelta === 0 || delta === 0) continue;
           if (prevDelta < 0 && delta > 0) {
-            markers.push({ time: candleData[i].time, position: 'belowBar', color: '#26a69a', shape: 'arrowUp' });
+            markers.push({ time: candleData[i].time, position: 'belowBar', color: theme.up, shape: 'arrowUp' });
           } else if (prevDelta > 0 && delta < 0) {
-            markers.push({ time: candleData[i].time, position: 'aboveBar', color: '#ef5350', shape: 'arrowDown' });
+            markers.push({ time: candleData[i].time, position: 'aboveBar', color: theme.down, shape: 'arrowDown' });
           }
         }
       }
@@ -491,11 +519,11 @@ export default function ChannelExplorerChart({
       for (const entry of channelEntries) {
         let opts;
         if (entry.key === selectedKey) {
-          opts = { color: SELECTED_COLOR, lineWidth: Math.min(entry.baseWidth + 2, 4) };
+          opts = { color: theme.selected, lineWidth: Math.min(entry.baseWidth + 2, 4) };
         } else if (hier.has(entry.key)) {
           // +1 (vs the selection's +2), both capped at 4, so a hierarchy line can never
           // outgrow the selection even at MONTH's baseWidth of 4.
-          opts = { color: hierarchyColor(hier.get(entry.key)), lineWidth: Math.min(entry.baseWidth + 1, 4) };
+          opts = { color: hierarchyColor(theme.depthRgb, hier.get(entry.key)), lineWidth: Math.min(entry.baseWidth + 1, 4) };
         } else {
           opts = { color: entry.color, lineWidth: entry.baseWidth };
         }
@@ -514,8 +542,8 @@ export default function ChannelExplorerChart({
       if (deletedKeysRef.current.has(key)) return;
 
       const provisional = isProvisional(ch);
-      const directionColor = DIRECTION_COLOR[ch.direction] ?? '#787b86';
-      const color = provisional ? hexToRgba(directionColor, PROVISIONAL_ALPHA) : directionColor;
+      const lineColor = directionColor(theme, ch.direction);
+      const color = provisional ? withAlpha(lineColor, PROVISIONAL_ALPHA) : lineColor;
       const startTs = toTs(ch.startDate);
       const endTs   = toTs(ch.endDate);
       if (startTs === null || endTs === null || endTs <= startTs) return;
@@ -576,7 +604,7 @@ export default function ChannelExplorerChart({
       exitMarkers.push({
         time: candleData[idx].time,
         position: up ? 'aboveBar' : 'belowBar',
-        color: EXIT_COLOR,
+        color: theme.exit,
         shape: 'circle',
         text: `exit d${ex.depth ?? '?'}${ex.recompute ? ' ⟳' : ''}`,
       });
@@ -586,7 +614,7 @@ export default function ChannelExplorerChart({
         const pts = buildBasePoints(raw);
         if (pts.length < 2) continue;
         const s = chart.addLineSeries({
-          color: BROKEN_LINE_COLOR,
+          color: theme.brokenLine,
           lineWidth: 1,
           lineStyle: 1,
           lastValueVisible: false,
@@ -953,9 +981,20 @@ export default function ChannelExplorerChart({
       handle.removeEventListener('mousedown', onHandleMouseDown);
       if (handle.parentNode) handle.parentNode.removeChild(handle);
       ro.disconnect();
+      chartRef.current = null;
+      priceSeriesRef.current = null;
       chart.remove();
     };
   }, [prices, channels, zoomChannels, runId, exits]);
+
+  // Theme switch: re-theme the existing chart in place (layout / grid / crosshair / scales and
+  // the candles). The channel lines keep the colours they were built with - the explorer's
+  // --tv-* set is the same dark palette in both themes; a rebuild (new detection) re-reads them.
+  useEffect(() => {
+    tvRef.current = tv;
+    chartRef.current?.applyOptions(chartThemeOptions(tv));
+    priceSeriesRef.current?.applyOptions(candleThemeOptions(tv));
+  }, [tv]);
 
   // Parent -> chart: apply a selection made on a channel card. Declared after the building
   // effect so that, in a commit that rebuilds the chart too, it runs against the new chart.

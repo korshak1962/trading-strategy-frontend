@@ -6,7 +6,7 @@
   .date-range-title {
     font-size: 1.125rem;
     font-weight: 500;
-    color: #111827;
+    color: var(--fg-gray-900);
     margin-bottom: 0.75rem;
   }
   
@@ -25,14 +25,14 @@
     display: block;
     font-size: 0.875rem;
     font-weight: 500;
-    color: #374151;
+    color: var(--fg-gray-700);
     margin-bottom: 0.25rem;
   }
   
   .date-input {
     width: 100%;
     padding: 0.5rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--c-gray-300);
     border-radius: 0.25rem;
   }
   
@@ -45,14 +45,14 @@
   
   .date-shortcut-btn {
     font-size: 0.75rem;
-    background-color: #e5e7eb;
+    background-color: var(--c-gray-200);
     padding: 0.25rem;
     border-radius: 0.25rem;
     border: none;
   }
   
   .date-shortcut-btn:hover {
-    background-color: #d1d5db;
+    background-color: var(--c-gray-300);
   }
 
   .trade-start-field {
@@ -74,11 +74,11 @@
   .trade-start-caption {
     margin-top: 0.25rem;
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--fg-gray-500);
   }
 
   .trade-start-hint {
     margin-top: 0.25rem;
     font-size: 0.75rem;
-    color: #92400e;
+    color: var(--fg-amber-800);
   }

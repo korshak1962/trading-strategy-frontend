@@ -3,7 +3,7 @@
 .signals-view__summary {
   flex: 1 1 auto;
   font-size: 0.875rem;
-  color: #374151;
+  color: var(--fg-gray-700);
   align-self: center;
 }
 
@@ -18,7 +18,7 @@
   gap: 0.5rem 1.25rem;
   margin-bottom: 0.5rem;
   font-size: 0.8rem;
-  color: #374151;
+  color: var(--fg-gray-700);
 }
 
 .signals-legend__item {
@@ -45,26 +45,26 @@
   display: inline-block;
   width: 18px;
   height: 10px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--c-gray-300);
   border-radius: 2px;
 }
 
 /* Same fills as signalPanes.js POSITION_FILL, a little stronger so the swatch is visible */
-.signals-legend__swatch--long { background-color: rgba(16, 185, 129, 0.25); }
-.signals-legend__swatch--short { background-color: rgba(239, 68, 68, 0.2); }
+.signals-legend__swatch--long { background-color: var(--chart-legend-long); }
+.signals-legend__swatch--short { background-color: var(--chart-legend-short); }
 /* Warm-up before tradeStart: ChartDrawingUtils PRE_WINDOW_STYLE.fill, a little stronger */
-.signals-legend__swatch--warmup { background-color: rgba(107, 114, 128, 0.25); }
+.signals-legend__swatch--warmup { background-color: var(--chart-legend-warmup); }
 /* Warm-up markers are drawn at ChartDrawingUtils OUTSIDE_WINDOW_ALPHA */
 .signals-legend__muted { opacity: 0.35; display: inline-flex; }
 
 .signal-pane {
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--c-gray-200);
   padding-top: 0.5rem;
   margin-bottom: 0.5rem;
 }
 
 .signal-pane--merged {
-  border-top: 2px solid #2563eb;
+  border-top: 2px solid var(--c-blue-600);
 }
 
 .signal-pane .reporter-chart-container {
@@ -85,12 +85,12 @@
 
 .signal-pane__class {
   font-weight: 400;
-  color: #6b7280;
+  color: var(--fg-gray-500);
 }
 
 .signal-pane__params {
   font-size: 0.8rem;
-  color: #4b5563;
+  color: var(--fg-gray-600);
   max-width: 36rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -102,21 +102,21 @@
   padding: 0.05rem 0.45rem;
   font-size: 0.72rem;
   font-weight: 600;
-  color: #1e40af;
-  background-color: #eff6ff;
-  border: 1px solid #bfdbfe;
+  color: var(--fg-blue-800);
+  background-color: var(--c-blue-50);
+  border: 1px solid var(--c-blue-200);
   border-radius: 9999px;
   white-space: nowrap;
 }
 
 .signal-badge--pd {
-  color: #6b21a8;
-  background-color: #faf5ff;
-  border-color: #e9d5ff;
+  color: var(--fg-purple-800);
+  background-color: var(--c-purple-50);
+  border-color: var(--c-purple-200);
 }
 
 .signal-badge--muted {
-  color: #6b7280;
-  background-color: #f9fafb;
-  border-color: #e5e7eb;
+  color: var(--fg-gray-500);
+  background-color: var(--c-gray-50);
+  border-color: var(--c-gray-200);
 }

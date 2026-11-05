@@ -6,9 +6,9 @@
   }
   
   .strategy-item {
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--c-gray-300);
     border-radius: 0.25rem;
-    background-color: white;
+    background-color: var(--c-white);
     /* No overflow:hidden here (used to clip the header's square corners to the panel's
        rounded ones) - it would also clip the floating param tooltips below. The header
        gets its own top corner radius instead so the rounded look is unaffected. */
@@ -19,7 +19,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 0.75rem;
-    background-color: #f3f4f6;
+    background-color: var(--c-gray-100);
     border-top-left-radius: 0.25rem;
     border-top-right-radius: 0.25rem;
     cursor: pointer;
@@ -35,7 +35,7 @@
   }
   
   .strategy-remove-btn {
-    color: #dc2626;
+    color: var(--fg-red-600);
     margin-right: 0.5rem;
     background: none;
     border: none;
@@ -44,11 +44,11 @@
   }
   
   .strategy-remove-btn:hover {
-    color: #b91c1c;
+    color: var(--fg-red-700);
   }
   
   .strategy-toggle {
-    color: #4b5563;
+    color: var(--fg-gray-600);
   }
   
   .strategy-params {
@@ -84,7 +84,7 @@
 
   .param-no-params {
     font-size: 0.8rem;
-    color: #6b7280;
+    color: var(--fg-gray-500);
     font-style: italic;
   }
 
@@ -101,8 +101,8 @@
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background-color: #e5e7eb;
-    color: #4b5563;
+    background-color: var(--c-gray-200);
+    color: var(--fg-gray-600);
     font-size: 0.65rem;
     font-style: italic;
     font-weight: 700;
@@ -113,8 +113,8 @@
 
   .param-info-icon:hover,
   .param-info-icon:focus {
-    background-color: #6366f1;
-    color: white;
+    background-color: var(--c-indigo-500);
+    color: var(--fg-white);
     outline: none;
   }
 
@@ -127,14 +127,14 @@
     width: max-content;
     max-width: 260px;
     padding: 0.5rem 0.6rem;
-    background-color: #1f2937;
-    color: #f9fafb;
+    background-color: var(--c-gray-800);
+    color: var(--fg-gray-50);
     font-size: 0.7rem;
     font-weight: 400;
     line-height: 1.4;
     text-align: left;
     border-radius: 0.35rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 12px rgb(var(--shadow-rgb) / 0.2);
     visibility: hidden;
     opacity: 0;
     transition: opacity 0.12s ease;
@@ -148,7 +148,7 @@
     left: 50%;
     transform: translateX(-50%);
     border: 5px solid transparent;
-    border-bottom-color: #1f2937;
+    border-bottom-color: var(--c-gray-800);
   }
 
   .param-info-icon:hover + .param-tooltip,
@@ -161,7 +161,7 @@
     width: 100%;
     min-width: 0;
     padding: 0.25rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--c-gray-300);
     border-radius: 0.25rem;
     font-size: 0.875rem;
     text-align: right;
@@ -171,30 +171,30 @@
     width: 100%;
     min-width: 0;
     padding: 0.25rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--c-gray-300);
     border-radius: 0.25rem;
     font-size: 0.75rem;
-    background-color: white;
-    color: #374151;
+    background-color: var(--c-white);
+    color: var(--fg-gray-700);
     cursor: pointer;
   }
 
   .param-timeframe:focus {
     outline: none;
-    border-color: #6366f1;
+    border-color: var(--c-indigo-500);
   }
 
   .param-optimize-card {
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--c-gray-200);
     border-radius: 4px;
     padding: 8px 10px;
-    background: #f9fafb;
+    background: var(--c-gray-50);
   }
 
   .param-optimize-name {
     font-size: 0.8rem;
     font-weight: 600;
-    color: #374151;
+    color: var(--fg-gray-700);
     margin-bottom: 6px;
     display: flex;
     align-items: center;
@@ -215,7 +215,7 @@
 
   .param-optimize-field-label {
     font-size: 0.65rem;
-    color: #6b7280;
+    color: var(--fg-gray-500);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     font-weight: 600;
@@ -232,7 +232,7 @@
   .param-optimize-input {
     width: 100%;
     padding: 3px 5px;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--c-gray-300);
     border-radius: 3px;
     font-size: 0.8rem;
     text-align: right;
@@ -240,5 +240,5 @@
 
   .param-optimize-input:focus {
     outline: none;
-    border-color: #6366f1;
+    border-color: var(--c-indigo-500);
   }

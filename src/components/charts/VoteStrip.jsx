@@ -2,6 +2,7 @@
 import { useEffect, useRef } from 'react';
 import { drawVoteStrip } from '../../utils/ChartDrawingUtils';
 import { VOTE_COLORS } from '../signals/signalPanes';
+import { useTheme } from '../../theme/useTheme';
 
 /** Strip height, px (Signals mode, under the price pane of a strategy that votes). */
 export const VOTE_STRIP_HEIGHT = 10;
@@ -15,6 +16,8 @@ export const VOTE_STRIP_HEIGHT = 10;
  */
 const VoteStrip = ({ votes, width, dateRange }) => {
   const canvasRef = useRef(null);
+  // Colours are read from the theme tokens at draw time: redraw on a theme switch
+  const { theme } = useTheme();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -28,7 +31,7 @@ const VoteStrip = ({ votes, width, dateRange }) => {
     ctx.scale(pixelRatio, pixelRatio);
     ctx.clearRect(0, 0, width, VOTE_STRIP_HEIGHT);
     drawVoteStrip(ctx, votes, dateRange, width, VOTE_STRIP_HEIGHT, VOTE_COLORS);
-  }, [votes, width, dateRange]);
+  }, [votes, width, dateRange, theme]);
 
   return <canvas ref={canvasRef} className="vote-strip-canvas" data-testid="vote-strip" />;
 };
