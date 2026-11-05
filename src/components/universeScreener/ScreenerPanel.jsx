@@ -197,6 +197,23 @@ function ScreenerPanel({
     }
   }, [loadFilters]);
 
+  // Minor #67: the stored runs of a filter this server cannot read are not shown. Every way into the
+  // Results view ends here for such a filter: it is cleared, the reason is shown, and a route still
+  // pointing at it is corrected (replace).
+  const refuseResults = useCallback((f) => {
+    runSeq.current += 1;
+    setResultsFilterId(null);
+    setRuns([]);
+    setRunId(null);
+    setRun(null);
+    setDiff(null);
+    setRunError(`This server cannot read the filter "${f.name ?? `#${f.id}`}", so its results are not shown: ${f.unreadable}`);
+    const r = routeRef.current;
+    if (r?.view === 'results' && r.filterId === f.id) {
+      onRouteChangeRef.current?.({ view: 'results', filterId: null, runId: null }, { replace: true });
+    }
+  }, []);
+
   const openResults = useCallback(async (filterId, preferRunId = null) => {
     setView('results');
     setResultsFilterId(filterId);
@@ -211,8 +228,20 @@ function ScreenerPanel({
     setDiff(null);
     setRunError(null);
     if (filterId == null) { showRun(null); return; }
+    // The list may be stale: the filter's current version can have become unreadable since it
+    // loaded. Its fresh DTO decides (a failed read falls back to the list, already checked).
+    const freshP = getFilter(filterId).catch(() => null);
+    const refuseIfUnreadable = async () => {
+      const fresh = await freshP;
+      if (!alive.current || seq !== runSeq.current || !fresh?.unreadable) return false;
+      refuseResults(fresh);
+      loadFilters();
+      return true;
+    };
     try {
       const rs = await listFilterRuns(filterId, 30);
+      if (!alive.current || seq !== runSeq.current) return;
+      if (await refuseIfUnreadable()) return;
       if (!alive.current || seq !== runSeq.current) return;
       setRuns(rs);
       const target = preferRunId ?? rs[0]?.id ?? null;
@@ -224,10 +253,18 @@ function ScreenerPanel({
       }
     } catch (err) {
       if (!alive.current || seq !== runSeq.current) return;
+      if (await refuseIfUnreadable()) return;
+      if (!alive.current || seq !== runSeq.current) return;
       setRunError(describeApiError(err));
       if (preferRunId != null) showRun(preferRunId);
     }
-  }, [showRun]);
+  }, [showRun, refuseResults, loadFilters]);
+
+  // A reloaded list marks the filter on screen unreadable: its results go.
+  useEffect(() => {
+    const f = resultsFilterId != null ? (filters || []).find((x) => x.id === resultsFilterId) : null;
+    if (f?.unreadable) refuseResults(f);
+  }, [filters, resultsFilterId, refuseResults]);
 
   // ---- filter actions ----
 
@@ -393,15 +430,18 @@ function ScreenerPanel({
     if (v === view) return;
     setView(v);
     if (v !== 'results') { pushRoute({ view: v }); return; }
-    if (resultsFilterId == null && filters?.length) {
-      openResults(filters[0].id);
-      pushRoute({ view: 'results', filterId: filters[0].id, runId: null });
+    const first = resultsFilterId == null ? (filters || []).find((f) => !f.unreadable) : null;
+    if (first) {
+      openResults(first.id);
+      pushRoute({ view: 'results', filterId: first.id, runId: null });
       return;
     }
     pushRoute({ view: 'results', filterId: resultsFilterId, runId: resultsFilterId != null ? runId : null });
   };
 
   const selectFilter = (filterId) => {
+    const f = filterId != null ? filterById(filterId) : null;
+    if (f?.unreadable) { refuseUnreadable(f); return; } // #67: a stale row or option opens nothing
     openResults(filterId);
     pushRoute({ view: 'results', filterId, runId: null });
   };
@@ -432,12 +472,15 @@ function ScreenerPanel({
     }
     if (route.filterId !== resultsFilterId) {
       if (!filtersLoaded) return;
-      if (!(filters || []).some((f) => f.id === route.filterId)) {
+      const target = (filters || []).find((f) => f.id === route.filterId);
+      if (!target) {
         clearResults();
         setRunError(`Filter #${route.filterId} not found.`);
         onRouteChange?.({ view: 'results', filterId: null, runId: null }, { replace: true });
         return;
       }
+      if (target.unreadable) { refuseResults(target); return; } // #67: a link to its runs opens nothing
+
       openResults(route.filterId, route.runId);
       return;
     }
@@ -501,8 +544,8 @@ function ScreenerPanel({
               <select id="sr-filter" className="p-2 border rounded text-sm bg-white min-w-[14rem]" value={resultsFilterId ?? ''}
                 onChange={(e) => selectFilter(e.target.value === '' ? null : Number(e.target.value))}>
                 <option value="">—</option>
-                {(filters || []).map((f) => (
-                  <option key={f.id} value={f.id}>{f.name}{f.unreadable ? ' (not readable by this server)' : ''}</option>
+                {(filters || []).filter((f) => !f.unreadable).map((f) => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
                 ))}
               </select>
             </div>

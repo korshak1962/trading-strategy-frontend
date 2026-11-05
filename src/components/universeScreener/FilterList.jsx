@@ -5,7 +5,8 @@
 // Duplicate / Delete (soft: the runs and versions stay).
 // Stage 3b-0b: a filter whose current version this server cannot read (`unreadable`, saved by a
 // newer server) carries the badge and offers Deactivate (when active) and Delete only: no Run now,
-// Edit, Duplicate, and no way to activate it (minor #57). Results (its stored runs) stay viewable.
+// Edit, Duplicate, and no way to activate it (minor #57); no Results either, and its name is plain
+// text, not the link to its runs (minor #67).
 import { fmtDay } from '../watch/format';
 import UnreadableBadge from '../UnreadableBadge';
 
@@ -91,9 +92,14 @@ export default function FilterList({
                   <tr key={f.id} className={`border-t align-top ${f.active && !unreadable ? '' : 'text-gray-500'}`} data-testid="filter-row"
                     data-unreadable={unreadable ? 'true' : undefined}>
                     <td className="px-2 py-1.5">
-                      <button type="button" className="font-semibold text-blue-700 hover:underline text-left" onClick={() => onResults(f)}>
-                        {f.name}
-                      </button>
+                      {unreadable ? (
+                        <span className="font-semibold" data-testid="filter-name">{f.name}</span>
+                      ) : (
+                        <button type="button" className="font-semibold text-blue-700 hover:underline text-left" onClick={() => onResults(f)}
+                          data-testid="filter-name">
+                          {f.name}
+                        </button>
+                      )}
                       {f.version != null && <span className="ml-1 text-xs text-gray-400">v{f.version}</span>}
                       {unreadable && <UnreadableBadge reason={f.unreadable} testId="filter-row-unreadable" />}
                       {f.note && <div className="text-xs text-gray-500 break-words">{f.note}</div>}
@@ -121,9 +127,9 @@ export default function FilterList({
                         {!unreadable && (
                           <button type="button" className={`${btn} border-blue-600 text-blue-600`} disabled={busy} onClick={() => onRunNow(f)} data-testid="filter-run">Run now</button>
                         )}
-                        <button type="button" className={btn} onClick={() => onResults(f)}>Results</button>
                         {!unreadable && (
                           <>
+                            <button type="button" className={btn} onClick={() => onResults(f)} data-testid="filter-results">Results</button>
                             <button type="button" className={btn} disabled={busy} onClick={() => onEdit(f)} data-testid="filter-edit">Edit</button>
                             <button type="button" className={btn} disabled={busy} onClick={() => onDuplicate(f)} data-testid="filter-duplicate">Duplicate</button>
                           </>
