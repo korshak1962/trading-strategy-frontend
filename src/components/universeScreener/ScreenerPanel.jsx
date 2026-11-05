@@ -11,7 +11,7 @@ import './screener.css';
 import '../watch/watch.css';
 import {
   getScreenerMeta, listFilters, getFilter, patchFilter, duplicateFilter, deleteFilter, runFilterNow,
-  listFilterRuns, getRun, getRunDiff, fromFilterDTO, RUN_TERMINAL, DEFAULT_START_DATE,
+  listFilterRuns, getRun, getRunDiff, fromFilterDTO, RUN_TERMINAL, DEFAULT_START_DATE, FILTER_UNREADABLE_CODE,
 } from '../../api/screenerApi';
 import { fetchSchedules } from '../../api/downloaderApi';
 import { listMembers } from '../../api/universeApi';
@@ -245,7 +245,18 @@ function ScreenerPanel({
     }
   };
 
+  // Stage 3b-0b: the list offers an unreadable filter Deactivate / Delete only; these guards keep a
+  // stale row (or another entry point) from sending the refused calls anyway (minor #57).
+  const refuseUnreadable = (f) => {
+    if (!f?.unreadable) return false;
+    setRowMessage(f.id, { kind: 'error', text: `This server cannot read the filter: ${f.unreadable}` });
+    return true;
+  };
+  // 409 FILTER_VERSION_UNREADABLE (the version became unreadable after the list loaded): its message
+  const unreadableText = (err) => (err.code === FILTER_UNREADABLE_CODE ? describeApiError(err) : null);
+
   const handleRunNow = async (f) => {
+    if (refuseUnreadable(f)) return;
     setBusyId(f.id);
     setRowMessage(f.id, null);
     try {
@@ -261,23 +272,30 @@ function ScreenerPanel({
         pushRoute({ view: 'results', filterId: f.id, runId: err.runId });
         return;
       }
-      setRowMessage(f.id, { kind: 'error', text: err.status === 409 ? 'This filter is already queued or running.' : describeApiError(err) });
+      setRowMessage(f.id, {
+        kind: 'error',
+        text: unreadableText(err) || (err.status === 409 ? 'This filter is already queued or running.' : describeApiError(err)),
+      });
     }
   };
 
-  const handleToggleActive = (f, active) => rowAction(f, async () => {
-    await patchFilter(f.id, { active });
-    return null;
-  });
+  const handleToggleActive = (f, active) => {
+    if (active && refuseUnreadable(f)) return; // #57: never re-activate an unreadable filter
+    rowAction(f, async () => {
+      await patchFilter(f.id, { active });
+      return null;
+    });
+  };
 
   const handleDuplicate = (f) => {
+    if (refuseUnreadable(f)) return;
     const name = window.prompt('Name of the copy:', `${f.name} (copy)`);
     if (!name || !name.trim()) return;
     rowAction(f, async () => {
       try {
         await duplicateFilter(f.id, name.trim());
       } catch (err) {
-        if (err.status === 409) throw new Error(`A filter named "${name.trim()}" already exists.`);
+        if (err.status === 409 && !unreadableText(err)) throw new Error(`A filter named "${name.trim()}" already exists.`);
         throw err;
       }
       return `Copied as "${name.trim()}"`;
@@ -309,9 +327,11 @@ function ScreenerPanel({
   });
 
   const handleEdit = async (f) => {
+    if (refuseUnreadable(f)) return;
     setBusyId(f.id);
     try {
       const full = await getFilter(f.id).catch(() => f); // the list DTO is the fallback
+      if (refuseUnreadable(full)) return; // became unreadable since the list loaded
       openEditor(fromFilterDTO(full || f, detectorDefaults));
     } finally {
       setBusyId(null);
@@ -481,7 +501,9 @@ function ScreenerPanel({
               <select id="sr-filter" className="p-2 border rounded text-sm bg-white min-w-[14rem]" value={resultsFilterId ?? ''}
                 onChange={(e) => selectFilter(e.target.value === '' ? null : Number(e.target.value))}>
                 <option value="">—</option>
-                {(filters || []).map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                {(filters || []).map((f) => (
+                  <option key={f.id} value={f.id}>{f.name}{f.unreadable ? ' (not readable by this server)' : ''}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -497,7 +519,7 @@ function ScreenerPanel({
                 ))}
               </select>
             </div>
-            {resultsFilter && (
+            {resultsFilter && !resultsFilter.unreadable && (
               <button type="button" className="py-2 px-3 border border-blue-600 text-blue-600 rounded hover:bg-blue-50 text-sm"
                 onClick={() => handleRunNow(resultsFilter)} disabled={busyId === resultsFilter.id}>
                 Run now

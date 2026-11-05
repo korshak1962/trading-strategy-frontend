@@ -205,17 +205,32 @@ export const getScreenerMeta = async () => {
   return readJson(res);
 };
 
-/** GET /filters → FilterDTO[] with `lastRun` (basis, counts, entered / exited). */
+/**
+ * Error code of a filter version this server cannot read (stage 3b-0b): 409 `{error, message}` on
+ * run / PUT / duplicate (and on activating it, minor #57).
+ */
+export const FILTER_UNREADABLE_CODE = 'FILTER_VERSION_UNREADABLE';
+
+/**
+ * FilterDTO as is, with `unreadable` normalized: the backend's reason (string) when this server
+ * cannot read the current version (saved by a newer server), else null. Such a filter has
+ * `conditions: []`, `evalTf: null` and can only be deactivated or deleted.
+ */
+export const normalizeFilter = (f) => (f && typeof f === 'object'
+  ? { ...f, unreadable: typeof f.unreadable === 'string' && f.unreadable ? f.unreadable : null }
+  : f);
+
+/** GET /filters → FilterDTO[] with `lastRun` (basis, counts, entered / exited) and `unreadable`. */
 export const listFilters = async () => {
   const res = await apiRequest(`${API_BASE_URL}/filters`, undefined, 'Loading filters failed');
   const data = await readJson(res);
-  return Array.isArray(data) ? data : [];
+  return Array.isArray(data) ? data.map(normalizeFilter) : [];
 };
 
 /** GET /filters/{id} → FilterDTO; 404. */
 export const getFilter = async (id) => {
   const res = await apiRequest(`${API_BASE_URL}/filters/${enc(id)}`, undefined, 'Loading the filter failed');
-  return readJson(res);
+  return normalizeFilter(await readJson(res));
 };
 
 /** POST /filters FilterRequest → 201 FilterDTO (+ warnings); 409 NAME_EXISTS; 400. */
@@ -235,7 +250,7 @@ export const updateFilter = async (id, request) => {
 export const patchFilter = async (id, patch) => {
   const res = await apiRequest(`${API_BASE_URL}/filters/${enc(id)}`, { method: 'PATCH', ...jsonBody(patch) },
     'Updating the filter failed');
-  return readJson(res);
+  return normalizeFilter(await readJson(res));
 };
 
 /** POST /filters/{id}/duplicate {name?} → 201 FilterDTO; 409 NAME_EXISTS; 404. */

@@ -310,8 +310,12 @@ const App = () => {
   // {reason, keys} - it loads with its warning, and Run / Optimize / Signals stay off while any of
   // those strategies is still in the form.
   const [caseBlock, setCaseBlock] = useState(null);
+  // The backend's reason may already end in "; the case cannot run" (stage 3b-0, unreadable version):
+  // dropped so the banner does not say it twice, and closed with a full stop before the hint.
+  const blockedReasonText = caseBlock
+    ? caseBlock.reason.replace(/;\s*the case cannot run\.?\s*$/i, '').replace(/([^.!?])$/, '$1.') : '';
   const runBlocked = caseBlock && (caseBlock.keys.length === 0 || caseBlock.keys.some((k) => k in selectedStrategies))
-    ? `This case cannot run: ${caseBlock.reason}` : null;
+    ? `This case cannot run: ${blockedReasonText}` : null;
   // Bumped on every run start (backtest and optimize). SavedCasesPanel ignores a Load response if
   // a run started while it was pending, even when that run has already finished.
   const [runStarts, setRunStarts] = useState(0);

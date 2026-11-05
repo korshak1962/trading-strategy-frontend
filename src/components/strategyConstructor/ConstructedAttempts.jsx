@@ -4,9 +4,9 @@
 // has and how many backtests / optimization (or screening) jobs ran on THIS version for the ticker
 // and TF - an honest measure of how many structures were tried on the same data. Previews and the
 // Signals tab are not counted. Read from GET /api/strategy/constructed/{id} (usage[]); a deleted
-// strategy (404) shows nothing but the note.
+// strategy (404) shows nothing but the note; an unreadable version (409, stage 3b-0) a short note.
 import { useEffect, useState } from 'react';
-import { getConstructed } from '../../api/constructedApi';
+import { getConstructed, UNREADABLE_CODE } from '../../api/constructedApi';
 import { parseConstructedKey } from './constructedFormat';
 
 /**
@@ -20,20 +20,33 @@ import { parseConstructedKey } from './constructedFormat';
 export default function ConstructedAttempts({ strategyKey, ticker, timeFrame, refreshKey = 0, compact = false }) {
   const parsed = parseConstructedKey(strategyKey);
   const id = parsed?.id ?? null;
-  const [state, setState] = useState(null); // {dto} | {missing: true} | {error}
+  const [state, setState] = useState(null); // {dto} | {missing: true} | {unreadable} | {error}
 
   useEffect(() => {
     if (id == null) return undefined;
     let alive = true;
     getConstructed(id)
       .then((dto) => { if (alive) setState({ dto }); })
-      .catch((err) => { if (alive) setState(err.status === 404 ? { missing: true } : { error: err.message }); });
+      .catch((err) => {
+        if (!alive) return;
+        if (err.status === 404) setState({ missing: true });
+        else if (err.code === UNREADABLE_CODE) setState({ unreadable: err.detail || err.message });
+        else setState({ error: err.message });
+      });
     return () => { alive = false; };
   }, [id, refreshKey]);
 
   if (!parsed || !state) return null;
   if (state.missing) {
     return <span className="text-xs text-red-700" data-testid="constructed-attempts-missing">deleted — attempts are not available</span>;
+  }
+  if (state.unreadable) {
+    // Stage 3b-0: saved by a newer server; the case / form shows why it cannot run
+    return (
+      <span className="text-xs text-amber-800" title={state.unreadable} data-testid="constructed-attempts-unreadable">
+        not readable by this server — attempts are not available
+      </span>
+    );
   }
   if (state.error) return null;
   const { dto } = state;

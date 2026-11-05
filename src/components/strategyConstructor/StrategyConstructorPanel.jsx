@@ -189,6 +189,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
 
   const handleEdit = (id) => {
     if (id === draft?.id) return;
+    if ((items || []).some((s) => s.id === id && s.unreadable)) return; // stage 3b-0: Delete only
     if (!confirmDiscard()) return;
     onRouteChange(id);
   };
@@ -309,7 +310,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
       onStrategiesChanged?.();
       if (isNew && dto.id != null) onRouteChange(dto.id, { replace: routeId == null });
     } catch (err) {
-      setSaveError(err.status === 409
+      setSaveError(err.status === 409 && (!err.code || err.code === 'NAME_EXISTS')
         ? `A strategy named "${draft.name.trim()}" already exists — choose another name.`
         : describeApiError(err));
     } finally {

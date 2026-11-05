@@ -79,7 +79,7 @@ export default function FilterEditor({ initialDraft, detectorDefaults, schedules
       const saved = draft.id != null ? await updateFilter(draft.id, req) : await createFilter(req);
       onSaved(saved, Array.isArray(saved?.warnings) ? saved.warnings : []);
     } catch (err) {
-      setSaveError(err.status === 409
+      setSaveError(err.status === 409 && (!err.code || err.code === 'NAME_EXISTS')
         ? `A filter named "${draft.name.trim()}" already exists — choose another name.`
         : describeApiError(err));
     } finally {

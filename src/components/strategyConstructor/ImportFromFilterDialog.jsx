@@ -85,7 +85,10 @@ export default function ImportFromFilterDialog({ rules, signalTypes, maxConditio
           disabled={filters == null} data-testid="import-filter-select">
           <option value="">{filters == null ? 'Loading filters…' : filters.length === 0 ? 'No filters' : 'Choose a filter'}</option>
           {(filters || []).map((f) => (
-            <option key={f.id} value={f.id}>{f.name}{f.version != null ? ` (v${f.version})` : ''}</option>
+            // Stage 3b-0b: an unreadable filter has no conditions to import
+            <option key={f.id} value={f.id} disabled={!!f.unreadable} title={f.unreadable || undefined}>
+              {f.name}{f.version != null ? ` (v${f.version})` : ''}{f.unreadable ? ' — not readable by this server' : ''}
+            </option>
           ))}
         </select>
 

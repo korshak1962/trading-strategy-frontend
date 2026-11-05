@@ -307,7 +307,11 @@ export const fromConstructedDTO = (d) => {
   };
 };
 
-/** ConstructedStrategySummaryDTO `{id, name, version, key, ruleCount, signalTypes[], updatedAt, templateId?}`. */
+/**
+ * ConstructedStrategySummaryDTO `{id, name, version, key, ruleCount, signalTypes[], updatedAt, templateId?,
+ * unreadable?}`. `unreadable` (stage 3b-0): the backend's reason why it cannot read the current
+ * version (saved by a newer server); null when readable. Such a row can only be deleted.
+ */
 const normalizeSummary = (s) => ({
   id: s?.id ?? null,
   name: s?.name || '',
@@ -317,6 +321,7 @@ const normalizeSummary = (s) => ({
   signalTypes: Array.isArray(s?.signalTypes) ? s.signalTypes : [],
   updatedAt: s?.updatedAt ?? null,
   templateId: s?.templateId ?? null,
+  unreadable: typeof s?.unreadable === 'string' && s.unreadable ? s.unreadable : null,
 });
 
 /** TemplateDTO `{templateId, name, description, definition: {rules[], axes[]}}` → editor shapes. */
@@ -402,7 +407,13 @@ export const listConstructed = async () => {
   return Array.isArray(data) ? data.map(normalizeSummary) : [];
 };
 
-/** GET /{id} → the current version with usage[] and params[]; 404 (also for a deleted one). */
+/** Error code of a version this server cannot read: 409 on get / versions / PUT, 400 on run paths. */
+export const UNREADABLE_CODE = 'CONSTRUCTED_VERSION_UNREADABLE';
+
+/**
+ * GET /{id} → the current version with usage[] and params[]; 404 (also for a deleted one); 409
+ * UNREADABLE_CODE when this server cannot read the version.
+ */
 export const getConstructed = async (id) => {
   const res = await apiRequest(`${API_BASE_URL}/${enc(id)}`, undefined, 'Loading the constructed strategy failed');
   return fromConstructedDTO(await readJson(res));

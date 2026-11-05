@@ -3,7 +3,11 @@
 // The list of screener filters (spec §9.1): name, active toggle, assigned schedules, the last run
 // (basis, PASS count, +entered / −exited) and the row actions Run now / Results / Edit /
 // Duplicate / Delete (soft: the runs and versions stay).
+// Stage 3b-0b: a filter whose current version this server cannot read (`unreadable`, saved by a
+// newer server) carries the badge and offers Deactivate (when active) and Delete only: no Run now,
+// Edit, Duplicate, and no way to activate it (minor #57). Results (its stored runs) stay viewable.
 import { fmtDay } from '../watch/format';
+import UnreadableBadge from '../UnreadableBadge';
 
 const btn = 'py-0.5 px-2 text-xs border rounded hover:bg-gray-100 disabled:text-gray-400 disabled:hover:bg-white';
 
@@ -82,30 +86,49 @@ export default function FilterList({
                 const names = ids.map((id) => schedulesById.get(id)?.name || `#${id}`);
                 const busy = busyId === f.id;
                 const msg = rowMessages[f.id];
+                const unreadable = !!f.unreadable;
                 return (
-                  <tr key={f.id} className={`border-t align-top ${f.active ? '' : 'text-gray-500'}`} data-testid="filter-row">
+                  <tr key={f.id} className={`border-t align-top ${f.active && !unreadable ? '' : 'text-gray-500'}`} data-testid="filter-row"
+                    data-unreadable={unreadable ? 'true' : undefined}>
                     <td className="px-2 py-1.5">
                       <button type="button" className="font-semibold text-blue-700 hover:underline text-left" onClick={() => onResults(f)}>
                         {f.name}
                       </button>
                       {f.version != null && <span className="ml-1 text-xs text-gray-400">v{f.version}</span>}
+                      {unreadable && <UnreadableBadge reason={f.unreadable} testId="filter-row-unreadable" />}
                       {f.note && <div className="text-xs text-gray-500 break-words">{f.note}</div>}
                       {msg && <div className={`text-xs mt-1 ${msg.kind === 'error' ? 'text-red-600' : 'text-blue-700'}`}>{msg.text}</div>}
                     </td>
                     <td className="px-2 py-1.5">
-                      <input type="checkbox" checked={!!f.active} disabled={busy} onChange={(e) => onToggleActive(f, e.target.checked)}
-                        className="h-4 w-4 rounded border-gray-300 text-blue-600" aria-label="Active" data-testid="filter-active" />
+                      {!unreadable ? (
+                        <input type="checkbox" checked={!!f.active} disabled={busy} onChange={(e) => onToggleActive(f, e.target.checked)}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600" aria-label="Active" data-testid="filter-active" />
+                      ) : f.active ? (
+                        // #57: only switching it OFF is offered; it cannot be activated again here
+                        <button type="button" className={btn} disabled={busy} onClick={() => onToggleActive(f, false)}
+                          title="This server cannot run this filter: deactivate it so the schedules skip it"
+                          data-testid="filter-deactivate">Deactivate</button>
+                      ) : (
+                        <span className="text-xs text-gray-500" title="A filter this server cannot read cannot be activated"
+                          data-testid="filter-inactive-locked">off</span>
+                      )}
                     </td>
                     <td className="px-2 py-1.5">{names.length ? names.join(', ') : <span className="text-gray-400">manual only</span>}</td>
-                    <td className="px-2 py-1.5">{Array.isArray(f.conditions) ? f.conditions.length : '—'}</td>
+                    <td className="px-2 py-1.5">{!unreadable && Array.isArray(f.conditions) ? f.conditions.length : '—'}</td>
                     <td className="px-2 py-1.5"><LastRun run={f.lastRun} /></td>
                     <td className="px-2 py-1.5">
                       <div className="flex flex-wrap justify-end gap-1">
-                        <button type="button" className={`${btn} border-blue-600 text-blue-600`} disabled={busy} onClick={() => onRunNow(f)} data-testid="filter-run">Run now</button>
+                        {!unreadable && (
+                          <button type="button" className={`${btn} border-blue-600 text-blue-600`} disabled={busy} onClick={() => onRunNow(f)} data-testid="filter-run">Run now</button>
+                        )}
                         <button type="button" className={btn} onClick={() => onResults(f)}>Results</button>
-                        <button type="button" className={btn} disabled={busy} onClick={() => onEdit(f)} data-testid="filter-edit">Edit</button>
-                        <button type="button" className={btn} disabled={busy} onClick={() => onDuplicate(f)}>Duplicate</button>
-                        <button type="button" className={`${btn} text-red-600`} disabled={busy} onClick={() => onDelete(f)}>Delete</button>
+                        {!unreadable && (
+                          <>
+                            <button type="button" className={btn} disabled={busy} onClick={() => onEdit(f)} data-testid="filter-edit">Edit</button>
+                            <button type="button" className={btn} disabled={busy} onClick={() => onDuplicate(f)} data-testid="filter-duplicate">Duplicate</button>
+                          </>
+                        )}
+                        <button type="button" className={`${btn} text-red-600`} disabled={busy} onClick={() => onDelete(f)} data-testid="filter-delete">Delete</button>
                       </div>
                     </td>
                   </tr>

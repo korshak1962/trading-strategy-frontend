@@ -2,7 +2,11 @@
 //
 // The list of constructed strategies (non-deleted, newest first): name, current version, number of
 // rules, the signal types they emit, last change; Edit / Delete per row.
+// Stage 3b-0: a row whose current version this server cannot read (`unreadable`, saved by a newer
+// server) carries the badge and offers Delete only (no Edit; it is not in available-strategies, so
+// it cannot be run, optimized, watched or saved in a case either).
 import { fmtExchangeIntl } from '../../utils/dates';
+import UnreadableBadge from '../UnreadableBadge';
 import { SIGNAL_TYPE_CLASS } from './constructedFormat';
 
 const btn = 'py-0.5 px-2 text-xs border rounded hover:bg-gray-100 disabled:text-gray-400 disabled:hover:bg-white';
@@ -61,16 +65,18 @@ export default function ConstructedStrategyList({ items, selectedId, busyId, onN
             </thead>
             <tbody>
               {items.map((s) => (
-                <tr key={s.id} className={`border-t ${s.id === selectedId ? 'bg-blue-50' : ''}`} data-testid="constructed-row">
+                <tr key={s.id} className={`border-t ${s.id === selectedId ? 'bg-blue-50' : ''} ${s.unreadable ? 'text-gray-500' : ''}`}
+                  data-testid="constructed-row" data-unreadable={s.unreadable ? 'true' : undefined}>
                   <td className="px-2 py-1.5 font-medium">
                     {s.name}
+                    {s.unreadable && <UnreadableBadge reason={s.unreadable} testId="constructed-row-unreadable" />}
                     {s.templateId && (
                       <span className="ml-1 px-1.5 rounded bg-indigo-100 text-indigo-800 text-xs font-normal"
                         title={`Created from the template «${s.templateId}»`} data-testid="constructed-row-template">template</span>
                     )}
                   </td>
                   <td className="px-2 py-1.5">v{s.version}</td>
-                  <td className="px-2 py-1.5">{s.ruleCount ?? '—'}</td>
+                  <td className="px-2 py-1.5">{s.unreadable ? '—' : (s.ruleCount ?? '—')}</td>
                   <td className="px-2 py-1.5">
                     <span className="inline-flex flex-wrap gap-1">
                       {s.signalTypes.map((t) => (
@@ -81,7 +87,10 @@ export default function ConstructedStrategyList({ items, selectedId, busyId, onN
                   <td className="px-2 py-1.5 whitespace-nowrap text-gray-600">{fmtUpdated(s.updatedAt)}</td>
                   <td className="px-2 py-1.5 whitespace-nowrap text-right">
                     <span className="inline-flex gap-1">
-                      <button type="button" className={btn} onClick={() => onEdit(s.id)} disabled={busyId === s.id}>Edit</button>
+                      {!s.unreadable && (
+                        <button type="button" className={btn} onClick={() => onEdit(s.id)} disabled={busyId === s.id}
+                          data-testid="constructed-edit">Edit</button>
+                      )}
                       <button type="button" className={`${btn} text-red-700`} onClick={() => onDelete(s)} disabled={busyId === s.id}
                         data-testid="constructed-delete">
                         {busyId === s.id ? 'Deleting…' : 'Delete'}
