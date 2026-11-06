@@ -16,8 +16,9 @@ import {
 import { describeApiError } from '../../api/httpClient';
 import { exchangeToday } from '../../utils/dates';
 import {
-  evalTfOf, validateFilter, newMetricCondition, newCompareCondition,
+  evalTfOf, validateFilter, newMetricCondition, newCompareCondition, unitMismatchHint,
 } from './conditionFormat';
+import { useIndicatorCatalog } from '../../api/indicatorCatalog';
 import { pollUntil } from './poll';
 
 const input = 'w-full p-2 border rounded';
@@ -50,7 +51,9 @@ export default function FilterEditor({ initialDraft, detectorDefaults, schedules
 
   const today = exchangeToday();
   const evalTf = evalTfOf(draft.conditions);
-  const validation = useMemo(() => validateFilter(draft, today), [draft, today]);
+  // The catalog (meta.indicators) is a dependency: the kinds / ranges / units it validates against
+  const catalog = useIndicatorCatalog();
+  const validation = useMemo(() => validateFilter(draft, today), [draft, today, catalog]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
   const setParam = (key, value) => setDraft((d) => ({ ...d, detectorParams: { ...d.detectorParams, [key]: value } }));
@@ -229,7 +232,12 @@ export default function FilterEditor({ initialDraft, detectorDefaults, schedules
             {validation.general.map((e) => <li key={e}>{e}</li>)}
           </ul>
         )}
-        {saveError && <div className="form-error mt-4" role="alert">{saveError}</div>}
+        {saveError && (
+          <div className="form-error mt-4" role="alert">
+            {saveError}
+            {unitMismatchHint(saveError) && <div className="mt-1 text-xs font-normal" data-testid="unit-mismatch-hint">{unitMismatchHint(saveError)}</div>}
+          </div>
+        )}
 
         <div className="mt-6 flex flex-wrap items-end gap-3 border-t pt-4">
           <button type="button" onClick={handleSave} disabled={saving}
@@ -266,7 +274,12 @@ export default function FilterEditor({ initialDraft, detectorDefaults, schedules
       {(preview || previewError) && (
         <div className="bg-white p-6 rounded-lg shadow" data-testid="filter-preview-results">
           <h3 className="text-lg font-semibold mb-1">Preview <span className="text-sm font-normal text-gray-500">(not stored)</span></h3>
-          {previewError && <div className="form-error mb-3" role="alert">{previewError}</div>}
+          {previewError && (
+            <div className="form-error mb-3" role="alert">
+              {previewError}
+              {unitMismatchHint(previewError) && <div className="mt-1 text-xs font-normal" data-testid="unit-mismatch-hint">{unitMismatchHint(previewError)}</div>}
+            </div>
+          )}
           {preview && RUN_TERMINAL.has(preview.status) && preview.status !== 'FAILED' && (
             <RunResults
               run={preview}

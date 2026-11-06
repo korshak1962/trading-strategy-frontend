@@ -17,6 +17,9 @@
 
 import { apiRequest, readJson, jsonBody, enc } from './httpClient';
 import { toConditionDTO, fromConditionDTO } from './screenerApi';
+import { DEFAULT_INDICATORS, normalizeIndicator, hasLength, setIndicatorCatalog } from './indicatorCatalog';
+
+export { DEFAULT_INDICATORS };
 
 const API_BASE_URL = '/api/strategy/constructed';
 
@@ -41,11 +44,6 @@ export const LINK_SUFFIX_KIND = Object.freeze({
 });
 export const MAX_AXES = 10;
 export const MAX_LINK_TERMS = 2;
-/** SMA descriptor fallback when /meta has no indicators[] (E1). */
-export const DEFAULT_INDICATORS = Object.freeze([{
-  name: 'SMA', params: [{ name: 'n', integer: true, min: 5, max: 200, storedOnly: true }], source: 'close',
-  unit: 'PRICE', lo: 0, hi: null, warmup: null, timeframes: ['DAY', 'WEEK', 'RUN'], linearInNextClose: true,
-}]);
 export const STATE_RULE_FIRE_RATE = 0.2;   // Q11: a LongOpen / ShortOpen rule firing on > 20 % of bars
 export const MIN_TRADES_PER_THRESHOLD = 10; // Q11: trades per threshold in sweep
 export const MAX_RULES = 20;
@@ -75,32 +73,6 @@ export const normalizeMeta = (m) => ({
   indicators: Array.isArray(m?.indicators) && m.indicators.length
     ? m.indicators.map(normalizeIndicator).filter(Boolean) : [...DEFAULT_INDICATORS],
 });
-
-/**
- * IndicatorDescriptor `{name, params[{name, integer, min, max, storedOnly}], source, unit, lo, hi,
- * warmup?, timeframes[], linearInNextClose}` (architect §1.1) → the same, defaulted. The warmup is
- * a function on the backend: it may arrive as a text or not at all.
- */
-function normalizeIndicator(d) {
-  if (!d || typeof d.name !== 'string' || !d.name) return null;
-  return {
-    name: d.name,
-    params: (Array.isArray(d.params) ? d.params : []).filter((p) => p && p.name).map((p) => ({
-      name: p.name,
-      integer: p.integer !== false,
-      min: isNum(p.min) ? p.min : null,
-      max: isNum(p.max) ? p.max : null,
-      storedOnly: p.storedOnly === true,
-    })),
-    source: d.source ?? null,
-    unit: d.unit ?? null,
-    lo: isNum(d.lo) ? d.lo : null,
-    hi: isNum(d.hi) ? d.hi : null,
-    warmup: typeof d.warmup === 'string' ? d.warmup : null,
-    timeframes: Array.isArray(d.timeframes) ? d.timeframes : [],
-    linearInNextClose: d.linearInNextClose === true,
-  };
-}
 
 // ---- adapters ----
 
@@ -201,12 +173,15 @@ export const applyLinks = (condition, links, axes) => {
   return c;
 };
 
-/** The suffixes a condition can carry a link on (an SMA side's length, a constant, the tolerance). */
+/**
+ * The suffixes a condition can carry a link on (the length of a side whose kind has one - SMA,
+ * ATR, RSI, … by the descriptor - a constant, the tolerance).
+ */
 export const linkableSuffixes = (condition) => {
   if (!condition || condition.type !== 'COMPARE') return [];
   const out = [];
-  if (condition.left?.kind === 'SMA') out.push('left.n');
-  if (condition.right?.kind === 'SMA') out.push('right.n');
+  if (hasLength(condition.left?.kind, condition.left?.n)) out.push('left.n');
+  if (hasLength(condition.right?.kind, condition.right?.n)) out.push('right.n');
   if (condition.right?.kind === 'CONST') out.push('right.const');
   out.push('tolerancePct');
   return out;
@@ -394,10 +369,15 @@ const previewEnd = (day) => `${day}T23:59:59`;
 
 // ---- endpoints ----
 
-/** GET /meta → normalized meta (fallbacks on 404 / a network failure are the caller's choice). */
+/**
+ * GET /meta → normalized meta (fallbacks on 404 / a network failure are the caller's choice). The
+ * indicator descriptors are registered in the operand catalog (indicatorCatalog.js, stage 3b F1).
+ */
 export const getConstructedMeta = async () => {
   const res = await apiRequest(`${API_BASE_URL}/meta`, undefined, 'Loading constructor metadata failed');
-  return normalizeMeta(await readJson(res));
+  const meta = normalizeMeta(await readJson(res));
+  setIndicatorCatalog({ indicators: meta.indicators });
+  return meta;
 };
 
 /** GET / → summaries of the non-deleted strategies, newest first. */

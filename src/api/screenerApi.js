@@ -9,6 +9,7 @@
 // naming difference to the backend is a one-line change. Errors: see httpClient.js.
 
 import { apiRequest, readJson, jsonBody, enc } from './httpClient';
+import { hasLength, setIndicatorCatalog } from './indicatorCatalog';
 
 const API_BASE_URL = '/api/screener';
 
@@ -23,8 +24,8 @@ export const METRICS = Object.freeze([
   { value: 'TOUCHES_LOWER', label: 'Touches lower', unit: '', hint: 'Bars whose low touched the lower line (within 0.1 ATR)' },
 ]);
 
-export const OPERAND_KINDS = Object.freeze(['OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'SMA']);
-export const RIGHT_KINDS = Object.freeze([...OPERAND_KINDS, 'CONST']);
+// Operand kinds and their rules (length n, unit, TFs) come from meta.indicators / operandKinds:
+// see indicatorCatalog.js (stage 3b F1; fallback = the bar fields + SMA).
 export const OPERATORS = Object.freeze([
   { value: 'GT', label: '>' },
   { value: 'GTE', label: '≥' },
@@ -51,19 +52,23 @@ const numOrNull = (v) => (v === '' || v == null || !Number.isFinite(Number(v)) ?
 
 // ---- adapters ----
 
-/** Editor operand → OperandDTO `{kind, n?, tf, offset}` / `{kind: 'CONST', value}`. */
+/**
+ * Editor operand → OperandDTO `{kind, n?, tf, offset}` / `{kind: 'CONST', value}`. `n` is sent for
+ * every kind with a length parameter (SMA, SMA_TILT, ATR, ATR_PCT, ER, RSI - the descriptor
+ * says), never for a field or IBS (stage 3b F1, minor #91).
+ */
 const toOperand = (o) => {
   if (!o) return null;
   if (o.kind === 'CONST') return { kind: 'CONST', value: numOrNull(o.value) };
   const out = { kind: o.kind, tf: o.tf, offset: Number(o.offset) || 0 };
-  if (o.kind === 'SMA') out.n = numOrNull(o.n);
+  if (hasLength(o.kind, o.n)) out.n = numOrNull(o.n);
   return out;
 };
 
 const fromOperand = (o) => {
   if (!o) return null;
-  if (o.kind === 'CONST') return { kind: 'CONST', value: o.value ?? '', n: 50, tf: 'DAY', offset: 0 };
-  return { kind: o.kind || 'CLOSE', n: o.n ?? 50, tf: o.tf || 'DAY', offset: o.offset ?? 0, value: '' };
+  if (o.kind === 'CONST') return { kind: 'CONST', value: o.value ?? '', n: null, tf: 'DAY', offset: 0 };
+  return { kind: o.kind || 'CLOSE', n: o.n ?? null, tf: o.tf || 'DAY', offset: o.offset ?? 0, value: '' };
 };
 
 /** Editor condition → FilterConditionDTO. */
@@ -90,7 +95,7 @@ export const fromConditionDTO = (c) => {
   }
   return {
     type: 'COMPARE',
-    left: fromOperand(c?.left) || { kind: 'CLOSE', n: 50, tf: 'DAY', offset: 0, value: '' },
+    left: fromOperand(c?.left) || { kind: 'CLOSE', n: null, tf: 'DAY', offset: 0, value: '' },
     op: c?.op || 'GT',
     right: fromOperand(c?.right) || { kind: 'SMA', n: 50, tf: 'DAY', offset: 0, value: '' },
     tolerancePct: c?.tolerancePct ?? 0,
@@ -197,12 +202,16 @@ export const normalizeRun = (run) => {
 /**
  * GET /meta → ScreenerMetaDTO `{metrics[], operandKinds[], ops[], timeframes[], smaMin, smaMax,
  * offsetMin, offsetMax, levelMax, toleranceAbsMax, detectorDefaults, defaultStartDate,
- * schedules[{id, name, enabled, timeFrame, portfolios}]}`. The ranges equal the constants above;
- * the UI takes detectorDefaults, defaultStartDate and the schedule names from it.
+ * schedules[{id, name, enabled, timeFrame, portfolios}], indicators[]}`. The ranges equal the
+ * constants above; the UI takes detectorDefaults, defaultStartDate and the schedule names from it.
+ * Stage 3b: `operandKinds` and the indicator descriptors are registered in the operand catalog
+ * (indicatorCatalog.js), which the operand picker, captions and validation read.
  */
 export const getScreenerMeta = async () => {
   const res = await apiRequest(`${API_BASE_URL}/meta`, undefined, 'Loading screener metadata failed');
-  return readJson(res);
+  const meta = await readJson(res);
+  setIndicatorCatalog({ indicators: meta?.indicators, operandKinds: meta?.operandKinds });
+  return meta;
 };
 
 /**

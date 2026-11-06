@@ -9,7 +9,7 @@
 // (#/constructor?id=12).
 // Stage 3a (architect.md §2-§4): axes and linked thresholds (AxesEditor / LinkPicker), the RUN
 // operand TF (any run TF for RUN-only strategies), "Create from template" (TemplatePickerDialog)
-// and hints under the stage-3a 400s (UNIT_MISMATCH, "arrives in stage 3b", grid points).
+// and hints under the stage-3a 400s (UNIT_MISMATCH, "not supported yet", grid points).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ConstructedStrategyList from './ConstructedStrategyList';
 import RuleEditor from './RuleEditor';
@@ -169,10 +169,6 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
   const runTfs = draft ? runTfsOf(draft.rules) : ['DAY', 'WEEK'];
   const previewTfs = meta.timeframes.filter((tf) => CONSTRUCTED_TFS.includes(tf));
   const usage = useMemo(() => axisUsage(draft?.rules), [draft]);
-  const smaBounds = useMemo(() => {
-    const n = (meta.indicators || []).find((d) => d.name === 'SMA')?.params?.find((x) => x.name === 'n');
-    return { smaMin: n?.min ?? undefined, smaMax: n?.max ?? undefined };
-  }, [meta]);
   const evalTf = previewForm.timeFrame;
 
   const confirmDiscard = () => !dirty || window.confirm('Discard the unsaved changes of this strategy?');
@@ -533,7 +529,6 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
                 disabled={saving}
                 axes={draft.axes || []}
                 onCreateAxis={createAxisFrom}
-                smaBounds={smaBounds}
               />
             ))}
             {draft.rules.length === 0 && <p className="text-sm text-gray-500">No rules yet.</p>}

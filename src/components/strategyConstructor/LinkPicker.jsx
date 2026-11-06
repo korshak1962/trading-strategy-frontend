@@ -2,7 +2,7 @@
 //
 // Link of one threshold of a rule condition to the strategy's axes (stage 3a, screener
 // architect.md §3.1, BA spec §3.2 Q2): `±$A` or `±$A ± $B`, only axes of the threshold's kind
-// (an SMA length with a length axis, a tolerance with a tolerance axis, a constant with a
+// (a length with a length axis, a tolerance with a tolerance axis, a constant with a
 // constant axis). Rendered next to the threshold's input by CompareConditionRow (renderLink).
 import { useState } from 'react';
 import { MAX_LINK_TERMS } from '../../api/constructedApi';

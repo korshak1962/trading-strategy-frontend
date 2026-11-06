@@ -5,9 +5,11 @@
 // authority: its 400 message is shown as is.
 
 import {
-  METRICS, OPERATORS, SCREEN_TFS, LEVELS, SMA_MIN, SMA_MAX, OFFSET_MIN, OFFSET_MAX, TOLERANCE_LIMIT,
-  OPERAND_KINDS, RIGHT_KINDS,
+  METRICS, OPERATORS, SCREEN_TFS, LEVELS, OFFSET_MIN, OFFSET_MAX, TOLERANCE_LIMIT,
 } from '../../api/screenerApi';
+import {
+  getIndicatorCatalog, hasLength, lengthParamOf, kindName, operandUnitOf, unitLabel, operandTfsOf, CONST_KIND,
+} from '../../api/indicatorCatalog';
 
 const isFiniteNum = (v) => v !== '' && v != null && Number.isFinite(Number(v));
 const MINUS = '−';
@@ -22,12 +24,18 @@ export const fmtNum = (v, dp = 4) => {
   return String(Number(n.toFixed(dp))).replace('-', MINUS);
 };
 
-/** `close[−1]`, `SMA(50)[0]`, `WEEK` prefix added by the caller. */
+/**
+ * `close[−1]`, `SMA(50)[0]`, `ATR_PCT(14)[0]`, `IBS[0]`; the `WEEK` prefix is added by the caller.
+ * Indicators are written with their kind code, as the backend's Operand.label() writes them (so a
+ * caption reads like the server's messages); bar fields in lower case.
+ */
 const operandBody = (o) => {
   const off = Number(o.offset) || 0;
   const idx = off === 0 ? '[0]' : `[${MINUS}${Math.abs(off)}]`;
-  if (o.kind === 'SMA') return `SMA(${isFiniteNum(o.n) ? Number(o.n) : '?'})${idx}`;
-  return `${String(o.kind || '?').toLowerCase()}${idx}`;
+  const kind = String(o.kind || '?');
+  if (hasLength(o.kind, o.n)) return `${kind}(${isFiniteNum(o.n) ? Number(o.n) : '?'})${idx}`;
+  if (getIndicatorCatalog().byName.has(kind)) return `${kind}${idx}`;
+  return `${kind.toLowerCase()}${idx}`;
 };
 
 /** Evaluation TF of a filter: DAY when anything is on DAY, else WEEK (spec §5.4). */
@@ -85,12 +93,30 @@ export const conditionShort = (c, i) => {
 // ---- validation (copy of FilterValidator) ----
 
 /**
- * Unit of an operand's value (stage 3a E2, copy of the backend ValueUnit): price fields and SMA →
- * PRICE, volume → VOLUME, a constant → null (compatible with any unit).
+ * Unit of an operand's value (backend ValueUnit): price fields → PRICE, volume → VOLUME, an
+ * indicator → its descriptor's unit (SMA PRICE, ATR PRICE_RANGE, ATR % / RSI / tilt PERCENT, IBS /
+ * ER RATIO); a constant → null (compatible with any unit).
  */
-export const operandUnit = (o) => {
-  if (!o || o.kind === 'CONST') return null;
-  return o.kind === 'VOLUME' ? 'VOLUME' : 'PRICE';
+export const operandUnit = (o) => operandUnitOf(o);
+
+/** Two units that may not be compared (null = either side is a constant or unknown). */
+export const unitsClash = (a, b) => !!a && !!b && a !== b;
+
+/**
+ * Plain-language hint under a server UNIT_MISMATCH 400 (screener filter or constructed strategy),
+ * e.g. "conditions[0]: UNIT_MISMATCH: 'DAY ATR(14)[0]' (PRICE_RANGE) vs 'DAY close[0]' (PRICE)".
+ * null when the message is no unit mismatch.
+ */
+export const unitMismatchHint = (message) => {
+  const m = String(message || '');
+  if (!/UNIT_MISMATCH/i.test(m)) return null;
+  if (/PRICE_RANGE/.test(m)) {
+    return 'ATR is a distance in price, not a price: compare it only with another ATR or a number. '
+      + 'For a threshold in % of the price take ATR % instead.';
+  }
+  return 'Both sides of a comparison must be in one unit: a price (open / high / low / close / SMA) with a price, '
+    + 'volume with volume, a % value (RSI, ATR %, SMA tilt) with a % value, a ratio (IBS, efficiency ratio) with a ratio. '
+    + 'A constant fits any side.';
 };
 
 /** The TF "the run's TF" of a constructed strategy's operand (never in a screener filter). */
@@ -98,9 +124,13 @@ export const RUN_TF = 'RUN';
 
 const validateOperand = (o, side, allowRun) => {
   const errs = [];
-  const kinds = side === 'left' ? OPERAND_KINDS : RIGHT_KINDS;
-  if (!o || !kinds.includes(o.kind)) {
-    errs.push(side === 'left' ? 'the left operand must be a price field or SMA (not a constant)' : 'unknown right operand');
+  const { kinds } = getIndicatorCatalog();
+  if (side === 'left' && o?.kind === CONST_KIND) {
+    errs.push('the left operand must be a bar field or an indicator (not a constant)');
+    return errs;
+  }
+  if (!o || (o.kind !== CONST_KIND && !kinds.includes(o.kind))) {
+    errs.push(`unknown ${side} operand${o?.kind ? ` ${o.kind}` : ''}`);
     return errs;
   }
   if (o.kind === 'CONST') {
@@ -109,13 +139,18 @@ const validateOperand = (o, side, allowRun) => {
   }
   if (o.tf === RUN_TF && !allowRun) errs.push('RUN is for constructed strategies');
   else if (!SCREEN_TFS.includes(o.tf) && o.tf !== RUN_TF) errs.push(`${side} TF must be ${allowRun ? 'RUN, DAY or WEEK' : 'DAY or WEEK'}`);
+  else if (!operandTfsOf(o.kind, [RUN_TF, ...SCREEN_TFS]).includes(o.tf)) errs.push(`${kindName(o.kind)} does not take the TF ${o.tf}`);
   const off = Number(o.offset);
   if (!Number.isInteger(off) || off < OFFSET_MIN || off > OFFSET_MAX) {
     errs.push(`${side} offset must be an integer from ${OFFSET_MIN} to ${OFFSET_MAX}`);
   }
-  if (o.kind === 'SMA') {
+  const p = lengthParamOf(o.kind);
+  if (p) {
     const n = Number(o.n);
-    if (!Number.isInteger(n) || n < SMA_MIN || n > SMA_MAX) errs.push(`SMA length must be ${SMA_MIN}..${SMA_MAX}`);
+    const okInt = p.integer ? Number.isInteger(n) : Number.isFinite(n);
+    if (o.n === '' || o.n == null || !okInt || (p.min != null && n < p.min) || (p.max != null && n > p.max)) {
+      errs.push(`${kindName(o.kind)} length must be ${p.integer ? 'a whole number ' : ''}${p.min ?? '…'}..${p.max ?? '…'}`);
+    }
   }
   return errs;
 };
@@ -143,8 +178,11 @@ export const validateCondition = (c, { allowRun = false } = {}) => {
     errs.push(...validateOperand(c.right, 'right', allowRun));
     const lu = operandUnit(c.left);
     const ru = operandUnit(c.right);
-    if (lu && ru && lu !== ru) {
-      errs.push(`UNIT_MISMATCH: ${operandCaption(c.left)} (${lu}) vs ${operandCaption(c.right)} (${ru}) — compare values of one unit (a constant fits any)`);
+    if (unitsClash(lu, ru)) {
+      errs.push(`UNIT_MISMATCH: ${operandCaption(c.left)} (${unitLabel(lu)}) vs ${operandCaption(c.right)} (${unitLabel(ru)}) — `
+        + (lu === 'PRICE_RANGE' || ru === 'PRICE_RANGE'
+          ? 'ATR compares only with ATR or a number (for a % threshold use ATR %)'
+          : 'compare values of one unit (a constant fits any)'));
     }
     if (!OPERATORS.some((o) => o.value === c.op)) errs.push('unknown operator');
     if (!isFiniteNum(c.tolerancePct)) errs.push('tolerance must be a number');
@@ -188,7 +226,7 @@ export const newMetricCondition = () => ({
 
 export const newCompareCondition = () => ({
   type: 'COMPARE',
-  left: { kind: 'CLOSE', n: 50, tf: 'DAY', offset: 0, value: '' },
+  left: { kind: 'CLOSE', n: null, tf: 'DAY', offset: 0, value: '' },
   op: 'GT',
   right: { kind: 'SMA', n: 50, tf: 'DAY', offset: 0, value: '' },
   tolerancePct: 0,
@@ -211,8 +249,9 @@ export const REASON_TEXT = Object.freeze({
   DOWNLOAD_FAILED: 'download failed',
   NOT_MET: 'condition not met',
   DATA_GAP: 'data gap (missing bar vs the SPY calendar)',
-  INDICATOR_MISSING: 'SMA not computed yet',
+  INDICATOR_MISSING: 'indicator value missing (not computed yet or no stored row)',
   WEEK_INCONSISTENT: 'stored WEEK differs from the DAY aggregate',
+  ZERO_RANGE: 'zero range (high = low, or flat closes): the formula divides by 0',
   INSUFFICIENT_HISTORY: 'not enough history',
   NO_CURRENT_CHANNEL: 'no current (confirmed, visible) channel',
   NO_PARENT_LEVEL_1: 'no visible parent (level 1)',

@@ -6,7 +6,7 @@
 // operands, offsets and captions are the same as in a filter. Channel conditions are not offered
 // (stage 4). The rule's and its conditions' permanent ids are kept when rows move or change: the
 // threshold names R<rule>.C<cond>.* depend on them.
-// Stage 3a: operands may take the TF RUN; every threshold (SMA length, constant, tolerance) can be
+// Stage 3a: operands may take the TF RUN; every threshold (length, constant, tolerance) can be
 // linked to an axis (LinkPicker); a linked threshold shows the axes' value instead of its input.
 import { CompareConditionRow } from '../universeScreener/ConditionRows';
 import { pruneLinks } from '../../api/constructedApi';
@@ -35,11 +35,12 @@ const iconBtn = 'px-1.5 text-gray-500 hover:text-gray-800 disabled:text-gray-300
  * @param {Array} props.axes the strategy's axes (stage 3a)
  * @param {(kind: string, value: number|null) => string|null} props.onCreateAxis creates an axis from
  *   a threshold's value, returns its name
- * @param {{smaMin?: number, smaMax?: number}} props.smaBounds SMA length bounds (meta.indicators)
+ * Operand kinds, lengths and units come from the indicator descriptors (indicatorCatalog.js); a
+ * kind that does not run on `evalTf` (the preview's run TF, e.g. ATR on MIN5) is disabled.
  */
 export default function RuleEditor({
   rule, index, count, onChange, onRemove, onMove, signalTypes, maxConditions, evalTf, errors, stats, disabled,
-  axes = [], onCreateAxis = null, smaBounds = {},
+  axes = [], onCreateAxis = null,
 }) {
   const set = (patch) => onChange({ ...rule, ...patch });
   // An operand change can drop a linkable threshold (SMA → close, CONST → field): its link goes too
@@ -128,8 +129,7 @@ export default function RuleEditor({
             onRemove={() => removeCondition(i)}
             onMove={(d) => moveCondition(i, d)}
             allowRun
-            smaMin={smaBounds.smaMin}
-            smaMax={smaBounds.smaMax}
+            runTf={evalTf}
             caption={ruleConditionCaption(c, evalTf, axes)}
             linkedValue={(suffix) => linkedThresholdValue(c, suffix, axes)}
             renderLink={(suffix) => (

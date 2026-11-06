@@ -6,7 +6,7 @@
 // Each row shows its live caption and its validation errors.
 import { METRICS, OPERATORS, SCREEN_TFS, LEVELS } from '../../api/screenerApi';
 import OperandPicker from './OperandPicker';
-import { conditionCaption, fmtNum } from './conditionFormat';
+import { conditionCaption, fmtNum, operandUnit } from './conditionFormat';
 
 const sel = 'p-1 border rounded text-sm bg-white';
 const LEVEL_LABEL = { 0: '0 · current', 1: '1 · parent', 2: '2 · grandparent' };
@@ -76,17 +76,19 @@ export function MetricConditionRow({ condition, onChange, evalTf, ...shell }) {
  *   linkedValue(suffix) - the linked value of that threshold (a number) or null: the input is then
  *                         replaced by the value
  *   caption             - overrides the live caption (e.g. with "($Gap = 2)")
- *   smaMin / smaMax     - SMA length bounds (meta.indicators)
+ *   runTf               - the TF the strategy runs on: a kind that does not run there is disabled
+ * Length ranges, defaults and units come from the indicator descriptors (indicatorCatalog.js).
+ * The right side offers only kinds of the left side's unit (or a constant).
  */
 export function CompareConditionRow({
   condition, onChange, evalTf, allowRun = false, renderLink = null, linkedValue = null, caption = null,
-  smaMin, smaMax, ...shell
+  runTf = null, ...shell
 }) {
   const set = (patch) => onChange({ ...condition, ...patch });
   const sideProps = (side) => ({
     allowRun,
-    smaMin,
-    smaMax,
+    runTf,
+    otherUnit: side === 'right' ? operandUnit(condition.left) : null,
     linkSlot: renderLink ? (field) => renderLink(`${side}.${field}`) : null,
     linkedValue: linkedValue ? (field) => linkedValue(`${side}.${field}`) : null,
   });

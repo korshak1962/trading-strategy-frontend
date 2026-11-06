@@ -1,7 +1,7 @@
 // src/components/strategyConstructor/AxesEditor.jsx
 //
 // Axes of a constructed strategy (stage 3a, screener architect.md §3.1, BA spec §3.2): named
-// parameters `$Name` (kind: SMA length / tolerance % / constant) that linked thresholds use as
+// parameters `$Name` (kind: length / tolerance % / constant) that linked thresholds use as
 // `±$A` or `±$A ± $B`. An axis is ONE parameter for the optimizer, however many thresholds use it.
 // Its default grid (min / max / step) is part of the definition: editing it creates a new version
 // (O1). By default an axis is fixed (min = max = value), template axes come with the class grid.
@@ -12,7 +12,7 @@ const cell = 'p-1 border rounded text-sm';
 const num = `${cell} w-20`;
 
 const KIND_HINT = {
-  LENGTH: 'SMA length in bars (whole number); links to an SMA length of a condition',
+  LENGTH: 'Length in bars (whole number); links to the length n of a condition operand (SMA, ATR, RSI, …)',
   TOLERANCE: 'Tolerance in %; links to the tolerance of a condition (right × (1 + tolerance / 100))',
   CONST: 'A constant; links to the constant on the right side of a condition',
 };

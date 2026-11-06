@@ -10,8 +10,9 @@ import {
   AXIS_KINDS, LINK_SUFFIX_KIND, MAX_AXES, MAX_LINK_TERMS, applyLinks, pruneLinks, linkValue,
 } from '../../api/constructedApi';
 import {
-  conditionCaption, validateCondition, newCompareCondition, reasonText, fmtNum,
+  conditionCaption, validateCondition, newCompareCondition, reasonText, fmtNum, unitMismatchHint,
 } from '../universeScreener/conditionFormat';
+import { lengthParamOf, kindName, runsOn, CONST_KIND } from '../../api/indicatorCatalog';
 
 // ---- request key ----
 
@@ -142,8 +143,8 @@ export const currentVersionOf = (key, availableStrategies = []) => {
 const THRESHOLD_RE = /^R(\d+)\.C(\d+)\.(tolerancePct|left\.n|right\.n|right\.const)$/;
 const FIELD_LABEL = {
   tolerancePct: 'tolerance %',
-  'left.n': 'left SMA length',
-  'right.n': 'right SMA length',
+  'left.n': 'left length',
+  'right.n': 'right length',
   'right.const': 'constant',
 };
 
@@ -186,7 +187,7 @@ export const AXIS_NAME_RE = /^\$[A-Za-z][A-Za-z0-9]{0,31}$/;
 /** `$Gap` → true: an axis (linked parameter) of a constructed strategy. */
 export const isAxisName = (name) => typeof name === 'string' && AXIS_NAME_RE.test(name);
 
-export const AXIS_KIND_LABEL = Object.freeze({ LENGTH: 'SMA length', TOLERANCE: 'tolerance %', CONST: 'constant' });
+export const AXIS_KIND_LABEL = Object.freeze({ LENGTH: 'length', TOLERANCE: 'tolerance %', CONST: 'constant' });
 
 /** The axis kind a threshold suffix links to (`right.n` → LENGTH). */
 export const suffixKind = (suffix) => LINK_SUFFIX_KIND[suffix] || null;
@@ -300,14 +301,22 @@ export const ruleCaption = (rule, evalTf, axes = []) => {
   return `${head}: ${conds.length ? conds.join(' AND ') : '(no conditions)'}`;
 };
 
+/** The operands of a draft's rules (both sides of every condition, constants left out). */
+const operandsOf = (rules) => (rules || []).flatMap((r) => (r.conditions || [])
+  .flatMap(({ condition: c }) => [c?.left, c?.right]))
+  .filter((o) => o && o.kind && o.kind !== CONST_KIND);
+
+/** The first operand kind of the rules that does not run on `tf` (a stage-3b indicator on MIN5); null when none. */
+export const kindNotRunningOn = (rules, tf) => operandsOf(rules).find((o) => !runsOn(o.kind, tf))?.kind ?? null;
+
 /**
- * Run TFs the strategy's conditions allow (stage 3a, architect §2.2):
+ * Run TFs the strategy's conditions allow by their operand TFs (stage 3a, architect §2.2):
  * - a fixed DAY operand → DAY only;
  * - a fixed WEEK operand (no DAY) → DAY or WEEK;
  * - only RUN operands (and constants): offsets [0] everywhere → every TF; a RUN offset [−k] →
- *   DAY or WEEK (offsets on HOUR / MIN5 / MONTH arrive in stage 3b).
+ *   DAY or WEEK (offsets on HOUR / MIN5 / MONTH are not supported yet).
  */
-export const runTfsOf = (rules) => {
+const runTfsByOperandsOf = (rules) => {
   let anyDay = false;
   let anyWeek = false;
   let runOffset = false;
@@ -324,17 +333,25 @@ export const runTfsOf = (rules) => {
   return [...CONSTRUCTED_TFS];
 };
 
+/**
+ * Run TFs the strategy can run on: those its operand TFs allow (above), minus the TFs an operand's
+ * indicator does not run on (its descriptor's runTimeframes; stage 3b F10: the new indicators are
+ * not supported on MIN5 yet).
+ */
+export const runTfsOf = (rules) => runTfsByOperandsOf(rules).filter((tf) => kindNotRunningOn(rules, tf) == null);
+
 /** "(it has DAY conditions)" etc. - why the strategy runs on these TFs. */
 export const runTfsHint = (runTfs) => {
   if (runTfs.length === 1) return '(it has DAY conditions)';
   if (runTfs.length === 2) return '(WEEK conditions or RUN offsets: HOUR / MIN5 / MONTH take only RUN operands at [0])';
+  if (!runTfs.includes('MIN5')) return '(only RUN operands at [0]; an indicator of it is not supported on MIN5 yet)';
   return '(only RUN operands at [0]: any TF)';
 };
 
 // ---- validation (client copy of ConstructedDefinitionValidator) ----
 
 const isNumber = (v) => v !== '' && v != null && Number.isFinite(Number(v));
-const LENGTH_MIN = 5;
+const LENGTH_MIN = 5; // SMA's range: the fallback when a linked side has no descriptor
 const LENGTH_MAX = 200;
 const TOLERANCE_LIMIT = 50;
 const GRID_CAP = 10000; // client grid check only below this many points per link
@@ -356,10 +373,16 @@ const axisGrid = (a) => {
   return out;
 };
 
-/** First invalid value of a derived threshold, as text (null = ok). */
-const derivedError = (kind, v) => {
+/**
+ * First invalid value of a derived threshold, as text (null = ok). A length is checked against the
+ * range of the operand it is linked to (`opKind`: SMA 5..200, ATR 2..100, … by the descriptor).
+ */
+const derivedError = (kind, v, opKind = 'SMA') => {
   if (kind === 'LENGTH') {
-    if (!Number.isInteger(v) || v < LENGTH_MIN || v > LENGTH_MAX) return `SMA ${fmtNum(v)} is not a length ${LENGTH_MIN}..${LENGTH_MAX}`;
+    const p = lengthParamOf(opKind);
+    const min = p?.min ?? LENGTH_MIN;
+    const max = p?.max ?? LENGTH_MAX;
+    if (!Number.isInteger(v) || v < min || v > max) return `${kindName(opKind)} ${fmtNum(v)} is not a length ${min}..${max}`;
   } else if (kind === 'TOLERANCE') {
     if (!(Math.abs(v) < TOLERANCE_LIMIT)) return `tolerance ${fmtNum(v)} % is outside (−${TOLERANCE_LIMIT}, ${TOLERANCE_LIMIT})`;
   }
@@ -399,8 +422,13 @@ const validateAxes = (axes, usage) => {
  * $Gap is a tolerance`), 1..2 terms, and the derived value on every point of the axes' default
  * grids (`$FastLength=50 + $Spread=60 = 110: …`; stored lengths are checked by the server).
  */
-const validateLinks = (links, axes, where) => {
+const validateLinks = (links, axes, where, condition = null) => {
   const errs = [];
+  const opKindOf = (suffix) => {
+    if (suffix === 'left.n') return condition?.left?.kind;
+    if (suffix === 'right.n') return condition?.right?.kind;
+    return null;
+  };
   const byName = new Map(axes.map((a) => [a.name, a]));
   Object.entries(links || {}).forEach(([suffix, terms]) => {
     const kind = suffixKind(suffix);
@@ -418,7 +446,7 @@ const validateLinks = (links, axes, where) => {
     const points = grids.length === 1 ? grids[0].map((v) => [v]) : grids[0].flatMap((v) => grids[1].map((w) => [v, w]));
     for (const pt of points) {
       const v = pt.reduce((s, x, i) => s + (terms[i].sign < 0 ? -x : x), 0);
-      const bad = derivedError(kind, Number(v.toFixed(10)));
+      const bad = derivedError(kind, Number(v.toFixed(10)), opKindOf(suffix) || 'SMA');
       if (bad) {
         const expr = terms.map((t, i) => `${i === 0 ? (t.sign < 0 ? '−' : '') : (t.sign < 0 ? ' − ' : ' + ')}${t.axis}=${fmtNum(pt[i])}`).join('');
         errs.push(`${at}: ${expr} = ${fmtNum(v)}: ${bad}`);
@@ -456,7 +484,7 @@ export const validateDraft = (draft, { allowedTypes = SIGNAL_TYPES, maxRules = M
       if (condition?.type === 'CHANNEL_METRIC') return ['Channel conditions in constructed strategies arrive in stage 4'];
       const live = pruneLinks(condition, links);
       const where = `R${r.id ?? '(new)'}.C${id ?? ci + 1}`;
-      return [...validateCondition(applyLinks(condition, live, axes), { allowRun: true }), ...validateLinks(live, axes, where)];
+      return [...validateCondition(applyLinks(condition, live, axes), { allowRun: true }), ...validateLinks(live, axes, where, condition)];
     });
     return { general: g, conditions };
   });
@@ -465,39 +493,45 @@ export const validateDraft = (draft, { allowedTypes = SIGNAL_TYPES, maxRules = M
   return { general, axes: axisCheck.errors, rules: ruleErrors, ok };
 };
 
-/** Run TF check of a preview / backtest request (stage 3a, architect §2.2). */
+/** Run TF check of a preview / backtest request (stage 3a, architect §2.2; stage 3b F10). */
 export const runTfError = (rules, tf) => {
   if (!CONSTRUCTED_TFS.includes(tf)) return `Unknown run TF ${tf}`;
+  const notRunning = kindNotRunningOn(rules, tf);
+  if (notRunning) return `${kindName(notRunning)} is not supported on ${tf} yet: run the strategy on HOUR or a coarser timeframe`;
   if (runTfsOf(rules).includes(tf)) return null;
   if (tf === 'WEEK') return 'A WEEK run takes WEEK (or RUN) conditions only: this strategy has DAY conditions';
-  return `On ${tf} only RUN operands with offset [0] and constants are allowed: offsets and fixed timeframes on ${tf} arrive in stage 3b`;
+  return `On ${tf} only RUN operands with offset [0] and constants are allowed: offsets and fixed timeframes on ${tf} are not supported yet`;
 };
 
 /**
- * A plain-language hint for a stage-3a 400 of the backend (the server text is shown as is, the
- * hint goes under it); null when there is none.
+ * A plain-language hint for a 400 of the backend (the server text is shown as is, the hint goes
+ * under it); null when there is none. The backtester shows it too (minor #49).
  */
 export const constructedErrorHint = (message) => {
   const m = String(message || '');
-  if (/UNIT_MISMATCH/i.test(m)) {
-    return 'Both sides of a comparison must be in one unit: a price (open / high / low / close / SMA) with a price, '
-      + 'volume with volume. A constant fits any side.';
-  }
-  if (/stage 3b/i.test(m)) {
+  const unit = unitMismatchHint(m);
+  if (unit) return unit;
+  // #49: "R1 LongOpen: offsets and fixed timeframes on HOUR are not supported yet ('…'; use RUN operands at [0])"
+  if (/offsets and fixed timeframes|stage 3b/i.test(m)) {
     return 'On HOUR / MIN5 / MONTH a constructed strategy takes only RUN operands with offset [0] (and constants). '
-      + 'Offsets and fixed DAY / WEEK operands there arrive in stage 3b — run it on DAY or WEEK, or use RUN [0].';
+      + 'Offsets and fixed DAY / WEEK operands there are not supported yet — run it on DAY or WEEK, or use RUN [0].';
+  }
+  // F10: "R1 LongOpen: ATR(14) on MIN5 is not supported yet"; TIMEFRAME_NOT_SUPPORTED "ATR on MIN5 is not supported yet"
+  if (/on MIN5 is not supported yet|TIMEFRAME_NOT_SUPPORTED/i.test(m)) {
+    return 'The stage-3b indicators (SMA tilt, IBS, ATR, ATR %, efficiency ratio, RSI) do not run on MIN5 yet: '
+      + 'run the strategy on HOUR or a coarser timeframe, or use SMA / bar fields on MIN5.';
   }
   if (/RUN is for constructed strategies/i.test(m)) return 'The RUN timeframe exists only inside constructed strategies, not in screener filters.';
-  // "R1.C1.n ($MaLength = 205): must be an integer SMA length in [5, 200], got 205"
-  if (/\$[A-Za-z][A-Za-z0-9]*\s*=/.test(m) && /not stored|is not a length|outside|must be an integer SMA length/i.test(m)) {
+  // "R1.C1.n ($MaLength = 205): must be an integer SMA length in [5, 200], got 205" (#45: any kind, "… ATR length …")
+  if (/\$[A-Za-z][A-Za-z0-9]*\s*=/.test(m) && /not stored|is not a length|outside|must be an integer \w+ length/i.test(m)) {
     return 'A linked threshold is invalid on that point of the axes\' grid: narrow the axis range (Min / Max) or change the link.';
   }
   // "$Gap must be >= 0, got -1" / "... must be <= 50, got 60" / "... must be finite" / "... integer, got"
   if (/\$[A-Za-z][A-Za-z0-9]*\s+must be\b/.test(m)) {
     return 'An axis value is outside its allowed range: change the axis Min / Max (or its fixed value).';
   }
-  if (/must be an integer SMA length/i.test(m)) {
-    return 'An SMA length must be a whole number of bars within the stored range shown in the message.';
+  if (/must be an integer \w+ length|\.n must be in \[/i.test(m)) {
+    return 'A length must be a whole number of bars within the range shown in the message (SMA and SMA tilt: a stored length).';
   }
   // SMA_NOT_AVAILABLE: "... 205 (not stored)" - the length has no stored SMA for this ticker / TF
   if (/SMA_NOT_AVAILABLE|\(not stored\)|\(stale: stored to/i.test(m)) {
@@ -505,7 +539,7 @@ export const constructedErrorHint = (message) => {
       + 'narrow the length axis to stored lengths, or calculate that SMA first.';
   }
   if (/is a (length|tolerance|SMA length|constant).*\$[A-Za-z]/i.test(m)) {
-    return 'A link must use an axis of the same kind: an SMA length with a length axis, a tolerance with a tolerance axis.';
+    return 'A link must use an axis of the same kind: a length with a length axis, a tolerance with a tolerance axis.';
   }
   return null;
 };
