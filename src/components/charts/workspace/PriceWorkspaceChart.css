@@ -1,0 +1,171 @@
+/* src/components/charts/workspace/PriceWorkspaceChart.css - the shared price chart (stage A).
+   Colours: --tv-* (src/theme/tokens.css), light on :root and dark under [data-theme="dark"]. */
+
+.ws-chart-wrapper {
+  background: var(--tv-chart-bg);
+  border: 1px solid var(--tv-chart-border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  position: relative;
+}
+
+.ws-chart-wrapper:fullscreen {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+  margin-bottom: 0;
+}
+
+/* Fullscreen height budget: the plot takes what the slider and the hint leave (A2). */
+.ws-chart-wrapper:fullscreen .ws-plot {
+  flex: 1;
+  min-height: 0;
+}
+
+.ws-plot {
+  position: relative;
+  width: 100%;
+}
+
+.ws-chart-container {
+  position: absolute;
+  inset: 0;
+}
+
+/* Top-left overlay row (the right edge is the price scale's auto-sized label column). */
+.ws-toolbar {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ws-tool-btn {
+  min-width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--tv-overlay);
+  border: 1px solid var(--tv-border);
+  border-radius: 4px;
+  color: var(--tv-text);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.ws-tool-btn--text {
+  font-size: 11px;
+  padding: 0 8px;
+}
+
+.ws-tool-btn:hover {
+  background: var(--tv-input);
+  border-color: var(--tv-border-strong);
+}
+
+.ws-tool-btn--active {
+  background: var(--tv-accent);
+  border-color: var(--tv-accent);
+  color: var(--tv-on-accent);
+}
+
+.ws-tool-btn--active:hover {
+  background: var(--tv-accent-hover);
+  border-color: var(--tv-accent-hover);
+}
+
+/* The slider sits flush under the plot (ReporterStyleChart pulls it up by 0.5rem; not here). */
+.ws-slider {
+  background: var(--chart-surface);
+}
+
+.ws-slider .reporter-range-slider {
+  margin-top: 0;
+}
+
+.ws-chart-hint {
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--tv-text-muted);
+  border-top: 1px solid var(--tv-border);
+}
+
+.ws-chart-empty {
+  text-align: center;
+  color: var(--tv-text-muted);
+  padding: 80px 24px;
+  font-size: 13px;
+  background: var(--tv-chart-bg);
+  border: 1px solid var(--tv-border);
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+/* Hover tooltip: .chart-tooltip look (ReporterStyleChart.css) plus the workspace rows. */
+.ws-tooltip {
+  color: var(--chart-text);
+  max-width: 280px;
+}
+
+.ws-tooltip__date {
+  font-weight: bold;
+}
+
+.ws-tooltip__ohlc {
+  display: flex;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.ws-tooltip__row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 12px;
+}
+
+.ws-tooltip__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ws-tooltip__swatch {
+  display: inline-block;
+  width: 10px;
+  height: 3px;
+  border-radius: 1px;
+}
+
+.ws-tooltip__value {
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-tooltip__note {
+  flex-basis: 100%;
+}
+
+/* Extend / shrink handle of the selected channel (channelLayer). */
+.ws-channel-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: var(--tv-selected);
+  border: 2px solid var(--tv-chart-bg);
+  cursor: ew-resize;
+  z-index: 3;
+  box-shadow: 0 0 4px var(--tv-shadow-strong);
+}

@@ -1,7 +1,8 @@
 import { memo, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { detectChannels, fetchPrices, normalizeViewInfo, CHANNEL_VIEW } from '../../api/channelApi';
 import { getAvailableTickers } from '../../api/strategyApi';
-import ChannelExplorerChart, { TF_LINE_WIDTH } from './ChannelExplorerChart';
+import ChannelExplorerChart from './ChannelExplorerChart';
+import { TF_LINE_WIDTH } from '../charts/workspace/layers/channelLayer';
 import RecursiveParamsPanel, { RECURSIVE_DEFAULT_PARAMS } from './RecursiveParamsPanel';
 import { channelsRequestKey } from '../../navigation/route';
 import { exchangeToday, exchangeZoneForTicker, addYearsIso } from '../../utils/dates';
@@ -450,6 +451,7 @@ function ChannelExplorer({ request = null, onRequestChange = null }) {
                 prices={prices} channels={channelsForChart} zoomChannels={allChannelsForChart}
                 runId={detectionRunId} exits={exitsForChart}
                 selectedKey={activeSelectedKey} onSelectChannel={handleChartSelect}
+                ticker={resultRequest?.ticker ?? ticker} timeframe={chartTf}
               />
           }
 

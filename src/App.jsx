@@ -1886,6 +1886,15 @@ const App = () => {
 
       <footer className="py-4 bg-gray-800 text-white text-center">
         <p>Strategy Backtesting Tool &copy; {new Date().getFullYear()}</p>
+        <p className="text-xs mt-1">
+          <a href="/THIRD_PARTY_NOTICES.txt" target="_blank" rel="noopener noreferrer" className="text-gray-300 underline hover:text-white">
+            Third-party notices
+          </a>
+          {' · Charts by '}
+          <a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer" className="text-gray-300 underline hover:text-white">
+            TradingView Lightweight Charts™
+          </a>
+        </p>
       </footer>
     </div>
   );

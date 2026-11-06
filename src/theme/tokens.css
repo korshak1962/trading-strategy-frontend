@@ -205,49 +205,57 @@
   --chart-curve-axis: #9ca3af;
   --chart-curve-text: #6b7280;
 
-  /* ---- Channel Explorer (TradingView-style dark panel in BOTH themes: it always was dark
-          inside the light page, so these have no dark override) ------------------------------ */
-  --tv-page: #0f111a;
-  --tv-panel: #161b2e;
-  --tv-panel-selected: #1c2135;
-  --tv-input: #1e2230;
-  --tv-border: #2a2e39;
-  --tv-border-strong: #3a3e4a;
-  --tv-border-hover: #3a3f4f;
-  --tv-text: #d1d4dc;
-  --tv-text-soft: #c7cad4;
-  --tv-text-dates: #b2b5be;
-  --tv-text-muted: #787b86;
-  --tv-text-hint: #4a4e5a;
+  /* ---- Channel Explorer / price workspace chart (--tv-*). Light here, dark under
+          [data-theme="dark"]: the explorer follows the header switch like every other tab (TASK
+          chart workspace A6a; it used to be dark in both themes). The chart's own surface, text,
+          grid and candles reference the Backtest chart tokens, so both charts look the same in
+          each theme (TASK §1.2 "the same template"). -------------------------------------------- */
+  --tv-page: #ffffff;
+  --tv-panel: #f8fafc;
+  --tv-panel-selected: #eef2ff;
+  --tv-input: #ffffff;
+  --tv-border: #d1d5db;
+  --tv-border-strong: #9ca3af;
+  --tv-border-hover: #9ca3af;
+  --tv-text: #1f2937;
+  --tv-text-soft: #374151;
+  --tv-text-dates: #4b5563;
+  --tv-text-muted: #6b7280;
+  --tv-text-hint: #9ca3af;
   --tv-accent: #2962ff;
   --tv-accent-hover: #1e53e5;
   --tv-on-accent: #ffffff;
-  --tv-badge-bg: #1a3a8f;
-  --tv-badge-text: #93c5fd;
-  --tv-warn: #f6ad55;
-  --tv-error-bg: #2d1b1b;
+  --tv-badge-bg: #dbeafe;
+  --tv-badge-text: #1e40af;
+  --tv-warn: #b45309;
+  --tv-error-bg: #fef2f2;
   --tv-error-border: #e53e3e;
-  --tv-error-text: #fc8181;
-  --tv-selected: #ffd54f;
-  --tv-selected-glow: rgba(255, 213, 79, 0.25);
-  --tv-overlay: rgba(19, 23, 34, 0.85);
-  --tv-shadow: rgba(0, 0, 0, 0.5);
-  --tv-shadow-strong: rgba(0, 0, 0, 0.6);
-  --tv-depth: #b388ff;
-  --tv-depth-soft: rgba(179, 136, 255, 0.18);
-  /* lightweight-charts: read by ChannelExplorerChart through useThemeTokens + applyOptions */
-  --tv-chart-bg: #131722;
-  --tv-chart-text: #787b86;
-  --tv-chart-grid: #1e2030;
-  --tv-chart-border: #2a2e39;
-  --tv-chart-crosshair: #9598a1;        /* lightweight-charts v4 default */
-  --tv-chart-crosshair-label: #131722;  /* lightweight-charts v4 default */
-  --tv-candle-up: #26a69a;
-  --tv-candle-down: #ef5350;
+  --tv-error-text: #b91c1c;
+  --tv-selected: #e6a700;
+  --tv-selected-glow: rgba(230, 167, 0, 0.25);
+  --tv-overlay: rgba(255, 255, 255, 0.85);
+  --tv-shadow: rgba(0, 0, 0, 0.15);
+  --tv-shadow-strong: rgba(0, 0, 0, 0.3);
+  --tv-depth: #7c4dff;
+  --tv-depth-soft: rgba(124, 77, 255, 0.14);
+  /* lightweight-charts: read by PriceWorkspaceChart (workspaceTheme.js WS_TOKENS) through
+     useThemeTokens + applyOptions. var() references resolve per theme on <html>. */
+  --tv-chart-bg: var(--chart-surface);
+  --tv-chart-text: var(--chart-axis-text);
+  --tv-chart-grid: var(--chart-divider);
+  --tv-chart-border: var(--chart-border);
+  --tv-chart-crosshair: #9598a1;
+  --tv-chart-crosshair-label: #4b5563;
+  --tv-candle-up: var(--chart-candle-up);
+  --tv-candle-down: var(--chart-candle-down);
   --tv-direction-flat: #787b86;
-  --tv-exit: #ff9800;
-  --tv-broken-line: rgba(255, 152, 0, 0.75);
-  --tv-depth-rgb: 179, 136, 255;
+  --tv-exit: #ef6c00;
+  --tv-broken-line: rgba(239, 108, 0, 0.75);
+  --tv-depth-rgb: 124, 77, 255;
+
+  /* price workspace: off-session bar shading, provisional alpha (stage B) */
+  --ws-offsession-bg: rgba(107, 114, 128, 0.08);
+  --ws-provisional-alpha: 0.45;
 }
 
 :root[data-theme="dark"] {
@@ -405,4 +413,42 @@
   --chart-curve-frozen: #f87171;
   --chart-curve-axis: #808b9a;
   --chart-curve-text: #9aa3b0;
+
+  /* Channel Explorer / price workspace chart: the TradingView-style dark set it always had. The
+     chart surface, text, grid and candles follow the Backtest chart tokens (see :root). */
+  --tv-page: #0f111a;
+  --tv-panel: #161b2e;
+  --tv-panel-selected: #1c2135;
+  --tv-input: #1e2230;
+  --tv-border: #2a2e39;
+  --tv-border-strong: #3a3e4a;
+  --tv-border-hover: #3a3f4f;
+  --tv-text: #d1d4dc;
+  --tv-text-soft: #c7cad4;
+  --tv-text-dates: #b2b5be;
+  --tv-text-muted: #787b86;
+  --tv-text-hint: #4a4e5a;
+  --tv-accent: #2962ff;
+  --tv-accent-hover: #1e53e5;
+  --tv-on-accent: #ffffff;
+  --tv-badge-bg: #1a3a8f;
+  --tv-badge-text: #93c5fd;
+  --tv-warn: #f6ad55;
+  --tv-error-bg: #2d1b1b;
+  --tv-error-border: #e53e3e;
+  --tv-error-text: #fc8181;
+  --tv-selected: #ffd54f;
+  --tv-selected-glow: rgba(255, 213, 79, 0.25);
+  --tv-overlay: rgba(19, 23, 34, 0.85);
+  --tv-shadow: rgba(0, 0, 0, 0.5);
+  --tv-shadow-strong: rgba(0, 0, 0, 0.6);
+  --tv-depth: #b388ff;
+  --tv-depth-soft: rgba(179, 136, 255, 0.18);
+  --tv-chart-crosshair: #9598a1;
+  --tv-chart-crosshair-label: #2a3241;
+  --tv-direction-flat: #9aa3b0;
+  --tv-exit: #ff9800;
+  --tv-broken-line: rgba(255, 152, 0, 0.75);
+  --tv-depth-rgb: 179, 136, 255;
+  --ws-offsession-bg: rgba(154, 163, 176, 0.08);
 }
