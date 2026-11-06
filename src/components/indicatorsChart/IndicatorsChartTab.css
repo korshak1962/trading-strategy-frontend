@@ -1,0 +1,397 @@
+/* src/components/indicatorsChart/IndicatorsChartTab.css - the Indicators Chart tab (stage B).
+   Base form / card / channel classes: ../channelExplorer/ChannelExplorer.css (shared with
+   RecursiveParamsPanel). Colours: --tv-* and --ws-* (src/theme/tokens.css), light on :root and
+   dark under [data-theme="dark"]. */
+
+/* ---- hierarchy control in the chart's top-left toolbar (moved from ChannelExplorerChart.css) ---- */
+.ch-hierarchy-toggle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+  padding: 0 4px;
+  background: var(--tv-overlay);
+  border: 1px solid var(--tv-border);
+  border-radius: 4px;
+}
+
+.ch-hierarchy-label {
+  color: var(--tv-text-muted);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0 4px;
+  user-select: none;
+}
+
+.ch-hierarchy-btn {
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: var(--tv-text);
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  padding: 5px 8px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.ch-hierarchy-btn:hover {
+  background: var(--tv-input);
+}
+
+/* Tinted with the violet the highlighting itself paints. */
+.ch-hierarchy-btn--active {
+  background: var(--tv-depth-soft);
+  color: var(--tv-depth);
+}
+
+/* ---- buttons ---- */
+.ic-btn {
+  background: var(--tv-input);
+  border: 1px solid var(--tv-border);
+  border-radius: 4px;
+  color: var(--tv-text);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+
+.ic-btn:hover:not(:disabled) {
+  border-color: var(--tv-border-hover);
+}
+
+.ic-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ic-btn--primary {
+  background: var(--tv-accent);
+  border-color: var(--tv-accent);
+  color: var(--tv-on-accent);
+}
+
+.ic-btn--primary:hover:not(:disabled) {
+  background: var(--tv-accent-hover);
+  border-color: var(--tv-accent-hover);
+}
+
+/* ---- picker + chips row ---- */
+.ic-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.ic-add {
+  position: relative;
+}
+
+.ic-add__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 260px;
+  background: var(--tv-panel);
+  border: 1px solid var(--tv-border);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px var(--tv-shadow);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ic-add__item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--tv-text);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 7px 10px;
+  text-align: left;
+}
+
+.ic-add__item:hover:not(:disabled) {
+  background: var(--tv-panel-selected);
+}
+
+.ic-add__item:disabled {
+  color: var(--tv-text-hint);
+  cursor: not-allowed;
+}
+
+.ic-add__unit {
+  color: var(--tv-text-muted);
+  font-size: 11px;
+}
+
+.ic-add__sep {
+  border-top: 1px solid var(--tv-border);
+  margin: 4px 0;
+}
+
+.ic-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.ic-chip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  background: var(--tv-panel);
+  border: 1px solid var(--tv-border);
+  border-radius: 14px;
+  color: var(--tv-text);
+  font-size: 12px;
+  padding: 3px 6px 3px 10px;
+}
+
+.ic-chip--hidden .ic-chip__label,
+.ic-chip--hidden .ic-chip__swatch {
+  opacity: 0.45;
+}
+
+.ic-chip--error { border-color: var(--tv-error-border); }
+.ic-chip--stale { border-color: var(--tv-warn); }
+.ic-chip--inactive { border-style: dashed; color: var(--tv-text-muted); }
+
+.ic-chip__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.ic-chip__label {
+  font-weight: 600;
+}
+
+.ic-chip__sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--tv-text-muted);
+  font-size: 11px;
+}
+
+.ic-chip__view .ta-view-btn {
+  padding: 1px 7px;
+  font-size: 11px;
+}
+
+.ic-chip__msg {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.ic-chip__msg--error { color: var(--tv-error-text); }
+.ic-chip__msg--stale { color: var(--tv-warn); }
+.ic-chip__msg--inactive { color: var(--tv-text-muted); }
+
+.ic-chip__btn {
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: var(--tv-text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  min-width: 20px;
+  height: 20px;
+  padding: 0;
+}
+
+.ic-chip__btn:hover:not(:disabled) {
+  background: var(--tv-input);
+  color: var(--tv-text);
+}
+
+.ic-chip__btn--text {
+  border-radius: 10px;
+  border: 1px solid var(--tv-warn);
+  color: var(--tv-warn);
+  font-size: 11px;
+  padding: 0 8px;
+}
+
+/* ---- notices, stale prompt, summary ---- */
+.ic-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--tv-panel);
+  border: 1px solid var(--tv-warn);
+  border-radius: 4px;
+  color: var(--tv-text);
+  font-size: 13px;
+  margin: 8px 0;
+  padding: 8px 12px;
+}
+
+.ic-stale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--tv-panel);
+  border: 1px solid var(--tv-warn);
+  border-left-width: 4px;
+  border-radius: 4px;
+  color: var(--tv-text);
+  font-size: 13px;
+  margin: 8px 0 10px;
+  padding: 10px 12px;
+}
+
+.ic-stale--done { border-color: var(--tv-accent); }
+.ic-stale--error { border-color: var(--tv-error-border); }
+
+.ic-stale__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.ic-stale__error {
+  color: var(--tv-error-text);
+}
+
+.ic-stale__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ic-summary {
+  color: var(--tv-text-soft);
+  font-size: 12px;
+  margin: 4px 0 8px;
+}
+
+.ic-channels {
+  margin-top: 4px;
+}
+
+/* ---- parameter dialog ---- */
+.ic-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 60px 16px 16px;
+  background: var(--tv-shadow-strong);
+  overflow-y: auto;
+}
+
+.ic-dialog {
+  width: 100%;
+  max-width: 560px;
+  background: var(--tv-page);
+  border: 1px solid var(--tv-border);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px var(--tv-shadow-strong);
+  color: var(--tv-text);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+}
+
+.ic-dialog__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.ic-dialog__desc,
+.ic-dialog__hint {
+  color: var(--tv-text-muted);
+  font-size: 12px;
+}
+
+.ic-dialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ic-dialog__label {
+  color: var(--tv-text-soft);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ic-dialog__field input[type="number"],
+.ic-dialog__field select {
+  background: var(--tv-input);
+  border: 1px solid var(--tv-border);
+  border-radius: 4px;
+  color: var(--tv-text);
+  font-size: 14px;
+  padding: 6px 8px;
+  max-width: 220px;
+}
+
+.ic-dialog__error {
+  color: var(--tv-error-text);
+  font-size: 12px;
+}
+
+.ic-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ic-dialog .ta-params-panel {
+  margin: 0;
+}
+
+.ic-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.ic-swatch {
+  width: 22px;
+  height: 22px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+}
+
+.ic-swatch--active {
+  border-color: var(--tv-text);
+}
+
+.ic-swatch-custom {
+  width: 30px;
+  height: 24px;
+  border: 1px solid var(--tv-border);
+  border-radius: 4px;
+  background: var(--tv-input);
+  cursor: pointer;
+  padding: 0 2px;
+}

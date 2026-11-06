@@ -6,6 +6,9 @@
 //
 //   #/backtest
 //   #/channels?ticker=AAPL&tf=DAY&from=2020-01-01&to=2026-10-28&view=FULL
+//   #/channels?ticker=AAPL&tf=DAY&from=2020-01-01&to=2026-10-28&view=FULL&ch=0   (Indicators Chart
+//                                       without the channels overlay; no `ch` = with channels, as
+//                                       every link made before the tab was renamed)
 //   #/screener                          (= view filters)
 //   #/screener/results?filter=12&run=345
 //   #/screener/universe
@@ -37,9 +40,10 @@ export const parseId = (v) => (typeof v === 'string' && /^\d+$/.test(v) && Numbe
 const validDate = (v) => (typeof v === 'string' && DATE_RE.test(v) ? v : null);
 
 /**
- * A Channels detection request in the Explorer's own shape {ticker, from, to, timeframes, params,
- * lastActualChannelsOnly, view}, every field validated and defaulted; null if it has no ticker or
- * no valid dates.
+ * A Channels / Indicators Chart request {ticker, from, to, timeframes, params,
+ * lastActualChannelsOnly, view, withChannels}, every field validated and defaulted; null if it has
+ * no ticker or no valid dates. The candles are drawn on the finest of `timeframes`; the channels
+ * overlay (when `withChannels`, the default) is detected on all of them.
  */
 export const normalizeChannelsRequest = (req) => {
   if (!req || typeof req !== 'object') return null;
@@ -64,6 +68,7 @@ export const normalizeChannelsRequest = (req) => {
     params,
     lastActualChannelsOnly: req.lastActualChannelsOnly !== false,
     view: CHANNEL_VIEWS.includes(req.view) ? req.view : 'FULL',
+    withChannels: req.withChannels !== false,
   };
 };
 
@@ -87,11 +92,12 @@ export const channelsRequestKey = (req) => {
   const r = normalizeChannelsRequest(req);
   if (!r) return null;
   const params = DETECTOR_PARAM_KEYS.map((k) => `${k}=${r.params[k]}`).join(',');
-  return [r.ticker, r.timeframes.join(','), r.from, r.to, r.view, r.lastActualChannelsOnly ? 1 : 0, params].join('|');
+  return [r.ticker, r.timeframes.join(','), r.from, r.to, r.view, r.lastActualChannelsOnly ? 1 : 0, params,
+    r.withChannels ? 'ch' : 'noch'].join('|');
 };
 
 const sameReadable = (a, b) => !!a && !!b && a.ticker === b.ticker && a.from === b.from && a.to === b.to
-  && a.view === b.view && a.timeframes.join(',') === b.timeframes.join(',');
+  && a.view === b.view && a.timeframes.join(',') === b.timeframes.join(',') && a.withChannels === b.withChannels;
 
 /**
  * Parses a location hash (with its history.state) into a route:
@@ -124,6 +130,7 @@ export const parseHash = (hash, state = null) => {
       to: query.get('to'),
       timeframes: (query.get('tf') || '').split(','),
       view: query.get('view'),
+      withChannels: query.get('ch') !== '0',
     }) : null;
     // The full request from history.state when it is the one this URL names.
     const fromState = normalizeChannelsRequest(state?.channelsRequest);
@@ -159,6 +166,7 @@ export const formatHash = (route) => {
     const r = normalizeChannelsRequest(route.channels);
     if (!r) return '#/channels';
     const q = new URLSearchParams({ ticker: r.ticker, tf: r.timeframes.join(','), from: r.from, to: r.to, view: r.view });
+    if (!r.withChannels) q.set('ch', '0');
     return `#/channels?${q.toString()}`;
   }
   return `#/${tab}`;

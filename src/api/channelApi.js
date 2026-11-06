@@ -14,7 +14,7 @@ const API_BASE_URL = '/api/channels';
 // range end: DAY / WEEK / MONTH bars are stamped 09:00 and the backend filters `date <= endDate`,
 // so an end of T00:00:00 would drop the end day's bar (TASK_channel_explorer_end_date_bug).
 // A value that already carries a time (e.g. the Screener deep link's ...T23:59:59) is sent as is.
-const fmtDt = (val, endOfDay = false) => {
+export const fmtDt = (val, endOfDay = false) => {
   if (!val) return '';
   const dayTime = endOfDay ? 'T23:59:59' : 'T00:00:00';
   // A user-picked Date → its literal calendar day (decision 0.18; toISOString() would shift it to UTC).

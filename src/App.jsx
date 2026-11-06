@@ -29,7 +29,7 @@ import OptimizationProgress from './components/OptimizationProgress';
 import SaveCaseControl from './components/SaveCaseControl';
 import SavedCasesPanel from './components/SavedCasesPanel';
 import TickerCombobox from './components/TickerCombobox';
-import ChannelExplorer from './components/channelExplorer/ChannelExplorer';
+import IndicatorsChartTab from './components/indicatorsChart/IndicatorsChartTab';
 import DownloaderPanel from './components/downloader/DownloaderPanel';
 import WatchlistPanel from './components/watch/WatchlistPanel';
 import WatchToasts from './components/watch/WatchToasts';
@@ -1286,7 +1286,7 @@ const App = () => {
       <TabPane active={activeTab === 'backtest'}>{renderBacktest()}</TabPane>
       <TabPane active={activeTab === 'channels'}>
         <main className="flex-grow w-full px-4 py-8">
-          <ChannelExplorer
+          <IndicatorsChartTab
             request={activeTab === 'channels' ? route.channels : null}
             onRequestChange={changeChannelsRequest}
           />

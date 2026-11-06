@@ -9,6 +9,8 @@ import { useLogScale, LOG_SCALE_STORAGE_KEY } from './useLogScale';
 import { useSliderSync } from './useSliderSync';
 import { useEscapeFit } from './useEscapeFit';
 import { useThemeTokens } from '../../../theme/useTheme';
+import { withAlpha } from '../../../theme/theme';
+import { PRICE_PANE_KEY } from './panes';
 import { useTabActive } from '../../tabActive';
 import { exchangeZoneForTicker } from '../../../utils/dates';
 // The RangeSlider's classes (.reporter-range-slider*) and the tooltip's (.chart-tooltip*) live
@@ -37,7 +39,16 @@ import './PriceWorkspaceChart.css';
  *     chart, candles, container,
  *     candleData()             - [{time, open, high, low, close}] of the loaded bars, ascending
  *     tokens()                 - the resolved WS_TOKENS of the current theme
- *     paneOf(groupKey)         - pane index of a pane group ('price' -> 0; stage B adds panes)
+ *     paneOf(groupKey)         - pane index of a pane group ('price' -> 0); -1 when the group
+ *                                has no pane yet
+ *     addPaneSeries(groupKey, seriesDefinition, options)
+ *                              - adds a series to the pane of the group (stage B, design D6): the
+ *                                price pane for 'price', the group's pane when it has one, else a
+ *                                new pane at the bottom. Panes are the library's: a pane whose last
+ *                                series is removed disappears and the ones below move up.
+ *     removePaneSeries(series) - removes a series added with addPaneSeries
+ *     subscribePanes(cb)       - cb(panes) after every change of the pane set (and once at once);
+ *                                returns the unsubscribe function. For pane primitives (shading).
  *     overlayAutoscale         - autoscaleInfoProvider for overlays: they never move the price
  *                                axis, the candles of the visible window define it (A3)
  *     isLog()                  - the price scale is logarithmic
@@ -53,6 +64,10 @@ const DEFAULT_HEIGHT = 420;
 // The tooltip flips left of the cursor when this much room is not left on the right.
 const TOOLTIP_FLIP_PX = 280;
 const overlayAutoscale = () => null;
+// Stage B: the price pane's share of the height against 1 per indicator pane.
+const PRICE_PANE_STRETCH = 3;
+// Off-session candles (design §5 Q1): the bar's colour at this alpha.
+const OFF_SESSION_ALPHA = 0.45;
 // Price-pane scale margins (A3 ~0.08 / 0.05). They also apply to a manual range: see manualRangeRef.
 const SCALE_MARGINS = { top: 0.08, bottom: 0.05 };
 // A plot drag becomes a vertical price pan only past this many pixels, and only if mainly vertical.
@@ -76,11 +91,14 @@ const VPAN_THRESHOLD_PX = 3;
  * @param {string} [props.className] - extra class of the wrapper
  * @param {string} [props.containerClassName] - extra class of the chart container
  * @param {string} [props.emptyText]
+ * @param {{offSession?: Set<number>, openFromTime?: ?number}} [props.barMarks] - candle marks
+ *   (stage B, design §5): bars whose time is in `offSession` are muted (outside the strategy run
+ *   session), bars from `openFromTime` on are hollow (not closed yet, provisional)
  */
 export default function PriceWorkspaceChart({
   bars, timeframe, ticker, layers = null, onRangeChange = null,
   storageKey = LOG_SCALE_STORAGE_KEY, height = DEFAULT_HEIGHT, toolbar = null, hint = null,
-  className = '', containerClassName = '', emptyText = 'No price data available',
+  className = '', containerClassName = '', emptyText = 'No price data available', barMarks = null,
 }) {
   const wrapperRef = useRef(null);
   const containerRef = useRef(null);
@@ -102,6 +120,13 @@ export default function PriceWorkspaceChart({
   // which is what autoscaleInfoProvider's priceRange means to lightweight-charts.
   const manualRangeRef = useRef(null);
   const tooltipSuppressedRef = useRef(false);
+  // Stage B panes: series -> pane group key (addPaneSeries), pane-set subscribers.
+  const seriesGroupRef = useRef(new Map());
+  const paneSubsRef = useRef(new Set());
+  const panesChangePendingRef = useRef(false);
+  const measureSliderRef = useRef(null);
+  const barMarksRef = useRef(barMarks);
+  const marksGridRef = useRef(null);
 
   const tabActive = useTabActive();
   const tabActiveRef = useRef(tabActive);
@@ -166,6 +191,36 @@ export default function PriceWorkspaceChart({
   }, [refreshPriceScale, fitTime]);
   useEscapeFit(fit, tabActive);
 
+  // ---- stage B panes (design D6) ----
+  /** Group key per pane index ('price' for pane 0); null for a pane holding no known series. */
+  const paneGroups = useCallback(() => {
+    const chart = chartRef.current;
+    if (!chart) return [];
+    return chart.panes().map((pane, i) => {
+      if (i === PRICE_PANE) return PRICE_PANE_KEY;
+      for (const s of pane.getSeries()) {
+        const k = seriesGroupRef.current.get(s);
+        if (k) return k;
+      }
+      return null;
+    });
+  }, []);
+
+  /** After a pane was added / removed: stretch factors, the slider width, pane subscribers. */
+  const panesChanged = useCallback(() => {
+    if (panesChangePendingRef.current) return;
+    panesChangePendingRef.current = true;
+    requestAnimationFrame(() => {
+      panesChangePendingRef.current = false;
+      const chart = chartRef.current;
+      if (!chart) return;
+      const panes = chart.panes();
+      panes.forEach((p, i) => p.setStretchFactor(i === PRICE_PANE ? PRICE_PANE_STRETCH : 1));
+      for (const cb of paneSubsRef.current) cb(panes);
+      measureSliderRef.current?.();
+    });
+  }, []);
+
   // ---- layers: attach / update / detach against the current descriptors ----
   const syncLayers = useCallback((descriptors) => {
     const ctx = ctxRef.current;
@@ -203,6 +258,26 @@ export default function PriceWorkspaceChart({
     layerMapRef.current.clear();
   }, []);
 
+  /** Candle data with the stage B marks: muted off-session bars, hollow open bars (design §5). */
+  const styledCandles = useCallback(() => {
+    const data = candleDataRef.current;
+    const marks = barMarksRef.current;
+    const off = marks?.offSession;
+    const openFrom = marks?.openFromTime ?? null;
+    if ((!off || off.size === 0) && openFrom === null) return data;
+    const tv = tokensRef.current;
+    return data.map((c) => {
+      const isOff = off ? off.has(c.time) : false;
+      const isOpen = openFrom !== null && c.time >= openFrom;
+      if (!isOff && !isOpen) return c;
+      const base = c.close >= c.open ? tv.up : tv.down;
+      const col = isOff ? withAlpha(base, OFF_SESSION_ALPHA) : base;
+      return isOpen
+        ? { ...c, color: tv.bg, borderColor: col, wickColor: col }
+        : { ...c, color: col, borderColor: col, wickColor: col };
+    });
+  }, []);
+
   const measureSlider = useCallback(() => {
     const chart = chartRef.current;
     const el = containerRef.current;
@@ -216,6 +291,8 @@ export default function PriceWorkspaceChart({
     if (!hasBars || !containerRef.current) return undefined;
     const el = containerRef.current;
     const theme = tokensRef.current;
+    const seriesGroups = seriesGroupRef.current;
+    const paneSubs = paneSubsRef.current;
     const chart = createChart(el, {
       width: el.clientWidth,
       height: el.clientHeight,
@@ -250,7 +327,32 @@ export default function PriceWorkspaceChart({
       container: el,
       candleData: () => candleDataRef.current,
       tokens: () => tokensRef.current,
-      paneOf: () => PRICE_PANE,
+      paneOf: (key) => (key === PRICE_PANE_KEY ? PRICE_PANE : paneGroups().indexOf(key)),
+      addPaneSeries: (key, definition, options) => {
+        let idx = key === PRICE_PANE_KEY ? PRICE_PANE : paneGroups().indexOf(key);
+        if (idx < 0) idx = chart.panes().length;
+        const s = chart.addSeries(definition, options, idx);
+        seriesGroupRef.current.set(s, key);
+        // The chart-level rightPriceScale options (Log) are every pane's default: only the price
+        // pane is logarithmic (BA §3.9), indicator panes are linear.
+        if (idx !== PRICE_PANE) {
+          s.priceScale().applyOptions({ mode: PriceScaleMode.Normal, autoScale: true });
+          panesChanged();
+        }
+        return s;
+      },
+      removePaneSeries: (s) => {
+        if (!s) return;
+        const key = seriesGroupRef.current.get(s);
+        seriesGroupRef.current.delete(s);
+        try { chart.removeSeries(s); } catch { /* already gone with the chart */ }
+        if (key && key !== PRICE_PANE_KEY) panesChanged();
+      },
+      subscribePanes: (cb) => {
+        paneSubsRef.current.add(cb);
+        cb(chart.panes());
+        return () => paneSubsRef.current.delete(cb);
+      },
       overlayAutoscale,
       isLog: () => logRef.current,
       isTabActive: () => tabActiveRef.current,
@@ -281,13 +383,27 @@ export default function PriceWorkspaceChart({
     const onCrosshair = (param) => {
       const data = candleDataRef.current;
       const point = param.point;
-      if (tooltipSuppressedRef.current || !point || param.logical === undefined
-        || (param.paneIndex !== undefined && param.paneIndex !== PRICE_PANE)) {
+      if (tooltipSuppressedRef.current || !point || param.logical === undefined) {
         setTip(null);
         return;
       }
+      // Every pane shares the time axis and the crosshair (stage B): the tooltip shows in all of
+      // them. point.y is relative to the hovered pane; the tooltip is placed in container terms.
+      const paneIndex = param.paneIndex ?? PRICE_PANE;
       const plotWidth = el.clientWidth - chart.priceScale('right').width();
-      if (point.x < 0 || point.x > plotWidth || point.y < 0 || point.y > chart.paneSize(PRICE_PANE).height) {
+      let paneTop = 0;
+      let paneHeight;
+      try {
+        paneHeight = chart.paneSize(paneIndex).height;
+        if (paneIndex !== PRICE_PANE) {
+          const paneEl = chart.panes()[paneIndex]?.getHTMLElement();
+          if (paneEl) paneTop = paneEl.getBoundingClientRect().top - el.getBoundingClientRect().top;
+        }
+      } catch {
+        setTip(null);
+        return;
+      }
+      if (point.x < 0 || point.x > plotWidth || point.y < 0 || point.y > paneHeight) {
         setTip(null);
         return;
       }
@@ -300,7 +416,7 @@ export default function PriceWorkspaceChart({
       }
       setTip({
         x: point.x,
-        y: point.y,
+        y: paneTop + point.y,
         flip: point.x + TOOLTIP_FLIP_PX > plotWidth,
         bar: data[i],
         prevClose: i > 0 ? data[i - 1].close : null,
@@ -430,12 +546,14 @@ export default function PriceWorkspaceChart({
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(onLogicalRange);
       ro.disconnect();
       bindChart(null);
+      seriesGroups.clear();
+      paneSubs.clear();
       ctxRef.current = null;
       chartRef.current = null;
       candlesRef.current = null;
       chart.remove();
     };
-  }, [hasBars, bindChart, fromLogical, measureSlider, refreshPriceScale, fit, detachAllLayers]);
+  }, [hasBars, bindChart, fromLogical, measureSlider, refreshPriceScale, fit, detachAllLayers, paneGroups, panesChanged]);
 
   // ---- bars: new candle grid -> set data, fit, re-attach every layer on the new grid ----
   useEffect(() => {
@@ -446,7 +564,7 @@ export default function PriceWorkspaceChart({
     manualRangeRef.current = null;
     chart.priceScale('right').applyOptions({ autoScale: true });
     setTip(null);
-    candles.setData(candleData);
+    candles.setData(styledCandles());
     fitTime();
     // Layers are re-attached (not just updated): their series sit on the old grid. The same
     // instances, so their own state (e.g. channel edits of the current run) survives.
@@ -456,14 +574,35 @@ export default function PriceWorkspaceChart({
       entry.instance.update(entry.data);
     }
     syncLayers(layersPropRef.current);
-    const raf = requestAnimationFrame(measureSlider);
+    // Fit again after the first paint: on a just-created chart the range set above does not
+    // stick (the library lays the time scale out with its default bar spacing on first paint).
+    const raf = requestAnimationFrame(() => { fitTime(); measureSlider(); });
     return () => cancelAnimationFrame(raf);
-  }, [candleData, hasBars, syncLayers, measureSlider, fitTime]);
+  }, [candleData, hasBars, syncLayers, measureSlider, fitTime, styledCandles]);
+
+  // ---- candle marks (off-session / open bars) and their colours on a theme switch ----
+  useEffect(() => {
+    barMarksRef.current = barMarks;
+    tokensRef.current = tokens;
+    const chart = chartRef.current;
+    const candles = candlesRef.current;
+    if (!chart || !candles || candleDataRef.current.length === 0) return;
+    // setData on the same grid keeps the user's time range; on a new grid (the bars effect just
+    // ran and fitted) the range read here may still be the old grid's: fit again instead.
+    const sameGrid = marksGridRef.current === candleDataRef.current;
+    marksGridRef.current = candleDataRef.current;
+    const range = sameGrid ? chart.timeScale().getVisibleLogicalRange() : null;
+    candles.setData(styledCandles());
+    if (range) chart.timeScale().setVisibleLogicalRange(range);
+    else fitTime();
+  }, [barMarks, tokens, styledCandles, fitTime]);
 
   // ---- layer descriptors changed (same bars) ----
   useEffect(() => {
     syncLayers(layers);
   }, [layers, syncLayers]);
+
+  useEffect(() => { measureSliderRef.current = measureSlider; }, [measureSlider]);
 
   // ---- A1 log / linear ----
   useEffect(() => {

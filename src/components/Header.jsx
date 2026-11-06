@@ -32,8 +32,9 @@ const Header = ({ activeTab, onChangeTab, watch = null, screenerNew = 0 }) => {
             type="button"
             className={`header-tab${activeTab === 'channels' ? ' header-tab--active' : ''}`}
             onClick={() => onChangeTab('channels')}
+            data-testid="tab-channels"
           >
-            Channel Explorer
+            Indicators Chart
           </button>
           <button
             type="button"
