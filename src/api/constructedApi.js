@@ -43,6 +43,13 @@ export const LINK_SUFFIX_KIND = Object.freeze({
   'right.const': 'CONST',
 });
 export const MAX_AXES = 10;
+/**
+ * Axis constraints (stage 3b-2, architect F12): `{left: '$TiltSell', op: 'LE', right: '$TiltBuy'}`,
+ * two different axes of one kind; at most MAX_CONSTRAINTS (ConstructedDefinitionValidator).
+ */
+export const CONSTRAINT_OPS = Object.freeze(['LE', 'LT', 'GE', 'GT']);
+export const CONSTRAINT_OP_SYMBOL = Object.freeze({ LE: '≤', LT: '<', GE: '≥', GT: '>' });
+export const MAX_CONSTRAINTS = 5;
 export const MAX_LINK_TERMS = 2;
 export const STATE_RULE_FIRE_RATE = 0.2;   // Q11: a LongOpen / ShortOpen rule firing on > 20 % of bars
 export const MIN_TRADES_PER_THRESHOLD = 10; // Q11: trades per threshold in sweep
@@ -111,6 +118,20 @@ export const fromAxisDTO = (a) => ({
   hi: a?.hi ?? '',
   note: a?.note || '',
 });
+
+// ---- axis constraints (stage 3b-2) ----
+// Wire and editor: `{left, op, right}`. Left out of a definition without constraints (NON_EMPTY on
+// the backend). PUT: a missing `constraints` keeps the stored ones, `[]` removes them - see
+// toConstructedRequest.
+
+/** Wire AxisConstraint → editor constraint (an unknown op is kept as is: the validator flags it). */
+export const fromConstraintDTO = (c) => ({
+  left: typeof c?.left === 'string' ? c.left : '',
+  op: typeof c?.op === 'string' ? c.op : '',
+  right: typeof c?.right === 'string' ? c.right : '',
+});
+
+const toConstraintDTO = (c) => ({ left: (c.left || '').trim(), op: c.op, right: (c.right || '').trim() });
 
 /** Wire LinkExpr (`{terms}` or a bare terms array) → editor terms `[{sign, axis}]`, null when empty. */
 const fromLinkExpr = (x) => {
@@ -214,19 +235,32 @@ export const toRuleRequest = (rule, axes = []) => ({
   }),
 });
 
-/** Editor draft → the definition `{rules[], axes?[]}` (axes only when there are any). */
+/**
+ * Editor draft → the definition `{rules[], axes?[], constraints?[]}` (axes / constraints only when
+ * there are any; also the unsaved definition of a preview).
+ */
 export const toDefinitionRequest = (draft) => {
   const out = { rules: (draft.rules || []).map((r) => toRuleRequest(r, draft.axes || [])) };
   if ((draft.axes || []).length) out.axes = draft.axes.map(toAxisDTO);
+  if ((draft.constraints || []).length) out.constraints = draft.constraints.map(toConstraintDTO);
   return out;
 };
 
-/** Editor draft → ConstructedStrategyRequest `{name, note, rules[], axes?[]}`. */
-export const toConstructedRequest = (draft) => ({
-  name: (draft.name || '').trim(),
-  note: draft.note ? draft.note : null,
-  ...toDefinitionRequest(draft),
-});
+/**
+ * Editor draft → ConstructedStrategyRequest `{name, note, rules[], axes?[], constraints?[]}`.
+ * `saved` = the stored version open in the editor (PUT). The PUT semantics of the backend: a
+ * missing `constraints` KEEPS the stored ones, so the full list is always sent when there is one,
+ * and `[]` is sent only when the user removed every constraint of the stored version.
+ */
+export const toConstructedRequest = (draft, saved = null) => {
+  const out = {
+    name: (draft.name || '').trim(),
+    note: draft.note ? draft.note : null,
+    ...toDefinitionRequest(draft),
+  };
+  if (!out.constraints && draft.id != null && (saved?.constraints || []).length) out.constraints = [];
+  return out;
+};
 
 /** RuleDTO → editor rule. */
 export const fromRuleDTO = (r) => ({
@@ -245,6 +279,8 @@ export const fromRuleDTO = (r) => ({
 const rulesOf = (d) => (Array.isArray(d?.rules) ? d.rules : Array.isArray(d?.definition?.rules) ? d.definition.rules : []);
 const axesOf = (d) => (Array.isArray(d?.axes) ? d.axes : Array.isArray(d?.definition?.axes) ? d.definition.axes : [])
   .map(fromAxisDTO);
+const constraintsOf = (d) => (Array.isArray(d?.constraints) ? d.constraints
+  : Array.isArray(d?.definition?.constraints) ? d.definition.constraints : []).filter(Boolean).map(fromConstraintDTO);
 
 /** UsageDTO `{version, ticker, timeframe, backtests, optimizations, combinations, lastRunAt}`. */
 const normalizeUsage = (u) => ({
@@ -258,7 +294,7 @@ const normalizeUsage = (u) => ({
 });
 
 /**
- * ConstructedStrategyDTO `{id, name, note, version, key, rules, axes?, templateId?, deleted,
+ * ConstructedStrategyDTO `{id, name, note, version, key, rules, axes?, constraints?, templateId?, deleted,
  * createdAt, updatedAt, usage[], params[], versionChanged?}` → `{..., rules: editorRule[],
  * axes: editorAxis[], usage: normalized[]}`.
  */
@@ -272,6 +308,7 @@ export const fromConstructedDTO = (d) => {
     key: d.key ?? (d.id != null && d.version != null ? `Constructed:${d.id}@${d.version}` : null),
     rules: rulesOf(d).map(fromRuleDTO),
     axes: axesOf(d),
+    constraints: constraintsOf(d),
     templateId: d.templateId ?? null,
     deleted: d.deleted === true,
     createdAt: d.createdAt ?? null,
@@ -299,13 +336,14 @@ const normalizeSummary = (s) => ({
   unreadable: typeof s?.unreadable === 'string' && s.unreadable ? s.unreadable : null,
 });
 
-/** TemplateDTO `{templateId, name, description, definition: {rules[], axes[]}}` → editor shapes. */
+/** TemplateDTO `{templateId, name, description, definition: {rules[], axes[], constraints?[]}}` → editor shapes. */
 export const normalizeTemplate = (t) => ({
   templateId: t?.templateId ?? null,
   name: t?.name || t?.templateId || '',
   description: t?.description || '',
   rules: rulesOf(t).map(fromRuleDTO),
   axes: axesOf(t),
+  constraints: constraintsOf(t),
 });
 
 /** ReferencesDTO `{cases[{id,name,version}], watches[{id,name,status}], profiles[{ticker,timeframe,strategyKey}]}`. */

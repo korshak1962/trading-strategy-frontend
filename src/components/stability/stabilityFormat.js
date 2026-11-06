@@ -172,7 +172,7 @@ export const fmtParams = (params) => {
 };
 
 /**
- * "TiltStrategy" → "Tilt"; a constructed key / token → its name (strategyLabel,
+ * "DropFromPeakStrategy" → "DropFromPeak"; a constructed key / token → its name (strategyLabel,
  * minor #11), the bare class "ConstructedStrategy" → "constructed strategy". Display only.
  */
 export const shortStrategy = (name) => {

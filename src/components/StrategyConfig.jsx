@@ -1,13 +1,15 @@
 // src/components/StrategyConfig.jsx
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import './StrategyConfig.css';
 import { getParamDescription, OPTIMIZE_FIELD_DESCRIPTIONS } from '../utils/paramDescriptions';
 import './screening/SensitivityView.css';
 import { flagLabel } from './screening/screeningFormat';
 import {
   constructedLabel, currentVersionOf, groupThresholds, isAxisName, isConstructedKey, parseConstructedKey, parseThresholdName,
+  constraintText, firstConstraintViolation, violationText,
 } from './strategyConstructor/constructedFormat';
 import ConstructedAttempts from './strategyConstructor/ConstructedAttempts';
+import { getConstructedVersion } from '../api/constructedApi';
 
 // Small hover/focus tooltip: an "i" icon followed by a floating description box (CSS-driven,
 // see .param-info-icon / .param-tooltip in StrategyConfig.css).
@@ -47,6 +49,57 @@ const paramGroups = (strategyName, params) => {
     title: rule === 'axes' ? 'Axes (linked parameters)' : rule != null ? `Rule R${rule}` : 'Other',
     entries,
   }));
+};
+
+// #37: a fixed unlinked threshold of a constructed strategy (not an axis, min == max): in Optimize
+// these are collapsed into one "fixed thresholds (n)" row (they are not swept).
+const isFixedThreshold = (paramName, param) => {
+  if (isAxisName(paramName) || !parseThresholdName(paramName)) return false;
+  const min = Number(param?.min);
+  const max = Number(param?.max);
+  return Number.isFinite(min) && Number.isFinite(max) && min === max;
+};
+
+// Axis constraints of a constructed strategy version (stage 3b-2, architect F12), read from
+// GET /constructed/{id}/versions/{v}: listed under the params, and a point of the current values
+// (Backtest) or of the current Min / Max / Step grids (Optimize) that violates one is named here,
+// because the backend refuses such a run before it starts (validateGrid / compile): a 400, or a 202
+// followed by a FAILED job until optimize-jobs validates the grid before the 202.
+const ConstructedConstraints = ({ strategyKey, params, mode }) => {
+  const parsed = parseConstructedKey(strategyKey);
+  const id = parsed?.id ?? null;
+  const version = parsed?.version ?? null;
+  const [constraints, setConstraints] = useState([]);
+  useEffect(() => {
+    if (id == null || version == null) return undefined;
+    let alive = true;
+    getConstructedVersion(id, version)
+      .then((dto) => { if (alive) setConstraints(dto?.constraints || []); })
+      .catch(() => { if (alive) setConstraints([]); });
+    return () => { alive = false; };
+  }, [id, version]);
+  if (constraints.length === 0) return null;
+  const optimize = mode === 'optimize';
+  const rangeOf = (name) => {
+    const p = params?.[name];
+    if (!p) return null;
+    return optimize ? { value: p.value, min: p.min, max: p.max, step: p.step } : { value: p.value };
+  };
+  const v = firstConstraintViolation(constraints, rangeOf);
+  return (
+    <div className="px-1 pb-1 text-xs" data-testid="constructed-config-constraints">
+      <span className="text-gray-600">Axis constraints: </span>
+      <span className="font-mono">{constraints.map(constraintText).join(', ')}</span>
+      {v && (
+        <div className="mt-0.5 text-red-700" role="alert" data-testid="constructed-config-constraint-violation">
+          {optimize
+            ? `The grid has a violating point: ${violationText(v)}. `
+              + 'The backend will refuse this run before it starts: narrow Min / Max so that every pair satisfies it.'
+            : `${violationText(v)}: the backend will refuse this run.`}
+        </div>
+      )}
+    </div>
+  );
 };
 
 // Description of an axis of a constructed strategy: its note (StrategyInfoDTO.paramNotes of the
@@ -104,6 +157,9 @@ const StrategyConfig = ({
   // counts as expanded (see isExpanded). Seeding it from selectedStrategies instead would freeze
   // the set at mount, so a strategy added later would have no entry and render collapsed.
   const [collapsedStrategies, setCollapsedStrategies] = useState({});
+  // #37: open "fixed thresholds" rows, {strategyName: names frozen when opened} - a threshold the
+  // user starts to sweep stays in the open row (no jump under the cursor) until it is closed.
+  const [openFixed, setOpenFixed] = useState({});
 
   const isExpanded = (strategyName) => !collapsedStrategies[strategyName];
 
@@ -164,10 +220,11 @@ const StrategyConfig = ({
                   <ConstructedAttempts strategyKey={strategyName} ticker={ticker} timeFrame={timeFrame} refreshKey={attemptsRefresh} compact />
                 </div>
               )}
-              {paramGroups(strategyName, params).map(({ title, entries }) => (
-                <div key={title || 'all'}>
-                {title && <div className="param-group-title text-xs font-semibold text-gray-600 mt-2 mb-1">{title}</div>}
-                {entries.map(([paramName, param]) => (
+              {isConstructedKey(strategyName) && (
+                <ConstructedConstraints strategyKey={strategyName} params={params} mode={mode} />
+              )}
+              {(() => {
+                const renderParam = ([paramName, param]) => (
                 mode === 'optimize' ? (
                   <div key={paramName} className="param-optimize-card">
                     <div className="param-optimize-name" title={paramName}>
@@ -235,9 +292,49 @@ const StrategyConfig = ({
                     )}
                   </div>
                 )
-                ))}
-                </div>
-              ))}
+                );
+                const groups = paramGroups(strategyName, params);
+                const renderGroup = ({ title, entries }, keyPrefix = '') => (
+                  <div key={`${keyPrefix}${title || 'all'}`}>
+                    {title && <div className="param-group-title text-xs font-semibold text-gray-600 mt-2 mb-1">{title}</div>}
+                    {entries.map(renderParam)}
+                  </div>
+                );
+                if (mode !== 'optimize' || !isConstructedKey(strategyName)) return groups.map((g) => renderGroup(g));
+                // #37 (Optimize): fixed unlinked thresholds collapse into one expandable row
+                const frozen = openFixed[strategyName];
+                const fixedSet = new Set(frozen
+                  ? frozen.filter((n) => n in params)
+                  : Object.entries(params).filter(([n, p]) => isFixedThreshold(n, p)).map(([n]) => n));
+                const swept = groups
+                  .map((g) => ({ ...g, entries: g.entries.filter(([n]) => !fixedSet.has(n)) }))
+                  .filter((g) => g.entries.length > 0);
+                const fixed = groups
+                  .map((g) => ({ ...g, entries: g.entries.filter(([n]) => fixedSet.has(n)) }))
+                  .filter((g) => g.entries.length > 0);
+                const toggleFixed = () => setOpenFixed((prev) => {
+                  const next = { ...prev };
+                  if (next[strategyName]) delete next[strategyName];
+                  else next[strategyName] = [...fixedSet];
+                  return next;
+                });
+                return (
+                  <>
+                    {swept.map((g) => renderGroup(g))}
+                    {fixedSet.size > 0 && (
+                      <div className="mt-2" data-testid="fixed-thresholds">
+                        <button type="button" onClick={toggleFixed} aria-expanded={!!frozen}
+                          className="text-xs font-semibold text-gray-600 hover:text-gray-800"
+                          title="Thresholds that are not axes and have Min = Max: not swept. Open to give one a range."
+                          data-testid="fixed-thresholds-toggle">
+                          {frozen ? '▼' : '►'} fixed thresholds ({fixedSet.size})
+                        </button>
+                        {frozen && <div data-testid="fixed-thresholds-list">{fixed.map((g) => renderGroup(g, 'fixed-'))}</div>}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>

@@ -49,11 +49,6 @@ const STRATEGY_PARAM_DESCRIPTIONS = {
   SimpleStoplossStrategy: {
     StopLossPercent: 'Percent drop below the entry price that triggers a stop-loss exit.',
   },
-  TiltStrategy: {
-    Length: 'Period, in bars, of the SMA used to compute the tilt (slope) indicator.',
-    TiltBuy: 'Opens a long position when the SMA’s tilt value rises above this threshold.',
-    TiltSell: 'Opens a short position when the SMA’s tilt value falls below this threshold.',
-  },
 };
 
 // Fallback by bare param name, used if a strategy/param combo isn't listed above yet.

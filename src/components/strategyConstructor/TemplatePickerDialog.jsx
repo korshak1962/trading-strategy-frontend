@@ -4,10 +4,11 @@
 // templates (GET /constructed/templates: "Price vs MA", "MA crossover", …) with their rules and
 // axes; Create → POST /templates/{id}/create {name?} → an ordinary constructed strategy v1 that is
 // then edited like any other. 409 NAME_EXISTS → choose another name; 404 → the template is gone.
+// Stage 3b-2: the template's axis constraints ("SMA tilt": $TiltSell ≤ $TiltBuy) are listed too.
 import { useEffect, useState } from 'react';
 import { listTemplates, createFromTemplate } from '../../api/constructedApi';
 import { describeApiError } from '../../api/httpClient';
-import { AXIS_KIND_LABEL, ruleCaption } from './constructedFormat';
+import { AXIS_KIND_LABEL, constraintText, ruleCaption } from './constructedFormat';
 import { fmtNum } from '../universeScreener/conditionFormat';
 import '../watch/watch.css';
 
@@ -106,6 +107,16 @@ export default function TemplatePickerDialog({ onCreated, onClose }) {
                       {a.note && <span className="text-gray-500"> — {a.note}</span>}
                     </li>
                   ))}
+                </ul>
+              </>
+            )}
+            {template.constraints.length > 0 && (
+              <>
+                <div className="text-sm font-medium text-gray-700 mt-2 mb-1">
+                  Constraints between axes <span className="font-normal text-gray-500">(every grid point in Optimize must satisfy them)</span>
+                </div>
+                <ul className="text-xs font-mono space-y-1" data-testid="template-constraints">
+                  {template.constraints.map((c, i) => <li key={i}>{constraintText(c)}</li>)}
                 </ul>
               </>
             )}

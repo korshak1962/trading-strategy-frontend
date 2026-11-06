@@ -8,6 +8,7 @@
 import {
   SIGNAL_TYPES, STATE_RULE_FIRE_RATE, MIN_TRADES_PER_THRESHOLD, MAX_RULES, MAX_CONDITIONS, CONSTRUCTED_TFS, RUN_TF,
   AXIS_KINDS, LINK_SUFFIX_KIND, MAX_AXES, MAX_LINK_TERMS, applyLinks, pruneLinks, linkValue,
+  CONSTRAINT_OPS, CONSTRAINT_OP_SYMBOL, MAX_CONSTRAINTS,
 } from '../../api/constructedApi';
 import {
   conditionCaption, validateCondition, newCompareCondition, reasonText, fmtNum, unitMismatchHint,
@@ -358,8 +359,8 @@ const GRID_CAP = 10000; // client grid check only below this many points per lin
 // Wording of the backend's kind-mismatch 400 (architect §3.2: "R1.C1.right.n is a length, $Gap is a tolerance")
 const KIND_WORD = Object.freeze({ LENGTH: 'length', TOLERANCE: 'tolerance', CONST: 'constant' });
 
-/** Values of an axis' default grid (min..max by step); [value] when fixed. */
-const axisGrid = (a) => {
+/** Values of an axis' grid (min..max by step); [value] when fixed. Also the Optimize constraint check. */
+export const axisGrid = (a) => {
   const min = Number(a.min);
   const max = Number(a.max);
   const step = Number(a.step);
@@ -457,9 +458,143 @@ const validateLinks = (links, axes, where, condition = null) => {
   return errs;
 };
 
+// ---- axis constraints (stage 3b-2, architect F12 / §5.1) ----
+// `{left, op, right}` between two axes of one kind: every compiled point (backtest, preview,
+// optimizer point, screening sample) and every pair of the two axes' grid values in Optimize must
+// satisfy it; the backend refuses a violating point before the run. Client copy of
+// ConstructedDefinitionValidator.constraints + AxisConstraint.Op.holds.
+
+const AXIS_KIND_ARTICLE = Object.freeze({ LENGTH: 'a length', TOLERANCE: 'a tolerance', CONST: 'a constant' });
+
+/** "$TiltSell ≤ $TiltBuy". */
+export const constraintText = (c) => `${c?.left || '?'} ${CONSTRAINT_OP_SYMBOL[c?.op] || c?.op || '?'} ${c?.right || '?'}`;
+
 /**
- * Errors of a draft: `{general: string[], axes: string[][], rules: [{general: string[],
- * conditions: string[][]}]}`, `ok` when all are empty. `allowedTypes` = meta.signalTypes.
+ * Relative tolerance of a constraint comparison: values within CONSTRAINT_EPS·max(1, |a|, |b|) are
+ * equal. Same constant as AxisConstraint.Op.holds (minor #111): the backend's ParamVO.gridValues()
+ * computes the grid in float (errors up to ~1.5e-8), so nominally equal points must compare equal.
+ */
+export const CONSTRAINT_EPS = 1e-6;
+
+/** `a op b`; nominally equal values hold for LE / GE and violate LT / GT (AxisConstraint.Op.holds). */
+export const constraintHolds = (op, a, b) => {
+  const eps = CONSTRAINT_EPS * Math.max(1, Math.abs(a), Math.abs(b));
+  if (op === 'LE') return a <= b + eps;
+  if (op === 'LT') return a < b - eps;
+  if (op === 'GE') return a >= b - eps;
+  if (op === 'GT') return a > b + eps;
+  return true;
+};
+
+/** Pairs the client violation scan checks at most over all constraints (minor #118); the backend checks all. */
+const CONSTRAINT_PAIR_CAP = 200000;
+
+/**
+ * The first grid point that violates a constraint: `{constraint, left, right}` (the two values),
+ * null when every pair holds or the scan stops at CONSTRAINT_PAIR_CAP pairs (the backend still
+ * refuses a violating point). `rangeOf(name)` → the axis range `{value, min, max, step}` or null.
+ */
+export const firstConstraintViolation = (constraints, rangeOf) => {
+  let pairs = 0;
+  for (const c of constraints || []) {
+    if (!CONSTRAINT_OPS.includes(c?.op)) continue;
+    const a = rangeOf((c.left || '').trim());
+    const b = rangeOf((c.right || '').trim());
+    if (!a || !b) continue;
+    const gb = axisGrid(b);
+    for (const l of axisGrid(a)) {
+      for (const r of gb) {
+        if (Number.isFinite(l) && Number.isFinite(r) && !constraintHolds(c.op, l, r)) return { constraint: c, left: l, right: r };
+        pairs += 1;
+        if (pairs >= CONSTRAINT_PAIR_CAP) return null; // too large to scan on every keystroke
+      }
+    }
+  }
+  return null;
+};
+
+/** "$TiltSell=0.02, $TiltBuy=0 violates $TiltSell ≤ $TiltBuy" of a violation (reads as a violation, not as a true statement). */
+export const violationText = (v) => `${v.constraint.left}=${fmtNum(v.left)}, ${v.constraint.right}=${fmtNum(v.right)} violates ${constraintText(v.constraint)}`;
+
+/** True when at least two axes share a kind, i.e. a valid constraint can be built at all. */
+export const hasSameKindPair = (axes) => {
+  const kinds = new Set();
+  for (const a of axes || []) {
+    if (!a?.kind) continue;
+    if (kinds.has(a.kind)) return true;
+    kinds.add(a.kind);
+  }
+  return false;
+};
+
+/**
+ * A new constraint: the first pair of axes of one kind not constrained yet (else the first
+ * same-kind pair again); null when no two axes share a kind (the editor disables "+ Constraint").
+ */
+export const newConstraint = (axes, constraints = []) => {
+  const list = axes || [];
+  const taken = new Set((constraints || []).map((c) => [c.left, c.right].sort().join('|')));
+  for (let i = 0; i < list.length; i += 1) {
+    for (let j = 0; j < list.length; j += 1) {
+      if (i !== j && list[i].kind === list[j].kind && !taken.has([list[i].name, list[j].name].sort().join('|'))) {
+        return { left: list[i].name, op: 'LE', right: list[j].name };
+      }
+    }
+  }
+  // every same-kind pair is constrained already: offer the first one again (the user edits it)
+  const pair = list.flatMap((a, i) => list.filter((b, j) => j !== i && b.kind === a.kind).map((b) => [a, b]))[0];
+  if (pair) return { left: pair[0].name, op: 'LE', right: pair[1].name };
+  return null;
+};
+
+/**
+ * Errors of the constraints: `{general: string[], errors: string[][], warnings: string[]}`.
+ * Errors (block a save; the backend answers 400 too): left / op / right required, both axes
+ * exist, not the same axis, one kind, no duplicate, at most MAX_CONSTRAINTS, the axes' defaults
+ * satisfy it. Warning (does not block a save): a point of the axes' default sweep violates it, so
+ * Optimize with these default ranges is refused before the run.
+ */
+export const validateConstraints = (constraints, axes) => {
+  const list = constraints || [];
+  const general = [];
+  const warnings = [];
+  if (list.length > MAX_CONSTRAINTS) general.push(`At most ${MAX_CONSTRAINTS} axis constraints`);
+  const byName = new Map((axes || []).map((a) => [a.name, a]));
+  const seen = new Set();
+  const errors = list.map((c) => {
+    const l = (c.left || '').trim();
+    const r = (c.right || '').trim();
+    if (!l || !r || !CONSTRAINT_OPS.includes(c.op)) return ['Left axis, comparison (≤ < ≥ >) and right axis are required'];
+    const a = byName.get(l);
+    const b = byName.get(r);
+    if (!a || !b) return [`Unknown axis ${!a ? l : r}`];
+    if (l === r) return [`Compares ${l} with itself`];
+    if (a.kind !== b.kind) {
+      return [`${l} is ${AXIS_KIND_ARTICLE[a.kind] || a.kind}, ${r} is ${AXIS_KIND_ARTICLE[b.kind] || b.kind}: only axes of one kind can be compared`];
+    }
+    const e = [];
+    const label = `${l} ${c.op} ${r}`;
+    if (seen.has(label)) e.push(`${constraintText(c)} is defined twice`);
+    seen.add(label);
+    if (isNumber(a.value) && isNumber(b.value) && !constraintHolds(c.op, Number(a.value), Number(b.value))) {
+      e.push(`The defaults violate it: ${l}=${fmtNum(Number(a.value))} ${CONSTRAINT_OP_SYMBOL[c.op]} ${r}=${fmtNum(Number(b.value))} is false`);
+    }
+    return e;
+  });
+  if (errors.every((e) => e.length === 0)) {
+    const v = firstConstraintViolation(list, (name) => byName.get(name) || null);
+    if (v) {
+      warnings.push(`The default sweep has a violating point: ${violationText(v)}. `
+        + 'The backend will refuse Optimize with these ranges before the run. Narrow the axes\u2019 Min / Max.');
+    }
+  }
+  return { general, errors, warnings };
+};
+
+/**
+ * Errors of a draft: `{general: string[], axes: string[][], constraints: string[][],
+ * constraintWarnings: string[], rules: [{general: string[], conditions: string[][]}]}`, `ok` when
+ * all errors are empty (warnings do not block). `allowedTypes` = meta.signalTypes.
  * Conditions are checked at the axes' defaults (linked thresholds take the axes' values).
  */
 export const validateDraft = (draft, { allowedTypes = SIGNAL_TYPES, maxRules = MAX_RULES, maxConditions = MAX_CONDITIONS,
@@ -474,6 +609,8 @@ export const validateDraft = (draft, { allowedTypes = SIGNAL_TYPES, maxRules = M
   if (rules.length > maxRules) general.push(`At most ${maxRules} rules`);
   const axisCheck = validateAxes(axes, axisUsage(rules));
   general.push(...axisCheck.general);
+  const constraintCheck = validateConstraints(draft.constraints, axes);
+  general.push(...constraintCheck.general);
   const ruleErrors = rules.map((r) => {
     const g = [];
     if (!allowedTypes.includes(r.signalType)) g.push(`Signal type ${r.signalType} is not available`);
@@ -489,8 +626,11 @@ export const validateDraft = (draft, { allowedTypes = SIGNAL_TYPES, maxRules = M
     return { general: g, conditions };
   });
   const ok = general.length === 0 && axisCheck.errors.every((e) => e.length === 0)
+    && constraintCheck.errors.every((e) => e.length === 0)
     && ruleErrors.every((r) => r.general.length === 0 && r.conditions.every((c) => c.length === 0));
-  return { general, axes: axisCheck.errors, rules: ruleErrors, ok };
+  return {
+    general, axes: axisCheck.errors, constraints: constraintCheck.errors, constraintWarnings: constraintCheck.warnings, rules: ruleErrors, ok,
+  };
 };
 
 /** Run TF check of a preview / backtest request (stage 3a, architect §2.2; stage 3b F10). */
@@ -509,6 +649,20 @@ export const runTfError = (rules, tf) => {
  */
 export const constructedErrorHint = (message) => {
   const m = String(message || '');
+  // Stage 3b-2: "$TiltSell=0.02 <= $TiltBuy=0: violated (axis constraint $TiltSell <= $TiltBuy)", as a 400
+  // body or as the error of a FAILED optimize / screening job (possibly with a " [CODE]" suffix).
+  const violated = /violated \(axis constraint ([^)]+)\)/.exec(m);
+  if (violated) {
+    return `These axis values break the constraint ${violated[1]}: the backend refused this run before evaluating anything. `
+      + 'A backtest or preview needs values that satisfy it; in Optimize every pair of the two axes\u2019 grid values must satisfy it, '
+      + 'so narrow their Min / Max.';
+  }
+  // Stage 3b-2 validation: "constraint 1 ($A <= $B): unknown axis $B", "… compares $A with itself",
+  // "constraint 1: $A is a length, $B is a constant", "… is not unique", "At most 5 axis constraints"
+  if (/^constraint \d+\b|axis constraints/i.test(m)) {
+    return 'An axis constraint compares two different axes of one kind (a length with a length, a constant with a constant), '
+      + `at most ${MAX_CONSTRAINTS} of them, each once; the axes' default values must satisfy it.`;
+  }
   const unit = unitMismatchHint(m);
   if (unit) return unit;
   // #49: "R1 LongOpen: offsets and fixed timeframes on HOUR are not supported yet ('…'; use RUN operands at [0])"
@@ -550,13 +704,13 @@ export const newRuleCondition = () => ({ id: null, condition: newCompareConditio
 
 export const newRule = (signalType = 'LongOpen') => ({ id: null, signalType, note: '', conditions: [newRuleCondition()] });
 
-export const newDraft = () => ({ id: null, name: '', note: '', version: null, key: null, rules: [newRule()], axes: [] });
+export const newDraft = () => ({ id: null, name: '', note: '', version: null, key: null, rules: [newRule()], axes: [], constraints: [] });
 
 /**
  * Comparable form of the definition (rule ids, types, conditions, links; axes when given) - equal
  * = the same definition, i.e. saving creates no new version.
  */
-export const rulesSignature = (rules, axes = []) => JSON.stringify({
+export const rulesSignature = (rules, axes = [], constraints = []) => JSON.stringify({
   r: (rules || []).map((r) => ({
     id: r.id ?? null,
     t: r.signalType,
@@ -564,10 +718,11 @@ export const rulesSignature = (rules, axes = []) => JSON.stringify({
   })),
   a: (axes || []).map((a) => [a.name, a.kind, String(a.value), String(a.min), String(a.max), String(a.step),
     String(a.lo ?? ''), String(a.hi ?? ''), a.note || '']),
+  k: (constraints || []).map((c) => [(c.left || '').trim(), c.op, (c.right || '').trim()]),
 });
 
-/** rulesSignature of a draft / DTO `{rules, axes}`. */
-export const definitionSignature = (d) => rulesSignature(d?.rules, d?.axes);
+/** rulesSignature of a draft / DTO `{rules, axes, constraints}`. */
+export const definitionSignature = (d) => rulesSignature(d?.rules, d?.axes, d?.constraints);
 
 /** Linked value of a threshold of a condition (for the editor), null when not linked. */
 export const linkedThresholdValue = (rc, suffix, axes) => {

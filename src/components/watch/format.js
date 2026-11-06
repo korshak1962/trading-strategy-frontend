@@ -144,7 +144,7 @@ export const CODE_TEXT = {
   EXITED_BEFORE_LINK: 'The strategy would already have sold since your entry: the watch is FLAT and waits for a new entry.',
   ENTERED_ON_LINK_DAY: 'The model entered on today\'s bar; you will be told about the exit.',
   DUPLICATE_WATCH: 'A watch of the same case, ticker, timeframe and mode already exists.',
-  CAUSALITY_UNVERIFIED: 'The case contains a strategy whose causality is not verified (TrendChange / Tilt): signals may repaint.',
+  CAUSALITY_UNVERIFIED: 'The case contains a strategy whose causality was not verified (the strategy has since been removed): signals may repaint.',
   WATCH_SCHEDULE_DISABLED: 'The WATCH download schedule of this market is disabled — the watch will not update by itself.',
   DATA_OUTDATED: 'The ticker\'s data is outdated; the WATCH download will update it.',
   NO_RAW_HISTORY: 'The ticker has no hourly history: the forward-only WATCH download will skip it. Download the history once.',

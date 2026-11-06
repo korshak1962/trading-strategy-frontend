@@ -10,6 +10,9 @@
 // Stage 3a (architect.md §2-§4): axes and linked thresholds (AxesEditor / LinkPicker), the RUN
 // operand TF (any run TF for RUN-only strategies), "Create from template" (TemplatePickerDialog)
 // and hints under the stage-3a 400s (UNIT_MISMATCH, "not supported yet", grid points).
+// Stage 3b-2 (architect F12): axis constraints (`$TiltSell ≤ $TiltBuy`) in AxesEditor; a rename
+// of an axis follows into them, removing an axis removes its constraints; a PUT always sends the
+// full list and `[]` only when the user removed every stored constraint (a missing field keeps them).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ConstructedStrategyList from './ConstructedStrategyList';
 import RuleEditor from './RuleEditor';
@@ -139,7 +142,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
       const dto = await getConstructed(id);
       if (seq !== loadSeq.current) return;
       setSaved(dto);
-      setDraft({ ...dto, rules: dto.rules, axes: dto.axes || [] });
+      setDraft({ ...dto, rules: dto.rules, axes: dto.axes || [], constraints: dto.constraints || [] });
       resetEditorState();
     } catch (err) {
       if (seq !== loadSeq.current) return;
@@ -223,6 +226,11 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
     const axes = d.axes.map((a, j) => (j === i ? { ...a, ...patch } : a));
     const next = { ...d, axes };
     if (patch.name == null || patch.name === old.name || axes.some((a, j) => j !== i && a.name === old.name)) return next;
+    next.constraints = (d.constraints || []).map((c) => ({
+      ...c,
+      left: c.left === old.name ? patch.name : c.left,
+      right: c.right === old.name ? patch.name : c.right,
+    }));
     return mapConditions(next, (c) => ({
       ...c,
       links: Object.fromEntries(Object.entries(c.links || {}).map(([sfx, terms]) => [sfx,
@@ -233,7 +241,11 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
   const removeAxis = (i) => {
     const axis = draft.axes[i];
     const n = usage[axis.name] || 0;
-    if (n > 0 && !window.confirm(`${axis.name} is used by ${n} threshold${n === 1 ? '' : 's'}. Remove it and unlink them (they keep the current value)?`)) return;
+    const nc = (draft.constraints || []).filter((c) => c.left === axis.name || c.right === axis.name).length;
+    const parts = [];
+    if (n > 0) parts.push(`is used by ${n} threshold${n === 1 ? '' : 's'} (unlinked, they keep the current value)`);
+    if (nc > 0) parts.push(`is in ${nc} constraint${nc === 1 ? '' : 's'} (removed with it)`);
+    if (parts.length && !window.confirm(`${axis.name} ${parts.join(' and ')}. Remove it?`)) return;
     setDraft((d) => {
       const kept = mapConditions(d, (c) => {
         const links = { ...(c.links || {}) };
@@ -251,7 +263,11 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
         });
         return { ...c, condition: cond, links };
       });
-      return { ...kept, axes: kept.axes.filter((_, j) => j !== i) };
+      return {
+        ...kept,
+        axes: kept.axes.filter((_, j) => j !== i),
+        constraints: (kept.constraints || []).filter((c) => c.left !== axis.name && c.right !== axis.name),
+      };
     });
   };
   // "link" on a threshold with no axis of its kind yet: a new fixed axis from its current value
@@ -293,7 +309,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
     if (!validation.ok) return;
     setSaving(true);
     try {
-      const req = toConstructedRequest(draft);
+      const req = toConstructedRequest(draft, saved);
       const isNew = draft.id == null;
       const dto = isNew ? await createConstructed(req) : await updateConstructed(draft.id, req);
       setSaved(dto);
@@ -556,6 +572,10 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
             usage={usage}
             errors={showErrors ? validation.axes : null}
             disabled={saving}
+            constraints={draft.constraints || []}
+            onConstraintsChange={(constraints) => setDraft((d) => ({ ...d, constraints }))}
+            constraintErrors={showErrors ? validation.constraints : null}
+            constraintWarnings={validation.constraintWarnings}
           />
 
           {showErrors && validation.general.length > 0 && (
