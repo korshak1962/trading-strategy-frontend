@@ -68,6 +68,7 @@ const overlayAutoscale = () => null;
 const PRICE_PANE_STRETCH = 3;
 // Off-session candles (design §5 Q1): the bar's colour at this alpha.
 const OFF_SESSION_ALPHA = 0.45;
+const INDICATOR_PANE_MARGINS = { top: 0.12, bottom: 0.08 };
 // Price-pane scale margins (A3 ~0.08 / 0.05). They also apply to a manual range: see manualRangeRef.
 const SCALE_MARGINS = { top: 0.08, bottom: 0.05 };
 // A plot drag becomes a vertical price pan only past this many pixels, and only if mainly vertical.
@@ -126,7 +127,9 @@ export default function PriceWorkspaceChart({
   const panesChangePendingRef = useRef(false);
   const measureSliderRef = useRef(null);
   const barMarksRef = useRef(barMarks);
-  const marksGridRef = useRef(null);
+  // The candle data last sent to the library and the grid it was built on (marks effect diff).
+  const styledRef = useRef(null);
+  const styledGridRef = useRef(null);
 
   const tabActive = useTabActive();
   const tabActiveRef = useRef(tabActive);
@@ -336,7 +339,8 @@ export default function PriceWorkspaceChart({
         // The chart-level rightPriceScale options (Log) are every pane's default: only the price
         // pane is logarithmic (BA §3.9), indicator panes are linear.
         if (idx !== PRICE_PANE) {
-          s.priceScale().applyOptions({ mode: PriceScaleMode.Normal, autoScale: true });
+          // Margins: the top / bottom tick labels must not be cut by the pane separator (m7).
+          s.priceScale().applyOptions({ mode: PriceScaleMode.Normal, autoScale: true, scaleMargins: INDICATOR_PANE_MARGINS });
           panesChanged();
         }
         return s;
@@ -564,7 +568,10 @@ export default function PriceWorkspaceChart({
     manualRangeRef.current = null;
     chart.priceScale('right').applyOptions({ autoScale: true });
     setTip(null);
-    candles.setData(styledCandles());
+    const styled = styledCandles();
+    candles.setData(styled);
+    styledRef.current = styled;
+    styledGridRef.current = candleData;
     fitTime();
     // Layers are re-attached (not just updated): their series sit on the old grid. The same
     // instances, so their own state (e.g. channel edits of the current run) survives.
@@ -581,21 +588,33 @@ export default function PriceWorkspaceChart({
   }, [candleData, hasBars, syncLayers, measureSlider, fitTime, styledCandles]);
 
   // ---- candle marks (off-session / open bars) and their colours on a theme switch ----
+  // Only the bars whose style changed are re-sent, with update(bar, historicalUpdate). Never
+  // candles.setData() on the unchanged grid: in lightweight-charts 5.2.1 re-setting the candles
+  // with the same time points while another series (an indicator line) shares them leaves the
+  // time scale without a visible range for good - every pane goes blank (F2 round 1, B1), and a
+  // load that had just been fitted fell back to the default bar spacing (B2).
   useEffect(() => {
     barMarksRef.current = barMarks;
     tokensRef.current = tokens;
-    const chart = chartRef.current;
     const candles = candlesRef.current;
-    if (!chart || !candles || candleDataRef.current.length === 0) return;
-    // setData on the same grid keeps the user's time range; on a new grid (the bars effect just
-    // ran and fitted) the range read here may still be the old grid's: fit again instead.
-    const sameGrid = marksGridRef.current === candleDataRef.current;
-    marksGridRef.current = candleDataRef.current;
-    const range = sameGrid ? chart.timeScale().getVisibleLogicalRange() : null;
-    candles.setData(styledCandles());
-    if (range) chart.timeScale().setVisibleLogicalRange(range);
-    else fitTime();
-  }, [barMarks, tokens, styledCandles, fitTime]);
+    if (!candles || candleDataRef.current.length === 0) return;
+    const prev = styledRef.current;
+    const next = styledCandles();
+    if (styledGridRef.current !== candleDataRef.current || !prev || prev.length !== next.length) {
+      // Not drawn on this grid yet (cannot happen after the bars effect; kept as a guard).
+      candles.setData(next);
+      styledGridRef.current = candleDataRef.current;
+      styledRef.current = next;
+      return;
+    }
+    for (let i = 0; i < next.length; i++) {
+      const a = prev[i];
+      const b = next[i];
+      if (a === b || (a.color === b.color && a.borderColor === b.borderColor && a.wickColor === b.wickColor)) continue;
+      candles.update(b, true);
+    }
+    styledRef.current = next;
+  }, [barMarks, tokens, styledCandles]);
 
   // ---- layer descriptors changed (same bars) ----
   useEffect(() => {

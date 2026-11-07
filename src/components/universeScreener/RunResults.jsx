@@ -72,7 +72,7 @@ function TickerChips({ title, tickers, tone, onOpen, testId }) {
         <div className="flex flex-wrap gap-1">
           {tickers.map((t) => (
             <button key={t} type="button" onClick={() => onOpen(t)}
-              className={`px-1.5 py-0.5 rounded text-xs border ${tone}`} title="Open in Channel Explorer">
+              className={`px-1.5 py-0.5 rounded text-xs border ${tone}`} title="Open in Indicators Chart">
               {t}
             </button>
           ))}
@@ -176,7 +176,7 @@ export default function RunResults({ run, diff = null, conditions = [], labels =
         <td className="px-2 py-1 whitespace-nowrap">
           {child && <span className="text-gray-400 mr-1">↳</span>}
           <button type="button" className="font-semibold text-blue-700 hover:underline" onClick={() => onOpenTicker(r)}
-            title="Open in Channel Explorer with the filter's start date, detector params and the run's basis">
+            title="Open in Indicators Chart with the filter's start date, detector params and the run's basis">
             {r.ticker}
           </button>
           {!child && hideDuplicates && dups.length > 0 && (

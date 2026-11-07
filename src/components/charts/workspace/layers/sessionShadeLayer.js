@@ -46,12 +46,20 @@ export function createSessionShadeLayer() {
         const range = ts.getVisibleLogicalRange();
         target.useMediaCoordinateSpace(({ context, mediaSize }) => {
           context.fillStyle = fill;
+          const c0 = ts.logicalToCoordinate(0);
+          const c1 = ts.logicalToCoordinate(1);
+          const spacing = c0 !== null && c1 !== null ? c1 - c0 : 6;
           for (const [a, b] of runs) {
             if (range && (b < range.from - 1 || a > range.to + 1)) continue;
-            const x0 = ts.logicalToCoordinate(a - 0.5);
-            const x1 = ts.logicalToCoordinate(b + 0.5);
-            if (x0 === null || x1 === null) continue;
-            context.fillRect(Math.round(x0), 0, Math.max(1, Math.round(x1) - Math.round(x0)), mediaSize.height);
+            // Bar centres of whole indices plus half the bar spacing on each side (a fractional
+            // logical index does not map to a coordinate reliably).
+            const xa = ts.logicalToCoordinate(a);
+            const xb = ts.logicalToCoordinate(b);
+            if (xa === null || xb === null) continue;
+            const half = spacing / 2;
+            const x0 = Math.round(xa - half);
+            const x1 = Math.round(xb + half);
+            context.fillRect(x0, 0, Math.max(1, x1 - x0), mediaSize.height);
           }
         });
       },

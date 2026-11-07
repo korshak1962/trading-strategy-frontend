@@ -12,7 +12,7 @@ import RecursiveParamsPanel, { RECURSIVE_DEFAULT_PARAMS } from '../channelExplor
 import { CHANNEL_VIEW } from '../../api/channelApi';
 import { paletteColor } from '../charts/workspace/workspaceTheme';
 import { resolveColor } from '../../theme/theme';
-import { formatBarDate } from '../channelExplorer/format';
+import { formatBarKey } from '../charts/workspace/bars';
 import { LEVEL_ZONES_MAX_N } from '../../utils/levelZones';
 import {
   CHANNELS, LEVELS, DEFAULT_CHANNEL_PARAMS, DEFAULT_LEVEL_PARAMS, TIMEFRAMES, TF_RANK,
@@ -116,7 +116,7 @@ export default function IndicatorParamsDialog({
                     )}
                     {stored.map(s => (
                       <option key={s.length} value={String(s.length)}>
-                        {s.length}{s.fresh ? '' : ` (stale: stored to ${formatBarDate(s.last)})`}
+                        {s.length}{s.fresh ? '' : ` (stale: stored to ${formatBarKey(s.last, meta?.timeframe)})`}
                       </option>
                     ))}
                   </select>

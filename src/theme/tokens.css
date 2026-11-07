@@ -254,7 +254,7 @@
   --tv-depth-rgb: 124, 77, 255;
 
   /* price workspace: off-session bar shading, provisional alpha (stage B) */
-  --ws-offsession-bg: rgba(107, 114, 128, 0.08);
+  --ws-offsession-bg: rgba(107, 114, 128, 0.16);
   --ws-provisional-alpha: 0.45;
   /* price workspace: level-zone bands (stage B levels overlay) */
   --ws-level-zone: rgba(41, 98, 255, 0.10);
@@ -453,7 +453,7 @@
   --tv-exit: #ff9800;
   --tv-broken-line: rgba(255, 152, 0, 0.75);
   --tv-depth-rgb: 179, 136, 255;
-  --ws-offsession-bg: rgba(154, 163, 176, 0.08);
+  --ws-offsession-bg: rgba(154, 163, 176, 0.13);
   --ws-level-zone: rgba(100, 149, 255, 0.14);
   --ws-level-zone-border: rgba(100, 149, 255, 0.55);
 }

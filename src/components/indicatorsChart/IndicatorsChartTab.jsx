@@ -20,10 +20,10 @@ import { createIndicatorLayer } from '../charts/workspace/layers/indicatorLayer'
 import { createSessionShadeLayer } from '../charts/workspace/layers/sessionShadeLayer';
 import { createLevelLayer } from '../charts/workspace/layers/levelLayer';
 import { paneKeyOf, paneRangeOf, PRICE_PANE_KEY } from '../charts/workspace/panes';
-import { toBarTime } from '../charts/workspace/bars';
+import { toBarTime, formatBarKey } from '../charts/workspace/bars';
 import { channelsRequestKey } from '../../navigation/route';
 import { exchangeToday, exchangeZoneForTicker, addYearsIso } from '../../utils/dates';
-import { formatPct, formatStatus, formatAge, formatExitSide, formatBarDate } from '../channelExplorer/format';
+import { formatPct, formatStatus, formatAge, formatExitSide } from '../channelExplorer/format';
 import AddIndicatorMenu from './AddIndicatorMenu';
 import IndicatorParamsDialog from './IndicatorParamsDialog';
 import IndicatorChips from './IndicatorChips';
@@ -75,6 +75,21 @@ const offSessionTimes = (prices, columns, tf, runSession) => {
     if (hm.length === 5 && !(hm > interval.start && hm <= interval.end)) out.add(toBarTime(p.date));
   }
   return out;
+};
+
+/**
+ * The descriptor's warm-up text with the instance's length put in and the arithmetic done:
+ * 'n - 1 bars of its timeframe' with n = 20 -> '19 bars of its timeframe' (m1).
+ */
+const warmupText = (warmup, n) => {
+  if (!warmup || n === null || n === undefined) return warmup || null;
+  let t = String(warmup).replace(/\bn\b/g, String(n));
+  const re = /(\d+)\s*([-+])\s*(\d+)/;
+  for (let m = re.exec(t); m; m = re.exec(t)) {
+    const v = m[2] === '-' ? Number(m[1]) - Number(m[3]) : Number(m[1]) + Number(m[3]);
+    t = t.replace(m[0], String(v));
+  }
+  return t;
 };
 
 const emptyStore = (key) => ({ key, columns: null, bySpec: new Map(), errors: new Map(), inflight: new Set(), abort: null });
@@ -158,9 +173,8 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
         lastActualChannelsOnly: request.lastActualChannelsOnly,
         detector: { ...request.params },
       });
-    } else {
-      set.setChannels(null);
     }
+    // `ch=0` only means "the link adds no channels": the viewer's saved Channels item stays (m8).
     setActive({ ticker: request.ticker, from: request.from, to: request.to, tf: chartTf });
     // keyed on the request's identity only
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -352,7 +366,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
           } else if (ind.status === 'STALE') {
             state = 'stale';
             const s = ind.stale;
-            message = s ? `stale: stored to ${formatBarDate(s.storedTo)}, prices to ${formatBarDate(s.pricesTo)}` : (ind.issue?.message || 'stale');
+            message = s ? `stale: stored to ${formatBarKey(s.storedTo, activeTf)}, prices to ${formatBarKey(s.pricesTo, activeTf)}` : (ind.issue?.message || 'stale');
             if (s && !s.topUp?.available && s.topUp?.reason) message += ` — ${s.topUp.reason}`;
             if (s?.topUp?.available && SMA_KINDS.has(spec.kind)) topUpLength = spec.n;
           }
@@ -389,7 +403,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
       };
       const data = {
         label: v.label, color: v.item.color, hidden: v.item.hidden, paneKey: paneKeyOf(v.d), range: paneRangeOf(v.d),
-        unit: v.d.unit, warmup: v.d.warmup, series,
+        unit: v.d.unit, warmup: warmupText(v.d.warmup, v.spec.n), timeframe: activeTf, series,
       };
       const prev = cache.get(v.item.id);
       const same = prev && prev.ind === v.ind && prev.times === columnTimes && prev.color === data.color
@@ -413,7 +427,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
     return list;
   }, [barMarks, registry, levelsItem, levels.zones, itemViews, columnTimes, channelsItem, overlay.result,
     overlay.channels, overlay.zoomChannels, overlay.runId, overlay.exits, overlay.selectedKey, hierarchyMode,
-    handleChartSelect, onSelectedChannel]);
+    handleChartSelect, onSelectedChannel, activeTf]);
 
   // The channel layer keeps its instance only while its data object is stable: memoise it apart.
   const stableLayers = useStableChannelData(layers, channelsItem?.id);
@@ -476,9 +490,9 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
       const res = await topUpSmaTail(active.ticker, active.tf, lengths);
       if (storeRef.current.key !== forKey) return;
       const lines = (res?.results || []).map(r => {
-        if (r.status === 'WRITTEN') return `SMA(${r.length}): ${r.rowsWritten} row${r.rowsWritten === 1 ? '' : 's'} written, stored to ${formatBarDate(r.storedToAfter)}`;
+        if (r.status === 'WRITTEN') return `SMA(${r.length}): ${r.rowsWritten} row${r.rowsWritten === 1 ? '' : 's'} written, stored to ${formatBarKey(r.storedToAfter, active.tf)}`;
         if (r.status === 'ALREADY_FRESH') return `SMA(${r.length}): already up to date`;
-        if (r.status === 'OPEN_BAR_SKIPPED') return `SMA(${r.length}): written to ${formatBarDate(r.storedToAfter)}; the open bar is not kept${r.message ? ` (${r.message})` : ''}`;
+        if (r.status === 'OPEN_BAR_SKIPPED') return `SMA(${r.length}): written to ${formatBarKey(r.storedToAfter, active.tf)}; the open bar is not kept${r.message ? ` (${r.message})` : ''}`;
         return `SMA(${r.length}): ${r.status}${r.message ? ` — ${r.message}` : ''}`;
       });
       // Re-request only the affected specs (SMA and SMA tilt of those lengths) and the stored-length meta.
@@ -562,7 +576,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
           {formatStatus(selectedChannel) && <> · {formatStatus(selectedChannel)}</>}
           {selectedChannel.current && <> · current channel</>}
           {formatAge(selectedChannel.ageBars) && <> · age {formatAge(selectedChannel.ageBars)}</>}
-          {selectedChannel.builtDate && <> · built {formatBarDate(selectedChannel.builtDate)}</>}
+          {selectedChannel.builtDate && <> · built {formatBarKey(selectedChannel.builtDate, active?.tf)}</>}
           <br />
         </>
       )}
@@ -683,9 +697,9 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
       {loaded && (
         <div className="ic-summary" data-testid="ic-summary">
           <strong>{active.ticker}</strong> · {TF_LABEL[active.tf]} · {prices.length} bars
-          {lastPrice && <> · {formatBarDate(prices[0].date)} → <span data-testid="ic-last-bar">last bar {formatBarDate(lastPrice)}</span></>}
+          {lastPrice && <> · {formatBarKey(prices[0].date, active.tf)} → <span data-testid="ic-last-bar">last bar {formatBarKey(lastPrice, active.tf)}</span></>}
           {meta?.lastBar && lastPrice && meta.lastBar.substring(0, 16) !== lastPrice.substring(0, 16)
-            && <> · last stored bar {formatBarDate(meta.lastBar)}</>}
+            && <> · last stored bar {formatBarKey(meta.lastBar, active.tf)}</>}
           {meta?.zone && <> · times in {meta.zone === 'Europe/Moscow' ? 'MSK' : 'New York'} exchange time</>}
         </div>
       )}

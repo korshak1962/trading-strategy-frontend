@@ -187,7 +187,7 @@ export default function FilterEditor({ initialDraft, detectorDefaults, schedules
                 onClick={() => setShowParams((v) => !v)}>
                 Detector params {showParams ? '▲' : '▼'}
               </button>
-              <span className="ml-2 text-xs text-gray-500">Same fields and defaults as the Channel Explorer; log price always on.</span>
+              <span className="ml-2 text-xs text-gray-500">Same fields and defaults as the Channels overlay of the Indicators Chart; log price always on.</span>
             </div>
           </div>
         </div>

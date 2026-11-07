@@ -55,3 +55,16 @@ export const findBarFloorIndex = (candleData, targetTs) => {
   }
   return lo;
 };
+
+const INTRADAY_TFS = new Set(['MIN5', 'HOUR']);
+
+/**
+ * A stored bar key for display: 'YYYY-MM-DD HH:MM' on MIN5 / HOUR, the day alone on DAY / WEEK /
+ * MONTH (their keys carry a storage time, 09:00, that means nothing to the user). '—' for none.
+ */
+export const formatBarKey = (v, timeframe) => {
+  if (typeof v !== 'string' || v.length < 10) return '—';
+  if (!INTRADAY_TFS.has(timeframe)) return v.substring(0, 10);
+  const time = v.length >= 16 ? v.substring(11, 16) : null;
+  return time ? `${v.substring(0, 10)} ${time}` : v.substring(0, 10);
+};

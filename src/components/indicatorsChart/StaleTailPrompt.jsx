@@ -5,7 +5,7 @@
 // per load listing every stale length that can be topped up. "Calculate" writes the rows through
 // the existing calculation path (POST /api/indicators/sma-tail) and redraws; "Not now" is
 // remembered for this session per (ticker, timeframe, length): the chip keeps its warning.
-import { formatBarDate } from '../channelExplorer/format';
+import { formatBarKey } from '../charts/workspace/bars';
 
 /**
  * @param {Object} props
@@ -30,7 +30,7 @@ export default function StaleTailPrompt({ ticker, timeframe, stale, busy, error,
       </div>
     );
   }
-  const lines = stale.map(s => `SMA(${s.length}) is stored to ${formatBarDate(s.storedTo)}, prices to ${formatBarDate(s.pricesTo)}`
+  const lines = stale.map(s => `SMA(${s.length}) is stored to ${formatBarKey(s.storedTo, timeframe)}, prices to ${formatBarKey(s.pricesTo, timeframe)}`
     + ` (${s.missingBars} bar${s.missingBars === 1 ? '' : 's'} missing)`);
   return (
     <div className="ic-stale" data-testid="ic-stale-prompt" role="alertdialog" aria-label="Stale SMA tail">
@@ -40,6 +40,7 @@ export default function StaleTailPrompt({ ticker, timeframe, stale, busy, error,
           Calculate the missing rows for {ticker} {timeframe}? They are written to the database the same way a
           download writes them. Until then the line stops at the last stored row and a strategy on this range is refused.
         </div>
+        {done && <div className="ic-stale__done" data-testid="ic-stale-done">{done}</div>}
         {error && <div className="ic-stale__error" data-testid="ic-stale-error">{error.text}</div>}
       </div>
       <div className="ic-stale__actions">

@@ -41,7 +41,9 @@ export function createLevelLayer() {
         for (const { zone, startIdx } of drawn) {
           const yTop = candles.priceToCoordinate(zone.high);
           const yBottom = candles.priceToCoordinate(zone.low);
-          const x0 = ts.logicalToCoordinate(startIdx - 0.5);
+          const xc = ts.logicalToCoordinate(startIdx);
+          const xn = ts.logicalToCoordinate(startIdx + 1);
+          const x0 = xc === null ? null : xc - (xn === null ? 3 : (xn - xc) / 2);
           if (yTop === null || yBottom === null || x0 === null) continue;
           const left = Math.max(0, x0);
           const top = Math.min(yTop, yBottom);

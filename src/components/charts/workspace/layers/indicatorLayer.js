@@ -25,7 +25,7 @@
 import { LineSeries } from 'lightweight-charts';
 import { resolveColor } from '../../../../theme/theme';
 import { PRICE_PANE_KEY } from '../panes';
-import { formatBarDate } from '../../../channelExplorer/format';
+import { formatBarKey } from '../bars';
 
 const LINE_DASHED = 2;
 const TRANSPARENT = 'rgba(0, 0, 0, 0)';
@@ -36,18 +36,21 @@ const PRECISION = { PRICE: 2, PRICE_RANGE: 2, PERCENT: 2, RATIO: 3 };
 export const formatIndicatorValue = (v, unit) => {
   if (typeof v !== 'number' || !Number.isFinite(v)) return '–';
   const digits = PRECISION[unit] ?? 4;
-  return unit === 'PERCENT' ? `${v.toFixed(digits)}%` : v.toFixed(digits);
+  // The typographic minus, as the tooltip's Change line (m6).
+  const text = Math.abs(v).toFixed(digits);
+  const signed = v < 0 && Number(text) !== 0 ? `−${text}` : text;
+  return unit === 'PERCENT' ? `${signed}%` : signed;
 };
 
 /** Why a value is missing, in words (Q7). */
-export const reasonText = (reason, { warmup = null, stale = null } = {}) => {
+export const reasonText = (reason, { warmup = null, stale = null, timeframe = null } = {}) => {
   switch (reason) {
     case 'INSUFFICIENT_HISTORY': return warmup ? `warm-up, needs ${warmup}` : 'warm-up';
     case 'ZERO_RANGE': return 'zero range (high = low)';
     case 'INDICATOR_MISSING': return 'not computed';
     case 'WEEK_INCONSISTENT': return 'week bars inconsistent';
     case 'DATA_GAP': return 'data gap';
-    case 'STALE_TAIL': return stale?.storedTo ? `stale: stored to ${formatBarDate(stale.storedTo)}` : 'stale tail';
+    case 'STALE_TAIL': return stale?.storedTo ? `stale: stored to ${formatBarKey(stale.storedTo, timeframe)}` : 'stale tail';
     default: return reason ? String(reason).toLowerCase().replace(/_/g, ' ') : 'no value';
   }
 };
@@ -194,7 +197,7 @@ export function createIndicatorLayer() {
       const reason = s.reasons ? s.reasons[String(i)] : undefined;
       const provisional = has && (s.provisional || []).some(p => Number(p) === i);
       let note;
-      if (!has) note = reasonText(reason, { warmup: data.warmup, stale: s.stale });
+      if (!has) note = reasonText(reason, { warmup: data.warmup, stale: s.stale, timeframe: data.timeframe });
       else if (provisional) note = 'provisional — bar not closed, value will change';
       return [{
         label: data.label,
