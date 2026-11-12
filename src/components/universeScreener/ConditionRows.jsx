@@ -11,7 +11,8 @@ import { conditionCaption, fmtNum, operandUnit } from './conditionFormat';
 const sel = 'p-1 border rounded text-sm bg-white';
 const LEVEL_LABEL = { 0: '0 · current', 1: '1 · parent', 2: '2 · grandparent' };
 
-function RowShell({ index, caption, errors, onRemove, onMove, count, disabled, children, testId }) {
+/** The frame of a condition row (number, controls, move / remove, caption, errors); also used by the constructor's ChannelConditionRow. */
+export function RowShell({ index, caption, errors, onRemove, onMove, count, disabled, children, testId }) {
   return (
     <div className="border rounded p-3 bg-gray-50" data-testid={testId}>
       <div className="flex flex-wrap items-center gap-2">
