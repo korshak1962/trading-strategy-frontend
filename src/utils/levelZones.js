@@ -52,8 +52,8 @@ export const clampNearestN = (value) => {
 };
 
 /**
- * Indicators Chart only (TASK_level_zone_hover_select §1.3): the Levels overlay draws the stored
- * zone map, where a HOUR map can hold many zones, so its N goes up to 20 (plus an "all zones"
+ * Indicators Chart only (TASK_level_zone_hover_select §1.3): the Levels overlay draws the zone map
+ * as of `to`, where a HOUR map can hold many zones, so its N goes up to 20 (plus an "all zones"
  * switch). The Backtest chart keeps LEVEL_ZONES_MAX_N.
  */
 export const LEVEL_CHART_MAX_N = 20;

@@ -1,10 +1,13 @@
 // src/components/charts/workspace/layers/levelLayer.js
 //
-// Level zones on PriceWorkspaceChart (architect design §6.2): the stored zone map of
-// GET /api/levels/{ticker} ("as of today", like the A view of the channels), drawn as bands from
-// the zone's first touch to the right edge. Which zones: the ones containing the last close plus
+// Level zones on PriceWorkspaceChart (architect design §6.2): the zone map as of the last closed
+// bar <= to (GET /api/levels/{ticker}/as-of, TASK_levels_chart_as_of_to), drawn as bands from the
+// zone's first touch to the right edge. Which zones: the ones containing the reference close plus
 // the N nearest above and below it (utils/levelZones.js selectNearest, the Backtest rule), or
-// every zone that passed minStrength when `allZones` is set.
+// every zone that passed minStrength when `allZones` is set. The reference close is the map's
+// close(asOf) (`refClose`), else the last candle's close; they differ while an open bar is drawn.
+// Selection: the tab drops it on every new zone map; this layer only drops it when the selected
+// zone is no longer drawn (N / all-zones change).
 // A series primitive on the candles, so the bands follow the price scale (log or linear).
 //
 // Hover / click (TASK_level_zone_hover_select): the tooltip lists the zone(s) under the cursor's
@@ -14,7 +17,8 @@
 // A click on a channel line belongs to the channel: the zone click is decided after the other
 // click subscribers ran (microtask) and skipped when one of them claimed it (ctx.claimClick).
 //
-// data: { zones: LevelZoneDTO[], nearestN, allZones, selectedId, onSelect(zone|null) }
+// data: { zones: LevelZoneDTO[], nearestN, allZones, refClose?: number|null, asOf?: string|null,
+//         selectedId, onSelect(zone|null) }
 import { selectNearest } from '../../../../utils/levelZones';
 import { readToken, withAlpha } from '../../../../theme/theme';
 import { toBarTime, findBarFloorIndex } from '../bars';
@@ -141,16 +145,17 @@ export function createLevelLayer() {
   function rebuild() {
     if (!ctx) return;
     const cd = ctx.candleData();
-    const lastClose = cd.length ? cd[cd.length - 1].close : NaN;
+    const refClose = Number.isFinite(data?.refClose) ? data.refClose : (cd.length ? cd[cd.length - 1].close : NaN);
     drawn = data && !data.hidden
-      ? pickLevelZones(data.zones, lastClose, data.nearestN ?? 2, data.allZones === true).map(zone => ({
+      ? pickLevelZones(data.zones, refClose, data.nearestN ?? 2, data.allZones === true).map(zone => ({
         zone,
         startIdx: Math.max(0, findBarFloorIndex(cd, toBarTime(zone.firstTouch)) ?? 0),
       }))
       : [];
     readColors();
     requestUpdate?.();
-    // A selection whose zone is no longer drawn (N / strength / data changed) is dropped.
+    // m2: the only reset here - a selection whose zone is no longer drawn (N / all zones) is dropped.
+    // New data (a refetch) and the strength filter are reset in the tab.
     const sel = selectedId();
     if (sel !== null && !drawn.some(d => d.zone.id === sel)) data?.onSelect?.(null);
   }

@@ -128,7 +128,6 @@ const countText = (r) => {
 const AFFECTED_GROUPS = [
   { keys: ['cases', 'strategyCases'], label: 'Saved cases', hint: 'stored result summary is stale — re-run to update' },
   { keys: ['profiles', 'paramProfiles'], label: 'Parameter profiles', hint: 'fitted on the old data' },
-  { keys: ['zones', 'levelZones'], label: 'Level zones', hint: 'calculated before the refill' },
   { keys: ['watches', 'signalWatches'], label: 'Signal watches', hint: 're-evaluated automatically' },
   { keys: ['screenRuns', 'screens'], label: 'Screener runs', hint: 'historical runs stay as they were' },
 ];

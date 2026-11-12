@@ -77,7 +77,7 @@ export default function AddIndicatorMenu({ descriptors, timeframe, hasChannels, 
           <button
             type="button" role="menuitem" className="ic-add__item" disabled={hasLevels}
             onClick={() => pick(LEVELS)} data-testid="ic-add-LEVELS"
-            title={hasLevels ? 'Levels are already on the chart: edit their chip' : 'Stored level zones (current zone map)'}
+            title={hasLevels ? 'Levels are already on the chart: edit their chip' : 'Level zones: the zone map as of the To date, computed on load'}
           >
             <span>Levels</span><span className="ic-add__unit">{hasLevels ? 'added' : 'overlay'}</span>
           </button>

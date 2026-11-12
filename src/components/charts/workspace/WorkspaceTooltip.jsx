@@ -16,7 +16,7 @@ const zoneLabel = (zone) => (zone === MOEX_ZONE ? 'MSK' : 'NY');
  * Hover tooltip of PriceWorkspaceChart (TASK A4), in the look of ChartTooltip.jsx (its
  * .chart-tooltip classes and tokens): the bar's date (and time on HOUR / MIN5, exchange wall clock
  * with the zone label), O / H / L / C, the change from the previous close, then the rows every
- * layer contributes (layer.tooltipRows(barIndex)).
+ * layer contributes (layer.tooltipRows(barIndex, hover), hover = {price, paneIndex} of the cursor).
  * @param {Object} props
  * @param {{x:number, y:number, flip:boolean, bar:Object, prevClose:?number,
  *   rows: Array<{label:string, value?:string, color?:string, note?:string}>}} props.tip

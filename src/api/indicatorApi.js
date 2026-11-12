@@ -5,7 +5,7 @@
 //   GET  /api/indicators/meta?ticker=&timeframe=         descriptors, caps, run-session rule, stored SMA
 //   GET  /api/indicators/series?ticker=&timeframe=&from=&to=&ind=KIND[:n]...   columnar series
 //   POST /api/indicators/sma-tail {ticker, timeframe, lengths}               SMA tail top-up
-//   GET  /api/levels/{ticker}?timeFrame=&minStrength=    the stored level-zone map ("as of today")
+//   GET  /api/levels/{ticker}/as-of?timeFrame=&to=&minStrength=   the level-zone map as of the last closed bar <= to
 // Dates are the exchange's wall clock without a zone (decision 0.18, #100): a bare day is sent as
 // T00:00:00 (from) / T23:59:59 (to), exactly as the channel endpoints get them (channelApi.fmtDt).
 // Errors: apiRequest's shape ({status, code, detail, jobId, body}); 400 / 409 bodies are
@@ -87,9 +87,15 @@ export const topUpSmaTail = async (ticker, timeframe, lengths) => {
   return readJson(res);
 };
 
-/** GET /api/levels/{ticker}: every stored zone with strength >= minStrength, lowest band first. */
-export const fetchLevelZones = async (ticker, timeframe, minStrength = 0, { signal } = {}) => {
-  const q = new URLSearchParams({ timeFrame: timeframe, minStrength: String(minStrength) });
-  const res = await apiRequest(`/api/levels/${enc(ticker)}?${q.toString()}`, { signal }, 'Level zones');
-  return (await readJson(res)) || [];
+/**
+ * GET /api/levels/{ticker}/as-of: the level-zone map as of the last closed bar <= to, computed on
+ * the fly (LevelMapAsOfDTO: {asOf, openBarExcluded, close, atrValue, barCount, zoneCount, reason,
+ * message, computeMs, zones[] lowest band first}). minStrength is always 0: the strength filter is
+ * applied on the client, so changing it never refetches.
+ */
+export const fetchLevelMapAsOf = async (ticker, timeframe, to, { signal } = {}) => {
+  const q = new URLSearchParams({ timeFrame: timeframe, to: fmtDt(to, true), minStrength: '0' });
+  const res = await apiRequest(`/api/levels/${enc(ticker)}/as-of?${q.toString()}`, { signal }, 'Level zones');
+  const map = (await readJson(res)) || {};
+  return { ...map, zones: Array.isArray(map.zones) ? map.zones : [] };
 };

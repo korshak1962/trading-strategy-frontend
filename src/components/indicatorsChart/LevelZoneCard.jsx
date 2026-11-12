@@ -1,8 +1,8 @@
 // src/components/indicatorsChart/LevelZoneCard.jsx
 //
 // The card of the level zone selected on the Indicators Chart (TASK_level_zone_hover_select §1.2):
-// the stored zone's characteristics (GET /api/levels/{ticker} LevelZoneDTO) and its touches,
-// the touch list collapsed when it is long.
+// the zone's characteristics as of the map's date (GET /api/levels/{ticker}/as-of, LevelZoneDTO)
+// and its touches, the touch list collapsed when it is long.
 import { formatBarKey } from '../charts/workspace/bars';
 
 /** Above this many touches the list starts collapsed. */
@@ -14,9 +14,10 @@ const fmt = (v, digits = 2) => (v === null || v === undefined || !Number.isFinit
  * @param {Object} props
  * @param {Object} props.zone - LevelZoneDTO
  * @param {string} props.timeframe - the chart timeframe (date format)
+ * @param {string|null} [props.asOf] - the bar the zone map is as of
  * @param {() => void} props.onClose
  */
-export default function LevelZoneCard({ zone, timeframe, onClose }) {
+export default function LevelZoneCard({ zone, timeframe, asOf = null, onClose }) {
   const touches = Array.isArray(zone.touches) ? zone.touches : [];
   const date = (d) => (d ? formatBarKey(d, timeframe) : '–');
   const hasDistance = zone.distanceAtr !== null && zone.distanceAtr !== undefined && Number.isFinite(Number(zone.distanceAtr));
@@ -24,6 +25,7 @@ export default function LevelZoneCard({ zone, timeframe, onClose }) {
     <div className="ic-zone-card" data-testid="ic-zone-card">
       <div className="ic-zone-card__head">
         <strong>Selected level zone</strong>
+        {asOf && <span data-testid="ic-zone-card-asof">· map as of {date(asOf)}</span>}
         <span className="ic-zone-card__range" data-testid="ic-zone-card-range">{fmt(zone.low)}–{fmt(zone.high)}</span>
         {zone.status && <span className="ta-ch-badge">{zone.status}</span>}
         <button type="button" className="ic-chip__btn" onClick={onClose} title="Clear the selection (Esc)" aria-label="Clear the zone selection">×</button>

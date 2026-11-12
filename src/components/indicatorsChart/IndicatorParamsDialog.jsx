@@ -37,12 +37,13 @@ const toHex = (color) => {
  * @param {string} props.defaultColor - colour of a new registry item
  * @param {Object|null} props.meta - GET /api/indicators/meta of the loaded ticker / timeframe, or null
  * @param {string} props.chartTf - the candle timeframe
+ * @param {string|null} [props.levelsAsOf] - the bar the loaded level-zone map is as of, or null
  * @param {Object|null} props.channelConstants - read-only confirmation constants of the last detection
  * @param {(patch: {params: Object, color?: string}) => void} props.onSubmit
  * @param {() => void} props.onCancel
  */
 export default function IndicatorParamsDialog({
-  kind, descriptor, item, defaultColor, meta, chartTf, channelConstants = null, onSubmit, onCancel,
+  kind, descriptor, item, defaultColor, meta, chartTf, levelsAsOf = null, channelConstants = null, onSubmit, onCancel,
 }) {
   const isChannels = kind === CHANNELS;
   const isLevels = kind === LEVELS;
@@ -247,10 +248,10 @@ export default function IndicatorParamsDialog({
                 onChange={e => setValues(s => ({ ...s, allZones: e.target.checked }))}
                 data-testid="ic-levels-all"
               />
-              All zones (every stored zone with strength ≥ the minimum)
+              All zones (every zone of the map with strength ≥ the minimum)
             </label>
             <label className="ic-dialog__field">
-              <span className="ic-dialog__label">Nearest zones above / below the last close</span>
+              <span className="ic-dialog__label">Nearest zones above / below the close of the map's bar</span>
               <input
                 type="number"
                 min={0}
@@ -264,8 +265,9 @@ export default function IndicatorParamsDialog({
               <span className="ic-dialog__hint">
                 {values.allZones
                   ? 'Ignored while "All zones" is on.'
-                  : `0..${LEVEL_CHART_MAX_N}; zones containing the last close are always drawn.`}
-                {' '}The stored zone map as of today.
+                  : `0..${LEVEL_CHART_MAX_N}; zones containing that close are always drawn.`}
+                {' '}Zone map as of {levelsAsOf ? formatBarKey(levelsAsOf, chartTf) : 'the To date (last closed bar)'};
+                bands are the zones as of that date, drawn back to their first touch.
               </span>
             </label>
           </>

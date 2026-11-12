@@ -3,14 +3,16 @@
 // One chip per displayed indicator (TASK B2): colour, label, edit, hide / show, remove, and its
 // state: an error (issue.message), a stale SMA tail (warning + "Calculate tail"), inactive on this
 // timeframe (with the reason). Channels carry the A / B view toggle and "full-history view (A)";
-// Levels "current zone map".
+// Levels the date of their zone map ("map as of <bar>").
 import { CHANNEL_VIEW } from '../../api/channelApi';
 import { CHANNELS, LEVELS } from './indicatorSet';
 
 /**
  * @param {Object} props
  * @param {Array<{item: Object, label: string, color: ?string, state: string, message: ?string,
- *   topUpLength: ?number}>} props.chips - state: ok | loading | error | stale | inactive
+ *   topUpLength: ?number, sub?: string, title?: string}>} props.chips - state: ok | loading | error |
+ *   stale | inactive; Levels: `sub` is the date of the zone map (or what is being computed) and
+ *   replaces "loading…"; `title` is the hover text (default: the message)
  * @param {(id: string) => void} props.onEdit
  * @param {(id: string) => void} props.onToggleHidden
  * @param {(id: string) => void} props.onRemove
@@ -22,14 +24,14 @@ export default function IndicatorChips({ chips, onEdit, onToggleHidden, onRemove
   if (chips.length === 0) return null;
   return (
     <div className="ic-chips" data-testid="ic-chips">
-      {chips.map(({ item, label, color, state, message, topUpLength }) => (
+      {chips.map(({ item, label, color, state, message, topUpLength, sub, title }) => (
         <div
           key={item.id}
           className={`ic-chip ic-chip--${state}${item.hidden ? ' ic-chip--hidden' : ''}`}
           data-testid="ic-chip"
           data-kind={item.kind}
           data-state={state}
-          title={message || undefined}
+          title={title || message || undefined}
         >
           {color && <span className="ic-chip__swatch" style={{ background: color }} />}
           <span className="ic-chip__label">{label}</span>
@@ -55,8 +57,8 @@ export default function IndicatorChips({ chips, onEdit, onToggleHidden, onRemove
               {item.params.view === CHANNEL_VIEW.FULL ? 'full-history view (A)' : 'strategy view (B)'}
             </span>
           )}
-          {item.kind === LEVELS && <span className="ic-chip__sub">current zone map</span>}
-          {state === 'loading' && <span className="ic-chip__sub">loading…</span>}
+          {item.kind === LEVELS && sub && <span className="ic-chip__sub" data-testid="ic-levels-asof">{sub}</span>}
+          {state === 'loading' && !(item.kind === LEVELS && sub) && <span className="ic-chip__sub">loading…</span>}
           {(state === 'error' || state === 'stale' || state === 'inactive') && message && (
             <span className={`ic-chip__msg ic-chip__msg--${state}`} data-testid="ic-chip-msg">
               {state === 'stale' ? '⚠ ' : state === 'error' ? '✕ ' : ''}{message}

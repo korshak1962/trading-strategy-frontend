@@ -11,7 +11,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchPrices } from '../../api/channelApi';
 import { getAvailableTickers } from '../../api/strategyApi';
 import {
-  fetchIndicatorMeta, fetchIndicatorSeries, fetchLevelZones, specKey, topUpSmaTail,
+  fetchIndicatorMeta, fetchIndicatorSeries, fetchLevelMapAsOf, specKey, topUpSmaTail,
 } from '../../api/indicatorApi';
 import { describeApiError } from '../../api/httpClient';
 import PriceWorkspaceChart from '../charts/workspace/PriceWorkspaceChart';
@@ -93,6 +93,38 @@ const warmupText = (warmup, n) => {
   return t;
 };
 
+const EMPTY_LEVELS = Object.freeze({ key: null, map: null, loading: false, error: null });
+const NO_ZONES = Object.freeze([]);
+
+/**
+ * State, message, sub-label and hover text of the Levels chip (architect levels-as-of §4.2): the
+ * map's date, the server's empty-map reason as an inactive (visible, not red) chip, "0 of N" when
+ * the minimum strength hides every zone, and an open bar left out of the map in the hover text.
+ */
+const levelsChipState = (levels, shown, active, minStrength) => {
+  const tf = active?.tf;
+  if (!active || !levels.key) return { state: 'ok', message: null };
+  if (levels.loading) {
+    return {
+      state: 'loading', message: null,
+      sub: `computing the zone map as of ${formatBarKey(active.to, 'DAY')}…`,
+      title: 'The zone map is computed over the whole history up to To (a few seconds on 5 Min)',
+    };
+  }
+  if (levels.error) return { state: 'error', message: levels.error };
+  const map = levels.map || {};
+  const sub = map.asOf ? `map as of ${formatBarKey(map.asOf, tf)}` : null;
+  const title = map.openBarExcluded
+    ? 'The current bar is not closed yet; the map is as of the last closed bar.'
+    : undefined;
+  if (map.reason) return { state: 'inactive', message: map.message || map.reason, sub, title: title && `${map.message || map.reason}. ${title}` };
+  const zoneCount = Number(map.zoneCount) || 0;
+  if (zoneCount > 0 && shown.length === 0) {
+    return { state: 'inactive', message: `0 of ${zoneCount} zones with strength ≥ ${minStrength}`, sub, title };
+  }
+  return { state: 'ok', message: null, sub, title };
+};
+
 const emptyStore = (key) => ({ key, columns: null, bySpec: new Map(), errors: new Map(), inflight: new Set(), abort: null });
 
 /**
@@ -138,8 +170,11 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
   const bump = useCallback(() => setSeriesVersion(v => v + 1), []);
 
   // ---- levels ----
-  const [levels, setLevels] = useState({ key: null, zones: [], loading: false, error: null });
+  // The zone map as of `to` (GET /api/levels/{ticker}/as-of, LevelMapAsOfDTO); keyed on ticker | tf | to.
+  const [levels, setLevels] = useState(EMPTY_LEVELS);
   // The level zone clicked on the chart (its id): highlighted band + card (TASK_level_zone_hover_select §1.2).
+  // Every new zone map (refetch: ticker / tf / to) drops it here in the tab; the level layer only drops
+  // it when the zone is no longer drawn (N / all-zones change).
   const [selectedZoneId, setSelectedZoneId] = useState(null);
   const onSelectZone = useCallback((zone) => setSelectedZoneId(zone ? zone.id : null), []);
 
@@ -221,7 +256,6 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
     storeRef.current = emptyStore(key);
     setTopUp({ busy: false, error: null, done: null });
     setSelectedChannel(null);
-    setSelectedZoneId(null);
     setPricesLoading(true);
     setPricesError(null);
     setPrices([]);
@@ -297,25 +331,43 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
   }, [activeKey, pricesKey, wantedKey, refreshNonce]);
 
   // ---- levels ----
+  // The map is computed on the server as of `to` over the whole history <= to: neither `from` nor the
+  // minimum strength is part of the request (architect levels-as-of §4.2), so changing them refetches nothing.
   const levelsMin = levelsItem ? levelsItem.params.minStrength : null;
+  const levelsKey = active && levelsItem ? `${active.ticker}|${active.tf}|${active.to}` : null;
   useEffect(() => {
-    if (!active || levelsMin === null) { setLevels({ key: null, zones: [], loading: false, error: null }); return undefined; }
+    // m1: every refetch (or the overlay going away) drops the selection, whatever the new map holds.
+    setSelectedZoneId(null);
+    if (!levelsKey) { setLevels(EMPTY_LEVELS); return undefined; }
     const ctrl = new AbortController();
-    const key = `${activeKey}|${levelsMin}`;
-    setLevels(l => ({ ...l, key, loading: true, error: null }));
-    fetchLevelZones(active.ticker, active.tf, levelsMin, { signal: ctrl.signal })
-      .then(zones => { if (!ctrl.signal.aborted) setLevels({ key, zones, loading: false, error: null }); })
-      .catch(err => { if (!ctrl.signal.aborted) setLevels({ key, zones: [], loading: false, error: describeApiError(err) }); });
+    const key = levelsKey;
+    setLevels({ key, map: null, loading: true, error: null });
+    fetchLevelMapAsOf(active.ticker, active.tf, active.to, { signal: ctrl.signal })
+      .then(map => { if (!ctrl.signal.aborted) setLevels({ key, map, loading: false, error: null }); })
+      .catch(err => { if (!ctrl.signal.aborted) setLevels({ key, map: null, loading: false, error: describeApiError(err) }); });
     return () => ctrl.abort();
+    // levelsKey stands for active.ticker / tf / to
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeKey, levelsMin]);
+  }, [levelsKey]);
 
-  // The zone selection goes with the Levels overlay: hidden or removed -> dropped.
+  // The zones that pass the minimum strength (client-side filter): the layer, the selection and the hint.
+  const levelZonesShown = useMemo(() => {
+    const zones = levels.map?.zones;
+    if (!zones || zones.length === 0) return NO_ZONES;
+    const min = Number(levelsMin) || 0;
+    return zones.filter(z => Number(z.strength) >= min);
+  }, [levels.map, levelsMin]);
+
+  // The zone selection goes with the Levels overlay: hidden or removed -> dropped; filtered out by a
+  // higher minimum strength -> dropped too (it would otherwise come back with its card when lowered).
   const levelsShown = Boolean(levelsItem && !levelsItem.hidden);
   useEffect(() => { if (!levelsShown) setSelectedZoneId(null); }, [levelsShown]);
+  useEffect(() => {
+    if (selectedZoneId !== null && !levelZonesShown.some(z => z.id === selectedZoneId)) setSelectedZoneId(null);
+  }, [levelZonesShown, selectedZoneId]);
   const selectedZone = useMemo(
-    () => (selectedZoneId === null ? null : levels.zones.find(z => z.id === selectedZoneId) || null),
-    [selectedZoneId, levels.zones],
+    () => (selectedZoneId === null ? null : levelZonesShown.find(z => z.id === selectedZoneId) || null),
+    [selectedZoneId, levelZonesShown],
   );
 
   // ---- channels ----
@@ -403,12 +455,15 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
         data: { offSession: barMarks.offSession, rule: ruleInterval(registry?.runSession?.rule)?.text || null },
       });
     }
-    if (levelsItem && !levelsItem.hidden && levels.zones.length > 0) {
+    if (levelsItem && !levelsItem.hidden && levelZonesShown.length > 0) {
+      const map = levels.map;
       list.push({
         id: levelsItem.id,
         factory: createLevelLayer,
         data: {
-          zones: levels.zones, nearestN: levelsItem.params.nearestN, allZones: levelsItem.params.allZones === true,
+          zones: levelZonesShown, nearestN: levelsItem.params.nearestN, allZones: levelsItem.params.allZones === true,
+          refClose: Number.isFinite(Number(map?.close)) && map?.close !== null ? Number(map.close) : null,
+          asOf: map?.asOf ?? null,
           selectedId: selectedZoneId, onSelect: onSelectZone,
         },
       });
@@ -445,7 +500,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
       });
     }
     return list;
-  }, [barMarks, registry, levelsItem, levels.zones, selectedZoneId, onSelectZone, itemViews, columnTimes, channelsItem, overlay.result,
+  }, [barMarks, registry, levelsItem, levels.map, levelZonesShown, selectedZoneId, onSelectZone, itemViews, columnTimes, channelsItem, overlay.result,
     overlay.channels, overlay.zoomChannels, overlay.runId, overlay.exits, overlay.selectedKey, hierarchyMode,
     handleChartSelect, onSelectedChannel, activeTf]);
 
@@ -476,18 +531,14 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
           message: overlay.error,
         });
       } else if (item.kind === LEVELS) {
-        out.push({
-          item, label: levelsLabel(item.params), color: 'var(--ws-level-zone-border)',
-          state: levels.loading ? 'loading' : levels.error ? 'error' : 'ok',
-          message: levels.error || (active && !levels.loading && levels.key && levels.zones.length === 0 ? 'no stored zones' : null),
-        });
+        out.push({ item, label: levelsLabel(item.params), color: 'var(--ws-level-zone-border)', ...levelsChipState(levels, levelZonesShown, active, item.params.minStrength) });
       } else {
         const v = itemViews.find(x => x.item.id === item.id);
         if (v) out.push({ item, label: v.label, color: item.color, state: v.state, message: v.message, topUpLength: v.topUpLength });
       }
     }
     return out;
-  }, [items, itemViews, overlay.loading, overlay.error, levels, active]);
+  }, [items, itemViews, overlay.loading, overlay.error, levels, levelZonesShown, active]);
 
   // ---- stale SMA tail (Q3) ----
   const staleKey = (n) => `${active?.ticker}|${active?.tf}|${n}`;
@@ -604,7 +655,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
       · drag the slider below to pick the period · Esc to reset zoom · ⛶ for full screen
       {offCount > 0 && ` · shaded bars (${offCount} of ${prices.length}, ${((offCount / Math.max(1, prices.length)) * 100).toFixed(0)} %) are outside the strategy run session ${ruleInterval(registry?.runSession?.rule)?.text || ''}: no strategy decision on them`}
       {barMarks?.openFromTime != null && ' · a hollow candle is a bar not closed yet; a dashed end of a line is provisional'}
-      {levelsShown && levels.zones.length > 0
+      {levelsShown && levelZonesShown.length > 0
         && ' · hover a level zone to see it in the tooltip, click it to select it (click again or Esc to clear; a channel line under the cursor takes the click)'}
       {showChannels && <>
         {' · '}Click a channel line (or its card below) to select it · drag the yellow handle to extend/shrink · Delete/Backspace to remove
@@ -743,7 +794,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
       )}
 
       {loaded && levelsShown && selectedZone && (
-        <LevelZoneCard zone={selectedZone} timeframe={active.tf} onClose={() => setSelectedZoneId(null)} />
+        <LevelZoneCard zone={selectedZone} timeframe={active.tf} asOf={levels.map?.asOf ?? null} onClose={() => setSelectedZoneId(null)} />
       )}
 
       {loaded && channelsItem && !channelsItem.hidden && (
@@ -770,6 +821,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
           defaultColor={nextColor(items)}
           meta={meta && loaded ? meta : null}
           chartTf={loaded ? active.tf : tf}
+          levelsAsOf={loaded ? (levels.map?.asOf ?? null) : null}
           channelConstants={overlay.constants}
           onSubmit={submitDialog}
           onCancel={closeDialog}
