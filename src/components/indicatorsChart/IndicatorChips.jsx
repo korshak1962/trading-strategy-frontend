@@ -3,16 +3,17 @@
 // One chip per displayed indicator (TASK B2): colour, label, edit, hide / show, remove, and its
 // state: an error (issue.message), a stale SMA tail (warning + "Calculate tail"), inactive on this
 // timeframe (with the reason). Channels carry the A / B view toggle and "full-history view (A)";
-// Levels the date of their zone map ("map as of <bar>").
+// Levels the date of their zone map ("map as of <bar>"); the volume profile what it covers.
 import { CHANNEL_VIEW } from '../../api/channelApi';
-import { CHANNELS, LEVELS } from './indicatorSet';
+import { CHANNELS, LEVELS, VOLUME_PROFILE } from './indicatorSet';
 
 /**
  * @param {Object} props
  * @param {Array<{item: Object, label: string, color: ?string, state: string, message: ?string,
  *   topUpLength: ?number, sub?: string, title?: string}>} props.chips - state: ok | loading | error |
  *   stale | inactive; Levels: `sub` is the date of the zone map (or what is being computed) and
- *   replaces "loading…"; `title` is the hover text (default: the message)
+ *   replaces "loading…"; Volume profile: `sub` says what it covers; `title` is the hover text
+ *   (default: the message)
  * @param {(id: string) => void} props.onEdit
  * @param {(id: string) => void} props.onToggleHidden
  * @param {(id: string) => void} props.onRemove
@@ -58,6 +59,7 @@ export default function IndicatorChips({ chips, onEdit, onToggleHidden, onRemove
             </span>
           )}
           {item.kind === LEVELS && sub && <span className="ic-chip__sub" data-testid="ic-levels-asof">{sub}</span>}
+          {item.kind === VOLUME_PROFILE && sub && <span className="ic-chip__sub" data-testid="ic-vp-sub">{sub}</span>}
           {state === 'loading' && !(item.kind === LEVELS && sub) && <span className="ic-chip__sub">loading…</span>}
           {(state === 'error' || state === 'stale' || state === 'inactive') && message && (
             <span className={`ic-chip__msg ic-chip__msg--${state}`} data-testid="ic-chip-msg">

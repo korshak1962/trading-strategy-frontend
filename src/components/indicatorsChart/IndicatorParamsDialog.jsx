@@ -5,8 +5,9 @@
 // params prefilled with IndicatorParam.defaultValue and checked against its range (E11); a
 // stored-only SMA length is picked from the lengths stored for the ticker / timeframe (Q5), stale
 // ones marked. Channels: the detector panel (RecursiveParamsPanel, as is), the A / B view and the
-// coarser channel timeframes. Levels: minimum strength and N nearest. Colour: the theme palette
-// (follows a theme switch) or a custom colour.
+// coarser channel timeframes. Levels: minimum strength and N nearest. Volume profile: rows and
+// width (no colour: the theme's candle up / down). Colour: the theme palette (follows a theme
+// switch) or a custom colour.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import RecursiveParamsPanel, { RECURSIVE_DEFAULT_PARAMS } from '../channelExplorer/RecursiveParamsPanel';
 import { CHANNEL_VIEW } from '../../api/channelApi';
@@ -15,8 +16,12 @@ import { resolveColor } from '../../theme/theme';
 import { formatBarKey } from '../charts/workspace/bars';
 import { LEVEL_CHART_MAX_N } from '../../utils/levelZones';
 import {
-  CHANNELS, LEVELS, DEFAULT_CHANNEL_PARAMS, DEFAULT_LEVEL_PARAMS, TIMEFRAMES, TF_RANK,
-  defaultParams, paramError, sanitizeChannelParams, sanitizeLevelParams,
+  VP_ROWS_MIN, VP_ROWS_MAX, VP_WIDTH_MIN, VP_WIDTH_MAX,
+} from '../../utils/volumeProfile';
+import {
+  CHANNELS, LEVELS, VOLUME_PROFILE, DEFAULT_CHANNEL_PARAMS, DEFAULT_LEVEL_PARAMS, DEFAULT_VOLUME_PROFILE_PARAMS,
+  TIMEFRAMES, TF_RANK, defaultParams, paramError, sanitizeChannelParams, sanitizeLevelParams,
+  sanitizeVolumeProfileParams, volumeProfileParamErrors,
 } from './indicatorSet';
 
 const PALETTE = Array.from({ length: 8 }, (_, i) => paletteColor(i));
@@ -31,7 +36,7 @@ const toHex = (color) => {
 
 /**
  * @param {Object} props
- * @param {string} props.kind - registry name, 'CHANNELS' or 'LEVELS'
+ * @param {string} props.kind - registry name, 'CHANNELS', 'LEVELS' or 'VOLUME_PROFILE'
  * @param {Object|null} props.descriptor - the registry descriptor (registry kinds)
  * @param {Object|null} props.item - the item being edited; null when adding
  * @param {string} props.defaultColor - colour of a new registry item
@@ -47,7 +52,13 @@ export default function IndicatorParamsDialog({
 }) {
   const isChannels = kind === CHANNELS;
   const isLevels = kind === LEVELS;
+  const isVolumeProfile = kind === VOLUME_PROFILE;
+  const isBuiltInKind = isChannels || isLevels || isVolumeProfile;
   const [values, setValues] = useState(() => {
+    if (isVolumeProfile) {
+      const p = sanitizeVolumeProfileParams(item?.params || DEFAULT_VOLUME_PROFILE_PARAMS);
+      return { rows: String(p.rows), widthPct: String(p.widthPct) };
+    }
     if (isChannels) return sanitizeChannelParams(item?.params || DEFAULT_CHANNEL_PARAMS);
     if (isLevels) return sanitizeLevelParams(item?.params || DEFAULT_LEVEL_PARAMS);
     const base = defaultParams(descriptor);
@@ -67,6 +78,7 @@ export default function IndicatorParamsDialog({
   const storedText = meta?.smaStoredText || null;
 
   const errors = useMemo(() => {
+    if (isVolumeProfile) return volumeProfileParamErrors(values);
     if (isChannels || isLevels) return {};
     const out = {};
     for (const p of descriptor?.params || []) {
@@ -77,16 +89,17 @@ export default function IndicatorParamsDialog({
       }
     }
     return out;
-  }, [isChannels, isLevels, descriptor, values, stored, storedText, meta]);
+  }, [isChannels, isLevels, isVolumeProfile, descriptor, values, stored, storedText, meta]);
   const valid = Object.keys(errors).length === 0;
 
-  const title = isChannels ? 'Channels' : isLevels ? 'Levels' : (descriptor?.displayName || kind);
+  const title = isChannels ? 'Channels' : isLevels ? 'Levels' : isVolumeProfile ? 'Volume profile' : (descriptor?.displayName || kind);
 
   const submit = (e) => {
     e.preventDefault();
     if (!valid) return;
     if (isChannels) { onSubmit({ params: sanitizeChannelParams(values) }); return; }
     if (isLevels) { onSubmit({ params: sanitizeLevelParams(values) }); return; }
+    if (isVolumeProfile) { onSubmit({ params: sanitizeVolumeProfileParams(values) }); return; }
     const params = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, Number(v)]));
     onSubmit({ params, color });
   };
@@ -99,7 +112,7 @@ export default function IndicatorParamsDialog({
         <div className="ic-dialog__title">{item ? 'Edit' : 'Add'} {title}</div>
         {descriptor?.description && <div className="ic-dialog__desc">{descriptor.description}</div>}
 
-        {!isChannels && !isLevels && (
+        {!isBuiltInKind && (
           <>
             {(descriptor?.params || []).length === 0 && <div className="ic-dialog__hint">{title} has no parameters.</div>}
             {(descriptor?.params || []).map((p, idx) => (
@@ -269,6 +282,46 @@ export default function IndicatorParamsDialog({
                 {' '}Zone map as of {levelsAsOf ? formatBarKey(levelsAsOf, chartTf) : 'the To date (last closed bar)'};
                 bands are the zones as of that date, drawn back to their first touch.
               </span>
+            </label>
+          </>
+        )}
+
+        {isVolumeProfile && (
+          <>
+            <div className="ic-dialog__desc" data-testid="ic-vp-help">
+              Volume by price over the bars currently visible; recalculated when you scroll or zoom. Simplified:
+              each bar&apos;s volume is spread evenly over its low–high range (no intrabar data); a bar with
+              low = high puts all its volume in one row. Green = bars that closed at or above their open, red =
+              below. Bars outside the run session are included. POC and Value Area are not shown yet.
+            </div>
+            <label className="ic-dialog__field">
+              <span className="ic-dialog__label">Rows</span>
+              <input
+                ref={firstFieldRef}
+                type="number"
+                min={VP_ROWS_MIN}
+                max={VP_ROWS_MAX}
+                step={1}
+                value={values.rows}
+                onChange={e => setValues(s => ({ ...s, rows: e.target.value }))}
+                data-testid="ic-vp-rows"
+              />
+              <span className="ic-dialog__hint">{VP_ROWS_MIN} – {VP_ROWS_MAX}, whole number; rows are equal in price</span>
+              {errors.rows && <span className="ic-dialog__error" data-testid="ic-param-error">{errors.rows}</span>}
+            </label>
+            <label className="ic-dialog__field">
+              <span className="ic-dialog__label">Width, % of the chart</span>
+              <input
+                type="number"
+                min={VP_WIDTH_MIN}
+                max={VP_WIDTH_MAX}
+                step={1}
+                value={values.widthPct}
+                onChange={e => setValues(s => ({ ...s, widthPct: e.target.value }))}
+                data-testid="ic-vp-width"
+              />
+              <span className="ic-dialog__hint">{VP_WIDTH_MIN} – {VP_WIDTH_MAX}, whole number</span>
+              {errors.widthPct && <span className="ic-dialog__error" data-testid="ic-param-error">{errors.widthPct}</span>}
             </label>
           </>
         )}

@@ -3,7 +3,7 @@
 // The "Indicators Chart" tab (TASK stage B, architect §6.2): the former Channel Explorer turned
 // into a workspace. Candles of one ticker / timeframe / period on the shared PriceWorkspaceChart,
 // any number of registry indicators from "Add indicator" (GET /api/indicators/*), plus the
-// Channels and Levels overlays. Bars outside the strategy run session are shaded (Q1 = A), the
+// Channels, Levels and Volume profile overlays. Bars outside the strategy run session are shaded (Q1 = A), the
 // open bar and provisional values are drawn hollow / dashed (Q8), a stale SMA tail is offered for
 // calculation in an inline panel (Q3). The route key stays `channels` (D7): the Screener's deep
 // links and old URLs keep working, and a deep link adds the channels overlay by itself.
@@ -19,6 +19,7 @@ import { createChannelLayer } from '../charts/workspace/layers/channelLayer';
 import { createIndicatorLayer } from '../charts/workspace/layers/indicatorLayer';
 import { createSessionShadeLayer } from '../charts/workspace/layers/sessionShadeLayer';
 import { createLevelLayer } from '../charts/workspace/layers/levelLayer';
+import { createVolumeProfileLayer } from '../charts/workspace/layers/volumeProfileLayer';
 import { paneKeyOf, paneRangeOf, PRICE_PANE_KEY } from '../charts/workspace/panes';
 import { toBarTime, formatBarKey } from '../charts/workspace/bars';
 import { channelsRequestKey } from '../../navigation/route';
@@ -33,8 +34,8 @@ import LevelZoneCard from './LevelZoneCard';
 import { useIndicatorSet } from './useIndicatorSet';
 import { useChannelsOverlay } from './useChannelsOverlay';
 import {
-  CHANNELS, LEVELS, PRACTICAL_LINE_LIMIT, TF_RANK, TIMEFRAMES, channelTimeframes, detectorApiParams,
-  isBuiltIn, itemLabel, levelsLabel, nextColor, specOf,
+  CHANNELS, LEVELS, VOLUME_PROFILE, PRACTICAL_LINE_LIMIT, TF_RANK, TIMEFRAMES, channelTimeframes, detectorApiParams,
+  isBuiltIn, itemLabel, levelsLabel, nextColor, specOf, volumeProfileLabel,
 } from './indicatorSet';
 import '../channelExplorer/ChannelExplorer.css';
 import './IndicatorsChartTab.css';
@@ -156,6 +157,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
   const { items } = set;
   const channelsItem = items.find(it => it.kind === CHANNELS) || null;
   const levelsItem = items.find(it => it.kind === LEVELS) || null;
+  const vpItem = items.find(it => it.kind === VOLUME_PROFILE) || null;
 
   // ---- prices ----
   const [prices, setPrices] = useState([]);
@@ -399,6 +401,30 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prices, pricesKey, activeKey, columns, registry, seriesVersion]);
 
+  // ---- volume profile (TASK_indicators_chart_volume D7) ----
+  // The volume column of the /prices rows, by bar time (the layer aligns it to the candle grid). A
+  // missing / non-numeric volume (an older backend) is null = "no volume".
+  const volumeColumn = useMemo(() => ({
+    times: prices.map(r => toBarTime(r.date)),
+    values: prices.map(r => (typeof r.volume === 'number' && Number.isFinite(r.volume) ? r.volume : null)),
+  }), [prices]);
+  const volumeState = useMemo(() => {
+    let numeric = 0;
+    let positive = 0;
+    for (const v of volumeColumn.values) {
+      if (v === null) continue;
+      numeric++;
+      if (v > 0) positive++;
+    }
+    return { numeric, positive };
+  }, [volumeColumn]);
+  const vpRows = vpItem ? vpItem.params.rows : null;
+  const vpWidth = vpItem ? vpItem.params.widthPct : null;
+  const vpOpenFrom = barMarks?.openFromTime ?? null;
+  const vpData = useMemo(() => (vpRows === null ? null : {
+    rows: vpRows, widthPct: vpWidth, volume: volumeColumn, openFromTime: vpOpenFrom,
+  }), [vpRows, vpWidth, volumeColumn, vpOpenFrom]);
+
   // Per registry item: its response indicator (or why not), memoised per identity so a layer is
   // updated only when its own data changed.
   const layerDataCache = useRef(new Map());
@@ -468,6 +494,11 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
         },
       });
     }
+    // After Levels (the tooltip lists the zone rows first, then the profile's row); drawn over the
+    // candles and the zones whatever the order (zOrder).
+    if (vpItem && !vpItem.hidden && vpData) {
+      list.push({ id: vpItem.id, factory: createVolumeProfileLayer, data: vpData });
+    }
     const cache = layerDataCache.current;
     const seen = new Set();
     for (const v of itemViews) {
@@ -500,7 +531,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
       });
     }
     return list;
-  }, [barMarks, registry, levelsItem, levels.map, levelZonesShown, selectedZoneId, onSelectZone, itemViews, columnTimes, channelsItem, overlay.result,
+  }, [barMarks, registry, levelsItem, levels.map, levelZonesShown, selectedZoneId, onSelectZone, vpItem, vpData, itemViews, columnTimes, channelsItem, overlay.result,
     overlay.channels, overlay.zoomChannels, overlay.runId, overlay.exits, overlay.selectedKey, hierarchyMode,
     handleChartSelect, onSelectedChannel, activeTf]);
 
@@ -532,13 +563,24 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
         });
       } else if (item.kind === LEVELS) {
         out.push({ item, label: levelsLabel(item.params), color: 'var(--ws-level-zone-border)', ...levelsChipState(levels, levelZonesShown, active, item.params.minStrength) });
+      } else if (item.kind === VOLUME_PROFILE) {
+        const loadedPrices = active && pricesKey === activeKey && prices.length > 0;
+        let message = null;
+        if (loadedPrices && volumeState.numeric === 0) message = 'no volume data';
+        else if (loadedPrices && volumeState.positive === 0) message = 'all volumes are 0';
+        out.push({
+          item, label: volumeProfileLabel(item.params), color: 'var(--tv-candle-up)',
+          state: message ? 'inactive' : 'ok', message,
+          sub: 'visible range · bars spread evenly',
+          title: message ? undefined : 'Volume by price over the visible bars; each bar’s volume is spread evenly over its low–high range',
+        });
       } else {
         const v = itemViews.find(x => x.item.id === item.id);
         if (v) out.push({ item, label: v.label, color: item.color, state: v.state, message: v.message, topUpLength: v.topUpLength });
       }
     }
     return out;
-  }, [items, itemViews, overlay.loading, overlay.error, levels, levelZonesShown, active]);
+  }, [items, itemViews, overlay.loading, overlay.error, levels, levelZonesShown, active, activeKey, pricesKey, prices, volumeState]);
 
   // ---- stale SMA tail (Q3) ----
   const staleKey = (n) => `${active?.ticker}|${active?.tf}|${n}`;
@@ -607,7 +649,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
   const submitDialog = (patch) => {
     if (!dialog) return;
     if (dialog.itemId) set.update(dialog.itemId, patch);
-    else if (dialog.kind === CHANNELS || dialog.kind === LEVELS) set.add({ kind: dialog.kind, params: patch.params, hidden: false });
+    else if (isBuiltIn(dialog.kind)) set.add({ kind: dialog.kind, params: patch.params, hidden: false });
     else set.add({ kind: dialog.kind, params: patch.params, color: patch.color, hidden: false });
     setDialog(null);
   };
@@ -655,6 +697,8 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
       · drag the slider below to pick the period · Esc to reset zoom · ⛶ for full screen
       {offCount > 0 && ` · shaded bars (${offCount} of ${prices.length}, ${((offCount / Math.max(1, prices.length)) * 100).toFixed(0)} %) are outside the strategy run session ${ruleInterval(registry?.runSession?.rule)?.text || ''}: no strategy decision on them`}
       {barMarks?.openFromTime != null && ' · a hollow candle is a bar not closed yet; a dashed end of a line is provisional'}
+      {vpItem && !vpItem.hidden && volumeState.positive > 0
+        && " · the volume profile covers the visible bars; hover it for a row's volume"}
       {levelsShown && levelZonesShown.length > 0
         && ' · hover a level zone to see it in the tooltip, click it to select it (click again or Esc to clear; a channel line under the cursor takes the click)'}
       {showChannels && <>
@@ -727,6 +771,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
           timeframe={loaded ? active.tf : tf}
           hasChannels={Boolean(channelsItem)}
           hasLevels={Boolean(levelsItem)}
+          hasVolumeProfile={Boolean(vpItem)}
           onPick={openAdd}
         />
         <IndicatorChips

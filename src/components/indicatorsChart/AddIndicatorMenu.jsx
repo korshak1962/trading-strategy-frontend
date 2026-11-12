@@ -1,10 +1,10 @@
 // src/components/indicatorsChart/AddIndicatorMenu.jsx
 //
 // "Add indicator" (TASK B2): every registry descriptor from GET /api/indicators/meta (no list of
-// kinds in the frontend) plus the built-in Channels and Levels overlays. A kind that does not run
+// kinds in the frontend) plus the built-in Channels, Levels and Volume profile overlays. A kind that does not run
 // on the chart's timeframe is listed disabled with the reason.
 import { useEffect, useRef, useState } from 'react';
-import { CHANNELS, LEVELS } from './indicatorSet';
+import { CHANNELS, LEVELS, VOLUME_PROFILE } from './indicatorSet';
 
 /**
  * @param {Object} props
@@ -12,9 +12,10 @@ import { CHANNELS, LEVELS } from './indicatorSet';
  * @param {string} props.timeframe
  * @param {boolean} props.hasChannels
  * @param {boolean} props.hasLevels
+ * @param {boolean} [props.hasVolumeProfile]
  * @param {(kind: string) => void} props.onPick
  */
-export default function AddIndicatorMenu({ descriptors, timeframe, hasChannels, hasLevels, onPick }) {
+export default function AddIndicatorMenu({ descriptors, timeframe, hasChannels, hasLevels, hasVolumeProfile = false, onPick }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
 
@@ -80,6 +81,15 @@ export default function AddIndicatorMenu({ descriptors, timeframe, hasChannels, 
             title={hasLevels ? 'Levels are already on the chart: edit their chip' : 'Level zones: the zone map as of the To date, computed on load'}
           >
             <span>Levels</span><span className="ic-add__unit">{hasLevels ? 'added' : 'overlay'}</span>
+          </button>
+          <button
+            type="button" role="menuitem" className="ic-add__item" disabled={hasVolumeProfile}
+            onClick={() => pick(VOLUME_PROFILE)} data-testid="ic-add-VOLUME_PROFILE"
+            title={hasVolumeProfile
+              ? 'The volume profile is already on the chart: edit its chip'
+              : 'Volume by price over the visible bars (like TradingView VRVP)'}
+          >
+            <span>Volume profile</span><span className="ic-add__unit">{hasVolumeProfile ? 'added' : 'overlay'}</span>
           </button>
         </div>
       )}

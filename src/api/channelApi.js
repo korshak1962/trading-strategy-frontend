@@ -88,6 +88,11 @@ export const normalizeViewInfo = (result, tf) => {
   };
 };
 
+/**
+ * OHLCV bars of one ticker / timeframe (GET /api/channels/prices):
+ * [{date, open, high, low, close, volume}] ascending. `volume` (shares, MOEX too) is missing on an
+ * older backend: callers treat a non-numeric volume as "no volume".
+ */
 export const fetchPrices = async (ticker, timeframe, startDate, endDate) => {
   const params = new URLSearchParams({
     ticker,

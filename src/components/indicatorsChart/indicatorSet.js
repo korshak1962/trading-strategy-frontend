@@ -5,6 +5,8 @@
 //   registry indicator: { id, kind: 'SMA' | 'IBS' | ..., params: { n? }, color, hidden }
 //   channels overlay:   { id, kind: 'CHANNELS', params: { coarserTfs, view, lastActualChannelsOnly, detector }, hidden }
 //   levels overlay:     { id, kind: 'LEVELS', params: { minStrength, nearestN, allZones }, hidden }
+//   volume profile:     { id, kind: 'VOLUME_PROFILE', params: { rows, widthPct }, hidden } - no colour
+//                       (the theme's candle up / down), at most one per set
 // `color` is a theme token reference ('var(--chart-series-N)', follows a theme switch) or a hex
 // the user picked. The set is remembered per viewer in localStorage (try/catch: the tab works the
 // same without storage); a kind that is no longer in the registry is dropped on restore with a
@@ -14,11 +16,15 @@ import { paletteColor } from '../charts/workspace/workspaceTheme';
 import { RECURSIVE_DEFAULT_PARAMS } from '../channelExplorer/RecursiveParamsPanel';
 import { CHANNEL_VIEW } from '../../api/channelApi';
 import { clampChartNearestN } from '../../utils/levelZones';
+import {
+  VP_ROWS_MIN, VP_ROWS_MAX, VP_ROWS_DEFAULT, VP_WIDTH_MIN, VP_WIDTH_MAX, VP_WIDTH_DEFAULT,
+} from '../../utils/volumeProfile';
 
 export const STORAGE_KEY = 'tsf.indicatorsChart.v1';
 export const CHANNELS = 'CHANNELS';
 export const LEVELS = 'LEVELS';
-export const BUILT_IN_KINDS = Object.freeze([CHANNELS, LEVELS]);
+export const VOLUME_PROFILE = 'VOLUME_PROFILE';
+export const BUILT_IN_KINDS = Object.freeze([CHANNELS, LEVELS, VOLUME_PROFILE]);
 /** Above this many visible lines the hover tooltip gets heavy: a warning, not a limit. */
 export const PRACTICAL_LINE_LIMIT = 40;
 
@@ -38,6 +44,28 @@ export const DEFAULT_CHANNEL_PARAMS = Object.freeze({
 });
 
 export const DEFAULT_LEVEL_PARAMS = Object.freeze({ minStrength: 0, nearestN: 2, allZones: false });
+
+export const DEFAULT_VOLUME_PROFILE_PARAMS = Object.freeze({ rows: VP_ROWS_DEFAULT, widthPct: VP_WIDTH_DEFAULT });
+
+/**
+ * The volume profile's param checks (dialog): null when valid, else the message. Rows 6..200 and
+ * width 10..60 % of the chart, whole numbers.
+ */
+export const volumeProfileParamErrors = (values) => {
+  const out = {};
+  const check = (key, name, min, max) => {
+    const raw = values?.[key];
+    if (raw === '' || raw === null || raw === undefined) { out[key] = `${name} is required`; return; }
+    const v = Number(raw);
+    if (!Number.isFinite(v)) out[key] = `${name} must be a number`;
+    else if (!Number.isInteger(v)) out[key] = `${name} must be a whole number`;
+    else if (v < min) out[key] = `${name} must be at least ${min}`;
+    else if (v > max) out[key] = `${name} must be at most ${max}`;
+  };
+  check('rows', 'Rows', VP_ROWS_MIN, VP_ROWS_MAX);
+  check('widthPct', 'Width', VP_WIDTH_MIN, VP_WIDTH_MAX);
+  return out;
+};
 
 /** Detector params as the channel endpoint takes them (logPrice always on: the chart is log). */
 export const detectorApiParams = (detector) => ({
@@ -65,10 +93,11 @@ export const specOf = (item) => ({
 export const levelsLabel = (params) =>
   `Levels (${params?.allZones ? 'all' : `N ${params?.nearestN}`}, strength ≥ ${params?.minStrength})`;
 
-/** 'SMA(50)', 'IBS', 'Channels', 'Levels'. */
+/** 'SMA(50)', 'IBS', 'Channels', 'Levels', 'Volume profile'. */
 export const itemLabel = (item, descriptor) => {
   if (item.kind === CHANNELS) return 'Channels';
   if (item.kind === LEVELS) return 'Levels';
+  if (item.kind === VOLUME_PROFILE) return 'Volume profile';
   const name = descriptor?.displayName || item.kind;
   const n = specOf(item).n;
   return n === null ? name : `${name}(${n})`;
@@ -121,6 +150,20 @@ export const sanitizeChannelParams = (p) => ({
   detector: sanitizeDetector(p?.detector),
 });
 
+const clampInt = (raw, min, max, dflt) => {
+  const v = Number(raw);
+  if (raw === null || raw === undefined || raw === '' || !Number.isFinite(v)) return dflt;
+  return Math.min(max, Math.max(min, Math.round(v)));
+};
+
+export const sanitizeVolumeProfileParams = (p) => ({
+  rows: clampInt(p?.rows, VP_ROWS_MIN, VP_ROWS_MAX, VP_ROWS_DEFAULT),
+  widthPct: clampInt(p?.widthPct, VP_WIDTH_MIN, VP_WIDTH_MAX, VP_WIDTH_DEFAULT),
+});
+
+/** The volume profile chip label: 'Volume profile (24 rows, 30 %)'. */
+export const volumeProfileLabel = (params) => `Volume profile (${params?.rows} rows, ${params?.widthPct} %)`;
+
 export const sanitizeLevelParams = (p) => {
   const s = Number(p?.minStrength);
   return {
@@ -152,7 +195,7 @@ export const saveStoredItems = (items) => {
 
 /**
  * Drops broken entries of a restored set against the registry descriptors (B4): an unknown kind,
- * a malformed entry, or a second Channels / Levels item. Registry params outside the
+ * a malformed entry, or a second Channels / Levels / Volume profile item. Registry params outside the
  * descriptor's range fall back to the default. Returns {items, dropped: [text]}.
  * `descriptors` null: the registry is not known yet - registry entries are kept unchecked.
  */
@@ -163,6 +206,7 @@ export const sanitizeItems = (rawItems, descriptors) => {
   const ids = new Set();
   let hasChannels = false;
   let hasLevels = false;
+  let hasVolumeProfile = false;
   for (const raw of rawItems || []) {
     if (!raw || typeof raw !== 'object' || typeof raw.kind !== 'string') { dropped.push('an unreadable entry'); continue; }
     const id = typeof raw.id === 'string' && raw.id && !ids.has(raw.id) ? raw.id : newItemId();
@@ -178,6 +222,12 @@ export const sanitizeItems = (rawItems, descriptors) => {
       if (hasLevels) continue;
       hasLevels = true;
       items.push({ id, kind: LEVELS, params: sanitizeLevelParams(raw.params), hidden });
+      continue;
+    }
+    if (raw.kind === VOLUME_PROFILE) {
+      if (hasVolumeProfile) continue;
+      hasVolumeProfile = true;
+      items.push({ id, kind: VOLUME_PROFILE, params: sanitizeVolumeProfileParams(raw.params), hidden });
       continue;
     }
     if (descriptors === null) {

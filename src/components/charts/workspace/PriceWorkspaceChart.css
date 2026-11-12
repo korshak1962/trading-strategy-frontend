@@ -153,6 +153,9 @@
 
 .ws-tooltip__note {
   flex-basis: 100%;
+  /* A note may carry a second line ('
+'), e.g. the volume profile's skipped bars. */
+  white-space: pre-line;
 }
 
 /* Extend / shrink handle of the selected channel (channelLayer). */

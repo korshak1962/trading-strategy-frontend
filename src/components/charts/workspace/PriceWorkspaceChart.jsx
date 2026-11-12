@@ -32,9 +32,11 @@ import './PriceWorkspaceChart.css';
  *     applyTheme(tokens)       - recolour every series, marker and primitive (A6a)
  *     tooltipRows(barIndex, hover)
  *                              - [{label, value?, color?, note?}] for the hover tooltip (A4).
- *                                hover: { price, paneIndex } - the price under the cursor on the
- *                                price pane (the crosshair is in Normal mode, it follows the mouse),
- *                                null on the other panes (TASK_level_zone_hover_select §1.1)
+ *                                hover: { price, paneIndex, x, y } - the price under the cursor on
+ *                                the price pane (the crosshair is in Normal mode, it follows the
+ *                                mouse), null on the other panes (TASK_level_zone_hover_select §1.1);
+ *                                x / y: the cursor in media px relative to the hovered pane's plot
+ *                                (TASK_indicators_chart_volume D6: the volume profile's band)
  *     detach()                 - remove everything it created; the instance may be attached again
  *     redraw()                 - optional: the price scale changed (log toggle, manual zoom,
  *                                resize); DOM drawn over the plot follows it
@@ -438,7 +440,7 @@ export default function PriceWorkspaceChart({
         const p = candles.coordinateToPrice(point.y);
         price = Number.isFinite(p) ? p : null;
       }
-      const hover = { price, paneIndex };
+      const hover = { price, paneIndex, x: point.x, y: point.y };
       const rows = [];
       for (const entry of layerMapRef.current.values()) {
         const r = entry.instance.tooltipRows?.(i, hover);
