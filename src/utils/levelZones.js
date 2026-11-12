@@ -51,6 +51,20 @@ export const clampNearestN = (value) => {
   return Math.min(LEVEL_ZONES_MAX_N, Math.max(0, n));
 };
 
+/**
+ * Indicators Chart only (TASK_level_zone_hover_select §1.3): the Levels overlay draws the stored
+ * zone map, where a HOUR map can hold many zones, so its N goes up to 20 (plus an "all zones"
+ * switch). The Backtest chart keeps LEVEL_ZONES_MAX_N.
+ */
+export const LEVEL_CHART_MAX_N = 20;
+
+/** Coerce the Indicators Chart's N into 0..LEVEL_CHART_MAX_N (`fallback` when unreadable). */
+export const clampChartNearestN = (value, fallback = 2) => {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(LEVEL_CHART_MAX_N, Math.max(0, n));
+};
+
 /** True when the chart data carries at least one zone segment. */
 export const hasLevelZones = (chartData) =>
   Array.isArray(chartData?.levelZones) && chartData.levelZones.length > 0;

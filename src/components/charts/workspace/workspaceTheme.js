@@ -5,6 +5,7 @@
 // :root[data-theme="dark"]); useThemeTokens(WS_TOKENS) resolves them for the current theme and
 // PriceWorkspaceChart re-applies them in place on a switch: the chart options, the candles and
 // then every layer through layer.applyTheme(tokens) (TASK A6a, dark-theme review m4).
+import { CrosshairMode } from 'lightweight-charts';
 
 /** key -> CSS custom property. Module-level and frozen: useThemeTokens memoizes on it. */
 export const WS_TOKENS = Object.freeze({
@@ -28,6 +29,10 @@ export const chartThemeOptions = (tv) => ({
   layout: { background: { type: 'solid', color: tv.bg }, textColor: tv.text, attributionLogo: true },
   grid: { vertLines: { color: tv.grid }, horzLines: { color: tv.grid } },
   crosshair: {
+    // Normal, not the library's default Magnet: the horizontal line follows the mouse, so the
+    // price under the cursor (level zones in the tooltip, TASK_level_zone_hover_select §1.1) is
+    // the one the user points at, not the bar's close.
+    mode: CrosshairMode.Normal,
     vertLine: { color: tv.crosshair, labelBackgroundColor: tv.crosshairLabel },
     horzLine: { color: tv.crosshair, labelBackgroundColor: tv.crosshairLabel },
   },

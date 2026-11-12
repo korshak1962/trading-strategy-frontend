@@ -29,11 +29,12 @@ import IndicatorParamsDialog from './IndicatorParamsDialog';
 import IndicatorChips from './IndicatorChips';
 import StaleTailPrompt from './StaleTailPrompt';
 import ChannelsPanel from './ChannelsPanel';
+import LevelZoneCard from './LevelZoneCard';
 import { useIndicatorSet } from './useIndicatorSet';
 import { useChannelsOverlay } from './useChannelsOverlay';
 import {
   CHANNELS, LEVELS, PRACTICAL_LINE_LIMIT, TF_RANK, TIMEFRAMES, channelTimeframes, detectorApiParams,
-  isBuiltIn, itemLabel, nextColor, specOf,
+  isBuiltIn, itemLabel, levelsLabel, nextColor, specOf,
 } from './indicatorSet';
 import '../channelExplorer/ChannelExplorer.css';
 import './IndicatorsChartTab.css';
@@ -138,6 +139,9 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
 
   // ---- levels ----
   const [levels, setLevels] = useState({ key: null, zones: [], loading: false, error: null });
+  // The level zone clicked on the chart (its id): highlighted band + card (TASK_level_zone_hover_select §1.2).
+  const [selectedZoneId, setSelectedZoneId] = useState(null);
+  const onSelectZone = useCallback((zone) => setSelectedZoneId(zone ? zone.id : null), []);
 
   // ---- dialog / stale tail ----
   const [dialog, setDialog] = useState(null); // {kind, itemId|null}
@@ -217,6 +221,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
     storeRef.current = emptyStore(key);
     setTopUp({ busy: false, error: null, done: null });
     setSelectedChannel(null);
+    setSelectedZoneId(null);
     setPricesLoading(true);
     setPricesError(null);
     setPrices([]);
@@ -305,6 +310,14 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeKey, levelsMin]);
 
+  // The zone selection goes with the Levels overlay: hidden or removed -> dropped.
+  const levelsShown = Boolean(levelsItem && !levelsItem.hidden);
+  useEffect(() => { if (!levelsShown) setSelectedZoneId(null); }, [levelsShown]);
+  const selectedZone = useMemo(
+    () => (selectedZoneId === null ? null : levels.zones.find(z => z.id === selectedZoneId) || null),
+    [selectedZoneId, levels.zones],
+  );
+
   // ---- channels ----
   const overlay = useChannelsOverlay(pricesKey === activeKey ? active : null, channelsItem);
   const handleChartSelect = useCallback((key) => {
@@ -391,7 +404,14 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
       });
     }
     if (levelsItem && !levelsItem.hidden && levels.zones.length > 0) {
-      list.push({ id: levelsItem.id, factory: createLevelLayer, data: { zones: levels.zones, nearestN: levelsItem.params.nearestN } });
+      list.push({
+        id: levelsItem.id,
+        factory: createLevelLayer,
+        data: {
+          zones: levels.zones, nearestN: levelsItem.params.nearestN, allZones: levelsItem.params.allZones === true,
+          selectedId: selectedZoneId, onSelect: onSelectZone,
+        },
+      });
     }
     const cache = layerDataCache.current;
     const seen = new Set();
@@ -425,7 +445,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
       });
     }
     return list;
-  }, [barMarks, registry, levelsItem, levels.zones, itemViews, columnTimes, channelsItem, overlay.result,
+  }, [barMarks, registry, levelsItem, levels.zones, selectedZoneId, onSelectZone, itemViews, columnTimes, channelsItem, overlay.result,
     overlay.channels, overlay.zoomChannels, overlay.runId, overlay.exits, overlay.selectedKey, hierarchyMode,
     handleChartSelect, onSelectedChannel, activeTf]);
 
@@ -457,7 +477,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
         });
       } else if (item.kind === LEVELS) {
         out.push({
-          item, label: `Levels (N ${item.params.nearestN}, strength ≥ ${item.params.minStrength})`, color: 'var(--ws-level-zone-border)',
+          item, label: levelsLabel(item.params), color: 'var(--ws-level-zone-border)',
           state: levels.loading ? 'loading' : levels.error ? 'error' : 'ok',
           message: levels.error || (active && !levels.loading && levels.key && levels.zones.length === 0 ? 'no stored zones' : null),
         });
@@ -584,6 +604,8 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
       · drag the slider below to pick the period · Esc to reset zoom · ⛶ for full screen
       {offCount > 0 && ` · shaded bars (${offCount} of ${prices.length}, ${((offCount / Math.max(1, prices.length)) * 100).toFixed(0)} %) are outside the strategy run session ${ruleInterval(registry?.runSession?.rule)?.text || ''}: no strategy decision on them`}
       {barMarks?.openFromTime != null && ' · a hollow candle is a bar not closed yet; a dashed end of a line is provisional'}
+      {levelsShown && levels.zones.length > 0
+        && ' · hover a level zone to see it in the tooltip, click it to select it (click again or Esc to clear; a channel line under the cursor takes the click)'}
       {showChannels && <>
         {' · '}Click a channel line (or its card below) to select it · drag the yellow handle to extend/shrink · Delete/Backspace to remove
         · ▲/▼ arrows mark where a close price crossed a channel boundary
@@ -718,6 +740,10 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
           className="ch-chart-wrapper"
           containerClassName="ch-chart-container"
         />
+      )}
+
+      {loaded && levelsShown && selectedZone && (
+        <LevelZoneCard zone={selectedZone} timeframe={active.tf} onClose={() => setSelectedZoneId(null)} />
       )}
 
       {loaded && channelsItem && !channelsItem.hidden && (

@@ -459,7 +459,8 @@ export function createChannelLayer() {
 
   // ---- interaction ----
   function handleChartClick(param) {
-    if (suppressNextClick) { suppressNextClick = false; return; }
+    // The click that ends a handle drag is ours too: no other layer (a level zone) acts on it.
+    if (suppressNextClick) { suppressNextClick = false; ctx.claimClick?.(param); return; }
     if (param.paneIndex !== undefined && param.paneIndex !== ctx.paneOf('price')) return;
     if (!param.point) { selectChannel(null); return; }
     const { x: px, y: py } = param.point;
@@ -479,6 +480,8 @@ export function createChannelLayer() {
         }
       }
     }
+    // A hit on a channel line wins over a level zone under it (the zone layer yields to claimed clicks).
+    if (best !== null) ctx.claimClick?.(param);
     selectChannel(best);
   }
 

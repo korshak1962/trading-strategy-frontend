@@ -30,10 +30,16 @@ import './PriceWorkspaceChart.css';
  *                                every bars change (the candle grid changed), after a detach
  *     update(data)             - new data (a new `data` reference); always follows attach
  *     applyTheme(tokens)       - recolour every series, marker and primitive (A6a)
- *     tooltipRows(barIndex)    - [{label, value?, color?, note?}] for the hover tooltip (A4)
+ *     tooltipRows(barIndex, hover)
+ *                              - [{label, value?, color?, note?}] for the hover tooltip (A4).
+ *                                hover: { price, paneIndex } - the price under the cursor on the
+ *                                price pane (the crosshair is in Normal mode, it follows the mouse),
+ *                                null on the other panes (TASK_level_zone_hover_select §1.1)
  *     detach()                 - remove everything it created; the instance may be attached again
  *     redraw()                 - optional: the price scale changed (log toggle, manual zoom,
  *                                resize); DOM drawn over the plot follows it
+ *     escape()                 - optional: Escape was pressed; true when the layer used it (e.g.
+ *                                dropped its selection) - then the chart does not Fit
  *   }
  *   ctx: {
  *     chart, candles, container,
@@ -54,6 +60,9 @@ import './PriceWorkspaceChart.css';
  *     isLog()                  - the price scale is logarithmic
  *     isTabActive()            - the enclosing tab is the visible one (global key handlers)
  *     setTooltipSuppressed(b)  - hide the tooltip, e.g. while a handle is dragged
+ *     claimClick(param)        - a layer that used a chart click (subscribeClick param) marks it,
+ *     isClickClaimed(param)      so a layer that defers its own click handling (levels, which
+ *                                yield to a channel line) can tell
  *   }
  * A descriptor with the same id and factory keeps its instance (update(data) only when `data`
  * changed identity); a new factory re-creates it; a removed id is detached.
@@ -192,7 +201,14 @@ export default function PriceWorkspaceChart({
     refreshPriceScale();
     fitTime();
   }, [refreshPriceScale, fitTime]);
-  useEscapeFit(fit, tabActive);
+  // Escape: a layer that holds a selection drops it first (the level zone); otherwise Fit.
+  const escapeOrFit = useCallback(() => {
+    for (const entry of layerMapRef.current.values()) {
+      if (entry.instance.escape?.()) return;
+    }
+    fit();
+  }, [fit]);
+  useEscapeFit(escapeOrFit, tabActive);
 
   // ---- stage B panes (design D6) ----
   /** Group key per pane index ('price' for pane 0); null for a pane holding no known series. */
@@ -296,6 +312,7 @@ export default function PriceWorkspaceChart({
     const theme = tokensRef.current;
     const seriesGroups = seriesGroupRef.current;
     const paneSubs = paneSubsRef.current;
+    const claimedClicks = new WeakSet();
     const chart = createChart(el, {
       width: el.clientWidth,
       height: el.clientHeight,
@@ -364,6 +381,8 @@ export default function PriceWorkspaceChart({
         tooltipSuppressedRef.current = Boolean(on);
         if (on) setTip(null);
       },
+      claimClick: (param) => { if (param && typeof param === 'object') claimedClicks.add(param); },
+      isClickClaimed: (param) => Boolean(param && typeof param === 'object' && claimedClicks.has(param)),
     };
 
     const ro = new ResizeObserver(() => {
@@ -413,9 +432,16 @@ export default function PriceWorkspaceChart({
       }
       const i = Math.round(param.logical);
       if (i < 0 || i >= data.length) { setTip(null); return; }
+      // The price under the cursor, on the price pane only (coordinateToPrice follows the log scale).
+      let price = null;
+      if (paneIndex === PRICE_PANE) {
+        const p = candles.coordinateToPrice(point.y);
+        price = Number.isFinite(p) ? p : null;
+      }
+      const hover = { price, paneIndex };
       const rows = [];
       for (const entry of layerMapRef.current.values()) {
-        const r = entry.instance.tooltipRows?.(i);
+        const r = entry.instance.tooltipRows?.(i, hover);
         if (r && r.length) rows.push(...r);
       }
       setTip({

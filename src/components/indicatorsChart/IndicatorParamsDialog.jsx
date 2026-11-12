@@ -13,7 +13,7 @@ import { CHANNEL_VIEW } from '../../api/channelApi';
 import { paletteColor } from '../charts/workspace/workspaceTheme';
 import { resolveColor } from '../../theme/theme';
 import { formatBarKey } from '../charts/workspace/bars';
-import { LEVEL_ZONES_MAX_N } from '../../utils/levelZones';
+import { LEVEL_CHART_MAX_N } from '../../utils/levelZones';
 import {
   CHANNELS, LEVELS, DEFAULT_CHANNEL_PARAMS, DEFAULT_LEVEL_PARAMS, TIMEFRAMES, TF_RANK,
   defaultParams, paramError, sanitizeChannelParams, sanitizeLevelParams,
@@ -240,17 +240,33 @@ export default function IndicatorParamsDialog({
                 onChange={e => setValues(s => ({ ...s, minStrength: e.target.value }))}
               />
             </label>
+            <label className="ta-checkbox-label">
+              <input
+                type="checkbox"
+                checked={values.allZones === true}
+                onChange={e => setValues(s => ({ ...s, allZones: e.target.checked }))}
+                data-testid="ic-levels-all"
+              />
+              All zones (every stored zone with strength ≥ the minimum)
+            </label>
             <label className="ic-dialog__field">
               <span className="ic-dialog__label">Nearest zones above / below the last close</span>
               <input
                 type="number"
                 min={0}
-                max={LEVEL_ZONES_MAX_N}
+                max={LEVEL_CHART_MAX_N}
                 step={1}
                 value={values.nearestN}
+                disabled={values.allZones === true}
                 onChange={e => setValues(s => ({ ...s, nearestN: e.target.value }))}
+                data-testid="ic-levels-n"
               />
-              <span className="ic-dialog__hint">0..{LEVEL_ZONES_MAX_N}; zones containing the last close are always drawn. The stored zone map as of today.</span>
+              <span className="ic-dialog__hint">
+                {values.allZones
+                  ? 'Ignored while "All zones" is on.'
+                  : `0..${LEVEL_CHART_MAX_N}; zones containing the last close are always drawn.`}
+                {' '}The stored zone map as of today.
+              </span>
             </label>
           </>
         )}

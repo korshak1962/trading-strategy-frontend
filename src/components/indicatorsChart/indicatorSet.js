@@ -4,7 +4,7 @@
 // helpers, no React. An item is
 //   registry indicator: { id, kind: 'SMA' | 'IBS' | ..., params: { n? }, color, hidden }
 //   channels overlay:   { id, kind: 'CHANNELS', params: { coarserTfs, view, lastActualChannelsOnly, detector }, hidden }
-//   levels overlay:     { id, kind: 'LEVELS', params: { minStrength, nearestN }, hidden }
+//   levels overlay:     { id, kind: 'LEVELS', params: { minStrength, nearestN, allZones }, hidden }
 // `color` is a theme token reference ('var(--chart-series-N)', follows a theme switch) or a hex
 // the user picked. The set is remembered per viewer in localStorage (try/catch: the tab works the
 // same without storage); a kind that is no longer in the registry is dropped on restore with a
@@ -13,7 +13,7 @@
 import { paletteColor } from '../charts/workspace/workspaceTheme';
 import { RECURSIVE_DEFAULT_PARAMS } from '../channelExplorer/RecursiveParamsPanel';
 import { CHANNEL_VIEW } from '../../api/channelApi';
-import { clampNearestN } from '../../utils/levelZones';
+import { clampChartNearestN } from '../../utils/levelZones';
 
 export const STORAGE_KEY = 'tsf.indicatorsChart.v1';
 export const CHANNELS = 'CHANNELS';
@@ -37,7 +37,7 @@ export const DEFAULT_CHANNEL_PARAMS = Object.freeze({
   detector: { ...RECURSIVE_DEFAULT_PARAMS },
 });
 
-export const DEFAULT_LEVEL_PARAMS = Object.freeze({ minStrength: 0, nearestN: 2 });
+export const DEFAULT_LEVEL_PARAMS = Object.freeze({ minStrength: 0, nearestN: 2, allZones: false });
 
 /** Detector params as the channel endpoint takes them (logPrice always on: the chart is log). */
 export const detectorApiParams = (detector) => ({
@@ -60,6 +60,10 @@ export const specOf = (item) => ({
   kind: item.kind,
   n: item.params && item.params.n !== undefined && item.params.n !== null ? Number(item.params.n) : null,
 });
+
+/** The Levels chip label: 'Levels (N 2, strength ≥ 0)' / 'Levels (all, strength ≥ 0)'. */
+export const levelsLabel = (params) =>
+  `Levels (${params?.allZones ? 'all' : `N ${params?.nearestN}`}, strength ≥ ${params?.minStrength})`;
 
 /** 'SMA(50)', 'IBS', 'Channels', 'Levels'. */
 export const itemLabel = (item, descriptor) => {
@@ -121,7 +125,8 @@ export const sanitizeLevelParams = (p) => {
   const s = Number(p?.minStrength);
   return {
     minStrength: Number.isFinite(s) && s >= 0 ? s : DEFAULT_LEVEL_PARAMS.minStrength,
-    nearestN: clampNearestN(p?.nearestN ?? DEFAULT_LEVEL_PARAMS.nearestN),
+    nearestN: clampChartNearestN(p?.nearestN ?? DEFAULT_LEVEL_PARAMS.nearestN, DEFAULT_LEVEL_PARAMS.nearestN),
+    allZones: p?.allZones === true,
   };
 };
 

@@ -399,3 +399,71 @@
 .ic-stale__done {
   color: var(--tv-accent);
 }
+
+/* ---- selected level zone card (TASK_level_zone_hover_select §1.2) ---- */
+.ic-zone-card {
+  background: var(--tv-panel);
+  border: 1px solid var(--tv-selected);
+  border-radius: 4px;
+  color: var(--tv-text);
+  font-size: 12px;
+  margin: 8px 0;
+  padding: 8px 10px;
+}
+
+.ic-zone-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ic-zone-card__head .ic-chip__btn {
+  margin-left: auto;
+}
+
+.ic-zone-card__range {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.ic-zone-card__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 6px;
+  color: var(--tv-text-soft);
+}
+
+.ic-zone-card__grid b {
+  color: var(--tv-text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.ic-zone-card__touches {
+  margin-top: 6px;
+}
+
+.ic-zone-card__touches summary {
+  cursor: pointer;
+  color: var(--tv-text-soft);
+}
+
+.ic-zone-card__touches table {
+  border-collapse: collapse;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ic-zone-card__touches th,
+.ic-zone-card__touches td {
+  border-bottom: 1px solid var(--tv-border);
+  padding: 2px 10px 2px 0;
+  text-align: left;
+}
+
+.ic-zone-card__touches th {
+  color: var(--tv-text-muted);
+  font-weight: 600;
+}
