@@ -36,7 +36,8 @@ import './PriceWorkspaceChart.css';
  *                                the price pane (the crosshair is in Normal mode, it follows the
  *                                mouse), null on the other panes (TASK_level_zone_hover_select §1.1);
  *                                x / y: the cursor in media px relative to the hovered pane's plot
- *                                (TASK_indicators_chart_volume D6: the volume profile's band)
+ *                                (TASK_indicators_chart_volume D6: the volume profile's band).
+ *                                Rows of all layers are listed in the `layers` prop order.
  *     detach()                 - remove everything it created; the instance may be attached again
  *     redraw()                 - optional: the price scale changed (log toggle, manual zoom,
  *                                resize); DOM drawn over the plot follows it
@@ -120,6 +121,9 @@ export default function PriceWorkspaceChart({
   const ctxRef = useRef(null);
   // id -> {factory, instance, data, attached}
   const layerMapRef = useRef(new Map());
+  // Layer ids in the order of the latest `layers` prop: the tooltip lists the rows in this order,
+  // not in attach order (a layer whose data arrives later attaches later).
+  const layerOrderRef = useRef([]);
   const layersPropRef = useRef(layers);
   // Manual price-axis zoom of the price pane: null = auto-fit to the visible candles (A3).
   // Rule (fix round 1): the axis goes manual ONLY on an explicit price-axis gesture - a wheel over
@@ -248,8 +252,10 @@ export default function PriceWorkspaceChart({
     if (!ctx) return;
     const map = layerMapRef.current;
     const seen = new Set();
+    const order = [];
     for (const d of descriptors || []) {
       if (!d || !d.id || typeof d.factory !== 'function') continue;
+      if (!seen.has(d.id)) order.push(d.id);
       seen.add(d.id);
       let entry = map.get(d.id);
       if (entry && entry.factory !== d.factory) {
@@ -272,11 +278,13 @@ export default function PriceWorkspaceChart({
       entry.instance.detach();
       map.delete(id);
     }
+    layerOrderRef.current = order;
   }, []);
 
   const detachAllLayers = useCallback(() => {
     for (const entry of layerMapRef.current.values()) entry.instance.detach();
     layerMapRef.current.clear();
+    layerOrderRef.current = [];
   }, []);
 
   /** Candle data with the stage B marks: muted off-session bars, hollow open bars (design §5). */
@@ -441,9 +449,13 @@ export default function PriceWorkspaceChart({
         price = Number.isFinite(p) ? p : null;
       }
       const hover = { price, paneIndex, x: point.x, y: point.y };
+      // Rows in the `layers` prop order (the caller's descriptor order), whatever order the layers
+      // attached in; tooltipRows is called on every layer (it also drives each layer's hover state).
       const rows = [];
-      for (const entry of layerMapRef.current.values()) {
-        const r = entry.instance.tooltipRows?.(i, hover);
+      const map = layerMapRef.current;
+      for (const id of layerOrderRef.current) {
+        const entry = map.get(id);
+        const r = entry?.instance.tooltipRows?.(i, hover);
         if (r && r.length) rows.push(...r);
       }
       setTip({

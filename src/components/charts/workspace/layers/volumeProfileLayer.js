@@ -22,7 +22,7 @@
 //   openFromTime: ?number,        // first open (unfinished) bar's time when known, else null
 //   hidden?: boolean,
 // }
-import { computeVolumeProfile, rowIndexOf } from '../../../../utils/volumeProfile';
+import { computeVolumeProfile, formatShare, rowIndexOf } from '../../../../utils/volumeProfile';
 import { withAlpha } from '../../../../theme/theme';
 
 export const VP_RECOMPUTE_DEBOUNCE_MS = 60;
@@ -234,9 +234,8 @@ export function createVolumeProfileLayer() {
       const i = rowIndexOf(price, profile.lo, profile.rowHeight, profile.rows.length);
       const row = profile.rows[i];
       setHovered(i);
-      const upShare = pct(row.up, row.total);
       const notes = [
-        `${formatVolume(row.total)} · up ${upShare.toFixed(0)} % / down ${(row.total > 0 ? 100 - upShare : 0).toFixed(0)} %`
+        `${formatVolume(row.total)} · up ${formatShare(row.up, row.total)} % / down ${formatShare(row.down, row.total)} %`
           + ` · ${pct(row.total, profile.total).toFixed(1)} % of ${formatVolume(profile.total)} visible`
           + ` (${profile.rows.length} rows, ${profileBars} bars)`,
       ];

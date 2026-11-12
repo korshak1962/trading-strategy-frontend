@@ -494,7 +494,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
         },
       });
     }
-    // After Levels (the tooltip lists the zone rows first, then the profile's row); drawn over the
+    // After Levels: the tooltip lists rows in this list order (zone rows, then the profile row); drawn over the
     // candles and the zones whatever the order (zOrder).
     if (vpItem && !vpItem.hidden && vpData) {
       list.push({ id: vpItem.id, factory: createVolumeProfileLayer, data: vpData });

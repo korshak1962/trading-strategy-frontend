@@ -23,6 +23,23 @@ const finite = (v) => typeof v === 'number' && Number.isFinite(v);
  * The row index of price `p`: clamp(floor((p - lo) / rowHeight), 0, R - 1), so p == hi is the top
  * row. Exported for the layer (tooltip row under the cursor). `rowHeight` 0 (flat range) -> 0.
  */
+/** Residue tolerance relative to the row's volume (see clampResidue). */
+const RESIDUE_REL = 1e-9;
+
+/** `x` or 0 when it is negative or a floating leftover below RESIDUE_REL of |x| + |other|. */
+export const clampResidue = (x, other) => (x < RESIDUE_REL * (Math.abs(x) + Math.abs(other)) ? 0 : x);
+
+/**
+ * A share `part / whole` in percent, clamped to [0, 100] and rounded to `digits`; never "-0".
+ * 0 when `whole` is not positive.
+ */
+export const formatShare = (part, whole, digits = 0) => {
+  const v = whole > 0 ? (part / whole) * 100 : 0;
+  const c = Number.isFinite(v) ? Math.min(100, Math.max(0, v)) : 0;
+  const s = c.toFixed(digits);
+  return Number(s) === 0 ? (0).toFixed(digits) : s;
+};
+
 export const rowIndexOf = (p, lo, rowHeight, rowCount) => {
   if (!(rowHeight > 0)) return 0;
   const i = Math.floor((p - lo) / rowHeight);
@@ -121,8 +138,10 @@ export function computeVolumeProfile(bars, opts = {}) {
   for (let i = 0; i < R; i++) {
     runUp += upDiff[i];
     runDown += downDiff[i];
-    const u = up[i] + runUp;
-    const dn = down[i] + runDown;
+    // Difference-array residue (e.g. -1.49e-8 on an up-only row) is clamped to 0: a side is
+    // never negative, and a leftover below 1e-9 of the row is not a volume.
+    const u = clampResidue(up[i] + runUp, down[i] + runDown);
+    const dn = clampResidue(down[i] + runDown, up[i] + runUp);
     const t = u + dn;
     totalUp += u;
     totalDown += dn;
