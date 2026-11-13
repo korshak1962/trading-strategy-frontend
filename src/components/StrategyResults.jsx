@@ -7,7 +7,10 @@ import PerformanceMetricsTable from './PerformanceMetricsTable';
 import TradeStatisticsTable from './TradeStatisticsTable';
 import ChannelStabilityView from './stability/ChannelStabilityView';
 import ConstructedResultInfo from './strategyConstructor/ConstructedResultInfo';
-import { CONSTRUCTED_CLASS, constructedKeyOfParam, strategyLabel } from './strategyConstructor/constructedFormat';
+import {
+  CONSTRUCTED_CLASS, constructedKeyOfParam, orderMinBeforeMax, parseThresholdName, strategyLabel,
+} from './strategyConstructor/constructedFormat';
+import useChannelMetrics from './strategyConstructor/useChannelMetrics';
 import { formatNumber, formatPercent, formatSigned, formatSignedPercent } from '../utils/formatters';
 import '../ResultsTabs.css';
 
@@ -27,9 +30,22 @@ const bestParamStrategy = (p, constructed) => {
   return p.strategyClass || '';
 };
 
+// The constructed strategy key of a Best Parameters row (null for a class strategy).
+const constructedKeyOfRow = (p, constructed) => (p.strategy
+  || (p.strategyClass === CONSTRUCTED_CLASS
+    ? constructedKeyOfParam(p.paramName, constructed?.config?.strategyNameToParams) : null));
+
 const StrategyResults = ({ results, mode, fileContext, stability = null, constructed = null }) => {
   const [activeTab, setActiveTab] = useState(mode === 'optimize' ? 'best-params' : 'summary');
   const hasParams = results.paramsDTO && results.paramsDTO.length > 0;
+  // Best Parameters: a channel condition's bounds min before max, labelled with their metric
+  const channelMetrics = useChannelMetrics(Object.keys(constructed?.config?.strategyNameToParams || {}));
+  const bestParams = useMemo(() => orderMinBeforeMax(results.paramsDTO || [], (p) => p.paramName,
+    (p) => p.strategy || p.strategyClass || ''), [results.paramsDTO]);
+  const bestParamLabel = (p) => {
+    const t = parseThresholdName(p.paramName, channelMetrics[constructedKeyOfRow(p, constructed)]);
+    return t && (t.field === 'min' || t.field === 'max') ? t.label : p.paramName;
+  };
   // Parameter stability by channel: present only on Optimize results of a request with channelStability
   const hasChannels = mode === 'optimize' && !!results.channelStability;
   // Mounted on the first visit of the tab and kept mounted (hidden) afterwards, so the selected level
@@ -126,10 +142,10 @@ const StrategyResults = ({ results, mode, fileContext, stability = null, constru
               </tr>
             </thead>
             <tbody>
-              {results.paramsDTO.map((p, i) => (
+              {bestParams.map((p, i) => (
                 <tr key={i} className="border-b last:border-0">
                   <td className="py-2 px-3 text-gray-600">{bestParamStrategy(p, constructed)}</td>
-                  <td className="py-2 px-3">{p.paramName}</td>
+                  <td className="py-2 px-3" title={p.paramName}>{bestParamLabel(p)}</td>
                   <td className="py-2 px-3 text-right font-bold text-blue-700">
                     {typeof p.value === 'number' ? p.value.toFixed(4) : p.value}
                   </td>

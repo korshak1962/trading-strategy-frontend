@@ -156,13 +156,58 @@ const FIELD_LABEL = {
   max: 'channel max',
 };
 
-/** `R1.C2.tolerancePct` → `{rule: 1, cond: 2, field: 'tolerancePct', label: 'R1 · condition 2 · tolerance %'}`. */
-export const parseThresholdName = (name) => {
+/**
+ * `R1.C2.tolerancePct` → `{rule: 1, cond: 2, field: 'tolerancePct', label: 'R1 · condition 2 · tolerance %'}`.
+ * `metrics` (optional, channelMetricsOf): the channel metric of `R<r>.C<c>` - a channel bound then
+ * reads `R4 · condition 1 · EXISTS min` instead of `… · channel min`.
+ */
+export const parseThresholdName = (name, metrics = null) => {
   const m = typeof name === 'string' ? THRESHOLD_RE.exec(name) : null;
   if (!m) return null;
   const rule = Number(m[1]);
   const cond = Number(m[2]);
-  return { rule, cond, field: m[3], label: `R${rule} · condition ${cond} · ${FIELD_LABEL[m[3]]}` };
+  const metric = (m[3] === 'min' || m[3] === 'max') ? metrics?.[`R${rule}.C${cond}`] : null;
+  const field = metric ? `${metric} ${m[3]}` : FIELD_LABEL[m[3]];
+  return { rule, cond, field: m[3], label: `R${rule} · condition ${cond} · ${field}` };
+};
+
+/**
+ * `{"R4.C1": "EXISTS", …}`: the metric of every channel condition of a constructed version's rules
+ * (threshold names use the rule id and the condition id, backend ConstructedThresholds).
+ */
+export const channelMetricsOf = (rules) => {
+  const out = {};
+  (rules || []).forEach((r) => (r.conditions || []).forEach((rc) => {
+    if (r.id != null && rc?.id != null && isChannelCondition(rc.condition) && rc.condition.metric) {
+      out[`R${r.id}.C${rc.id}`] = rc.condition.metric;
+    }
+  }));
+  return out;
+};
+
+// Order of a condition's thresholds in the lists: min before max (a channel condition's bounds).
+const FIELD_ORDER = ['left.n', 'min', 'max', 'right.const', 'right.n', 'tolerancePct'];
+
+/** Sort key of a threshold name: condition number, then FIELD_ORDER; null for other names. */
+const thresholdOrder = (name) => {
+  const t = parseThresholdName(name);
+  return t ? [t.rule, t.cond, FIELD_ORDER.indexOf(t.field)] : null;
+};
+
+/**
+ * A params list (`[{paramName, …}]`, Best Parameters) with each `R<r>.C<c>.max` moved after its
+ * `.min` sibling of the same strategy; everything else keeps its order.
+ */
+export const orderMinBeforeMax = (list, nameOf = (p) => p.paramName, groupOf = () => '') => {
+  const out = [...(list || [])];
+  for (let i = 0; i < out.length; i += 1) {
+    const name = nameOf(out[i]);
+    if (typeof name !== 'string' || !THRESHOLD_RE.test(name) || !name.endsWith('.max')) continue;
+    const minName = `${name.slice(0, -'.max'.length)}.min`;
+    const j = out.findIndex((p, k) => k > i && nameOf(p) === minName && groupOf(p) === groupOf(out[i]));
+    if (j > i) out.splice(i, 0, out.splice(j, 1)[0]);
+  }
+  return out;
 };
 
 /** A threshold is in the sweep when its range has more than one value (default: min == max == value). */
@@ -264,7 +309,11 @@ export const groupThresholds = (params) => {
   });
   const out = [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([rule, entries]) => ({
     rule,
-    entries: entries.sort((a, b) => a[0].localeCompare(b[0])),
+    entries: entries.sort((a, b) => {
+      const x = thresholdOrder(a[0]);
+      const y = thresholdOrder(b[0]);
+      return (x[1] - y[1]) || (x[2] - y[2]) || a[0].localeCompare(b[0]);
+    }),
   }));
   if (axes.length) out.unshift({ rule: 'axes', entries: axes });
   if (other.length) out.push({ rule: null, entries: other });
@@ -425,35 +474,38 @@ const channelBoundsGridError = (condition, links, axes, where) => {
 };
 
 /**
- * Static warning of the preview (spec §4.4, backend ConstructedWarnings): a LongBlock rule with a
- * channel condition blocks only while that channel exists - with no channel its conditions FAIL
- * and entries are allowed. Fine when the strategy also has a LongBlock rule with
- * `EXISTS in [0, 0]` on the same channel TF and detector params, at a level ≥ the levels the block
- * reads (EXISTS L1 = 0 also holds when L0 is missing). Returns the warning texts.
+ * Static warning of the preview (spec §4.4), the same rule as the backend
+ * `ConstructedWarnings.channelBlockWithoutExists`: a LongBlock rule with a channel condition blocks
+ * only while that channel exists - with no channel its conditions FAIL and entries are allowed.
+ * A guard is a LongBlock rule with exactly ONE condition, a channel `EXISTS` with max < 1 and
+ * min ≤ 0 (or unset); a guard rule is not warned itself. Every other LongBlock rule is warned once
+ * (at its first channel condition, EXISTS included) unless each of its channel conditions has a
+ * guard on the same channel TF, equal detector params and a level ≥ its level (EXISTS L1 = 0 also
+ * holds when L0 is missing). Returns the warning texts.
  */
+const isExistsZeroGuard = (rule) => {
+  const conds = rule.conditions || [];
+  if (rule.signalType !== 'LongBlock' || conds.length !== 1) return false;
+  const c = conds[0]?.condition;
+  return isChannelCondition(c) && c.metric === 'EXISTS' && finite(c.max) && Number(c.max) < 1
+    && (!finite(c.min) || Number(c.min) <= 0);
+};
+
 export const channelBlockWarnings = (rules) => {
-  const existsGuards = [];
-  (rules || []).forEach((r) => {
-    if (r.signalType !== 'LongBlock') return;
-    (r.conditions || []).forEach(({ condition: c }) => {
-      if (isChannelCondition(c) && c.metric === 'EXISTS' && finite(c.max) && Number(c.max) === 0
-        && (!finite(c.min) || Number(c.min) <= 0)) {
-        existsGuards.push({ tf: c.tf, level: Number(c.level), spec: channelSpecOf(c) });
-      }
-    });
+  const guards = (rules || []).filter(isExistsZeroGuard).map((r) => {
+    const c = r.conditions[0].condition;
+    return { tf: c.tf, level: Number(c.level), spec: channelSpecOf(c) };
   });
   const out = [];
   (rules || []).forEach((r, i) => {
-    if (r.signalType !== 'LongBlock') return;
-    const chans = (r.conditions || []).map((x) => x.condition)
-      .filter((c) => isChannelCondition(c) && c.metric !== 'EXISTS');
-    if (!chans.length) return;
-    const uncovered = chans.find((c) => !existsGuards.some((g) => g.tf === c.tf && g.level >= Number(c.level)
-      && sameChannelSpec(g.spec, channelSpecOf(c))));
+    if (r.signalType !== 'LongBlock' || isExistsZeroGuard(r)) return;
+    const uncovered = (r.conditions || []).map((x) => x.condition)
+      .find((c) => isChannelCondition(c) && !guards.some((g) => g.tf === c.tf
+        && g.level >= Number(c.level) && sameChannelSpec(g.spec, channelSpecOf(c))));
     if (!uncovered) return;
     const name = r.id != null ? `R${r.id}` : `rule #${i + 1}`;
     out.push(`${name} blocks only while a channel exists: with no channel entries are allowed. `
-      + `Add \`${uncovered.tf} L${uncovered.level} EXISTS in [0, 0] → LongBlock\` (same channel params).`);
+      + `Add a one-condition rule \`${uncovered.tf} L${uncovered.level} EXISTS in [0, 0] → LongBlock\` (same channel params).`);
   });
   return out;
 };

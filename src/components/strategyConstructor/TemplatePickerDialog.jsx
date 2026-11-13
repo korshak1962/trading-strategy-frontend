@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 import { listTemplates, createFromTemplate } from '../../api/constructedApi';
 import { describeApiError } from '../../api/httpClient';
-import { AXIS_KIND_LABEL, constraintText, ruleCaption } from './constructedFormat';
+import { AXIS_KIND_LABEL, constraintText, ruleCaption, runTfsOf, runTfsHint } from './constructedFormat';
 import { fmtNum } from '../universeScreener/conditionFormat';
 import '../watch/watch.css';
 
@@ -17,6 +17,17 @@ const sel = 'p-2 border rounded text-sm bg-white';
 const gridText = (a) => (Number(a.max) > Number(a.min)
   ? `${fmtNum(a.min)}..${fmtNum(a.max)} step ${fmtNum(a.step)}`
   : 'fixed');
+
+/**
+ * The template's run timeframes, derived from its rules like the editor's "Runs on …" line
+ * (runTfsOf / runTfsHint): channel conditions or RUN offsets → DAY / WEEK, a DAY operand → DAY.
+ */
+const templateRunTfsText = (rules) => {
+  const tfs = runTfsOf(rules || []);
+  if (!tfs.length) return 'No timeframe can run all of its conditions.';
+  const which = tfs.length === 1 ? `on ${tfs[0]} only` : `on ${tfs.join(' / ')}`;
+  return `Runs ${which} ${runTfsHint(tfs, rules)}.`;
+};
 
 /**
  * @param {Object} props
@@ -120,8 +131,8 @@ export default function TemplatePickerDialog({ onCreated, onClose }) {
                 </ul>
               </>
             )}
-            <p className="mt-2 text-xs text-gray-500">
-              RUN operands use the TF of the run, so the strategy works on any timeframe (MIN5 … MONTH).
+            <p className="mt-2 text-xs text-gray-500" data-testid="template-run-tfs">
+              {templateRunTfsText(template.rules)}
             </p>
 
             <label className="block text-sm font-medium text-gray-700 mt-3 mb-1" htmlFor="template-name">Name of the new strategy</label>

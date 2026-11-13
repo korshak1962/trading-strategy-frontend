@@ -557,6 +557,22 @@ export const getConstructedVersion = async (id, version) => {
   return fromConstructedDTO(await readJson(res));
 };
 
+// A version `id@v` never changes once saved, so its DTO is fetched once per page load (a failure is
+// not kept: the next call asks again).
+const versionCache = new Map();
+
+/** getConstructedVersion through a per-page cache (immutable versions; failures are not cached). */
+export const getConstructedVersionCached = (id, version) => {
+  const k = `${id}@${version}`;
+  if (!versionCache.has(k)) {
+    versionCache.set(k, getConstructedVersion(id, version).catch((err) => {
+      versionCache.delete(k);
+      throw err;
+    }));
+  }
+  return versionCache.get(k);
+};
+
 /** POST / ConstructedStrategyRequest → 201 DTO; 409 NAME_EXISTS; 400. */
 export const createConstructed = async (request) => {
   const res = await apiRequest(`${API_BASE_URL}`, { method: 'POST', ...jsonBody(request) }, 'Saving the strategy failed');
