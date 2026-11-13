@@ -4,11 +4,16 @@
 // the request key `Constructed:<id>@<version>`, threshold names `R<rule>.C<cond>.<field>`, rule
 // captions, the client copy of the definition validation, fire-rate texts and the warnings of
 // BA spec §4.3 / §5.2 (Q11). The server stays the authority: its 400 text is shown as is.
+// Stage 4a (architect "этап 4a" §6): channel conditions (CHANNEL_METRIC, semantics B) - their
+// caption, the thresholds `R<r>.C<c>.min` / `.max`, the client checks (metric in B, bounds,
+// min ≤ max on every grid point, detector ranges), the run TFs they allow (DAY / WEEK) and the
+// static "channel LongBlock without an EXISTS = 0 rule" warning.
 
 import {
   SIGNAL_TYPES, STATE_RULE_FIRE_RATE, MIN_TRADES_PER_THRESHOLD, MAX_RULES, MAX_CONDITIONS, CONSTRUCTED_TFS, RUN_TF,
   AXIS_KINDS, LINK_SUFFIX_KIND, MAX_AXES, MAX_LINK_TERMS, applyLinks, pruneLinks, linkValue,
   CONSTRAINT_OPS, CONSTRAINT_OP_SYMBOL, MAX_CONSTRAINTS,
+  CHANNEL_TFS, CHANNEL_RUN_TFS, CHANNEL_LEVELS, CHANNEL_METRICS, CHANNEL_DEFAULTS, CHANNEL_RANGES, CHANNEL_KEYS,
 } from '../../api/constructedApi';
 import {
   conditionCaption, validateCondition, newCompareCondition, reasonText, fmtNum, unitMismatchHint,
@@ -141,21 +146,68 @@ export const currentVersionOf = (key, availableStrategies = []) => {
 
 // ---- threshold names (D5) ----
 
-const THRESHOLD_RE = /^R(\d+)\.C(\d+)\.(tolerancePct|left\.n|right\.n|right\.const)$/;
+const THRESHOLD_RE = /^R(\d+)\.C(\d+)\.(tolerancePct|left\.n|right\.n|right\.const|min|max)$/;
 const FIELD_LABEL = {
   tolerancePct: 'tolerance %',
   'left.n': 'left length',
   'right.n': 'right length',
   'right.const': 'constant',
+  min: 'channel min', // stage 4a: the bounds of a channel condition
+  max: 'channel max',
 };
 
-/** `R1.C2.tolerancePct` → `{rule: 1, cond: 2, field: 'tolerancePct', label: 'R1 · condition 2 · tolerance %'}`. */
-export const parseThresholdName = (name) => {
+/**
+ * `R1.C2.tolerancePct` → `{rule: 1, cond: 2, field: 'tolerancePct', label: 'R1 · condition 2 · tolerance %'}`.
+ * `metrics` (optional, channelMetricsOf): the channel metric of `R<r>.C<c>` - a channel bound then
+ * reads `R4 · condition 1 · EXISTS min` instead of `… · channel min`.
+ */
+export const parseThresholdName = (name, metrics = null) => {
   const m = typeof name === 'string' ? THRESHOLD_RE.exec(name) : null;
   if (!m) return null;
   const rule = Number(m[1]);
   const cond = Number(m[2]);
-  return { rule, cond, field: m[3], label: `R${rule} · condition ${cond} · ${FIELD_LABEL[m[3]]}` };
+  const metric = (m[3] === 'min' || m[3] === 'max') ? metrics?.[`R${rule}.C${cond}`] : null;
+  const field = metric ? `${metric} ${m[3]}` : FIELD_LABEL[m[3]];
+  return { rule, cond, field: m[3], label: `R${rule} · condition ${cond} · ${field}` };
+};
+
+/**
+ * `{"R4.C1": "EXISTS", …}`: the metric of every channel condition of a constructed version's rules
+ * (threshold names use the rule id and the condition id, backend ConstructedThresholds).
+ */
+export const channelMetricsOf = (rules) => {
+  const out = {};
+  (rules || []).forEach((r) => (r.conditions || []).forEach((rc) => {
+    if (r.id != null && rc?.id != null && isChannelCondition(rc.condition) && rc.condition.metric) {
+      out[`R${r.id}.C${rc.id}`] = rc.condition.metric;
+    }
+  }));
+  return out;
+};
+
+// Order of a condition's thresholds in the lists: min before max (a channel condition's bounds).
+const FIELD_ORDER = ['left.n', 'min', 'max', 'right.const', 'right.n', 'tolerancePct'];
+
+/** Sort key of a threshold name: condition number, then FIELD_ORDER; null for other names. */
+const thresholdOrder = (name) => {
+  const t = parseThresholdName(name);
+  return t ? [t.rule, t.cond, FIELD_ORDER.indexOf(t.field)] : null;
+};
+
+/**
+ * A params list (`[{paramName, …}]`, Best Parameters) with each `R<r>.C<c>.max` moved after its
+ * `.min` sibling of the same strategy; everything else keeps its order.
+ */
+export const orderMinBeforeMax = (list, nameOf = (p) => p.paramName, groupOf = () => '') => {
+  const out = [...(list || [])];
+  for (let i = 0; i < out.length; i += 1) {
+    const name = nameOf(out[i]);
+    if (typeof name !== 'string' || !THRESHOLD_RE.test(name) || !name.endsWith('.max')) continue;
+    const minName = `${name.slice(0, -'.max'.length)}.min`;
+    const j = out.findIndex((p, k) => k > i && nameOf(p) === minName && groupOf(p) === groupOf(out[i]));
+    if (j > i) out.splice(i, 0, out.splice(j, 1)[0]);
+  }
+  return out;
 };
 
 /** A threshold is in the sweep when its range has more than one value (default: min == max == value). */
@@ -200,7 +252,7 @@ export const linkText = (terms) => (terms || []).map((t, i) => {
 }).join(' ');
 
 /** The order the backend writes a condition's link notes in (ConstructedThresholds.compile). */
-const LINK_NOTE_ORDER = ['tolerancePct', 'left.n', 'right.n', 'right.const'];
+const LINK_NOTE_ORDER = ['tolerancePct', 'left.n', 'right.n', 'right.const', 'min', 'max'];
 
 /**
  * One note per link of a condition, the same text as the backend's preview notes (reviewer #34):
@@ -257,7 +309,11 @@ export const groupThresholds = (params) => {
   });
   const out = [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([rule, entries]) => ({
     rule,
-    entries: entries.sort((a, b) => a[0].localeCompare(b[0])),
+    entries: entries.sort((a, b) => {
+      const x = thresholdOrder(a[0]);
+      const y = thresholdOrder(b[0]);
+      return (x[1] - y[1]) || (x[2] - y[2]) || a[0].localeCompare(b[0]);
+    }),
   }));
   if (axes.length) out.unshift({ rule: 'axes', entries: axes });
   if (other.length) out.push({ rule: null, entries: other });
@@ -282,15 +338,189 @@ export const SIGNAL_TYPE_CLASS = Object.freeze({
   ShortClose: 'bg-orange-100 text-orange-800 border-orange-300',
 });
 
+// ---- channel conditions (stage 4a) ----
+
+export const isChannelCondition = (c) => c?.type === 'CHANNEL_METRIC';
+
+const LEVEL_SHORT = Object.freeze({ 0: 'current', 1: 'parent', 2: 'grandparent' });
+export const CHANNEL_LEVEL_LABEL = Object.freeze({ 0: '0 · current', 1: '1 · parent', 2: '2 · grandparent' });
+
+const finite = (v) => v !== '' && v != null && Number.isFinite(Number(v));
+
+/** The channel params of a condition over the defaults (numbers where given). */
+export const channelSpecOf = (c, defaults = CHANNEL_DEFAULTS) => Object.fromEntries(CHANNEL_KEYS
+  .map((k) => [k, finite(c?.channel?.[k]) ? Number(c.channel[k]) : defaults[k]]));
+
+/** Two channel specs are one indicator (same replay; minAgeBars counts too: another L0). */
+export const sameChannelSpec = (a, b) => CHANNEL_KEYS.every((k) => Number(a?.[k]) === Number(b?.[k]));
+
+/**
+ * The detector part of a caption: '' for the defaults (0.95 / 5 / 0.05, age 0), otherwise
+ * " {0.9/10/0.05, age ≥ 30}" - the backend's ChannelSpec.label() in display form.
+ */
+export const channelSpecLabel = (spec, defaults = CHANNEL_DEFAULTS) => {
+  if (!spec || sameChannelSpec(spec, defaults)) return '';
+  const age = Number(spec.minAgeBars) > 0 ? `, age ≥ ${spec.minAgeBars}` : '';
+  return ` {${fmtNum(spec.coveragePct)}/${fmtNum(spec.minBars)}/${fmtNum(spec.minWidthPct)}${age}}`;
+};
+
+/**
+ * Caption of a channel condition, as the backend's ConditionDef.label() writes it:
+ * `RUN L0 POSITION in [−0.1, 0.2]`, `RUN L0 POSITION ≥ 0.75`, `WEEK L1 EXISTS in [0, 0] {…}`.
+ */
+export const channelConditionCaption = (c) => {
+  const hasMin = finite(c?.min);
+  const hasMax = finite(c?.max);
+  let range = '(no bound)';
+  if (hasMin && hasMax) range = `in [${fmtNum(c.min)}, ${fmtNum(c.max)}]`;
+  else if (hasMin) range = `≥ ${fmtNum(c.min)}`;
+  else if (hasMax) range = `≤ ${fmtNum(c.max)}`;
+  return `${c?.tf || '?'} L${c?.level ?? '?'} ${c?.metric || '?'} ${range}${channelSpecLabel(channelSpecOf(c))}`;
+};
+
+/** Human description of a channel's level: "current channel (L0)". */
+export const channelLevelText = (level) => `${LEVEL_SHORT[Number(level)] || '?'} channel (L${level})`;
+
+/** The metric descriptor of `name` from meta.channel (or the static list). */
+export const channelMetricOf = (name, metrics = CHANNEL_METRICS) => (metrics || CHANNEL_METRICS).find((m) => m.name === name)
+  || CHANNEL_METRICS.find((m) => m.name === name) || null;
+
+/**
+ * A new channel condition (architect §6): RUN, level 0, POSITION, no bounds yet; `channel` copies
+ * the last channel condition of the strategy (one detector setting per strategy by default, Q-N3),
+ * else meta.channel.defaults.
+ */
+export const newChannelCondition = (rules = [], defaults = CHANNEL_DEFAULTS) => {
+  let last = null;
+  (rules || []).forEach((r) => (r.conditions || []).forEach(({ condition }) => {
+    if (isChannelCondition(condition)) last = condition;
+  }));
+  return {
+    type: 'CHANNEL_METRIC', tf: RUN_TF, level: 0, metric: 'POSITION', min: '', max: '',
+    channel: last ? channelSpecOf(last, defaults) : { ...CHANNEL_DEFAULTS, ...defaults },
+  };
+};
+
+export const newRuleChannelCondition = (rules, defaults) => ({ id: null, condition: newChannelCondition(rules, defaults), links: {} });
+
+const inRange = (v, r) => {
+  if (!finite(v)) return false;
+  const n = Number(v);
+  if (r.integer && !Number.isInteger(n)) return false;
+  if (r.min != null && (r.minExclusive ? n <= r.min : n < r.min)) return false;
+  if (r.max != null && (r.maxExclusive ? n >= r.max : n > r.max)) return false;
+  return true;
+};
+
+const rangeText = (r) => `${r.minExclusive ? '(' : '['}${fmtNum(r.min)}, ${fmtNum(r.max)}${r.maxExclusive ? ')' : ']'}`;
+
+/**
+ * Errors of a channel condition of a rule (client copy of FilterValidator's constructor branch):
+ * TF RUN / DAY / WEEK, level 0..2, metric in semantics B (TOUCHES_* refused), min or max (numbers),
+ * min ≤ max at the axes' defaults, detector params in range. `c` has the links applied.
+ */
+export const validateChannelCondition = (c, { metrics = CHANNEL_METRICS, ranges = CHANNEL_RANGES, where = '' } = {}) => {
+  const errs = [];
+  if (!CHANNEL_TFS.includes(c.tf)) errs.push('Channel TF must be RUN, DAY or WEEK');
+  if (!CHANNEL_LEVELS.includes(Number(c.level))) errs.push('Level must be 0, 1 or 2');
+  if (/^TOUCHES_/.test(c.metric || '')) errs.push(`${where ? `${where}: ` : ''}${c.metric} is not in semantics B yet`);
+  else if (!channelMetricOf(c.metric, metrics)) errs.push(`Unknown channel metric ${c.metric || ''}`.trim());
+  const hasMin = finite(c.min);
+  const hasMax = finite(c.max);
+  if (c.min !== '' && c.min != null && !hasMin) errs.push('min must be a number');
+  if (c.max !== '' && c.max != null && !hasMax) errs.push('max must be a number');
+  if (!hasMin && !hasMax) errs.push('Set min, max or both');
+  if (hasMin && hasMax && Number(c.min) > Number(c.max)) errs.push(`min ${fmtNum(c.min)} must be ≤ max ${fmtNum(c.max)}`);
+  CHANNEL_KEYS.forEach((k) => {
+    const r = ranges?.[k] || CHANNEL_RANGES[k];
+    if (!inRange(c.channel?.[k], r)) {
+      errs.push(`${where ? `${where}.` : ''}channel.${k} must be ${r.integer ? 'an integer ' : ''}in ${rangeText(r)}`);
+    }
+  });
+  return errs;
+};
+
+/**
+ * min ≤ max on every point of the axes' default grids (architect K8; the backend refuses such a
+ * point with 400 "R1.C2.min = $BuyLow=0.3 > R1.C2.max = $BuyHigh=0.2"). Only when at least one
+ * bound is linked; walks the pairs like the constraint check. null = ok.
+ */
+const channelBoundsGridError = (condition, links, axes, where) => {
+  const hasMin = finite(condition.min);
+  const hasMax = finite(condition.max);
+  if (!hasMin || !hasMax || (!links.min && !links.max)) return null;
+  const byName = new Map((axes || []).map((a) => [a.name, a]));
+  const valuesOf = (suffix) => {
+    const terms = links[suffix];
+    if (!terms) return [{ v: Number(condition[suffix]), text: fmtNum(condition[suffix]) }];
+    if (terms.some((t) => !byName.has(t.axis))) return null;
+    const grids = terms.map((t) => axisGrid(byName.get(t.axis)));
+    if (grids.reduce((n, g) => n * g.length, 1) > GRID_CAP) return null;
+    const pts = grids.length === 1 ? grids[0].map((v) => [v]) : grids[0].flatMap((v) => grids[1].map((w) => [v, w]));
+    return pts.map((pt) => ({
+      v: Number(pt.reduce((s, x, i) => s + (terms[i].sign < 0 ? -x : x), 0).toFixed(10)),
+      text: terms.map((t, i) => `${i === 0 ? (t.sign < 0 ? '−' : '') : (t.sign < 0 ? ' − ' : ' + ')}${t.axis}=${fmtNum(pt[i])}`).join(''),
+    }));
+  };
+  const lo = valuesOf('min');
+  const hi = valuesOf('max');
+  if (!lo || !hi || lo.length * hi.length > CONSTRAINT_PAIR_CAP) return null;
+  for (const a of lo) {
+    for (const b of hi) {
+      if (a.v > b.v) return `${where}.min = ${a.text} > ${where}.max = ${b.text} (narrow the axes’ Min / Max or add an axis constraint)`;
+    }
+  }
+  return null;
+};
+
+/**
+ * Static warning of the preview (spec §4.4), the same rule as the backend
+ * `ConstructedWarnings.channelBlockWithoutExists`: a LongBlock rule with a channel condition blocks
+ * only while that channel exists - with no channel its conditions FAIL and entries are allowed.
+ * A guard is a LongBlock rule with exactly ONE condition, a channel `EXISTS` with max < 1 and
+ * min ≤ 0 (or unset); a guard rule is not warned itself. Every other LongBlock rule is warned once
+ * (at its first channel condition, EXISTS included) unless each of its channel conditions has a
+ * guard on the same channel TF, equal detector params and a level ≥ its level (EXISTS L1 = 0 also
+ * holds when L0 is missing). Returns the warning texts.
+ */
+const isExistsZeroGuard = (rule) => {
+  const conds = rule.conditions || [];
+  if (rule.signalType !== 'LongBlock' || conds.length !== 1) return false;
+  const c = conds[0]?.condition;
+  return isChannelCondition(c) && c.metric === 'EXISTS' && finite(c.max) && Number(c.max) < 1
+    && (!finite(c.min) || Number(c.min) <= 0);
+};
+
+export const channelBlockWarnings = (rules) => {
+  const guards = (rules || []).filter(isExistsZeroGuard).map((r) => {
+    const c = r.conditions[0].condition;
+    return { tf: c.tf, level: Number(c.level), spec: channelSpecOf(c) };
+  });
+  const out = [];
+  (rules || []).forEach((r, i) => {
+    if (r.signalType !== 'LongBlock' || isExistsZeroGuard(r)) return;
+    const uncovered = (r.conditions || []).map((x) => x.condition)
+      .find((c) => isChannelCondition(c) && !guards.some((g) => g.tf === c.tf
+        && g.level >= Number(c.level) && sameChannelSpec(g.spec, channelSpecOf(c))));
+    if (!uncovered) return;
+    const name = r.id != null ? `R${r.id}` : `rule #${i + 1}`;
+    out.push(`${name} blocks only while a channel exists: with no channel entries are allowed. `
+      + `Add a one-condition rule \`${uncovered.tf} L${uncovered.level} EXISTS in [0, 0] → LongBlock\` (same channel params).`);
+  });
+  return out;
+};
+
 // ---- captions ----
 
 /**
  * Caption of one rule condition `{condition, links}` at the axes' defaults, with the link notes:
- * `RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)` (BA §3.2 p. 7).
+ * `RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)` (BA §3.2 p. 7);
+ * a channel condition: `RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)`.
  */
 export const ruleConditionCaption = (rc, evalTf, axes = []) => {
   const links = pruneLinks(rc?.condition, rc?.links);
-  const text = conditionCaption(applyLinks(rc?.condition, links, axes), evalTf);
+  const applied = applyLinks(rc?.condition, links, axes);
+  const text = isChannelCondition(applied) ? channelConditionCaption(applied) : conditionCaption(applied, evalTf);
   const notes = linkNotes(links, axes);
   return notes ? `${text} (${notes})` : text;
 };
@@ -316,12 +546,18 @@ export const kindNotRunningOn = (rules, tf) => operandsOf(rules).find((o) => !ru
  * - a fixed WEEK operand (no DAY) → DAY or WEEK;
  * - only RUN operands (and constants): offsets [0] everywhere → every TF; a RUN offset [−k] →
  *   DAY or WEEK (offsets on HOUR / MIN5 / MONTH are not supported yet).
+ * - stage 4a: a channel condition → DAY or WEEK (CHANNEL_RUN_TFS); a DAY channel → DAY only.
  */
 const runTfsByOperandsOf = (rules) => {
   let anyDay = false;
   let anyWeek = false;
   let runOffset = false;
   (rules || []).forEach((r) => (r.conditions || []).forEach(({ condition: c }) => {
+    if (isChannelCondition(c)) {
+      if (c.tf === 'DAY') anyDay = true;
+      else anyWeek = true; // RUN / WEEK channel: DAY or WEEK runs
+      return;
+    }
     [c?.left, c?.right].forEach((o) => {
       if (!o || o.kind === 'CONST') return;
       if (o.tf === RUN_TF) { if ((Number(o.offset) || 0) !== 0) runOffset = true; }
@@ -330,9 +566,13 @@ const runTfsByOperandsOf = (rules) => {
     });
   }));
   if (anyDay) return ['DAY'];
-  if (anyWeek || runOffset) return ['DAY', 'WEEK'];
+  if (anyWeek || runOffset) return [...CHANNEL_RUN_TFS];
   return [...CONSTRUCTED_TFS];
 };
+
+/** true when a rule of the draft has a channel condition. */
+export const hasChannelCondition = (rules) => (rules || [])
+  .some((r) => (r.conditions || []).some(({ condition }) => isChannelCondition(condition)));
 
 /**
  * Run TFs the strategy can run on: those its operand TFs allow (above), minus the TFs an operand's
@@ -342,8 +582,9 @@ const runTfsByOperandsOf = (rules) => {
 export const runTfsOf = (rules) => runTfsByOperandsOf(rules).filter((tf) => kindNotRunningOn(rules, tf) == null);
 
 /** "(it has DAY conditions)" etc. - why the strategy runs on these TFs. */
-export const runTfsHint = (runTfs) => {
+export const runTfsHint = (runTfs, rules = null) => {
   if (runTfs.length === 1) return '(it has DAY conditions)';
+  if (runTfs.length === 2 && rules && hasChannelCondition(rules)) return '(channel conditions run on DAY / WEEK)';
   if (runTfs.length === 2) return '(WEEK conditions or RUN offsets: HOUR / MIN5 / MONTH take only RUN operands at [0])';
   if (!runTfs.includes('MIN5')) return '(only RUN operands at [0]; an indicator of it is not supported on MIN5 yet)';
   return '(only RUN operands at [0]: any TF)';
@@ -598,7 +839,7 @@ export const validateConstraints = (constraints, axes) => {
  * Conditions are checked at the axes' defaults (linked thresholds take the axes' values).
  */
 export const validateDraft = (draft, { allowedTypes = SIGNAL_TYPES, maxRules = MAX_RULES, maxConditions = MAX_CONDITIONS,
-  requireName = true } = {}) => {
+  requireName = true, channelMeta = null } = {}) => {
   const general = [];
   const name = (draft.name || '').trim();
   if (requireName && !name) general.push('Name is required');
@@ -611,6 +852,7 @@ export const validateDraft = (draft, { allowedTypes = SIGNAL_TYPES, maxRules = M
   general.push(...axisCheck.general);
   const constraintCheck = validateConstraints(draft.constraints, axes);
   general.push(...constraintCheck.general);
+  const boundWarnings = [];
   const ruleErrors = rules.map((r) => {
     const g = [];
     if (!allowedTypes.includes(r.signalType)) g.push(`Signal type ${r.signalType} is not available`);
@@ -618,9 +860,20 @@ export const validateDraft = (draft, { allowedTypes = SIGNAL_TYPES, maxRules = M
     if (conds.length === 0) g.push('A rule needs at least one condition');
     if (conds.length > maxConditions) g.push(`At most ${maxConditions} conditions in a rule`);
     const conditions = conds.map(({ id, condition, links }, ci) => {
-      if (condition?.type === 'CHANNEL_METRIC') return ['Channel conditions in constructed strategies arrive in stage 4'];
       const live = pruneLinks(condition, links);
       const where = `R${r.id ?? '(new)'}.C${id ?? ci + 1}`;
+      if (isChannelCondition(condition)) {
+        // stage 4a: semantics-B channel condition; bounds may link to CONST axes. min > max on a
+        // grid point (not at the defaults) is a warning: the backend refuses it before an Optimize run.
+        const linkErrs = validateLinks(live, axes, where, condition);
+        const errs = [
+          ...validateChannelCondition(applyLinks(condition, live, axes), { metrics: channelMeta?.metrics, ranges: channelMeta?.ranges, where }),
+          ...linkErrs,
+        ];
+        const gridErr = errs.length ? null : channelBoundsGridError(condition, live, axes, where);
+        if (gridErr) boundWarnings.push(`The default sweep has a point with ${gridErr}. The backend will refuse Optimize with these ranges before the run.`);
+        return errs;
+      }
       return [...validateCondition(applyLinks(condition, live, axes), { allowRun: true }), ...validateLinks(live, axes, where, condition)];
     });
     return { general: g, conditions };
@@ -629,7 +882,13 @@ export const validateDraft = (draft, { allowedTypes = SIGNAL_TYPES, maxRules = M
     && constraintCheck.errors.every((e) => e.length === 0)
     && ruleErrors.every((r) => r.general.length === 0 && r.conditions.every((c) => c.length === 0));
   return {
-    general, axes: axisCheck.errors, constraints: constraintCheck.errors, constraintWarnings: constraintCheck.warnings, rules: ruleErrors, ok,
+    general,
+    axes: axisCheck.errors,
+    constraints: constraintCheck.errors,
+    // stage 4a: channel min > max on a sweep point is shown with the constraint warnings (same consequence)
+    constraintWarnings: [...constraintCheck.warnings, ...boundWarnings],
+    rules: ruleErrors,
+    ok,
   };
 };
 
@@ -639,6 +898,9 @@ export const runTfError = (rules, tf) => {
   const notRunning = kindNotRunningOn(rules, tf);
   if (notRunning) return `${kindName(notRunning)} is not supported on ${tf} yet: run the strategy on HOUR or a coarser timeframe`;
   if (runTfsOf(rules).includes(tf)) return null;
+  if (!CHANNEL_RUN_TFS.includes(tf) && hasChannelCondition(rules)) {
+    return `Channel conditions run on DAY / WEEK in stage 4: run this strategy on DAY or WEEK, not ${tf}`;
+  }
   if (tf === 'WEEK') return 'A WEEK run takes WEEK (or RUN) conditions only: this strategy has DAY conditions';
   return `On ${tf} only RUN operands with offset [0] and constants are allowed: offsets and fixed timeframes on ${tf} are not supported yet`;
 };
@@ -662,6 +924,21 @@ export const constructedErrorHint = (message) => {
   if (/^constraint \d+\b|axis constraints/i.test(m)) {
     return 'An axis constraint compares two different axes of one kind (a length with a length, a constant with a constant), '
       + `at most ${MAX_CONSTRAINTS} of them, each once; the axes' default values must satisfy it.`;
+  }
+  // Stage 4a channel conditions: "R2.C1: TOUCHES_UPPER is not in semantics B yet", "channel conditions run on
+  // DAY / WEEK in stage 4", "R1.C2.min = $BuyLow=0.3 > R1.C2.max = $BuyHigh=0.2", "R1.C1.channel.minBars must be in [2, 1000]"
+  if (/not in semantics B yet/i.test(m)) {
+    return 'Touch counts (TOUCHES_UPPER / TOUCHES_LOWER) are not available in strategies yet: use Position, Slope, Width, Age or Exists.';
+  }
+  if (/channel conditions run on DAY/i.test(m)) {
+    return 'A strategy with channel conditions runs on DAY or WEEK only (a DAY channel: DAY only).';
+  }
+  if (/\.min = .*> .*\.max = /.test(m)) {
+    return 'On this point of the axes’ grid the channel condition’s min is above its max: narrow the two axes’ Min / Max '
+      + 'or add an axis constraint (e.g. $BuyLow < $BuyHigh).';
+  }
+  if (/\.channel\.\w+ must be/i.test(m)) {
+    return 'Channel detector params: coverage in (0.5, 1], min bars 2..1000, min width in [0, 1), min age 0..500 bars.';
   }
   const unit = unitMismatchHint(m);
   if (unit) return unit;

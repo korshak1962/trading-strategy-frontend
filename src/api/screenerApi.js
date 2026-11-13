@@ -71,13 +71,23 @@ const fromOperand = (o) => {
   return { kind: o.kind || 'CLOSE', n: o.n ?? null, tf: o.tf || 'DAY', offset: o.offset ?? 0, value: '' };
 };
 
-/** Editor condition → FilterConditionDTO. */
+const CHANNEL_SPEC_KEYS = ['coveragePct', 'minBars', 'minWidthPct', 'minAgeBars'];
+
+/**
+ * Editor condition → FilterConditionDTO. A channel condition of a constructed strategy (stage 4a)
+ * also carries `channel` {coveragePct, minBars, minWidthPct, minAgeBars} and may take `tf: 'RUN'`;
+ * a screener filter's condition has no `channel`, so its JSON stays as before.
+ */
 export const toConditionDTO = (c) => {
   if (c.type === 'CHANNEL_METRIC') {
-    return {
+    const out = {
       type: 'CHANNEL_METRIC', tf: c.tf, level: Number(c.level), metric: c.metric,
       min: numOrNull(c.min), max: numOrNull(c.max),
     };
+    if (c.channel && typeof c.channel === 'object') {
+      out.channel = Object.fromEntries(CHANNEL_SPEC_KEYS.map((k) => [k, numOrNull(c.channel[k])]));
+    }
+    return out;
   }
   return {
     type: 'COMPARE', left: toOperand(c.left), op: c.op, right: toOperand(c.right),
@@ -88,10 +98,15 @@ export const toConditionDTO = (c) => {
 /** FilterConditionDTO (nested `left` / `right` operands — the only shape the backend has) → editor condition. */
 export const fromConditionDTO = (c) => {
   if (c?.type === 'CHANNEL_METRIC') {
-    return {
+    const out = {
       type: 'CHANNEL_METRIC', tf: c.tf || 'DAY', level: c.level ?? 0, metric: c.metric || 'WIDTH_PCT',
       min: c.min ?? '', max: c.max ?? '',
     };
+    // stage 4a: the detector params of a constructed strategy's channel condition
+    if (c.channel && typeof c.channel === 'object') {
+      out.channel = Object.fromEntries(CHANNEL_SPEC_KEYS.map((k) => [k, c.channel[k] ?? '']));
+    }
+    return out;
   }
   return {
     type: 'COMPARE',

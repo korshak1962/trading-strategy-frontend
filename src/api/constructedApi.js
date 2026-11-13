@@ -14,6 +14,13 @@
 // Stage 3a (screener logs/agents/architect.md "этап 3a"): operands with `tf: 'RUN'` (= the run's
 // TF), axes `$Name` with linked thresholds (`axes[]` of the definition, `links` of a rule
 // condition), templates (`/templates`, `/templates/{id}/create`) and `meta.indicators[]`.
+//
+// Stage 4a (screener logs/agents/architect.md "этап 4a", §1 K1 / K8, §6): channel conditions in a
+// rule - `{type: 'CHANNEL_METRIC', tf: RUN|DAY|WEEK, level: 0..2, metric, min?, max?, channel:
+// {coveragePct, minBars, minWidthPct, minAgeBars}}` evaluated in semantics B (causal: the channel
+// tree after bar t−1, replayed from the ticker's first stored DAY bar). Their bounds link to CONST
+// axes through the threshold suffixes `min` / `max`; `meta.channel` lists metrics, levels, TFs and
+// the detector defaults / ranges.
 
 import { apiRequest, readJson, jsonBody, enc } from './httpClient';
 import { toConditionDTO, fromConditionDTO } from './screenerApi';
@@ -41,6 +48,9 @@ export const LINK_SUFFIX_KIND = Object.freeze({
   'right.n': 'LENGTH',
   tolerancePct: 'TOLERANCE',
   'right.const': 'CONST',
+  // stage 4a: the bounds of a channel condition (R<r>.C<c>.min / .max)
+  min: 'CONST',
+  max: 'CONST',
 });
 export const MAX_AXES = 10;
 /**
@@ -56,6 +66,44 @@ export const MIN_TRADES_PER_THRESHOLD = 10; // Q11: trades per threshold in swee
 export const MAX_RULES = 20;
 export const MAX_CONDITIONS = 10;
 
+// ---- channel conditions (stage 4a, architect §1 K1, §2.2, §3.2) ----
+
+/** The channel's TFs in a rule: RUN = the run's TF (DAY / WEEK only), or a fixed DAY / WEEK channel. */
+export const CHANNEL_TFS = Object.freeze(['RUN', 'DAY', 'WEEK']);
+/** Run TFs a strategy with a channel condition can run on (HOUR / MIN5 / MONTH → 400 TIMEFRAME). */
+export const CHANNEL_RUN_TFS = Object.freeze(['DAY', 'WEEK']);
+export const CHANNEL_LEVELS = Object.freeze([0, 1, 2]);
+/** Semantics-B metrics (TOUCHES_* are not in B yet). `unit` = backend ValueUnit. */
+export const CHANNEL_METRICS = Object.freeze([
+  { name: 'POSITION', label: 'Position', unit: 'RATIO',
+    hint: '(ln close − lower) / (upper − lower) on the bar: 0 = at the lower line, 1 = at the upper line; not clipped (<0 below, >1 above)' },
+  { name: 'SLOPE_PCT_YEAR', label: 'Slope %/year', unit: 'PERCENT', hint: 'Signed annualized slope of the channel, e.g. −30 = falling 30 % a year' },
+  { name: 'WIDTH_PCT', label: 'Width %', unit: 'PERCENT', hint: 'Upper line above the lower one by this many % of price' },
+  { name: 'WIDTH', label: 'Width (price)', unit: 'PRICE_RANGE', hint: 'Upper line minus lower line on the bar, in price' },
+  { name: 'AGE_BARS', label: 'Age (bars)', unit: 'BARS', hint: 'Bars of the channel TF since the channel start' },
+  { name: 'EXISTS', label: 'Exists', unit: 'RATIO',
+    hint: '1 when the channel of this level exists on the bar, else 0 (level 1 / 2: L0 and its parent / grandparent exist). EXISTS in [0, 0] = "no channel"' },
+]);
+/** Detector parameters of a channel condition (architect K1: written in full in every version). */
+export const CHANNEL_DEFAULTS = Object.freeze({ coveragePct: 0.95, minBars: 5, minWidthPct: 0.05, minAgeBars: 0 });
+/** Ranges as FilterValidator checks them: coveragePct (0.5, 1], minBars [2, 1000], minWidthPct [0, 1), minAgeBars [0, 500]. */
+export const CHANNEL_RANGES = Object.freeze({
+  coveragePct: { min: 0.5, max: 1, minExclusive: true },
+  minBars: { min: 2, max: 1000, integer: true },
+  minWidthPct: { min: 0, max: 1, maxExclusive: true },
+  minAgeBars: { min: 0, max: 500, integer: true },
+});
+export const CHANNEL_KEYS = Object.freeze(['coveragePct', 'minBars', 'minWidthPct', 'minAgeBars']);
+
+export const DEFAULT_CHANNEL_META = Object.freeze({
+  metrics: CHANNEL_METRICS,
+  levels: CHANNEL_LEVELS,
+  timeframes: CHANNEL_TFS,
+  runTimeframes: CHANNEL_RUN_TFS,
+  defaults: CHANNEL_DEFAULTS,
+  ranges: CHANNEL_RANGES,
+});
+
 export const DEFAULT_META = Object.freeze({
   signalTypes: SIGNAL_TYPES,
   timeframes: CONSTRUCTED_TFS,
@@ -64,9 +112,55 @@ export const DEFAULT_META = Object.freeze({
   maxRules: MAX_RULES,
   maxConditions: MAX_CONDITIONS,
   indicators: DEFAULT_INDICATORS,
+  channel: DEFAULT_CHANNEL_META,
 });
 
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+const finiteOr = (v, fallback) => (v != null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : fallback);
+
+/**
+ * ChannelMetaDTO.Range `{min, max, minInclusive, maxInclusive, integer}` → `{min, max,
+ * minExclusive, maxExclusive, integer}`; a missing flag keeps the fallback's.
+ */
+const normalizeRange = (r, fallback) => {
+  if (!r || typeof r !== 'object') return fallback;
+  return {
+    min: finiteOr(r.min, fallback.min),
+    max: finiteOr(r.max, fallback.max),
+    minExclusive: typeof r.minInclusive === 'boolean' ? !r.minInclusive : !!fallback.minExclusive,
+    maxExclusive: typeof r.maxInclusive === 'boolean' ? !r.maxInclusive : !!fallback.maxExclusive,
+    integer: typeof r.integer === 'boolean' ? r.integer : !!fallback.integer,
+  };
+};
+
+/**
+ * `meta.channel` (ConstructedMetaDTO.channel, stage 4a): `{metrics: [{name, unit, hint}], levels,
+ * timeframes, runTimeframes, defaults, ranges}` merged over the static fallbacks. A metric keeps
+ * the fallback's label / hint when the backend sends none; TOUCHES_* are never offered (not in B).
+ */
+export const normalizeChannelMeta = (m) => {
+  if (!m || typeof m !== 'object') return DEFAULT_CHANNEL_META;
+  const known = new Map(CHANNEL_METRICS.map((x) => [x.name, x]));
+  const metrics = Array.isArray(m.metrics) && m.metrics.length
+    ? m.metrics.map((x) => {
+      const name = typeof x === 'string' ? x : x?.name;
+      if (!name || /^TOUCHES_/.test(name)) return null;
+      const base = known.get(name) || { name, label: name, unit: null, hint: '' };
+      return { ...base, unit: x?.unit || base.unit, hint: x?.hint || base.hint, label: x?.label || base.label };
+    }).filter(Boolean)
+    : [...CHANNEL_METRICS];
+  const defaults = { ...CHANNEL_DEFAULTS };
+  CHANNEL_KEYS.forEach((k) => { defaults[k] = finiteOr(m.defaults?.[k], defaults[k]); });
+  const ranges = Object.fromEntries(CHANNEL_KEYS.map((k) => [k, normalizeRange(m.ranges?.[k], CHANNEL_RANGES[k])]));
+  return {
+    metrics: metrics.length ? metrics : [...CHANNEL_METRICS],
+    levels: Array.isArray(m.levels) && m.levels.length ? m.levels.map(Number).filter((l) => Number.isInteger(l)) : [...CHANNEL_LEVELS],
+    timeframes: Array.isArray(m.timeframes) && m.timeframes.length ? m.timeframes : [...CHANNEL_TFS],
+    runTimeframes: Array.isArray(m.runTimeframes) && m.runTimeframes.length ? m.runTimeframes : [...CHANNEL_RUN_TFS],
+    defaults,
+    ranges,
+  };
+};
 
 /** /meta (partial or absent) merged over the static fallbacks. */
 export const normalizeMeta = (m) => ({
@@ -79,6 +173,7 @@ export const normalizeMeta = (m) => ({
   maxConditions: isNum(m?.maxConditions) ? m.maxConditions : MAX_CONDITIONS,
   indicators: Array.isArray(m?.indicators) && m.indicators.length
     ? m.indicators.map(normalizeIndicator).filter(Boolean) : [...DEFAULT_INDICATORS],
+  channel: normalizeChannelMeta(m?.channel),
 });
 
 // ---- adapters ----
@@ -176,29 +271,47 @@ export const linkValue = (terms, axes) => {
 };
 
 /**
+ * A copy of the condition with the threshold `suffix` set to `v` (the literal a link writes, or the
+ * value an unlinked threshold keeps). COMPARE: `tolerancePct`, `left.n`, `right.n`, `right.const`;
+ * CHANNEL_METRIC (stage 4a): `min`, `max`. Any other suffix → the condition unchanged.
+ */
+export const setThreshold = (condition, suffix, v) => {
+  if (!condition) return condition;
+  if (condition.type === 'CHANNEL_METRIC') {
+    return suffix === 'min' || suffix === 'max' ? { ...condition, [suffix]: v } : condition;
+  }
+  if (suffix === 'tolerancePct') return { ...condition, tolerancePct: v };
+  if (suffix === 'left.n') return { ...condition, left: { ...condition.left, n: v } };
+  if (suffix === 'right.n') return { ...condition, right: { ...condition.right, n: v } };
+  if (suffix === 'right.const') return { ...condition, right: { ...condition.right, value: v } };
+  return condition;
+};
+
+/**
  * The condition with every linked threshold replaced by its value at the axes' defaults. The
  * backend overwrites the literal the same way on save (§3.1), so the literal sent equals what the
  * preview / import will see. Unknown axis → the literal is kept.
  */
 export const applyLinks = (condition, links, axes) => {
-  if (!condition || condition.type !== 'COMPARE' || !links || !Object.keys(links).length) return condition;
-  const c = { ...condition, left: { ...condition.left }, right: { ...condition.right } };
+  if (!condition || (condition.type !== 'COMPARE' && condition.type !== 'CHANNEL_METRIC')
+    || !links || !Object.keys(links).length) return condition;
+  let c = condition;
   Object.entries(links).forEach(([suffix, terms]) => {
     const v = linkValue(terms, axes);
-    if (v == null) return;
-    if (suffix === 'tolerancePct') c.tolerancePct = v;
-    else if (suffix === 'left.n') c.left.n = v;
-    else if (suffix === 'right.n') c.right.n = v;
-    else if (suffix === 'right.const') c.right.value = v;
+    if (v != null) c = setThreshold(c, suffix, v);
   });
   return c;
 };
 
+const hasBound = (v) => v !== '' && v != null && Number.isFinite(Number(v));
+
 /**
  * The suffixes a condition can carry a link on (the length of a side whose kind has one - SMA,
- * ATR, RSI, … by the descriptor - a constant, the tolerance).
+ * ATR, RSI, … by the descriptor - a constant, the tolerance). A channel condition (stage 4a): the
+ * bounds `min` / `max` it has - a cleared bound drops its link (pruneLinks).
  */
 export const linkableSuffixes = (condition) => {
+  if (condition?.type === 'CHANNEL_METRIC') return ['min', 'max'].filter((s) => hasBound(condition[s]));
   if (!condition || condition.type !== 'COMPARE') return [];
   const out = [];
   if (hasLength(condition.left?.kind, condition.left?.n)) out.push('left.n');
@@ -442,6 +555,22 @@ export const getConstructedVersion = async (id, version) => {
   const res = await apiRequest(`${API_BASE_URL}/${enc(id)}/versions/${enc(version)}`, undefined,
     'Loading the strategy version failed');
   return fromConstructedDTO(await readJson(res));
+};
+
+// A version `id@v` never changes once saved, so its DTO is fetched once per page load (a failure is
+// not kept: the next call asks again).
+const versionCache = new Map();
+
+/** getConstructedVersion through a per-page cache (immutable versions; failures are not cached). */
+export const getConstructedVersionCached = (id, version) => {
+  const k = `${id}@${version}`;
+  if (!versionCache.has(k)) {
+    versionCache.set(k, getConstructedVersion(id, version).catch((err) => {
+      versionCache.delete(k);
+      throw err;
+    }));
+  }
+  return versionCache.get(k);
 };
 
 /** POST / ConstructedStrategyRequest → 201 DTO; 409 NAME_EXISTS; 400. */

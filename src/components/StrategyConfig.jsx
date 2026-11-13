@@ -9,7 +9,8 @@ import {
   constraintText, firstConstraintViolation, violationText,
 } from './strategyConstructor/constructedFormat';
 import ConstructedAttempts from './strategyConstructor/ConstructedAttempts';
-import { getConstructedVersion } from '../api/constructedApi';
+import { getConstructedVersionCached } from '../api/constructedApi';
+import useChannelMetrics from './strategyConstructor/useChannelMetrics';
 
 // Small hover/focus tooltip: an "i" icon followed by a floating description box (CSS-driven,
 // see .param-info-icon / .param-tooltip in StrategyConfig.css).
@@ -34,11 +35,11 @@ const ProfileChip = ({ chip }) => {
   );
 };
 
-// Constructed thresholds R1.C2.tolerancePct → "C2 tolerance %" inside the rule's group; an axis
-// ($Gap, stage 3a) keeps its name.
-const paramLabel = (paramName) => {
+// Constructed thresholds R1.C2.tolerancePct → "condition 2 · tolerance %" inside the rule's group
+// (a channel bound with its metric: "condition 1 · EXISTS min"); an axis ($Gap, stage 3a) keeps its name.
+const paramLabel = (paramName, metrics = null) => {
   if (isAxisName(paramName)) return paramName;
-  const t = parseThresholdName(paramName);
+  const t = parseThresholdName(paramName, metrics);
   return t ? t.label.replace(/^R\d+ · /, '') : paramName;
 };
 
@@ -73,7 +74,7 @@ const ConstructedConstraints = ({ strategyKey, params, mode }) => {
   useEffect(() => {
     if (id == null || version == null) return undefined;
     let alive = true;
-    getConstructedVersion(id, version)
+    getConstructedVersionCached(id, version)
       .then((dto) => { if (alive) setConstraints(dto?.constraints || []); })
       .catch(() => { if (alive) setConstraints([]); });
     return () => { alive = false; };
@@ -162,6 +163,8 @@ const StrategyConfig = ({
   const [openFixed, setOpenFixed] = useState({});
 
   const isExpanded = (strategyName) => !collapsedStrategies[strategyName];
+  // Channel metric of each constructed condition: labels its fixed bounds "EXISTS min" / "EXISTS max"
+  const channelMetrics = useChannelMetrics(Object.keys(selectedStrategies || {}));
 
   // Toggle expansion state for a strategy
   const toggleExpand = (strategyName) => {
@@ -228,7 +231,7 @@ const StrategyConfig = ({
                 mode === 'optimize' ? (
                   <div key={paramName} className="param-optimize-card">
                     <div className="param-optimize-name" title={paramName}>
-                      {paramLabel(paramName)}
+                      {paramLabel(paramName, channelMetrics[strategyName])}
                       <InfoTooltip text={getParamDescription(strategyName, paramName, axisNote(strategyName, paramName, availableStrategies))} />
                       {profileChips?.[strategyName]?.[paramName] && (
                         <ProfileChip chip={profileChips[strategyName][paramName]} />
@@ -257,7 +260,7 @@ const StrategyConfig = ({
                 ) : (
                   <div key={paramName} className="param-row">
                     <label className="param-label">
-                      <span className="param-name" title={paramName}>{paramLabel(paramName)}:</span>
+                      <span className="param-name" title={paramName}>{paramLabel(paramName, channelMetrics[strategyName])}:</span>
                       <InfoTooltip text={getParamDescription(strategyName, paramName, axisNote(strategyName, paramName, availableStrategies))} />
                     </label>
                     <input

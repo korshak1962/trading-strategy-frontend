@@ -13,6 +13,10 @@
 // Stage 3b-2 (architect F12): axis constraints (`$TiltSell ≤ $TiltBuy`) in AxesEditor; a rename
 // of an axis follows into them, removing an axis removes its constraints; a PUT always sends the
 // full list and `[]` only when the user removed every stored constraint (a missing field keeps them).
+// Stage 4a (architect "этап 4a" §6): channel conditions - meta.channel goes to RuleEditor and the
+// client validation; the static "channel LongBlock without an EXISTS = 0 rule" warning shows under
+// the rules (the preview repeats the backend's copy); an axis removed from a channel bound leaves
+// its value in min / max.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ConstructedStrategyList from './ConstructedStrategyList';
 import RuleEditor from './RuleEditor';
@@ -23,13 +27,13 @@ import TemplatePickerDialog from './TemplatePickerDialog';
 import {
   DEFAULT_META, getConstructedMeta, listConstructed, getConstructed, createConstructed, updateConstructed,
   deleteConstructed, previewConstructed, toConstructedRequest, toDefinitionRequest, normalizeMeta, referenceCount,
-  CONSTRUCTED_TFS, linkValue,
+  CONSTRUCTED_TFS, linkValue, setThreshold,
 } from '../../api/constructedApi';
 import { describeApiError } from '../../api/httpClient';
 import { exchangeToday, addYearsIso, fmtExchangeIntl } from '../../utils/dates';
 import {
   newDraft, newRule, definitionSignature, validateDraft, runTfsOf, runTfsHint, runTfError, strategyLabel, axisUsage, newAxis,
-  constructedErrorHint,
+  constructedErrorHint, channelBlockWarnings,
 } from './constructedFormat';
 
 const input = 'w-full p-2 border rounded';
@@ -166,12 +170,15 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
   const dirtyRules = !!draft && (!saved || draftSig !== definitionSignature(saved));
   const dirty = !!draft && (dirtyRules || !saved || (draft.name || '') !== (saved.name || '') || (draft.note || '') !== (saved.note || ''));
   const validation = useMemo(
-    () => (draft ? validateDraft(draft, { allowedTypes: meta.signalTypes, maxRules: meta.maxRules, maxConditions: meta.maxConditions }) : null),
+    () => (draft ? validateDraft(draft, {
+      allowedTypes: meta.signalTypes, maxRules: meta.maxRules, maxConditions: meta.maxConditions, channelMeta: meta.channel,
+    }) : null),
     [draft, meta],
   );
   const runTfs = draft ? runTfsOf(draft.rules) : ['DAY', 'WEEK'];
   const previewTfs = meta.timeframes.filter((tf) => CONSTRUCTED_TFS.includes(tf));
   const usage = useMemo(() => axisUsage(draft?.rules), [draft]);
+  const channelWarnings = useMemo(() => channelBlockWarnings(draft?.rules), [draft]);
   const evalTf = previewForm.timeFrame;
 
   const confirmDiscard = () => !dirty || window.confirm('Discard the unsaved changes of this strategy?');
@@ -249,16 +256,11 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
     setDraft((d) => {
       const kept = mapConditions(d, (c) => {
         const links = { ...(c.links || {}) };
-        const cond = { ...c.condition, left: { ...c.condition.left }, right: { ...c.condition.right } };
+        let cond = c.condition;
         Object.entries(c.links || {}).forEach(([sfx, terms]) => {
           if (!terms.some((t) => t.axis === axis.name)) return;
           const v = linkValue(terms, d.axes);
-          if (v != null) {
-            if (sfx === 'tolerancePct') cond.tolerancePct = v;
-            else if (sfx === 'left.n') cond.left.n = v;
-            else if (sfx === 'right.n') cond.right.n = v;
-            else if (sfx === 'right.const') cond.right.value = v;
-          }
+          if (v != null) cond = setThreshold(cond, sfx, v); // COMPARE thresholds and channel min / max
           delete links[sfx];
         });
         return { ...c, condition: cond, links };
@@ -291,7 +293,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
   };
 
   const handleImport = ({ ruleIndex, signalType }, conditions, source) => {
-    const rows = conditions.map((condition) => ({ id: null, condition }));
+    const rows = conditions.map((condition) => ({ id: null, condition, links: {} }));
     setDraft((d) => {
       if (ruleIndex == null) {
         return { ...d, rules: [...d.rules, { id: null, signalType, note: `copied from filter ${source}`, conditions: rows }] };
@@ -365,6 +367,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
     setPreviewError(null);
     const v = validateDraft(draft, {
       allowedTypes: meta.signalTypes, maxRules: meta.maxRules, maxConditions: meta.maxConditions, requireName: false,
+      channelMeta: meta.channel,
     });
     if (!v.ok) { setPreviewError('Fix the rules first (see the messages above).'); return; }
     const tfErr = runTfError(draft.rules, previewForm.timeFrame);
@@ -472,7 +475,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
             <div className="text-sm text-gray-600" data-testid="constructed-run-tfs">
               Runs on <b>{runTfs.join(' or ')}</b>
               <span className="ml-1 text-xs text-gray-500">
-                {runTfsHint(runTfs)} · request key{' '}
+                {runTfsHint(runTfs, draft.rules)} · request key{' '}
                 <code>{saved?.key || 'assigned on save'}</code>
               </span>
             </div>
@@ -545,10 +548,18 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
                 disabled={saving}
                 axes={draft.axes || []}
                 onCreateAxis={createAxisFrom}
+                channelMeta={meta.channel}
+                allRules={draft.rules}
               />
             ))}
             {draft.rules.length === 0 && <p className="text-sm text-gray-500">No rules yet.</p>}
           </div>
+          {channelWarnings.length > 0 && (
+            <div className="mt-3 p-3 rounded bg-amber-50 border border-amber-300 text-amber-800 text-sm" role="status"
+              data-testid="constructed-channel-warnings">
+              {channelWarnings.map((w) => <div key={w}>{w}</div>)}
+            </div>
+          )}
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" onClick={addRule} disabled={saving || draft.rules.length >= meta.maxRules}
               className="py-1 px-3 border rounded text-gray-700 hover:bg-gray-100 text-sm disabled:text-gray-400" data-testid="constructed-add-rule">
@@ -559,7 +570,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
               Import from a screener filter…
             </button>
             <span className="text-xs text-gray-500 self-center">
-              Thresholds (tolerance %, SMA lengths, constants) become parameters fixed at these values; set a range in Optimize to sweep one.
+              Thresholds (tolerance %, SMA lengths, constants, channel min / max) become parameters fixed at these values; set a range in Optimize to sweep one.
               “link” makes several thresholds one parameter (an axis below). TF “RUN” = the TF the strategy runs on.
             </span>
           </div>

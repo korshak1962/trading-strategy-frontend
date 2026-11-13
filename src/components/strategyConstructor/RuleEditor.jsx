@@ -2,18 +2,22 @@
 //
 // One rule of a constructed strategy (screener architect.md "Конструктор стратегий" §4.9): the
 // signal type it emits (LongOpen / LongClose / LongBlock / ShortOpen / ShortClose, from
-// meta.signalTypes) and its AND-ed comparison conditions - the Screener's CompareConditionRow, so
-// operands, offsets and captions are the same as in a filter. Channel conditions are not offered
-// (stage 4). The rule's and its conditions' permanent ids are kept when rows move or change: the
-// threshold names R<rule>.C<cond>.* depend on them.
+// meta.signalTypes) and its AND-ed conditions - the Screener's CompareConditionRow, so operands,
+// offsets and captions are the same as in a filter. The rule's and its conditions' permanent ids
+// are kept when rows move or change: the threshold names R<rule>.C<cond>.* depend on them.
 // Stage 3a: operands may take the TF RUN; every threshold (length, constant, tolerance) can be
 // linked to an axis (LinkPicker); a linked threshold shows the axes' value instead of its input.
+// Stage 4a: channel conditions (ChannelConditionRow, "+ Channel", semantics B); their min / max
+// link to CONST axes. A new one copies the detector params of the strategy's last channel
+// condition, else meta.channel.defaults.
 import { CompareConditionRow } from '../universeScreener/ConditionRows';
-import { pruneLinks } from '../../api/constructedApi';
+import { pruneLinks, DEFAULT_CHANNEL_META } from '../../api/constructedApi';
 import {
-  newRuleCondition, ruleCaption, ruleConditionCaption, linkedThresholdValue, SIGNAL_TYPE_CLASS, SIGNAL_TYPE_HINT,
+  newRuleCondition, newRuleChannelCondition, ruleCaption, ruleConditionCaption, linkedThresholdValue, isChannelCondition,
+  SIGNAL_TYPE_CLASS, SIGNAL_TYPE_HINT,
 } from './constructedFormat';
 import LinkPicker from './LinkPicker';
+import ChannelConditionRow from './ChannelConditionRow';
 
 const sel = 'p-1 border rounded text-sm bg-white';
 const iconBtn = 'px-1.5 text-gray-500 hover:text-gray-800 disabled:text-gray-300';
@@ -35,12 +39,14 @@ const iconBtn = 'px-1.5 text-gray-500 hover:text-gray-800 disabled:text-gray-300
  * @param {Array} props.axes the strategy's axes (stage 3a)
  * @param {(kind: string, value: number|null) => string|null} props.onCreateAxis creates an axis from
  *   a threshold's value, returns its name
+ * @param {Object} [props.channelMeta] meta.channel (stage 4a): metrics, levels, TFs, detector defaults / ranges
+ * @param {Array} [props.allRules] every rule of the draft: a new channel condition copies the last channel condition's params
  * Operand kinds, lengths and units come from the indicator descriptors (indicatorCatalog.js); a
  * kind that does not run on `evalTf` (the preview's run TF, e.g. ATR on MIN5) is disabled.
  */
 export default function RuleEditor({
   rule, index, count, onChange, onRemove, onMove, signalTypes, maxConditions, evalTf, errors, stats, disabled,
-  axes = [], onCreateAxis = null,
+  axes = [], onCreateAxis = null, channelMeta = DEFAULT_CHANNEL_META, allRules = null,
 }) {
   const set = (patch) => onChange({ ...rule, ...patch });
   // An operand change can drop a linkable threshold (SMA → close, CONST → field): its link goes too
@@ -63,6 +69,7 @@ export default function RuleEditor({
     if (suffix === 'left.n') return Number(cond.left?.n);
     if (suffix === 'right.n') return Number(cond.right?.n);
     if (suffix === 'right.const') return Number(cond.right?.value);
+    if (suffix === 'min' || suffix === 'max') return Number(cond[suffix]); // channel bounds (stage 4a)
     return null;
   };
   const removeCondition = (i) => set({ conditions: rule.conditions.filter((_, j) => j !== i) });
@@ -116,23 +123,20 @@ export default function RuleEditor({
       <p className="mt-1 text-xs text-gray-500">{SIGNAL_TYPE_HINT[rule.signalType]}</p>
 
       <div className="mt-2 flex flex-col gap-2">
-        {rule.conditions.map((c, i) => (
-          <CompareConditionRow
-            key={c.id != null ? `c${c.id}` : `n${i}`}
-            condition={c.condition}
-            evalTf={evalTf}
-            onChange={(x) => setCondition(i, x)}
-            index={i}
-            count={rule.conditions.length}
-            disabled={disabled}
-            errors={errors?.conditions?.[i] || []}
-            onRemove={() => removeCondition(i)}
-            onMove={(d) => moveCondition(i, d)}
-            allowRun
-            runTf={evalTf}
-            caption={ruleConditionCaption(c, evalTf, axes)}
-            linkedValue={(suffix) => linkedThresholdValue(c, suffix, axes)}
-            renderLink={(suffix) => (
+        {rule.conditions.map((c, i) => {
+          const common = {
+            key: c.id != null ? `c${c.id}` : `n${i}`,
+            condition: c.condition,
+            onChange: (x) => setCondition(i, x),
+            index: i,
+            count: rule.conditions.length,
+            disabled,
+            errors: errors?.conditions?.[i] || [],
+            onRemove: () => removeCondition(i),
+            onMove: (d) => moveCondition(i, d),
+            caption: ruleConditionCaption(c, evalTf, axes),
+            linkedValue: (suffix) => linkedThresholdValue(c, suffix, axes),
+            renderLink: (suffix) => (
               <LinkPicker
                 suffix={suffix}
                 terms={c.links?.[suffix] || null}
@@ -144,9 +148,19 @@ export default function RuleEditor({
                   return onCreateAxis(kind, Number.isFinite(v) ? v : null);
                 } : null}
               />
-            )}
-          />
-        ))}
+            ),
+          };
+          const { key, ...rest } = common;
+          if (isChannelCondition(c.condition)) {
+            // a bound can be linked only while it has a value (pruneLinks drops the link of a cleared bound)
+            const hasBound = (s) => c.condition[s] !== '' && c.condition[s] != null && Number.isFinite(Number(c.condition[s]));
+            return (
+              <ChannelConditionRow key={key} {...rest} channelMeta={channelMeta}
+                renderLink={(suffix) => (hasBound(suffix) || c.links?.[suffix] ? rest.renderLink(suffix) : null)} />
+            );
+          }
+          return <CompareConditionRow key={key} {...rest} evalTf={evalTf} allowRun runTf={evalTf} />;
+        })}
         {rule.conditions.length === 0 && <p className="text-sm text-gray-500">No conditions yet.</p>}
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -154,6 +168,12 @@ export default function RuleEditor({
           onClick={() => set({ conditions: [...rule.conditions, newRuleCondition()] })}
           className="py-1 px-3 border rounded text-gray-700 hover:bg-gray-100 text-sm disabled:text-gray-400" data-testid="rule-add-condition">
           + Comparison
+        </button>
+        <button type="button" disabled={disabled || rule.conditions.length >= maxConditions}
+          onClick={() => set({ conditions: [...rule.conditions, newRuleChannelCondition(allRules || [rule], channelMeta?.defaults)] })}
+          className="py-1 px-3 border rounded text-gray-700 hover:bg-gray-100 text-sm disabled:text-gray-400" data-testid="rule-add-channel"
+          title="A condition on the recursive channel (position, slope, width, age, exists) as of the previous bar: semantics B, no look-ahead. Runs on DAY / WEEK.">
+          + Channel
         </button>
         <span className="text-xs text-gray-500">Conditions are AND-ed. For OR add another rule with the same signal type.</span>
       </div>

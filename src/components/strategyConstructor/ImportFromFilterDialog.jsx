@@ -2,15 +2,35 @@
 //
 // "Import from a screener filter" (BA spec §2.5, Q3): the filter's COMPARE conditions are COPIED
 // into a rule of the constructed strategy - there is no live link, a later edit of the filter does
-// not change the strategy. Channel conditions (CHANNEL_METRIC) are skipped with a note: they arrive
-// in constructed strategies in stage 4 (Q1).
+// not change the strategy.
+// Stage 4a (architect "этап 4a" §6, O5): channel conditions (CHANNEL_METRIC) are copied too, with
+// `channel` = the filter's detector params (coverage, min bars, min width) + minAgeBars 0. In the
+// strategy they are evaluated in semantics B (causal: the channel tree after bar t−1, from the
+// ticker's first bar); the screener keeps showing semantics A, so values can differ.
+// TOUCHES_UPPER / TOUCHES_LOWER are skipped: not in semantics B yet.
 import { useEffect, useState } from 'react';
 import { listFilters, getFilter, fromConditionDTO } from '../../api/screenerApi';
 import { describeApiError } from '../../api/httpClient';
+import { CHANNEL_DEFAULTS } from '../../api/constructedApi';
 import { conditionCaption, evalTfOf } from '../universeScreener/conditionFormat';
+import { channelConditionCaption } from './constructedFormat';
 import '../watch/watch.css';
 
 const sel = 'p-2 border rounded text-sm bg-white';
+
+const isTouches = (c) => c.type === 'CHANNEL_METRIC' && /^TOUCHES_/.test(c.metric || '');
+const finiteOr = (v, d) => (v != null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : d);
+
+/** The `channel` of an imported channel condition: the filter's detector params, minAgeBars 0. */
+const channelSpecFromFilter = (filter) => {
+  const p = filter?.detectorParams || {};
+  return {
+    coveragePct: finiteOr(p.coveragePct, CHANNEL_DEFAULTS.coveragePct),
+    minBars: finiteOr(p.minBars, CHANNEL_DEFAULTS.minBars),
+    minWidthPct: finiteOr(p.minWidthPct, CHANNEL_DEFAULTS.minWidthPct),
+    minAgeBars: 0,
+  };
+};
 
 /**
  * @param {Object} props
@@ -52,7 +72,10 @@ export default function ImportFromFilterDialog({ rules, signalTypes, maxConditio
 
   const conditions = Array.isArray(filter?.conditions) ? filter.conditions.map(fromConditionDTO) : [];
   const evalTf = evalTfOf(conditions);
-  const importable = conditions.filter((c) => c.type === 'COMPARE');
+  const spec = channelSpecFromFilter(filter);
+  const importable = conditions.filter((c) => (c.type === 'COMPARE' || c.type === 'CHANNEL_METRIC') && !isTouches(c))
+    .map((c) => (c.type === 'CHANNEL_METRIC' ? { ...c, channel: { ...spec } } : c));
+  const channelCount = importable.filter((c) => c.type === 'CHANNEL_METRIC').length;
   const skipped = conditions.length - importable.length;
   const targetRule = target === 'new' ? null : rules[Number(target)];
   const room = targetRule ? maxConditions - targetRule.conditions.length : maxConditions;
@@ -99,18 +122,29 @@ export default function ImportFromFilterDialog({ rules, signalTypes, maxConditio
             <ul className="text-xs font-mono space-y-1" data-testid="import-filter-conditions">
               {conditions.map((c, i) => (
                 <li key={i}>
-                  <span className={c.type === 'COMPARE' ? 'text-gray-800' : 'text-gray-400 line-through'}>
+                  <span className={isTouches(c) ? 'text-gray-400 line-through' : 'text-gray-800'}>
                     {conditionCaption(c, evalTf)}
                   </span>
-                  {c.type !== 'COMPARE' && (
-                    <span className="ml-2 text-amber-700">skipped: channel conditions arrive in stage 4</span>
+                  {isTouches(c) && (
+                    <span className="ml-2 text-amber-700">skipped: {c.metric} is not in semantics B yet</span>
+                  )}
+                  {c.type === 'CHANNEL_METRIC' && !isTouches(c) && (
+                    <span className="ml-2 text-indigo-700">→ {channelConditionCaption({ ...c, channel: spec })}</span>
                   )}
                 </li>
               ))}
             </ul>
+            {channelCount > 0 && (
+              <p className="mt-2 text-xs text-indigo-800" data-testid="import-filter-channel-note">
+                {channelCount} channel condition{channelCount === 1 ? '' : 's'}: the filter&apos;s detector params carry over
+                (coverage {spec.coveragePct}, min bars {spec.minBars}, min width {spec.minWidthPct}), min age 0 bars.
+                In a strategy a channel condition is evaluated in semantics B (causal: on bar t the channel tree after
+                bar t−1, from the ticker&apos;s first bar); the screener still shows semantics A, so values can differ.
+              </p>
+            )}
             {skipped > 0 && (
               <p className="mt-2 text-xs text-amber-700" data-testid="import-filter-skipped">
-                {skipped} of {conditions.length} condition{conditions.length === 1 ? '' : 's'} skipped (channel metric).
+                {skipped} of {conditions.length} condition{conditions.length === 1 ? '' : 's'} skipped (touch counts are not in semantics B yet).
               </p>
             )}
 
