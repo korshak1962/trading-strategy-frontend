@@ -5,6 +5,8 @@
 // axes; Create → POST /templates/{id}/create {name?} → an ordinary constructed strategy v1 that is
 // then edited like any other. 409 NAME_EXISTS → choose another name; 404 → the template is gone.
 // Stage 3b-2: the template's axis constraints ("SMA tilt": $TiltSell ≤ $TiltBuy) are listed too.
+// Stage 4b: a template's create options (`level-breakout-bricks`: take profit R5 / regime filter on
+// R1) as checkboxes, sent as `options: {key: true|false}`; the listed rules are the no-option variant.
 import { useEffect, useState } from 'react';
 import { listTemplates, createFromTemplate } from '../../api/constructedApi';
 import { describeApiError } from '../../api/httpClient';
@@ -40,6 +42,7 @@ export default function TemplatePickerDialog({ onCreated, onClose }) {
   const [name, setName] = useState('');
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [options, setOptions] = useState({}); // stage 4b: {takeProfit: true, …} of the chosen template
 
   useEffect(() => {
     let alive = true;
@@ -59,6 +62,7 @@ export default function TemplatePickerDialog({ onCreated, onClose }) {
     setTemplateId(id);
     const t = (templates || []).find((x) => x.templateId === id);
     if (t) setName(t.name);
+    setOptions({});
     setError(null);
   };
 
@@ -67,7 +71,11 @@ export default function TemplatePickerDialog({ onCreated, onClose }) {
     setBusy(true);
     setError(null);
     try {
-      const dto = await createFromTemplate(template.templateId, name);
+      // options only for a template that has them (the backend answers 400 otherwise)
+      const opts = template.options.length
+        ? Object.fromEntries(template.options.map((o) => [o.key, options[o.key] === true]))
+        : null;
+      const dto = await createFromTemplate(template.templateId, name, opts);
       onCreated(dto);
     } catch (err) {
       if (err.status === 409) setError(`A strategy named "${(name || template.name).trim()}" already exists — choose another name.`);
@@ -134,6 +142,24 @@ export default function TemplatePickerDialog({ onCreated, onClose }) {
             <p className="mt-2 text-xs text-gray-500" data-testid="template-run-tfs">
               {templateRunTfsText(template.rules)}
             </p>
+            {template.options.length > 0 && (
+              <fieldset className="mt-3" data-testid="template-options">
+                <legend className="text-sm font-medium text-gray-700 mb-1">
+                  Options <span className="font-normal text-gray-500">(the rules above are the variant without options)</span>
+                </legend>
+                {template.options.map((o) => (
+                  <label key={o.key} className="flex items-start gap-2 text-sm text-gray-700 mb-1" title={o.hint || undefined}>
+                    <input type="checkbox" className="mt-1" checked={options[o.key] === true}
+                      onChange={(e) => setOptions((x) => ({ ...x, [o.key]: e.target.checked }))}
+                      data-testid={`template-option-${o.key}`} />
+                    <span>
+                      {o.label}
+                      {o.hint && <span className="block text-xs text-gray-500">{o.hint}</span>}
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+            )}
 
             <label className="block text-sm font-medium text-gray-700 mt-3 mb-1" htmlFor="template-name">Name of the new strategy</label>
             <input id="template-name" className="w-full p-2 border rounded" value={name} maxLength={128}

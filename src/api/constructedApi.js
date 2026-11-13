@@ -21,10 +21,25 @@
 // tree after bar t−1, replayed from the ticker's first stored DAY bar). Their bounds link to CONST
 // axes through the threshold suffixes `min` / `max`; `meta.channel` lists metrics, levels, TFs and
 // the detector defaults / ranges.
+//
+// Stage 4b (screener logs/agents/architect_constructor_stage4b.md, backend_dev_stage4b.md "API
+// contract"): the Levels indicator and the sequence bricks, constructed strategies only -
+//   condition `{type: 'LEVEL_EVENT', tf: 'RUN', event, strength?, levels: LevelsSpec}`,
+//   condition `{type: 'WITHIN', tf: 'RUN', bars, of: <one market condition>}`,
+//   operand `{kind: 'LEVEL', tf: 'RUN', offset, output, levels}`,
+//   operands `{kind: AT_LAST|MAX_SINCE|MIN_SINCE, tf: 'RUN', offset: 0, x, a, lag?}` / `{kind: 'BARS_SINCE', a}`.
+// Thresholds are paths (`strength`, `bars`, `of.strength`, `[P.]levels.<field>`, `P.x.n`), linked
+// to axes like the stage 3a suffixes; get / set by path below. Run on DAY / WEEK only; at most
+// `meta.maxAxes` (16) axes; template options (`{takeProfit, regime}`) on create.
 
 import { apiRequest, readJson, jsonBody, enc } from './httpClient';
-import { toConditionDTO, fromConditionDTO } from './screenerApi';
-import { DEFAULT_INDICATORS, normalizeIndicator, hasLength, setIndicatorCatalog } from './indicatorCatalog';
+import { toConditionDTO, fromConditionDTO, toOperand, fromOperand } from './screenerApi';
+import {
+  DEFAULT_INDICATORS, normalizeIndicator, hasLength, setIndicatorCatalog, setLevelOutputUnits,
+  LEVEL_KIND, ANCHORED_KINDS, BRICK_OPERAND_KINDS, isStagedOperand, isBrickOperand,
+} from './indicatorCatalog';
+
+export { LEVEL_KIND, ANCHORED_KINDS, BRICK_OPERAND_KINDS, isStagedOperand, isBrickOperand };
 
 export { DEFAULT_INDICATORS };
 
@@ -52,7 +67,8 @@ export const LINK_SUFFIX_KIND = Object.freeze({
   min: 'CONST',
   max: 'CONST',
 });
-export const MAX_AXES = 10;
+/** Fallback of meta.maxAxes (stage 4b: 16, was 10). */
+export const MAX_AXES = 16;
 /**
  * Axis constraints (stage 3b-2, architect F12): `{left: '$TiltSell', op: 'LE', right: '$TiltBuy'}`,
  * two different axes of one kind; at most MAX_CONSTRAINTS (ConstructedDefinitionValidator).
@@ -104,6 +120,144 @@ export const DEFAULT_CHANNEL_META = Object.freeze({
   ranges: CHANNEL_RANGES,
 });
 
+// ---- Levels and sequence bricks (stage 4b) ----
+
+/** The linkable LevelsSpec fields (architect §2.3), in the backend's order. */
+export const LEVEL_FIELDS = Object.freeze(['minStrength', 'breakBuffer', 'touchTolerance', 'maxRetestBars', 'maxDwellBars',
+  'confirmMode', 'runawayAtr', 'baseMinBars', 'maxBaseBars', 'stopBuffer', 'upgradeStrength', 'upgradeMinTouches']);
+/** Fixed in stage 4b (shown, never edited or linked). */
+export const LEVELS_FIXED = Object.freeze({ warmupBars: 60, atrLength: 14 });
+/** Every field of the canonical LevelsSpec (14). */
+export const LEVELS_KEYS = Object.freeze([...LEVEL_FIELDS, 'warmupBars', 'atrLength']);
+export const STRENGTH_MAX = 50;
+export const WITHIN_BARS_MAX = 250;
+export const LAG_MAX = 10;
+/** Events that take a strength threshold (SUPPORT_BREAK / RESISTANCE_REACHED). */
+export const STRENGTH_EVENTS = Object.freeze(['SUPPORT_BREAK', 'RESISTANCE_REACHED']);
+
+const lp = (name, defaultValue, min, max, minInclusive, integer, hint, inPass) => ({
+  name, defaultValue, min, max, minInclusive, integer, hint, inPass,
+});
+/** Fallback of meta.levels.params (backend ConstructedLevelsMeta). */
+export const LEVELS_PARAMS = Object.freeze([
+  lp('minStrength', 3, 0, 50, false, false, 'Strength a zone needs to be tracked (and for IN_ZONE / DIST_*)', true),
+  lp('breakBuffer', 0.5, 0, 5, true, false, 'Breakout / break-down line beyond the zone, ATR multiples', true),
+  lp('touchTolerance', 0.25, 0, 5, true, false, 'A retest touch: low within this many ATR above the zone', true),
+  lp('maxRetestBars', 15, 1, 500, true, true, 'Bars to wait for a retest (only with baseMinBars 0)', true),
+  lp('maxDwellBars', 3, 1, 500, true, true, 'Bars in the zone after the touch before the setup is missed', true),
+  lp('confirmMode', 0, 0, 1, true, true, '0 = close above the zone on the touch bar, 1 = close above the touch bar high', true),
+  lp('runawayAtr', 1, 0, 10, true, false, 'Runaway entry without a retest this many ATR above the zone (0 = off)', true),
+  lp('baseMinBars', 5, 0, 500, true, true, 'Base entry after this many bars holding above the zone (0 = off)', true),
+  lp('maxBaseBars', 120, 1, 1000, true, true, 'Safety cap of the base wait', true),
+  lp('stopBuffer', 0.5, 0, 5, true, false, 'SETUP_STOP below the zone (or the retest low), ATR multiples', false),
+  lp('upgradeStrength', 3, 0, 50, false, false, 'Strength a zone needs to become SUPPORT_LINE', false),
+  lp('upgradeMinTouches', 2, 1, 20, true, true, 'Touches a zone needs to become SUPPORT_LINE', false),
+]);
+export const LEVELS_DEFAULTS = Object.freeze({
+  ...Object.fromEntries(LEVELS_PARAMS.map((p) => [p.name, p.defaultValue])),
+  ...LEVELS_FIXED,
+});
+export const LEVEL_EVENTS = Object.freeze([
+  { name: 'BREAKOUT_UP', needsStrength: false, hint: 'Close crossed above a tracked zone + BreakBuffer x ATR' },
+  { name: 'CONFIRMED_RETEST', needsStrength: false, hint: 'Breakout confirmed by a retest of the zone' },
+  { name: 'CONFIRMED_RUNAWAY', needsStrength: false, hint: 'Breakout ran away RunawayAtr x ATR above the zone' },
+  { name: 'CONFIRMED_BASE', needsStrength: false, hint: 'Breakout held above the zone for BaseMinBars and made a new high' },
+  { name: 'CONFIRMED_ANY', needsStrength: false, hint: 'Any of the three confirmations' },
+  { name: 'FAILED', needsStrength: false, hint: 'The breakout failed: close back below the zone - BreakBuffer x ATR' },
+  { name: 'BROKEN_DOWN', needsStrength: false, hint: 'A confirmed zone broke down' },
+  { name: 'SUPPORT_BREAK', needsStrength: true, hint: 'Close below the nearest support zone of this strength - BreakBuffer x ATR' },
+  { name: 'RESISTANCE_REACHED', needsStrength: true, hint: 'Close reached the nearest resistance zone of this strength' },
+]);
+export const LEVEL_OUTPUTS = Object.freeze([
+  { name: 'IN_ZONE', unit: 'RATIO', hint: '1 when the close is inside a strong zone' },
+  { name: 'SETUP_STOP', unit: 'PRICE', hint: 'On a confirmation bar: the setup stop (zone or retest low - StopBuffer x ATR)' },
+  { name: 'SETUP_ZONE_LINE', unit: 'PRICE', hint: 'On a confirmation bar: zone low - BreakBuffer x ATR' },
+  { name: 'SUPPORT_LINE', unit: 'PRICE', hint: 'Highest strong zone fully below the close - BreakBuffer x ATR (the sticky-support candidate)' },
+  { name: 'DIST_SUPPORT_ATR', unit: 'ATR_MULTIPLE', hint: 'Close above the nearest strong support, in ATR' },
+  { name: 'DIST_RESISTANCE_ATR', unit: 'ATR_MULTIPLE', hint: 'Nearest strong resistance above the close, in ATR' },
+]);
+export const LEVELS_RUN_TFS = Object.freeze(['DAY', 'WEEK']);
+export const DEFAULT_LEVELS_META = Object.freeze({
+  events: LEVEL_EVENTS,
+  outputs: LEVEL_OUTPUTS,
+  params: LEVELS_PARAMS,
+  fixed: LEVELS_FIXED,
+  runTimeframes: LEVELS_RUN_TFS,
+  defaults: LEVELS_DEFAULTS,
+  strengthMax: STRENGTH_MAX,
+});
+export const BRICK_KINDS = Object.freeze([
+  { name: 'WITHIN', form: 'CONDITION', hasX: false, hasLag: false, unit: null, hint: 'PASS when the event passed on one of the last k bars' },
+  { name: 'BARS_SINCE', form: 'OPERAND', hasX: false, hasLag: false, unit: 'BARS', hint: 'Bars since the last time the event passed (0 on that bar)' },
+  { name: 'AT_LAST', form: 'OPERAND', hasX: true, hasLag: false, unit: null, hint: 'X on the bar the event last passed' },
+  { name: 'MAX_SINCE', form: 'OPERAND', hasX: true, hasLag: true, unit: null, hint: 'Highest X after the last event, up to lag bars ago (lag 1: the line as of the previous bar)' },
+  { name: 'MIN_SINCE', form: 'OPERAND', hasX: true, hasLag: true, unit: null, hint: 'Lowest X after the last event, up to lag bars ago' },
+]);
+export const BRICKS_HINT = 'The stop and the sticky support follow the last level confirmation, not your trade: honest alone or '
+  + 'with LongBlock partners; for the entries of other strategies wait for stage 4c. Levels runs over the bars of the run window '
+  + '(as the LevelBreakoutRetest class), so its events depend on the window start.';
+export const DEFAULT_BRICKS_META = Object.freeze({ kinds: BRICK_KINDS, kMax: WITHIN_BARS_MAX, lagMax: LAG_MAX, hint: BRICKS_HINT });
+
+/** A meta list of `{name, …}` (or names) merged item by item over the fallback list. */
+const mergeByName = (list, fallback, map) => (Array.isArray(list) && list.length
+  ? list.map((x) => (typeof x === 'string' ? { name: x } : x)).filter((x) => x && x.name)
+    .map((x) => map(x, fallback.find((f) => f.name === x.name) || {}))
+  : [...fallback]);
+
+/** meta.levels (LevelsMetaDTO) merged over the fallbacks. */
+export const normalizeLevelsMeta = (m) => {
+  if (!m || typeof m !== 'object') return DEFAULT_LEVELS_META;
+  const events = mergeByName(m.events, LEVEL_EVENTS, (x, f) => ({
+    name: x.name,
+    hint: x.hint || f.hint || '',
+    needsStrength: typeof x.needsStrength === 'boolean' ? x.needsStrength : STRENGTH_EVENTS.includes(x.name),
+  }));
+  const outputs = mergeByName(m.outputs, LEVEL_OUTPUTS, (x, f) => ({ name: x.name, unit: x.unit || f.unit || null, hint: x.hint || f.hint || '' }));
+  const params = mergeByName(m.params, LEVELS_PARAMS, (x, f) => ({
+    name: x.name,
+    defaultValue: finiteOr(x.defaultValue ?? x.default, f.defaultValue),
+    min: finiteOr(x.min, f.min),
+    max: finiteOr(x.max, f.max),
+    minInclusive: typeof x.minInclusive === 'boolean' ? x.minInclusive : f.minInclusive !== false,
+    integer: typeof x.integer === 'boolean' ? x.integer : !!f.integer,
+    hint: x.hint || f.hint || '',
+    inPass: typeof x.inPass === 'boolean' ? x.inPass : !!f.inPass,
+  })).filter((x) => LEVEL_FIELDS.includes(x.name));
+  const fixed = { ...LEVELS_FIXED };
+  Object.keys(fixed).forEach((k) => { fixed[k] = finiteOr(m.fixed?.[k], fixed[k]); });
+  const defaults = { ...LEVELS_DEFAULTS, ...fixed };
+  params.forEach((p) => { defaults[p.name] = p.defaultValue; });
+  LEVELS_KEYS.forEach((k) => { defaults[k] = finiteOr(m.defaults?.[k], defaults[k]); });
+  return {
+    events: events.length ? events : [...LEVEL_EVENTS],
+    outputs: outputs.length ? outputs : [...LEVEL_OUTPUTS],
+    params: params.length ? params : [...LEVELS_PARAMS],
+    fixed,
+    runTimeframes: Array.isArray(m.runTimeframes) && m.runTimeframes.length ? m.runTimeframes : [...LEVELS_RUN_TFS],
+    defaults,
+    strengthMax: finiteOr(m.strengthMax, STRENGTH_MAX),
+  };
+};
+
+/** meta.bricks (BricksMetaDTO) merged over the fallbacks. */
+export const normalizeBricksMeta = (m) => {
+  if (!m || typeof m !== 'object') return DEFAULT_BRICKS_META;
+  const kinds = mergeByName(m.kinds, BRICK_KINDS, (k, f) => ({
+    name: k.name,
+    form: k.form || f.form || 'OPERAND',
+    hasX: typeof k.hasX === 'boolean' ? k.hasX : !!f.hasX,
+    hasLag: typeof k.hasLag === 'boolean' ? k.hasLag : !!f.hasLag,
+    unit: k.unit ?? f.unit ?? null,
+    hint: k.hint || f.hint || '',
+  }));
+  return {
+    kinds: kinds.length ? kinds : [...BRICK_KINDS],
+    kMax: finiteOr(m.kMax, WITHIN_BARS_MAX),
+    lagMax: finiteOr(m.lagMax, LAG_MAX),
+    hint: typeof m.hint === 'string' && m.hint ? m.hint : BRICKS_HINT,
+  };
+};
+
 export const DEFAULT_META = Object.freeze({
   signalTypes: SIGNAL_TYPES,
   timeframes: CONSTRUCTED_TFS,
@@ -113,6 +267,9 @@ export const DEFAULT_META = Object.freeze({
   maxConditions: MAX_CONDITIONS,
   indicators: DEFAULT_INDICATORS,
   channel: DEFAULT_CHANNEL_META,
+  levels: DEFAULT_LEVELS_META,
+  bricks: DEFAULT_BRICKS_META,
+  maxAxes: MAX_AXES,
 });
 
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -174,6 +331,9 @@ export const normalizeMeta = (m) => ({
   indicators: Array.isArray(m?.indicators) && m.indicators.length
     ? m.indicators.map(normalizeIndicator).filter(Boolean) : [...DEFAULT_INDICATORS],
   channel: normalizeChannelMeta(m?.channel),
+  levels: normalizeLevelsMeta(m?.levels),
+  bricks: normalizeBricksMeta(m?.bricks),
+  maxAxes: isNum(m?.maxAxes) && m.maxAxes > 0 ? m.maxAxes : MAX_AXES,
 });
 
 // ---- adapters ----
@@ -236,12 +396,94 @@ const fromLinkExpr = (x) => {
   return out.length ? out : null;
 };
 
+// ---- threshold paths (stage 4b, architect §4.2; backend StagedThresholds) ----
+
+const LEVELS_PATH_RE = /^(?:(?:left|right|left\.x|left\.a|right\.x|right\.a|of)\.)?levels\.([A-Za-z]+)$/;
+
+/**
+ * The axis kind a threshold suffix links to, null for an unknown suffix: the stage 3a / 4a suffixes
+ * (LINK_SUFFIX_KIND), `strength` / `bars` / `of.strength` / `[P.]levels.<field>` → CONST,
+ * `left.x.n` / `right.x.n` (a brick's X length) → LENGTH.
+ */
+export const linkSuffixKind = (suffix) => {
+  if (typeof suffix !== 'string') return null;
+  if (LINK_SUFFIX_KIND[suffix]) return LINK_SUFFIX_KIND[suffix];
+  if (suffix === 'strength' || suffix === 'bars' || suffix === 'of.strength') return 'CONST';
+  if (suffix === 'left.x.n' || suffix === 'right.x.n') return 'LENGTH';
+  const m = LEVELS_PATH_RE.exec(suffix);
+  return m && LEVEL_FIELDS.includes(m[1]) ? 'CONST' : null;
+};
+
+/** `right.const` → the operand's `value`; every other path segment is the editor object's key. */
+const keyOf = (seg, last) => (seg === 'const' && last ? 'value' : seg);
+
+/** The editor value at a threshold path (`right.x.levels.stopBuffer`, `of.strength`, `right.const`). */
+export const getAtPath = (node, path) => {
+  const parts = typeof path === 'string' ? path.split('.') : path;
+  let n = node;
+  for (let i = 0; i < parts.length; i += 1) {
+    if (n == null || typeof n !== 'object') return undefined;
+    n = n[keyOf(parts[i], i === parts.length - 1)];
+  }
+  return n;
+};
+
+/** A copy of `node` with `fn(old)` at `path`; unchanged when a node on the way is missing. */
+export const updateAtPath = (node, path, fn) => {
+  const parts = typeof path === 'string' ? path.split('.') : path;
+  if (!node || typeof node !== 'object' || !parts.length) return node;
+  const [h, ...rest] = parts;
+  const key = keyOf(h, rest.length === 0);
+  if (!rest.length) return { ...node, [key]: fn(node[key]) };
+  if (!node[key] || typeof node[key] !== 'object') return node;
+  return { ...node, [key]: updateAtPath(node[key], rest, fn) };
+};
+
+/** A stage 4b condition type (LEVEL_EVENT / WITHIN). */
+export const isLevelEvent = (c) => c?.type === 'LEVEL_EVENT';
+export const isWithin = (c) => c?.type === 'WITHIN';
+export const eventNeedsStrength = (event) => STRENGTH_EVENTS.includes(event);
+
+/**
+ * Every Levels spec inside a condition: `[{prefix, linkable, path}]` in the order of the condition
+ * (prefix `''`, `of.`, `left.`, `right.x.`, `right.a.`, …; its spec is at `prefix + 'levels'`).
+ * `linkable` = the backend accepts links on its fields (StagedThresholds.paths): a LEVEL_EVENT at
+ * the top or as WITHIN's anchor, a LEVEL side, a brick's LEVEL X and LEVEL_EVENT anchor - not a
+ * Levels operand inside a nested comparison.
+ */
+export const levelsOccurrences = (condition) => {
+  const out = [];
+  const walkCond = (c, prefix, linkable) => {
+    if (!c || typeof c !== 'object') return;
+    if (isLevelEvent(c)) out.push({ prefix, linkable });
+    else if (isWithin(c)) walkCond(c.of, `${prefix}of.`, linkable && isLevelEvent(c.of));
+    else if (c.type === 'COMPARE') ['left', 'right'].forEach((s) => walkOp(c[s], `${prefix}${s}.`, linkable));
+  };
+  const walkOp = (o, prefix, linkable) => {
+    if (!o) return;
+    if (o.kind === LEVEL_KIND) out.push({ prefix, linkable });
+    else if (ANCHORED_KINDS.includes(o.kind)) {
+      walkOp(o.x, `${prefix}x.`, linkable);
+      walkCond(o.a, `${prefix}a.`, linkable && isLevelEvent(o.a));
+    } else if (o.kind === 'BARS_SINCE') walkCond(o.a, `${prefix}a.`, linkable && isLevelEvent(o.a));
+  };
+  walkCond(condition, '', true);
+  return out.map((x) => ({ ...x, path: `${x.prefix}levels` }));
+};
+
+/** true when the condition (or anything nested in it) is a stage 4b form: Levels or a brick. */
+export const isStagedCondition = (c) => {
+  if (!c) return false;
+  if (isLevelEvent(c) || isWithin(c)) return true;
+  return c.type === 'COMPARE' && (isStagedOperand(c.left) || isStagedOperand(c.right));
+};
+
 /** Wire `links` map → editor `{suffix: terms}` (only the known suffixes). */
 export const fromLinksDTO = (links) => {
   const out = {};
   if (links && typeof links === 'object') {
     Object.entries(links).forEach(([suffix, x]) => {
-      if (!LINK_SUFFIX_KIND[suffix]) return;
+      if (!linkSuffixKind(suffix)) return;
       const terms = fromLinkExpr(x);
       if (terms) out[suffix] = terms;
     });
@@ -280,11 +522,22 @@ export const setThreshold = (condition, suffix, v) => {
   if (condition.type === 'CHANNEL_METRIC') {
     return suffix === 'min' || suffix === 'max' ? { ...condition, [suffix]: v } : condition;
   }
-  if (suffix === 'tolerancePct') return { ...condition, tolerancePct: v };
-  if (suffix === 'left.n') return { ...condition, left: { ...condition.left, n: v } };
-  if (suffix === 'right.n') return { ...condition, right: { ...condition.right, n: v } };
-  if (suffix === 'right.const') return { ...condition, right: { ...condition.right, value: v } };
-  return condition;
+  if (!isStagedCondition(condition)) {
+    if (suffix === 'tolerancePct') return { ...condition, tolerancePct: v };
+    if (suffix === 'left.n') return { ...condition, left: { ...condition.left, n: v } };
+    if (suffix === 'right.n') return { ...condition, right: { ...condition.right, n: v } };
+    if (suffix === 'right.const') return { ...condition, right: { ...condition.right, value: v } };
+    return condition;
+  }
+  // stage 4b: any path of the condition (strength, bars, of.strength, [P.]levels.<f>, P.x.n, …)
+  return linkSuffixKind(suffix) ? updateAtPath(condition, suffix, () => v) : condition;
+};
+
+/** The literal of a threshold (the value a new axis starts from); NaN when it has none. */
+export const thresholdLiteral = (condition, suffix) => {
+  if (suffix === 'tolerancePct') return Number(condition?.tolerancePct) || 0;
+  const v = getAtPath(condition, suffix);
+  return v === '' || v == null ? NaN : Number(v);
 };
 
 /**
@@ -293,7 +546,7 @@ export const setThreshold = (condition, suffix, v) => {
  * preview / import will see. Unknown axis → the literal is kept.
  */
 export const applyLinks = (condition, links, axes) => {
-  if (!condition || (condition.type !== 'COMPARE' && condition.type !== 'CHANNEL_METRIC')
+  if (!condition || !['COMPARE', 'CHANNEL_METRIC', 'LEVEL_EVENT', 'WITHIN'].includes(condition.type)
     || !links || !Object.keys(links).length) return condition;
   let c = condition;
   Object.entries(links).forEach(([suffix, terms]) => {
@@ -312,12 +565,28 @@ const hasBound = (v) => v !== '' && v != null && Number.isFinite(Number(v));
  */
 export const linkableSuffixes = (condition) => {
   if (condition?.type === 'CHANNEL_METRIC') return ['min', 'max'].filter((s) => hasBound(condition[s]));
+  const levelPaths = () => levelsOccurrences(condition).filter((o) => o.linkable)
+    .flatMap((o) => LEVEL_FIELDS.map((f) => `${o.prefix}levels.${f}`));
+  // stage 4b: StagedThresholds.paths - the strength of a SUPPORT_BREAK / RESISTANCE_REACHED, the
+  // bars of WITHIN (and its LEVEL_EVENT anchor's strength), every linkable Levels field, a brick X's length
+  if (isLevelEvent(condition)) {
+    return [...(eventNeedsStrength(condition.event) ? ['strength'] : []), ...levelPaths()];
+  }
+  if (isWithin(condition)) {
+    const of = condition.of;
+    return ['bars', ...(isLevelEvent(of) && eventNeedsStrength(of.event) ? ['of.strength'] : []), ...levelPaths()];
+  }
   if (!condition || condition.type !== 'COMPARE') return [];
   const out = [];
   if (hasLength(condition.left?.kind, condition.left?.n)) out.push('left.n');
   if (hasLength(condition.right?.kind, condition.right?.n)) out.push('right.n');
   if (condition.right?.kind === 'CONST') out.push('right.const');
   out.push('tolerancePct');
+  ['left', 'right'].forEach((s) => {
+    const x = condition[s]?.x;
+    if (ANCHORED_KINDS.includes(condition[s]?.kind) && x && x.kind !== LEVEL_KIND && hasLength(x.kind, x.n)) out.push(`${s}.x.n`);
+  });
+  out.push(...levelPaths());
   return out;
 };
 
@@ -326,6 +595,80 @@ export const pruneLinks = (condition, links) => {
   const allowed = new Set(linkableSuffixes(condition));
   return Object.fromEntries(Object.entries(links || {})
     .filter(([s, t]) => allowed.has(s) && Array.isArray(t) && t.length));
+};
+
+// ---- stage 4b wire shapes (nested `levels` / `of` / `x` / `a`) ----
+
+/** Editor LevelsSpec → LevelsSpecDTO (all 14 fields; a blank one goes as null = the default). */
+const toLevelsDTO = (s) => Object.fromEntries(LEVELS_KEYS.map((k) => [k, numOr(s?.[k])]));
+
+/** LevelsSpecDTO (partial or absent) → the editor spec, every field filled from the defaults. */
+export const fromLevelsDTO = (s, defaults = LEVELS_DEFAULTS) => Object.fromEntries(LEVELS_KEYS
+  .map((k) => [k, s?.[k] != null && s[k] !== '' ? s[k] : defaults[k]]));
+
+/** Editor operand → OperandDTO, the stage 4b kinds included. */
+const toAnyOperandDTO = (o) => {
+  if (!o) return null;
+  if (o.kind === LEVEL_KIND) {
+    return { kind: LEVEL_KIND, tf: o.tf || RUN_TF, offset: Number(o.offset) || 0, output: o.output, levels: toLevelsDTO(o.levels) };
+  }
+  if (ANCHORED_KINDS.includes(o.kind)) {
+    const out = { kind: o.kind, tf: o.tf || RUN_TF, offset: Number(o.offset) || 0, x: toAnyOperandDTO(o.x), a: toAnyConditionDTO(o.a) };
+    if (o.kind !== 'AT_LAST') out.lag = numOr(o.lag, 0);
+    return out;
+  }
+  if (o.kind === 'BARS_SINCE') {
+    return { kind: o.kind, tf: o.tf || RUN_TF, offset: Number(o.offset) || 0, a: toAnyConditionDTO(o.a) };
+  }
+  return toOperand(o);
+};
+
+/** Editor condition → FilterConditionDTO, LEVEL_EVENT / WITHIN / Levels and brick sides included. */
+export const toAnyConditionDTO = (c) => {
+  if (!c) return null;
+  if (isLevelEvent(c)) {
+    const out = { type: 'LEVEL_EVENT', tf: c.tf || RUN_TF, event: c.event };
+    if (eventNeedsStrength(c.event)) out.strength = numOr(c.strength);
+    out.levels = toLevelsDTO(c.levels);
+    return out;
+  }
+  if (isWithin(c)) return { type: 'WITHIN', tf: c.tf || RUN_TF, bars: numOr(c.bars), of: toAnyConditionDTO(c.of) };
+  const out = toConditionDTO(c);
+  if (c.type === 'COMPARE') {
+    if (isStagedOperand(c.left)) out.left = toAnyOperandDTO(c.left);
+    if (isStagedOperand(c.right)) out.right = toAnyOperandDTO(c.right);
+  }
+  return out;
+};
+
+const isStagedKind = (k) => k === LEVEL_KIND || BRICK_OPERAND_KINDS.includes(k);
+
+/** OperandDTO → editor operand, the stage 4b kinds included. */
+const fromAnyOperandDTO = (o) => {
+  if (!o) return null;
+  if (!isStagedKind(o.kind)) return fromOperand(o);
+  const base = { kind: o.kind, n: null, tf: o.tf || RUN_TF, offset: o.offset ?? 0, value: '' };
+  if (o.kind === LEVEL_KIND) return { ...base, output: o.output || 'SUPPORT_LINE', levels: fromLevelsDTO(o.levels) };
+  const out = { ...base, a: fromAnyConditionDTO(o.a) };
+  if (ANCHORED_KINDS.includes(o.kind)) {
+    out.x = fromAnyOperandDTO(o.x);
+    out.lag = o.kind === 'AT_LAST' ? '' : (o.lag ?? 0);
+  }
+  return out;
+};
+
+/** FilterConditionDTO → editor condition, LEVEL_EVENT / WITHIN / Levels and brick sides included. */
+export const fromAnyConditionDTO = (c) => {
+  if (c?.type === 'LEVEL_EVENT') {
+    return { type: 'LEVEL_EVENT', tf: c.tf || RUN_TF, event: c.event || 'CONFIRMED_ANY', strength: c.strength ?? '', levels: fromLevelsDTO(c.levels) };
+  }
+  if (c?.type === 'WITHIN') return { type: 'WITHIN', tf: c.tf || RUN_TF, bars: c.bars ?? '', of: fromAnyConditionDTO(c.of) };
+  const out = fromConditionDTO(c);
+  if (out.type === 'COMPARE') {
+    if (isStagedKind(c?.left?.kind)) out.left = fromAnyOperandDTO(c.left);
+    if (isStagedKind(c?.right?.kind)) out.right = fromAnyOperandDTO(c.right);
+  }
+  return out;
 };
 
 /**
@@ -341,7 +684,7 @@ export const toRuleRequest = (rule, axes = []) => ({
   note: rule.note ? rule.note : null,
   conditions: (rule.conditions || []).map((c) => {
     const links = pruneLinks(c.condition, c.links);
-    const out = { id: c.id ?? null, condition: toConditionDTO(applyLinks(c.condition, links, axes)) };
+    const out = { id: c.id ?? null, condition: toAnyConditionDTO(applyLinks(c.condition, links, axes)) };
     const wire = toLinksDTO(links);
     if (wire) out.links = wire;
     return out;
@@ -383,7 +726,7 @@ export const fromRuleDTO = (r) => ({
   conditions: (Array.isArray(r?.conditions) ? r.conditions : []).map((c) => ({
     id: c?.id ?? null,
     // RuleConditionDTO {id, condition, links?}; a bare FilterConditionDTO is accepted too
-    condition: fromConditionDTO(c?.condition ?? c),
+    condition: fromAnyConditionDTO(c?.condition ?? c),
     links: fromLinksDTO(c?.links),
   })),
 });
@@ -457,6 +800,10 @@ export const normalizeTemplate = (t) => ({
   rules: rulesOf(t).map(fromRuleDTO),
   axes: axesOf(t),
   constraints: constraintsOf(t),
+  // stage 4b: create options (`level-breakout-bricks`: takeProfit / regime); the definition is the no-option variant
+  options: (Array.isArray(t?.options) ? t.options : [])
+    .filter((o) => o && typeof o.key === 'string' && o.key)
+    .map((o) => ({ key: o.key, label: o.label || o.key, hint: o.hint || '' })),
 });
 
 /** ReferencesDTO `{cases[{id,name,version}], watches[{id,name,status}], profiles[{ticker,timeframe,strategyKey}]}`. */
@@ -528,6 +875,7 @@ export const getConstructedMeta = async () => {
   const res = await apiRequest(`${API_BASE_URL}/meta`, undefined, 'Loading constructor metadata failed');
   const meta = normalizeMeta(await readJson(res));
   setIndicatorCatalog({ indicators: meta.indicators });
+  setLevelOutputUnits(meta.levels.outputs);
   return meta;
 };
 
@@ -633,11 +981,14 @@ export const listTemplates = async () => {
 };
 
 /**
- * POST /templates/{templateId}/create `{name?}` → 201 the new strategy v1 (normalized DTO with
- * `templateId`); 409 NAME_EXISTS; 404 unknown template. Errors are thrown (httpClient).
+ * POST /templates/{templateId}/create `{name?, options?}` → 201 the new strategy v1 (normalized DTO
+ * with `templateId`); 409 NAME_EXISTS; 404 unknown template; 400 an unknown option or options on a
+ * template without options - so `options` (`{takeProfit: true, regime: false}`, stage 4b) is sent
+ * only when given. Errors are thrown (httpClient).
  */
-export const createFromTemplate = async (templateId, name = null) => {
+export const createFromTemplate = async (templateId, name = null, options = null) => {
   const body = name && name.trim() ? { name: name.trim() } : {};
+  if (options && typeof options === 'object' && Object.keys(options).length) body.options = options;
   const res = await apiRequest(`${API_BASE_URL}/templates/${enc(templateId)}/create`,
     { method: 'POST', ...jsonBody(body) }, 'Creating the strategy from the template failed');
   return fromConstructedDTO(await readJson(res));

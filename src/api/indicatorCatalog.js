@@ -31,6 +31,7 @@ export const UNIT_LABEL = Object.freeze({
   PERCENT: '%',
   RATIO: 'ratio',
   BARS: 'bars',
+  ATR_MULTIPLE: 'ATR multiples', // stage 4b: Levels DIST_SUPPORT_ATR / DIST_RESISTANCE_ATR
 });
 
 /** What each unit is, for tooltips. */
@@ -41,6 +42,7 @@ export const UNIT_HINT = Object.freeze({
   PERCENT: 'a percentage: compared with another % value or a number',
   RATIO: 'a ratio (0..1): compared with another ratio or a number',
   BARS: 'a number of bars',
+  ATR_MULTIPLE: 'a distance in ATR multiples (Levels DIST_*): compared only with another DIST_* or a number',
 });
 
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -178,10 +180,48 @@ export const kindName = (kind) => {
   return descriptorOf(kind)?.displayName || kind;
 };
 
-/** Value unit (backend ValueUnit) of an operand; null for a constant (fits any unit) or an unknown kind. */
+// ---- stage 4b operands of a constructed strategy (not registry indicators) ----
+
+/** The Levels value operand (`{kind: 'LEVEL', output, levels}`). */
+export const LEVEL_KIND = 'LEVEL';
+/** Sequence-brick operands: AT_LAST / MAX_SINCE / MIN_SINCE carry X and the anchor A, BARS_SINCE only A. */
+export const ANCHORED_KINDS = Object.freeze(['AT_LAST', 'MAX_SINCE', 'MIN_SINCE']);
+export const BRICK_OPERAND_KINDS = Object.freeze([...ANCHORED_KINDS, 'BARS_SINCE']);
+export const isBrickOperand = (o) => !!o && BRICK_OPERAND_KINDS.includes(o.kind);
+/** LEVEL or a brick: an operand the screener's OperandPicker cannot edit. */
+export const isStagedOperand = (o) => !!o && (o.kind === LEVEL_KIND || BRICK_OPERAND_KINDS.includes(o.kind));
+
+// Units of the Levels outputs (meta.levels.outputs, static fallback = the backend's LevelOutput)
+let levelOutputUnits = {
+  IN_ZONE: 'RATIO',
+  SETUP_STOP: 'PRICE',
+  SETUP_ZONE_LINE: 'PRICE',
+  SUPPORT_LINE: 'PRICE',
+  DIST_SUPPORT_ATR: 'ATR_MULTIPLE',
+  DIST_RESISTANCE_ATR: 'ATR_MULTIPLE',
+};
+
+/** Registers meta.levels.outputs `[{name, unit}]` (a missing list keeps the fallback). */
+export const setLevelOutputUnits = (outputs) => {
+  if (!Array.isArray(outputs) || !outputs.length) return;
+  const next = { ...levelOutputUnits };
+  outputs.forEach((o) => { if (o?.name && o.unit) next[o.name] = o.unit; });
+  levelOutputUnits = next;
+};
+
+/** Unit of a Levels output (PRICE / ATR_MULTIPLE / RATIO), null when unknown. */
+export const levelOutputUnit = (output) => levelOutputUnits[output] || null;
+
+/**
+ * Value unit (backend ValueUnit) of an operand; null for a constant (fits any unit) or an unknown
+ * kind. Stage 4b: LEVEL → its output's unit, BARS_SINCE → BARS, AT_LAST / MAX_SINCE / MIN_SINCE → X's.
+ */
 export const operandUnitOf = (o) => {
   if (!o || !o.kind || o.kind === CONST_KIND) return null;
   if (isFieldKind(o.kind)) return FIELD_UNIT[o.kind];
+  if (o.kind === LEVEL_KIND) return levelOutputUnit(o.output);
+  if (o.kind === 'BARS_SINCE') return 'BARS';
+  if (ANCHORED_KINDS.includes(o.kind)) return operandUnitOf(o.x);
   return descriptorOf(o.kind)?.unit || null;
 };
 

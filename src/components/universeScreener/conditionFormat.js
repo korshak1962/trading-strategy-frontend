@@ -122,7 +122,8 @@ export const unitMismatchHint = (message) => {
 /** The TF "the run's TF" of a constructed strategy's operand (never in a screener filter). */
 export const RUN_TF = 'RUN';
 
-const validateOperand = (o, side, allowRun) => {
+/** Errors of one plain operand (field / indicator / CONST); also the constructor's brick X (stage 4b). */
+export const validateOperand = (o, side, allowRun) => {
   const errs = [];
   const { kinds } = getIndicatorCatalog();
   if (side === 'left' && o?.kind === CONST_KIND) {
@@ -256,6 +257,13 @@ export const REASON_TEXT = Object.freeze({
   NO_CURRENT_CHANNEL: 'no current (confirmed, visible) channel',
   NO_PARENT_LEVEL_1: 'no visible parent (level 1)',
   NO_PARENT_LEVEL_2: 'no visible grandparent (level 2)',
+  // constructor stage 4b: Levels and sequence bricks
+  WARMUP: 'Levels warm-up (the first 60 bars of the run)',
+  NO_ZONE: 'no level zone of that strength',
+  NO_EVENT: 'not a confirmation bar (no setup line)',
+  NEVER: 'the anchor event never passed yet',
+  EMPTY_WINDOW: 'empty window since the anchor event (no value yet)',
+  NO_VALUE_AT_ANCHOR: 'X has no value on the anchor bar',
 });
 
 export const reasonText = (r) => (r ? REASON_TEXT[r] || r : '');

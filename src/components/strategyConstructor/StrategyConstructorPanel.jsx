@@ -33,6 +33,7 @@ import { describeApiError } from '../../api/httpClient';
 import { exchangeToday, addYearsIso, fmtExchangeIntl } from '../../utils/dates';
 import {
   newDraft, newRule, definitionSignature, validateDraft, runTfsOf, runTfsHint, runTfError, strategyLabel, axisUsage, newAxis,
+  axisHintFor, lastLevelsTemplate, applyLevelsToAll,
   constructedErrorHint, channelBlockWarnings,
 } from './constructedFormat';
 
@@ -172,6 +173,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
   const validation = useMemo(
     () => (draft ? validateDraft(draft, {
       allowedTypes: meta.signalTypes, maxRules: meta.maxRules, maxConditions: meta.maxConditions, channelMeta: meta.channel,
+      levelsMeta: meta.levels, bricksMeta: meta.bricks, maxAxes: meta.maxAxes,
     }) : null),
     [draft, meta],
   );
@@ -179,6 +181,8 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
   const previewTfs = meta.timeframes.filter((tf) => CONSTRUCTED_TFS.includes(tf));
   const usage = useMemo(() => axisUsage(draft?.rules), [draft]);
   const channelWarnings = useMemo(() => channelBlockWarnings(draft?.rules), [draft]);
+  // stage 4b: the Levels spec / links a new Levels occurrence copies (the strategy's last one)
+  const levelsTemplate = useMemo(() => lastLevelsTemplate(draft?.rules, meta.levels?.defaults), [draft, meta]);
   const evalTf = previewForm.timeFrame;
 
   const confirmDiscard = () => !dirty || window.confirm('Discard the unsaved changes of this strategy?');
@@ -273,10 +277,17 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
     });
   };
   // "link" on a threshold with no axis of its kind yet: a new fixed axis from its current value
-  const createAxisFrom = (kind, value) => {
-    const axis = newAxis(draft?.axes || [], kind, value);
+  const createAxisFrom = (kind, value, suffix = null) => {
+    const axis = newAxis(draft?.axes || [], kind, value, axisHintFor(suffix));
     addAxis(axis);
     return axis.name;
+  };
+
+  // stage 4b: "Apply to all Levels in this strategy" - the spec / links of one occurrence into every one
+  const applyLevelsEverywhere = (ri, ci, prefix) => {
+    const { draft: next, count } = applyLevelsToAll(draft, ri, ci, prefix);
+    setDraft(next);
+    setNotice(`Levels params applied to ${count} Levels occurrence${count === 1 ? '' : 's'} of this strategy.`);
   };
 
   const handleTemplateCreated = async (dto) => {
@@ -367,7 +378,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
     setPreviewError(null);
     const v = validateDraft(draft, {
       allowedTypes: meta.signalTypes, maxRules: meta.maxRules, maxConditions: meta.maxConditions, requireName: false,
-      channelMeta: meta.channel,
+      channelMeta: meta.channel, levelsMeta: meta.levels, bricksMeta: meta.bricks, maxAxes: meta.maxAxes,
     });
     if (!v.ok) { setPreviewError('Fix the rules first (see the messages above).'); return; }
     const tfErr = runTfError(draft.rules, previewForm.timeFrame);
@@ -550,6 +561,10 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
                 onCreateAxis={createAxisFrom}
                 channelMeta={meta.channel}
                 allRules={draft.rules}
+                levelsMeta={meta.levels}
+                bricksMeta={meta.bricks}
+                levelsTemplate={levelsTemplate}
+                onApplyLevelsToAll={(ci, prefix) => applyLevelsEverywhere(i, ci, prefix)}
               />
             ))}
             {draft.rules.length === 0 && <p className="text-sm text-gray-500">No rules yet.</p>}
@@ -587,6 +602,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
             onConstraintsChange={(constraints) => setDraft((d) => ({ ...d, constraints }))}
             constraintErrors={showErrors ? validation.constraints : null}
             constraintWarnings={validation.constraintWarnings}
+            maxAxes={meta.maxAxes}
           />
 
           {showErrors && validation.general.length > 0 && (
