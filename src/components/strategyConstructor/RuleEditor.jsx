@@ -10,14 +10,24 @@
 // Stage 4a: channel conditions (ChannelConditionRow, "+ Channel", semantics B); their min / max
 // link to CONST axes. A new one copies the detector params of the strategy's last channel
 // condition, else meta.channel.defaults.
+// Stage 4b (architect_constructor_stage4b.md §8): "+ Level" (LevelConditionRow: a Levels event),
+// "+ Within" (WithinConditionRow: WITHIN(A, k)); a comparison side may be a Levels value or a
+// sequence brick (BrickOperandEditor: AT_LAST / MAX_SINCE / MIN_SINCE / BARS_SINCE). Thresholds
+// are paths (`strength`, `bars`, `[P.]levels.<field>`, `P.x.n`); a new Levels occurrence copies the
+// spec and the links of the strategy's last one (`levelsTemplate`).
 import { CompareConditionRow } from '../universeScreener/ConditionRows';
-import { pruneLinks, DEFAULT_CHANNEL_META } from '../../api/constructedApi';
 import {
-  newRuleCondition, newRuleChannelCondition, ruleCaption, ruleConditionCaption, linkedThresholdValue, isChannelCondition,
-  SIGNAL_TYPE_CLASS, SIGNAL_TYPE_HINT,
+  pruneLinks, thresholdLiteral, isLevelEvent, isWithin, DEFAULT_CHANNEL_META, DEFAULT_LEVELS_META, DEFAULT_BRICKS_META,
+} from '../../api/constructedApi';
+import {
+  newRuleCondition, newRuleChannelCondition, newRuleLevelCondition, newRuleWithinCondition, ruleCaption, ruleConditionCaption,
+  linkedThresholdValue, isChannelCondition, withTemplateLinks, SIGNAL_TYPE_CLASS, SIGNAL_TYPE_HINT, levelsCaptionOpts,
 } from './constructedFormat';
 import LinkPicker from './LinkPicker';
 import ChannelConditionRow from './ChannelConditionRow';
+import LevelConditionRow from './LevelConditionRow';
+import WithinConditionRow from './WithinConditionRow';
+import BrickOperandEditor from './BrickOperandEditor';
 
 const sel = 'p-1 border rounded text-sm bg-white';
 const iconBtn = 'px-1.5 text-gray-500 hover:text-gray-800 disabled:text-gray-300';
@@ -41,17 +51,30 @@ const iconBtn = 'px-1.5 text-gray-500 hover:text-gray-800 disabled:text-gray-300
  *   a threshold's value, returns its name
  * @param {Object} [props.channelMeta] meta.channel (stage 4a): metrics, levels, TFs, detector defaults / ranges
  * @param {Array} [props.allRules] every rule of the draft: a new channel condition copies the last channel condition's params
+ * @param {Object} [props.levelsMeta] meta.levels (stage 4b)
+ * @param {Object} [props.bricksMeta] meta.bricks (stage 4b)
+ * @param {{spec: Object, links: Object}|null} [props.levelsTemplate] the spec / field links a new Levels occurrence copies
+ * @param {((condIndex: number, prefix: string) => void)|null} [props.onApplyLevelsToAll] "Apply to all Levels in this strategy"
  * Operand kinds, lengths and units come from the indicator descriptors (indicatorCatalog.js); a
  * kind that does not run on `evalTf` (the preview's run TF, e.g. ATR on MIN5) is disabled.
  */
 export default function RuleEditor({
   rule, index, count, onChange, onRemove, onMove, signalTypes, maxConditions, evalTf, errors, stats, disabled,
   axes = [], onCreateAxis = null, channelMeta = DEFAULT_CHANNEL_META, allRules = null,
+  levelsMeta = DEFAULT_LEVELS_META, bricksMeta = DEFAULT_BRICKS_META, levelsTemplate = null, onApplyLevelsToAll = null,
 }) {
   const set = (patch) => onChange({ ...rule, ...patch });
-  // An operand change can drop a linkable threshold (SMA → close, CONST → field): its link goes too
+  // Short labels (re-arm round): a Levels caption carries no spec, `@L2` when the strategy has several specs
+  const capOpts = levelsCaptionOpts(allRules || [rule], axes, levelsMeta?.defaults);
+  // An operand change can drop a linkable threshold (SMA → close, CONST → field): its link goes too.
+  // Stage 4b: a new Levels occurrence (a side became a Levels value / brick) takes the template's links.
   const setCondition = (i, condition) => set({
-    conditions: rule.conditions.map((c, j) => (j === i ? { ...c, condition, links: pruneLinks(condition, c.links) } : c)),
+    conditions: rule.conditions.map((c, j) => (j === i
+      ? { ...c, condition, links: pruneLinks(condition, withTemplateLinks(c.condition, condition, c.links, levelsTemplate)) }
+      : c)),
+  });
+  const addCondition = (rc) => set({
+    conditions: [...rule.conditions, { ...rc, links: withTemplateLinks(null, rc.condition, rc.links, levelsTemplate) }],
   });
   const setLink = (i, suffix, terms) => set({
     conditions: rule.conditions.map((c, j) => {
@@ -62,16 +85,8 @@ export default function RuleEditor({
       return { ...c, links };
     }),
   });
-  // The threshold's current literal: the value a new axis starts from
-  const literalOf = (c, suffix) => {
-    const cond = c.condition;
-    if (suffix === 'tolerancePct') return Number(cond.tolerancePct) || 0;
-    if (suffix === 'left.n') return Number(cond.left?.n);
-    if (suffix === 'right.n') return Number(cond.right?.n);
-    if (suffix === 'right.const') return Number(cond.right?.value);
-    if (suffix === 'min' || suffix === 'max') return Number(cond[suffix]); // channel bounds (stage 4a)
-    return null;
-  };
+  // The threshold's current literal: the value a new axis starts from (any path, stage 4b)
+  const literalOf = (c, suffix) => thresholdLiteral(c.condition, suffix);
   const removeCondition = (i) => set({ conditions: rule.conditions.filter((_, j) => j !== i) });
   const moveCondition = (i, delta) => {
     const cs = [...rule.conditions];
@@ -134,7 +149,7 @@ export default function RuleEditor({
             errors: errors?.conditions?.[i] || [],
             onRemove: () => removeCondition(i),
             onMove: (d) => moveCondition(i, d),
-            caption: ruleConditionCaption(c, evalTf, axes),
+            caption: ruleConditionCaption(c, evalTf, axes, capOpts),
             linkedValue: (suffix) => linkedThresholdValue(c, suffix, axes),
             renderLink: (suffix) => (
               <LinkPicker
@@ -145,12 +160,22 @@ export default function RuleEditor({
                 onChange={(terms) => setLink(i, suffix, terms)}
                 onCreateAxis={onCreateAxis ? (kind) => {
                   const v = literalOf(c, suffix);
-                  return onCreateAxis(kind, Number.isFinite(v) ? v : null);
+                  return onCreateAxis(kind, Number.isFinite(v) ? v : null, suffix);
                 } : null}
               />
             ),
           };
           const { key, ...rest } = common;
+          // stage 4b: the context of the Levels / brick editors (links by full path)
+          const ctx = {
+            levelsMeta, bricksMeta, channelMeta, evalTf, disabled, allRules: allRules || [rule],
+            levelsSpec: levelsTemplate?.spec,
+            renderLink: rest.renderLink,
+            linkedValue: rest.linkedValue,
+            onApplyLevels: onApplyLevelsToAll ? (prefix) => onApplyLevelsToAll(i, prefix) : null,
+          };
+          if (isLevelEvent(c.condition)) return <LevelConditionRow key={key} {...rest} ctx={ctx} />;
+          if (isWithin(c.condition)) return <WithinConditionRow key={key} {...rest} ctx={ctx} />;
           if (isChannelCondition(c.condition)) {
             // a bound can be linked only while it has a value (pruneLinks drops the link of a cleared bound)
             const hasBound = (s) => c.condition[s] !== '' && c.condition[s] != null && Number.isFinite(Number(c.condition[s]));
@@ -159,25 +184,42 @@ export default function RuleEditor({
                 renderLink={(suffix) => (hasBound(suffix) || c.links?.[suffix] ? rest.renderLink(suffix) : null)} />
             );
           }
-          return <CompareConditionRow key={key} {...rest} evalTf={evalTf} allowRun runTf={evalTf} />;
+          return (
+            <CompareConditionRow key={key} {...rest} evalTf={evalTf} allowRun runTf={evalTf}
+              renderOperand={(args) => (
+                <BrickOperandEditor {...args} prefix={`${args.side}.`} allowBricks linkable ctx={ctx} />
+              )} />
+          );
         })}
         {rule.conditions.length === 0 && <p className="text-sm text-gray-500">No conditions yet.</p>}
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <button type="button" disabled={disabled || rule.conditions.length >= maxConditions}
-          onClick={() => set({ conditions: [...rule.conditions, newRuleCondition()] })}
+          onClick={() => addCondition(newRuleCondition())}
           className="py-1 px-3 border rounded text-gray-700 hover:bg-gray-100 text-sm disabled:text-gray-400" data-testid="rule-add-condition">
           + Comparison
         </button>
         <button type="button" disabled={disabled || rule.conditions.length >= maxConditions}
-          onClick={() => set({ conditions: [...rule.conditions, newRuleChannelCondition(allRules || [rule], channelMeta?.defaults)] })}
+          onClick={() => addCondition(newRuleChannelCondition(allRules || [rule], channelMeta?.defaults))}
           className="py-1 px-3 border rounded text-gray-700 hover:bg-gray-100 text-sm disabled:text-gray-400" data-testid="rule-add-channel"
           title="A condition on the recursive channel (position, slope, width, age, exists) as of the previous bar: semantics B, no look-ahead. Runs on DAY / WEEK.">
           + Channel
         </button>
+        <button type="button" disabled={disabled || rule.conditions.length >= maxConditions}
+          onClick={() => addCondition(newRuleLevelCondition(levelsTemplate?.spec))}
+          className="py-1 px-3 border rounded text-gray-700 hover:bg-gray-100 text-sm disabled:text-gray-400" data-testid="rule-add-level"
+          title="A Levels event (breakout, confirmation, failure, support break, resistance reached) of the pivot level-zone tracker on the run TF. Runs on DAY / WEEK.">
+          + Level
+        </button>
+        <button type="button" disabled={disabled || rule.conditions.length >= maxConditions}
+          onClick={() => addCondition(newRuleWithinCondition(levelsTemplate?.spec))}
+          className="py-1 px-3 border rounded text-gray-700 hover:bg-gray-100 text-sm disabled:text-gray-400" data-testid="rule-add-within"
+          title="WITHIN(A, k): the event A passed on one of the last k bars. Runs on DAY / WEEK.">
+          + Within
+        </button>
         <span className="text-xs text-gray-500">Conditions are AND-ed. For OR add another rule with the same signal type.</span>
       </div>
-      <div className="mt-2 text-xs font-mono text-gray-700" data-testid="rule-caption">{ruleCaption(rule, evalTf, axes)}</div>
+      <div className="mt-2 text-xs font-mono text-gray-700" data-testid="rule-caption">{ruleCaption(rule, evalTf, axes, capOpts)}</div>
       {stats && (
         <div className="mt-1 text-xs text-gray-600" data-testid="rule-inline-stats">
           Last preview: fired {stats.fired} of {stats.bars} bars

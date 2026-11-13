@@ -83,6 +83,14 @@
 .indicator-chip__name {
   font-weight: 500;
   white-space: nowrap;
+  /* m7: the label is already cut at ~40 characters; never let a chip push the page wider */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.indicator-chip {
+  max-width: 100%;
 }
 
 .indicator-chip__kind {

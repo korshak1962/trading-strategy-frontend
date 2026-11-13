@@ -32,11 +32,12 @@ const KIND_HINT = {
  * @param {(constraints: Array) => void} [props.onConstraintsChange]
  * @param {string[][]|null} [props.constraintErrors] per constraint (shown after a save / preview attempt)
  * @param {string[]} [props.constraintWarnings] shown always (the default sweep violates a constraint)
+ * @param {number} [props.maxAxes] meta.maxAxes (stage 4b: 16)
  * @param {boolean} props.disabled
  */
 export default function AxesEditor({
   axes, onChange, onAdd, onRemove, usage, errors, disabled,
-  constraints = [], onConstraintsChange = null, constraintErrors = null, constraintWarnings = [],
+  constraints = [], onConstraintsChange = null, constraintErrors = null, constraintWarnings = [], maxAxes = MAX_AXES,
 }) {
   const set = (i, field) => (e) => onChange(i, { [field]: e.target.value });
   return (
@@ -45,10 +46,17 @@ export default function AxesEditor({
         <h3 className="text-lg font-semibold">
           Axes <span className="text-sm font-normal text-gray-500">(linked parameters: one knob for several thresholds)</span>
         </h3>
-        <div className="flex gap-1">
+        <div className="flex flex-wrap items-center gap-1">
+          {/* m9: the cap is explained, not just a disabled button */}
+          <span className={`text-xs ${axes.length >= maxAxes ? 'text-amber-700 font-medium' : 'text-gray-500'}`}
+            title={`At most ${maxAxes} axes per strategy: the optimizer's grid grows multiplicatively with every swept axis`}
+            data-testid="axes-count">
+            {axes.length} of at most {maxAxes} axes{axes.length >= maxAxes ? ' - remove one to add another' : ''}
+          </span>
           {AXIS_KINDS.map((k) => (
-            <button key={k} type="button" disabled={disabled || axes.length >= MAX_AXES}
-              onClick={() => onAdd(newAxis(axes, k))} title={KIND_HINT[k]}
+            <button key={k} type="button" disabled={disabled || axes.length >= maxAxes}
+              onClick={() => onAdd(newAxis(axes, k))}
+              title={axes.length >= maxAxes ? `The limit of ${maxAxes} axes is reached: remove an axis first` : KIND_HINT[k]}
               className="py-1 px-2 border rounded text-gray-700 hover:bg-gray-100 text-xs disabled:text-gray-400"
               data-testid={`axis-add-${k}`}>
               + {AXIS_KIND_LABEL[k]} axis

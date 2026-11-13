@@ -1,7 +1,7 @@
 // src/components/IndicatorPicker.jsx
 import './IndicatorPicker.css';
 import { getIndicatorTooltip } from '../utils/indicatorDescriptions';
-import { seriesLabel, SERIES_GROUP_LABELS } from '../utils/indicatorSeries';
+import { seriesLabel, truncateLabel, SERIES_GROUP_LABELS } from '../utils/indicatorSeries';
 
 const GROUP_TITLES = Object.freeze({
   details: 'Details: the inputs of the drawn lines (LevelBreakoutRetest: the initial stop and the sticky support line the Exit line is built from). Hidden by default; this box turns the whole group on or off.',
@@ -61,6 +61,9 @@ const IndicatorPicker = ({
 
   const renderChip = (series) => {
     const checked = selectedIds.has(series.id);
+    // m7: a long name (a constructed rule line, up to 64 characters) is cut at ~40; the full text is in the title
+    const label = seriesLabel(series);
+    const short = truncateLabel(label);
     return (
       <label
         key={series.id}
@@ -80,7 +83,7 @@ const IndicatorPicker = ({
             ? { backgroundImage: `repeating-linear-gradient(90deg, ${series.color} 0 3px, transparent 3px 5px)` }
             : { backgroundColor: series.color }}
         />
-        <span className="indicator-chip__name">{seriesLabel(series)}</span>
+        <span className="indicator-chip__name" data-full-label={short !== label ? label : undefined}>{short}</span>
         <span className="indicator-chip__kind">({series.kind})</span>
       </label>
     );

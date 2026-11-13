@@ -11,8 +11,15 @@ import { conditionCaption, fmtNum, operandUnit } from './conditionFormat';
 const sel = 'p-1 border rounded text-sm bg-white';
 const LEVEL_LABEL = { 0: '0 · current', 1: '1 · parent', 2: '2 · grandparent' };
 
-/** The frame of a condition row (number, controls, move / remove, caption, errors); also used by the constructor's ChannelConditionRow. */
-export function RowShell({ index, caption, errors, onRemove, onMove, count, disabled, children, testId }) {
+/**
+ * The frame of a condition row (number, controls, move / remove, caption, errors); also used by the
+ * constructor's ChannelConditionRow. `bare` (constructor stage 4b: a condition nested in a sequence
+ * brick or WITHIN) renders the controls only - no number, move / remove, caption or errors.
+ */
+export function RowShell({ index, caption, errors, onRemove, onMove, count, disabled, children, testId, bare = false }) {
+  if (bare) {
+    return <span className="inline-flex flex-wrap items-center gap-2" data-testid={testId}>{children}</span>;
+  }
   return (
     <div className="border rounded p-3 bg-gray-50" data-testid={testId}>
       <div className="flex flex-wrap items-center gap-2">
@@ -78,12 +85,15 @@ export function MetricConditionRow({ condition, onChange, evalTf, ...shell }) {
  *                         replaced by the value
  *   caption             - overrides the live caption (e.g. with "($Gap = 2)")
  *   runTf               - the TF the strategy runs on: a kind that does not run there is disabled
+ *   renderOperand({side, value, onChange, picker, otherUnit}) - stage 4b: renders a side itself
+ *                         (a Levels value or a sequence brick); `picker` is the default OperandPicker
+ *   bare                - no frame (a condition nested in a brick / WITHIN)
  * Length ranges, defaults and units come from the indicator descriptors (indicatorCatalog.js).
  * The right side offers only kinds of the left side's unit (or a constant).
  */
 export function CompareConditionRow({
   condition, onChange, evalTf, allowRun = false, renderLink = null, linkedValue = null, caption = null,
-  runTf = null, ...shell
+  runTf = null, renderOperand = null, ...shell
 }) {
   const set = (patch) => onChange({ ...condition, ...patch });
   const sideProps = (side) => ({
@@ -93,17 +103,26 @@ export function CompareConditionRow({
     linkSlot: renderLink ? (field) => renderLink(`${side}.${field}`) : null,
     linkedValue: linkedValue ? (field) => linkedValue(`${side}.${field}`) : null,
   });
+  const sideEditor = (side) => {
+    const picker = (
+      <OperandPicker side={side} value={condition[side]} evalTf={evalTf} disabled={shell.disabled}
+        onChange={(v) => set({ [side]: v })} testId={`operand-${side}`} {...sideProps(side)} />
+    );
+    if (!renderOperand) return picker;
+    return renderOperand({
+      side, value: condition[side], onChange: (v) => set({ [side]: v }), picker,
+      otherUnit: side === 'right' ? operandUnit(condition.left) : null,
+    });
+  };
   const tolLinked = linkedValue ? linkedValue('tolerancePct') : null;
   return (
     <RowShell {...shell} caption={caption ?? conditionCaption(condition, evalTf)} testId="compare-condition">
       <span className="text-xs font-semibold text-teal-700">Compare</span>
-      <OperandPicker side="left" value={condition.left} evalTf={evalTf} disabled={shell.disabled}
-        onChange={(left) => set({ left })} testId="operand-left" {...sideProps('left')} />
+      {sideEditor('left')}
       <select className={sel} value={condition.op} disabled={shell.disabled} onChange={(e) => set({ op: e.target.value })} aria-label="operator">
         {OPERATORS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
-      <OperandPicker side="right" value={condition.right} evalTf={evalTf} disabled={shell.disabled}
-        onChange={(right) => set({ right })} testId="operand-right" {...sideProps('right')} />
+      {sideEditor('right')}
       <label className="inline-flex items-center gap-1 text-xs text-gray-600"
         title="right × (1 + tolerance / 100). Plus makes > stricter (breakout with a margin), minus loosens it.">
         tolerance

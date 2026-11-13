@@ -5,10 +5,15 @@
 // axes; Create → POST /templates/{id}/create {name?} → an ordinary constructed strategy v1 that is
 // then edited like any other. 409 NAME_EXISTS → choose another name; 404 → the template is gone.
 // Stage 3b-2: the template's axis constraints ("SMA tilt": $TiltSell ≤ $TiltBuy) are listed too.
+// Stage 4b: a template's create options (`level-breakout-bricks`: take profit R5 / regime filter on
+// R1) as checkboxes, sent as `options: {key: true|false}`; the listed rules are the no-option variant.
+// Re-arm round: an option starts at its `defaultValue` (`rearm` on) and every option is sent explicitly.
 import { useEffect, useState } from 'react';
 import { listTemplates, createFromTemplate } from '../../api/constructedApi';
 import { describeApiError } from '../../api/httpClient';
-import { AXIS_KIND_LABEL, constraintText, ruleCaption, runTfsOf, runTfsHint } from './constructedFormat';
+import {
+  AXIS_KIND_LABEL, constraintText, ruleCaption, runTfsOf, runTfsHint, levelsCaptionOpts, levelsLegendLines,
+} from './constructedFormat';
 import { fmtNum } from '../universeScreener/conditionFormat';
 import '../watch/watch.css';
 
@@ -40,6 +45,9 @@ export default function TemplatePickerDialog({ onCreated, onClose }) {
   const [name, setName] = useState('');
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [options, setOptions] = useState({}); // stage 4b: {takeProfit: true, …} of the chosen template
+  /** The options of a template at their defaults (`defaultValue`, re-arm round). */
+  const defaultOptions = (t) => Object.fromEntries((t?.options || []).map((o) => [o.key, o.defaultValue === true]));
 
   useEffect(() => {
     let alive = true;
@@ -47,7 +55,7 @@ export default function TemplatePickerDialog({ onCreated, onClose }) {
       .then((list) => {
         if (!alive) return;
         setTemplates(list);
-        if (list.length) { setTemplateId(list[0].templateId); setName(list[0].name); }
+        if (list.length) { setTemplateId(list[0].templateId); setName(list[0].name); setOptions(defaultOptions(list[0])); }
       })
       .catch((err) => { if (alive) { setTemplates([]); setError(describeApiError(err)); } });
     return () => { alive = false; };
@@ -59,6 +67,7 @@ export default function TemplatePickerDialog({ onCreated, onClose }) {
     setTemplateId(id);
     const t = (templates || []).find((x) => x.templateId === id);
     if (t) setName(t.name);
+    setOptions(defaultOptions(t));
     setError(null);
   };
 
@@ -67,7 +76,11 @@ export default function TemplatePickerDialog({ onCreated, onClose }) {
     setBusy(true);
     setError(null);
     try {
-      const dto = await createFromTemplate(template.templateId, name);
+      // options only for a template that has them (the backend answers 400 otherwise)
+      const opts = template.options.length
+        ? Object.fromEntries(template.options.map((o) => [o.key, (options[o.key] ?? o.defaultValue) === true]))
+        : null;
+      const dto = await createFromTemplate(template.templateId, name, opts);
       onCreated(dto);
     } catch (err) {
       if (err.status === 409) setError(`A strategy named "${(name || template.name).trim()}" already exists — choose another name.`);
@@ -104,8 +117,13 @@ export default function TemplatePickerDialog({ onCreated, onClose }) {
             {template.description && <p className="text-sm text-gray-700 mb-2">{template.description}</p>}
             <div className="text-sm font-medium text-gray-700 mb-1">Rules</div>
             <ul className="text-xs font-mono space-y-1 mb-2" data-testid="template-rules">
-              {template.rules.map((r, i) => <li key={i}>{ruleCaption(r, 'DAY', template.axes)}</li>)}
+              {template.rules.map((r, i) => (
+                <li key={i}>{ruleCaption(r, 'DAY', template.axes, levelsCaptionOpts(template.rules, template.axes))}</li>
+              ))}
             </ul>
+            {levelsLegendLines(template.rules, template.axes).map((l) => (
+              <p key={l} className="text-xs font-mono text-gray-500 mb-1" data-testid="template-levels-legend">{l}</p>
+            ))}
             {template.axes.length > 0 && (
               <>
                 <div className="text-sm font-medium text-gray-700 mb-1">Axes (the parameters Optimize sweeps)</div>
@@ -134,6 +152,25 @@ export default function TemplatePickerDialog({ onCreated, onClose }) {
             <p className="mt-2 text-xs text-gray-500" data-testid="template-run-tfs">
               {templateRunTfsText(template.rules)}
             </p>
+            {template.options.length > 0 && (
+              <fieldset className="mt-3" data-testid="template-options">
+                <legend className="text-sm font-medium text-gray-700 mb-1">
+                  Options <span className="font-normal text-gray-500">(the rules above are the variant without options)</span>
+                </legend>
+                {template.options.map((o) => (
+                  <label key={o.key} className="flex items-start gap-2 text-sm text-gray-700 mb-1" title={o.hint || undefined}>
+                    <input type="checkbox" className="mt-1" checked={(options[o.key] ?? o.defaultValue) === true}
+                      onChange={(e) => setOptions((x) => ({ ...x, [o.key]: e.target.checked }))}
+                      data-testid={`template-option-${o.key}`} />
+                    <span>
+                      {o.label}
+                      {o.defaultValue && <span className="ml-1 text-xs text-gray-500">(on by default)</span>}
+                      {o.hint && <span className="block text-xs text-gray-500">{o.hint}</span>}
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+            )}
 
             <label className="block text-sm font-medium text-gray-700 mt-3 mb-1" htmlFor="template-name">Name of the new strategy</label>
             <input id="template-name" className="w-full p-2 border rounded" value={name} maxLength={128}

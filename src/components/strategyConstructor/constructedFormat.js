@@ -8,17 +8,27 @@
 // caption, the thresholds `R<r>.C<c>.min` / `.max`, the client checks (metric in B, bounds,
 // min ≤ max on every grid point, detector ranges), the run TFs they allow (DAY / WEEK) and the
 // static "channel LongBlock without an EXISTS = 0 rule" warning.
+// Stage 4b (architect_constructor_stage4b.md §4, §6, §8): Levels conditions / operands and the
+// sequence bricks - threshold paths (`strength`, `bars`, `[P.]levels.<field>`, `P.x.n`), captions in
+// the backend's label form, the client checks (event / strength, Levels ranges, bars / lag, the
+// brick's X and anchor A, units with ATR_MULTIPLE), run TFs DAY / WEEK, new rows and the Levels
+// template a new occurrence copies ("Apply to all Levels").
 
 import {
   SIGNAL_TYPES, STATE_RULE_FIRE_RATE, MIN_TRADES_PER_THRESHOLD, MAX_RULES, MAX_CONDITIONS, CONSTRUCTED_TFS, RUN_TF,
   AXIS_KINDS, LINK_SUFFIX_KIND, MAX_AXES, MAX_LINK_TERMS, applyLinks, pruneLinks, linkValue,
   CONSTRAINT_OPS, CONSTRAINT_OP_SYMBOL, MAX_CONSTRAINTS,
   CHANNEL_TFS, CHANNEL_RUN_TFS, CHANNEL_LEVELS, CHANNEL_METRICS, CHANNEL_DEFAULTS, CHANNEL_RANGES, CHANNEL_KEYS,
+  linkSuffixKind, getAtPath, updateAtPath, levelsOccurrences, isStagedCondition, isLevelEvent, isWithin, eventNeedsStrength,
+  LEVEL_FIELDS, LEVELS_KEYS, LEVELS_DEFAULTS, LEVELS_PARAMS, LEVELS_RUN_TFS, DEFAULT_LEVELS_META, DEFAULT_BRICKS_META,
+  LEVEL_KIND, ANCHORED_KINDS, isStagedOperand, isBrickOperand, rearmOf, LEVELS_REARM_DEFAULT,
 } from '../../api/constructedApi';
 import {
-  conditionCaption, validateCondition, newCompareCondition, reasonText, fmtNum, unitMismatchHint,
+  conditionCaption, validateCondition, newCompareCondition, reasonText, fmtNum, unitMismatchHint, operandCaption,
+  validateOperand, opSymbol,
 } from '../universeScreener/conditionFormat';
-import { lengthParamOf, kindName, runsOn, CONST_KIND } from '../../api/indicatorCatalog';
+import { OPERATORS, TOLERANCE_LIMIT as SCREEN_TOLERANCE_LIMIT, OFFSET_MIN } from '../../api/screenerApi';
+import { lengthParamOf, kindName, runsOn, CONST_KIND, operandUnitOf, unitLabel } from '../../api/indicatorCatalog';
 
 // ---- request key ----
 
@@ -146,8 +156,10 @@ export const currentVersionOf = (key, availableStrategies = []) => {
 
 // ---- threshold names (D5) ----
 
-const THRESHOLD_RE = /^R(\d+)\.C(\d+)\.(tolerancePct|left\.n|right\.n|right\.const|min|max)$/;
+const THRESHOLD_RE = /^R(\d+)\.C(\d+)\.(tolerancePct|left\.n|right\.n|right\.const|min|max|strength|bars)$/;
 const FIELD_LABEL = {
+  strength: 'event strength', // stage 4b: SUPPORT_BREAK / RESISTANCE_REACHED
+  bars: 'within bars', // stage 4b: WITHIN(A, k)
   tolerancePct: 'tolerance %',
   'left.n': 'left length',
   'right.n': 'right length',
@@ -186,7 +198,7 @@ export const channelMetricsOf = (rules) => {
 };
 
 // Order of a condition's thresholds in the lists: min before max (a channel condition's bounds).
-const FIELD_ORDER = ['left.n', 'min', 'max', 'right.const', 'right.n', 'tolerancePct'];
+const FIELD_ORDER = ['left.n', 'min', 'max', 'right.const', 'right.n', 'tolerancePct', 'strength', 'bars'];
 
 /** Sort key of a threshold name: condition number, then FIELD_ORDER; null for other names. */
 const thresholdOrder = (name) => {
@@ -243,7 +255,7 @@ export const isAxisName = (name) => typeof name === 'string' && AXIS_NAME_RE.tes
 export const AXIS_KIND_LABEL = Object.freeze({ LENGTH: 'length', TOLERANCE: 'tolerance %', CONST: 'constant' });
 
 /** The axis kind a threshold suffix links to (`right.n` → LENGTH). */
-export const suffixKind = (suffix) => LINK_SUFFIX_KIND[suffix] || null;
+export const suffixKind = (suffix) => LINK_SUFFIX_KIND[suffix] || linkSuffixKind(suffix);
 
 /** "+$MaLength" → "$MaLength", "−$Gap", "$FastLength + $Spread". */
 export const linkText = (terms) => (terms || []).map((t, i) => {
@@ -259,15 +271,21 @@ const LINK_NOTE_ORDER = ['tolerancePct', 'left.n', 'right.n', 'right.const', 'mi
  * field order tolerance, left.n, right.n, right.const; the term signs and the linked value -
  * "-$Gap = -2, $MaLength = 100", "$FastLength + $Spread = 50". Joined by ", ".
  */
-export const linkNotes = (links, axes) => LINK_NOTE_ORDER
-  .filter((suffix) => Array.isArray(links?.[suffix]) && links[suffix].length > 0)
-  .map((suffix) => {
+export const linkNotes = (links, axes) => {
+  const live = Object.keys(links || {}).filter((suffix) => Array.isArray(links[suffix]) && links[suffix].length > 0);
+  const note = (suffix) => {
     const terms = links[suffix];
     const expr = terms.map((t, i) => (i === 0 ? `${t.sign < 0 ? '-' : ''}${t.axis}` : `${t.sign < 0 ? '-' : '+'} ${t.axis}`)).join(' ');
     const v = linkValue(terms, axes);
     return `${expr} = ${v == null ? '?' : fmtNum(v).replace('−', '-')}`;
-  })
-  .join(', ');
+  };
+  // stage 4b: strength / bars / x.n after the 4a order; the Levels fields (up to 12 per spec) as one count
+  const levels = live.filter((s) => /(^|\.)levels\./.test(s));
+  const rest = live.filter((s) => !LINK_NOTE_ORDER.includes(s) && !levels.includes(s));
+  const parts = [...LINK_NOTE_ORDER.filter((s) => live.includes(s)), ...rest].map(note);
+  if (levels.length) parts.push(`${levels.length} Levels param${levels.length === 1 ? '' : 's'} linked`);
+  return parts.join(', ');
+};
 
 /** How many links of the draft use each axis: `{$Gap: 2}`. */
 export const axisUsage = (rules) => {
@@ -285,10 +303,28 @@ export const freeAxisName = (axes, base = 'Axis') => {
 };
 
 /** A new axis of `kind` with `value` (fixed by default: min == max == value, the general rule). */
-export const newAxis = (axes, kind = 'LENGTH', value = null) => {
-  const base = kind === 'LENGTH' ? 'Length' : kind === 'TOLERANCE' ? 'Gap' : 'Level';
+export const newAxis = (axes, kind = 'LENGTH', value = null, opts = null) => {
+  const base = opts?.base || (kind === 'LENGTH' ? 'Length' : kind === 'TOLERANCE' ? 'Gap' : 'Level');
   const v = value ?? (kind === 'LENGTH' ? 50 : 0);
-  return { name: freeAxisName(axes, base), kind, value: v, min: v, max: v, step: kind === 'LENGTH' ? 5 : 0.5, lo: '', hi: '', note: '' };
+  const step = opts?.step ?? (kind === 'LENGTH' ? 5 : 0.5);
+  return { name: freeAxisName(axes, base), kind, value: v, min: v, max: v, step, lo: '', hi: '', note: '' };
+};
+
+/**
+ * Name base and step of a new axis created from a stage 4b threshold (`right.x.levels.stopBuffer`
+ * → `$StopBuffer`, step 0.1; an integer field step 1; `strength` → `$Strength`; `bars` → `$Bars`);
+ * null for the other suffixes (the kind's default).
+ */
+export const axisHintFor = (suffix) => {
+  if (typeof suffix !== 'string') return null;
+  const m = /(?:^|\.)levels\.([A-Za-z]+)$/.exec(suffix);
+  if (m) {
+    const p = LEVELS_PARAMS.find((x) => x.name === m[1]);
+    return { base: levelsFieldLabel(m[1]), step: p?.integer ? 1 : 0.1 };
+  }
+  if (suffix === 'strength' || suffix === 'of.strength') return { base: 'Strength', step: 0.5 };
+  if (suffix === 'bars') return { base: 'Bars', step: 1 };
+  return null;
 };
 
 /**
@@ -510,6 +546,296 @@ export const channelBlockWarnings = (rules) => {
   return out;
 };
 
+// ---- Levels and sequence bricks (stage 4b) ----
+
+const LEVELS_LABEL = Object.freeze({
+  minStrength: 'MinStrength', breakBuffer: 'BreakBuffer', touchTolerance: 'TouchTolerance', maxRetestBars: 'MaxRetestBars',
+  maxDwellBars: 'MaxDwellBars', confirmMode: 'ConfirmMode', runawayAtr: 'RunawayAtr', baseMinBars: 'BaseMinBars',
+  maxBaseBars: 'MaxBaseBars', stopBuffer: 'StopBuffer', upgradeStrength: 'UpgradeStrength', upgradeMinTouches: 'UpgradeMinTouches',
+  takeProfitStrength: 'TakeProfitStrength',
+});
+/** Display name of a Levels field (`stopBuffer` → `StopBuffer`, as the backend's labels and the class params). */
+export const levelsFieldLabel = (f) => LEVELS_LABEL[f] || f;
+
+/** The editor spec over the defaults (numbers where given; the bool `rearm`). */
+export const levelsSpecOf = (spec, defaults = LEVELS_DEFAULTS) => ({
+  ...Object.fromEntries(LEVELS_KEYS.map((k) => [k, finite(spec?.[k]) ? Number(spec[k]) : defaults[k]])),
+  rearm: rearmOf(spec, defaults?.rearm ?? LEVELS_REARM_DEFAULT),
+});
+
+/**
+ * The Levels spec as the backend's legend line (re-arm round, architect addendum §5): the non-default
+ * params, then `re-arm` / `re-arm (TP 4)` / `no re-arm` - "MinStrength 2, StopBuffer 1, re-arm (TP 4)".
+ * TakeProfitStrength is read only with re-arm, so it shows inside the re-arm part.
+ */
+export const levelsSpecLabel = (spec, defaults = LEVELS_DEFAULTS) => {
+  const s = levelsSpecOf(spec, defaults);
+  const parts = LEVEL_FIELDS.filter((k) => k !== 'takeProfitStrength' && Number(s[k]) !== Number(defaults[k]))
+    .map((k) => `${levelsFieldLabel(k)} ${fmtNum(s[k])}`);
+  const tp = Number(s.takeProfitStrength) > 0 ? ` (TP ${fmtNum(s.takeProfitStrength)})` : '';
+  parts.push(s.rearm ? `re-arm${tp}` : 'no re-arm');
+  return parts.join(', ');
+};
+
+/** Identity of a Levels spec (its 15 numbers and `rearm`): equal specs share one Levels pass and one tag. */
+const levelsSpecKey = (spec, defaults = LEVELS_DEFAULTS) => JSON.stringify(levelsSpecOf(spec, defaults));
+
+/** Every Levels spec of a condition, in condition order. */
+const specsOfCondition = (c) => levelsOccurrences(c).map((o) => getAtPath(c, o.path));
+
+/**
+ * The distinct Levels specs of the rules (links applied at the axes' defaults), by first appearance:
+ * `[{key, spec, tag}]`, tag `L1`, `L2`, … (the backend's `@L2` short-label tag).
+ */
+export const levelsSpecsOf = (rules, axes = [], defaults = LEVELS_DEFAULTS) => {
+  const out = [];
+  (rules || []).forEach((r) => (r.conditions || []).forEach((rc) => {
+    const applied = applyLinks(rc?.condition, pruneLinks(rc?.condition, rc?.links), axes);
+    specsOfCondition(applied).forEach((spec) => {
+      const key = levelsSpecKey(spec, defaults);
+      if (!out.some((x) => x.key === key)) out.push({ key, spec: levelsSpecOf(spec, defaults), tag: `L${out.length + 1}` });
+    });
+  }));
+  return out;
+};
+
+/**
+ * Caption options of the rules (short labels, addendum §5): `tagOf(spec)` = `@L2` when the strategy
+ * has more than one distinct Levels spec, else ''.
+ */
+export const levelsCaptionOpts = (rules, axes = [], defaults = LEVELS_DEFAULTS) => {
+  const specs = levelsSpecsOf(rules, axes, defaults);
+  if (specs.length < 2) return {};
+  return { tagOf: (spec) => `@${specs.find((x) => x.key === levelsSpecKey(spec, defaults))?.tag || '?'}` };
+};
+
+/** The Levels legend of the rules, one line per distinct spec: `Levels[L2]: MinStrength 2, re-arm (TP 4)` (`Levels: …` for one spec). */
+export const levelsLegendLines = (rules, axes = [], defaults = LEVELS_DEFAULTS) => {
+  const specs = levelsSpecsOf(rules, axes, defaults);
+  return specs.map((x) => `${specs.length > 1 ? `Levels[${x.tag}]` : 'Levels'}: ${levelsSpecLabel(x.spec, defaults)}`);
+};
+
+/** The link terms as one comparable string (`+$A-$B`), '' when unlinked. */
+const termsKey = (terms) => (Array.isArray(terms) && terms.length
+  ? terms.map((t) => `${t.sign < 0 ? '-' : '+'}${t.axis}`).sort().join('') : '');
+
+/**
+ * Re-arm round (addendum §6, RR5): the Levels take-profit of the replayed class position should be
+ * the strategy's own take-profit - a LongClose rule with `LEVEL RESISTANCE_REACHED(s)`. A warning
+ * (never an error: the rules are free) for each re-arm Levels spec whose TakeProfitStrength (value or
+ * link) matches no such rule, and when there are such rules but the Levels take-profit is 0.
+ */
+export const levelsTakeProfitWarnings = (rules, axes = [], defaults = LEVELS_DEFAULTS) => {
+  const tps = []; // the take-profit rules' strengths {value, link, rule}
+  const levels = []; // the re-arm Levels occurrences {value, link, rule}
+  (rules || []).forEach((r, ri) => {
+    const name = r.id != null ? `R${r.id}` : `rule #${ri + 1}`;
+    (r.conditions || []).forEach((rc) => {
+      const c = rc?.condition;
+      const links = pruneLinks(c, rc?.links);
+      const applied = applyLinks(c, links, axes);
+      if (r.signalType === 'LongClose' && isLevelEvent(applied) && applied.event === 'RESISTANCE_REACHED' && finite(applied.strength)) {
+        tps.push({ value: Number(applied.strength), link: termsKey(links.strength), rule: name });
+      }
+      levelsOccurrences(applied).forEach((o) => {
+        const spec = levelsSpecOf(getAtPath(applied, o.path), defaults);
+        if (!spec.rearm) return;
+        levels.push({ value: Number(spec.takeProfitStrength) || 0, link: termsKey(links[`${o.prefix}levels.takeProfitStrength`]), rule: name });
+      });
+    });
+  });
+  if (!levels.length) return [];
+  const out = [];
+  const same = (a, b) => (a.link && b.link ? a.link === b.link : a.value === b.value);
+  const seen = new Set();
+  levels.forEach((l) => {
+    const key = `${l.value}|${l.link}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    if (l.value > 0 && !tps.some((t) => same(t, l))) {
+      out.push(`Levels re-arm replays a class with take-profit ${fmtNum(l.value)}${l.link ? ' (linked)' : ''} (${l.rule}), `
+        + `but no LongClose rule has LEVEL RESISTANCE_REACHED(${fmtNum(l.value)}): the zones re-arm after exits your strategy does not take. `
+        + 'Link both strengths to one axis ($TakeProfitStrength), or set the Levels TakeProfitStrength to 0.');
+    } else if (l.value === 0 && tps.length) {
+      out.push(`${tps[0].rule} takes profit on LEVEL RESISTANCE_REACHED(${fmtNum(tps[0].value)}), but the re-arm Levels of ${l.rule} `
+        + 'replays a class without take-profit (TakeProfitStrength 0). Set the Levels TakeProfitStrength to the same value or link both to one axis.');
+    }
+  });
+  return out;
+};
+
+const offsetText = (o) => {
+  const off = Number(o?.offset) || 0;
+  return off === 0 ? '' : `[−${Math.abs(off)}]`;
+};
+
+/** `@L2` of a Levels spec when the caption options tag specs (several distinct specs), else ''. */
+const tagText = (spec, opts) => (opts?.tagOf ? opts.tagOf(spec) : '');
+
+/**
+ * The backend's SHORT label (re-arm round, addendum §5): "LEVEL SUPPORT_LINE", a brick's Levels
+ * arguments without the `LEVEL` prefix - "MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1)", "RUN close[0]",
+ * "1.5". The spec is never in the label (the legend lists it); `opts.tagOf` adds `@L2`.
+ */
+export const anyOperandCaption = (o, evalTf, opts = {}) => {
+  if (!o) return '?';
+  if (o.kind === LEVEL_KIND) return `${opts.bare ? '' : 'LEVEL '}${o.output || '?'}${offsetText(o)}${tagText(o.levels, opts)}`;
+  const arg = { ...opts, bare: true };
+  if (ANCHORED_KINDS.includes(o.kind)) {
+    const lag = o.kind === 'AT_LAST' ? '' : `, lag ${finite(o.lag) ? Number(o.lag) : 0}`;
+    return `${o.kind}(${anyOperandCaption(o.x, evalTf, arg)}, ${anyConditionCaption(o.a, evalTf, arg)}${lag})`;
+  }
+  if (o.kind === 'BARS_SINCE') return `BARS_SINCE(${anyConditionCaption(o.a, evalTf, arg)})`;
+  return operandCaption(o, evalTf);
+};
+
+/**
+ * Caption of any condition of a rule, the backend's ConditionDef.label() form: `LEVEL CONFIRMED_ANY`,
+ * `LEVEL RESISTANCE_REACHED(4)`, `WITHIN(LEVEL BREAKOUT_UP, 3)`, `RUN close[0] < AT_LAST(…)`, a
+ * channel condition, a plain comparison.
+ */
+export const anyConditionCaption = (c, evalTf, opts = {}) => {
+  if (!c) return '?';
+  if (isChannelCondition(c)) return channelConditionCaption(c);
+  if (isLevelEvent(c)) {
+    const s = eventNeedsStrength(c.event) ? `(${finite(c.strength) ? fmtNum(c.strength) : '?'})` : '';
+    return `${opts.bare ? '' : 'LEVEL '}${c.event || '?'}${s}${tagText(c.levels, opts)}`;
+  }
+  const inner = { ...opts, bare: false };
+  if (isWithin(c)) return `WITHIN(${anyConditionCaption(c.of, evalTf, { ...opts, bare: true })}, ${finite(c.bars) ? Number(c.bars) : '?'})`;
+  if (c.type === 'COMPARE' && (isStagedOperand(c.left) || isStagedOperand(c.right))) {
+    const tol = Number(c.tolerancePct) || 0;
+    const factor = tol === 0 ? '' : ` × ${fmtNum(1 + tol / 100, 6)}`;
+    return `${anyOperandCaption(c.left, evalTf, inner)} ${opSymbol(c.op)} ${anyOperandCaption(c.right, evalTf, inner)}${factor}`;
+  }
+  return conditionCaption(c, evalTf);
+};
+
+/** true when a rule of the draft has a Levels condition / operand or a sequence brick. */
+export const hasStagedCondition = (rules) => (rules || [])
+  .some((r) => (r.conditions || []).some(({ condition }) => isStagedCondition(condition)));
+
+/**
+ * The Levels template a new occurrence starts from (architect §8): the spec and the field links of
+ * the strategy's last Levels occurrence (`{spec, links: {field: terms}}`), else the defaults without
+ * links. `defaults` = meta.levels.defaults.
+ */
+export const lastLevelsTemplate = (rules, defaults = LEVELS_DEFAULTS) => {
+  let last = null;
+  (rules || []).forEach((r) => (r.conditions || []).forEach((rc) => {
+    levelsOccurrences(rc.condition).forEach((o) => { last = { rc, o }; });
+  }));
+  if (!last) return { spec: levelsSpecOf(null, defaults), links: {} };
+  const links = {};
+  if (last.o.linkable) {
+    LEVEL_FIELDS.forEach((f) => {
+      const t = last.rc.links?.[`${last.o.prefix}levels.${f}`];
+      if (Array.isArray(t) && t.length) links[f] = t;
+    });
+  }
+  const raw = getAtPath(last.rc.condition, last.o.path);
+  return {
+    spec: {
+      ...levelsSpecOf(null, defaults),
+      ...Object.fromEntries([...LEVELS_KEYS, 'rearm'].filter((k) => raw?.[k] !== undefined).map((k) => [k, raw[k]])),
+    },
+    links,
+  };
+};
+
+/**
+ * Links of a rule condition after its condition changed: every Levels occurrence that is new (a
+ * prefix the old condition did not have) takes the template's field links (architect §8: "a new
+ * occurrence copies the spec and the links of the last Levels occurrence"). Returns the links.
+ */
+export const withTemplateLinks = (oldCondition, newCondition, links, template) => {
+  if (!template || !Object.keys(template.links || {}).length) return links;
+  const before = new Set(levelsOccurrences(oldCondition).map((o) => o.prefix));
+  const added = levelsOccurrences(newCondition).filter((o) => o.linkable && !before.has(o.prefix));
+  if (!added.length) return links;
+  const out = { ...(links || {}) };
+  added.forEach((o) => Object.entries(template.links).forEach(([f, terms]) => { out[`${o.prefix}levels.${f}`] = terms.map((t) => ({ ...t })); }));
+  return out;
+};
+
+/**
+ * "Apply to all Levels in this strategy" (architect §8): the Levels spec at `prefix` of rule `ri`,
+ * condition `ci` - its values at the axes' defaults and its links - copied into every Levels
+ * occurrence of the draft. Where the target cannot carry links (a Levels operand inside a nested
+ * comparison) the linked value is written. Returns the new draft and the count of occurrences.
+ */
+export const applyLevelsToAll = (draft, ri, ci, prefix) => {
+  const src = draft?.rules?.[ri]?.conditions?.[ci];
+  if (!src) return { draft, count: 0 };
+  const srcLinks = {};
+  LEVEL_FIELDS.forEach((f) => {
+    const t = src.links?.[`${prefix}levels.${f}`];
+    if (Array.isArray(t) && t.length) srcLinks[f] = t;
+  });
+  const raw = getAtPath(src.condition, `${prefix}levels`) || {};
+  const values = { ...raw };
+  Object.entries(srcLinks).forEach(([f, terms]) => {
+    const v = linkValue(terms, draft.axes);
+    if (v != null) values[f] = v;
+  });
+  let count = 0;
+  const rules = draft.rules.map((r) => ({
+    ...r,
+    conditions: r.conditions.map((rc) => {
+      const occ = levelsOccurrences(rc.condition);
+      if (!occ.length) return rc;
+      let condition = rc.condition;
+      const links = { ...(rc.links || {}) };
+      occ.forEach((o) => {
+        count += 1;
+        condition = updateAtPath(condition, o.path, (cur) => ({ ...(cur || {}), ...values }));
+        LEVEL_FIELDS.forEach((f) => {
+          const key = `${o.prefix}levels.${f}`;
+          if (o.linkable && srcLinks[f]) links[key] = srcLinks[f].map((t) => ({ ...t }));
+          else delete links[key];
+        });
+      });
+      return { ...rc, condition, links };
+    }),
+  }));
+  return { draft: { ...draft, rules }, count };
+};
+
+/** A new Levels event condition: CONFIRMED_ANY, `levels` = the template's spec. */
+export const newLevelCondition = (spec = LEVELS_DEFAULTS, event = 'CONFIRMED_ANY') => ({
+  type: 'LEVEL_EVENT', tf: RUN_TF, event, strength: eventNeedsStrength(event) ? 4 : '', levels: { ...levelsSpecOf(spec) },
+});
+
+/** A new WITHIN(LEVEL BREAKOUT_UP, 3). */
+export const newWithinCondition = (spec = LEVELS_DEFAULTS) => ({
+  type: 'WITHIN', tf: RUN_TF, bars: 3, of: newLevelCondition(spec, 'BREAKOUT_UP'),
+});
+
+/** A new Levels value operand (`output`, offset 0). */
+export const newLevelOperand = (spec = LEVELS_DEFAULTS, output = 'SUPPORT_LINE') => ({
+  kind: LEVEL_KIND, tf: RUN_TF, offset: 0, n: null, value: '', output, levels: { ...levelsSpecOf(spec) },
+});
+
+/** A plain operand (`RUN close[0]`). */
+export const newPlainOperand = () => ({ kind: 'CLOSE', tf: RUN_TF, offset: 0, n: null, value: '' });
+
+/**
+ * A new brick operand of `kind`; keeps X / A of `prev` when it is a brick too. Defaults: X =
+ * LEVEL SETUP_STOP (AT_LAST) / SUPPORT_LINE (MAX / MIN_SINCE), A = LEVEL CONFIRMED_ANY, lag 0.
+ */
+export const newBrickOperand = (kind, spec = LEVELS_DEFAULTS, prev = null) => {
+  const out = { kind, tf: RUN_TF, offset: 0, n: null, value: '' };
+  out.a = prev?.a || newLevelCondition(spec, 'CONFIRMED_ANY');
+  if (ANCHORED_KINDS.includes(kind)) {
+    out.x = prev?.x || newLevelOperand(spec, kind === 'AT_LAST' ? 'SETUP_STOP' : 'SUPPORT_LINE');
+    out.lag = kind === 'AT_LAST' ? '' : (prev && finite(prev.lag) ? prev.lag : 0);
+  }
+  return out;
+};
+
+export const newRuleLevelCondition = (spec) => ({ id: null, condition: newLevelCondition(spec), links: {} });
+export const newRuleWithinCondition = (spec) => ({ id: null, condition: newWithinCondition(spec), links: {} });
+
 // ---- captions ----
 
 /**
@@ -517,18 +843,18 @@ export const channelBlockWarnings = (rules) => {
  * `RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)` (BA §3.2 p. 7);
  * a channel condition: `RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)`.
  */
-export const ruleConditionCaption = (rc, evalTf, axes = []) => {
+export const ruleConditionCaption = (rc, evalTf, axes = [], opts = {}) => {
   const links = pruneLinks(rc?.condition, rc?.links);
   const applied = applyLinks(rc?.condition, links, axes);
-  const text = isChannelCondition(applied) ? channelConditionCaption(applied) : conditionCaption(applied, evalTf);
+  const text = anyConditionCaption(applied, evalTf, opts);
   const notes = linkNotes(links, axes);
   return notes ? `${text} (${notes})` : text;
 };
 
 /** "R2 LongClose: DAY close[0] < DAY SMA(200)[0] AND …" (rule id `R?` for an unsaved rule). */
-export const ruleCaption = (rule, evalTf, axes = []) => {
+export const ruleCaption = (rule, evalTf, axes = [], opts = {}) => {
   const head = `${rule.id != null ? `R${rule.id}` : 'R(new)'} ${rule.signalType}`;
-  const conds = (rule.conditions || []).map((c) => ruleConditionCaption(c, evalTf, axes));
+  const conds = (rule.conditions || []).map((c) => ruleConditionCaption(c, evalTf, axes, opts));
   return `${head}: ${conds.length ? conds.join(' AND ') : '(no conditions)'}`;
 };
 
@@ -552,21 +878,33 @@ const runTfsByOperandsOf = (rules) => {
   let anyDay = false;
   let anyWeek = false;
   let runOffset = false;
-  (rules || []).forEach((r) => (r.conditions || []).forEach(({ condition: c }) => {
+  let staged = false;
+  const walkOp = (o) => {
+    if (!o || o.kind === 'CONST') return;
+    if (isStagedOperand(o)) { // stage 4b: Levels / bricks run on DAY / WEEK; walk X and the anchor
+      staged = true;
+      walkOp(o.x);
+      walkCond(o.a);
+      return;
+    }
+    if (o.tf === RUN_TF) { if ((Number(o.offset) || 0) !== 0) runOffset = true; }
+    else if (o.tf === 'DAY') anyDay = true;
+    else if (o.tf === 'WEEK') anyWeek = true;
+  };
+  const walkCond = (c) => {
+    if (!c) return;
     if (isChannelCondition(c)) {
       if (c.tf === 'DAY') anyDay = true;
       else anyWeek = true; // RUN / WEEK channel: DAY or WEEK runs
       return;
     }
-    [c?.left, c?.right].forEach((o) => {
-      if (!o || o.kind === 'CONST') return;
-      if (o.tf === RUN_TF) { if ((Number(o.offset) || 0) !== 0) runOffset = true; }
-      else if (o.tf === 'DAY') anyDay = true;
-      else if (o.tf === 'WEEK') anyWeek = true;
-    });
-  }));
+    if (isLevelEvent(c)) { staged = true; return; }
+    if (isWithin(c)) { staged = true; walkCond(c.of); return; }
+    [c.left, c.right].forEach(walkOp);
+  };
+  (rules || []).forEach((r) => (r.conditions || []).forEach(({ condition }) => walkCond(condition)));
   if (anyDay) return ['DAY'];
-  if (anyWeek || runOffset) return [...CHANNEL_RUN_TFS];
+  if (anyWeek || runOffset || staged) return [...CHANNEL_RUN_TFS];
   return [...CONSTRUCTED_TFS];
 };
 
@@ -584,6 +922,7 @@ export const runTfsOf = (rules) => runTfsByOperandsOf(rules).filter((tf) => kind
 /** "(it has DAY conditions)" etc. - why the strategy runs on these TFs. */
 export const runTfsHint = (runTfs, rules = null) => {
   if (runTfs.length === 1) return '(it has DAY conditions)';
+  if (runTfs.length === 2 && rules && hasStagedCondition(rules)) return '(level conditions and sequence bricks run on DAY / WEEK)';
   if (runTfs.length === 2 && rules && hasChannelCondition(rules)) return '(channel conditions run on DAY / WEEK)';
   if (runTfs.length === 2) return '(WEEK conditions or RUN offsets: HOUR / MIN5 / MONTH take only RUN operands at [0])';
   if (!runTfs.includes('MIN5')) return '(only RUN operands at [0]; an indicator of it is not supported on MIN5 yet)';
@@ -631,10 +970,60 @@ const derivedError = (kind, v, opKind = 'SMA') => {
   return null;
 };
 
+/** True for a `LEVEL IN_ZONE` operand. */
+const isInZone = (o) => o?.kind === LEVEL_KIND && o.output === 'IN_ZONE';
+
+/**
+ * m8: IN_ZONE is 1 inside a strong zone and NOT MET (no value) outside one, never 0 - so it can only
+ * pass as `IN_ZONE > x` / `≥ x` (or `x < IN_ZONE` / `≤`); the other direction never passes.
+ */
+export const inZoneOperatorError = (x) => {
+  const leftIn = isInZone(x?.left);
+  const rightIn = isInZone(x?.right);
+  if (!leftIn && !rightIn) return null;
+  const up = x.op === 'GT' || x.op === 'GTE';
+  if ((leftIn && !up) || (rightIn && up && !leftIn)) {
+    return 'IN_ZONE never passes in this direction: outside a zone it is "not met", not 0. Use IN_ZONE > 0 or IN_ZONE ≥ 1.';
+  }
+  return null;
+};
+
+/** The meta.levels param of a Levels field (range / integer), from `params` or the fallback. */
+const levelsParamOf = (f, params = LEVELS_PARAMS) => (params || LEVELS_PARAMS).find((p) => p.name === f)
+  || LEVELS_PARAMS.find((p) => p.name === f) || null;
+
+/** "must be an integer in [1, 500]" / "must be in (0, 50]" - the backend's LevelsSpec / StagedThresholds wording. */
+const levelsRangeError = (f, v, params) => {
+  const p = levelsParamOf(f, params);
+  if (!p) return null;
+  const n = Number(v);
+  if (!finite(v)) return 'must be a number';
+  const low = p.minInclusive ? n < p.min : n <= p.min;
+  if ((p.integer && !Number.isInteger(n)) || low || n > p.max) {
+    return `must be ${p.integer ? 'an integer ' : ''}in ${p.minInclusive ? '[' : '('}${fmtNum(p.min)}, ${fmtNum(p.max)}]`;
+  }
+  return null;
+};
+
+/**
+ * Error of a stage 4b threshold path at a derived value (StagedThresholds.problem + the Levels
+ * ranges), null when fine: strength (0, 50], bars an integer [1, kMax], an integer Levels field.
+ */
+const stagedPathError = (suffix, v, { levelsParams = LEVELS_PARAMS, strengthMax = 50, kMax = 250 } = {}) => {
+  if (!Number.isFinite(v)) return 'must be finite';
+  if (suffix === 'strength' || suffix.endsWith('.strength')) {
+    return v > 0 && v <= strengthMax ? null : `a strength must be in (0, ${fmtNum(strengthMax)}]`;
+  }
+  if (suffix === 'bars') return Number.isInteger(v) && v >= 1 && v <= kMax ? null : `must be an integer in [1, ${kMax}]`;
+  const m = /(?:^|\.)levels\.([A-Za-z]+)$/.exec(suffix);
+  if (m) return levelsRangeError(m[1], v, levelsParams);
+  return null;
+};
+
 /** Errors of every axis: `string[][]` by index, plus general errors (count). */
-const validateAxes = (axes, usage) => {
+const validateAxes = (axes, usage, maxAxes = MAX_AXES) => {
   const general = [];
-  if (axes.length > MAX_AXES) general.push(`At most ${MAX_AXES} axes`);
+  if (axes.length > maxAxes) general.push(`At most ${maxAxes} axes`);
   const seen = new Map();
   axes.forEach((a) => seen.set(a.name, (seen.get(a.name) || 0) + 1));
   const errors = axes.map((a) => {
@@ -664,13 +1053,16 @@ const validateAxes = (axes, usage) => {
  * $Gap is a tolerance`), 1..2 terms, and the derived value on every point of the axes' default
  * grids (`$FastLength=50 + $Spread=60 = 110: …`; stored lengths are checked by the server).
  */
-const validateLinks = (links, axes, where, condition = null) => {
+const validateLinks = (links, axes, where, condition = null, stagedOpts = {}) => {
   const errs = [];
   const opKindOf = (suffix) => {
     if (suffix === 'left.n') return condition?.left?.kind;
     if (suffix === 'right.n') return condition?.right?.kind;
+    if (suffix === 'left.x.n') return condition?.left?.x?.kind; // stage 4b: a brick's X length
+    if (suffix === 'right.x.n') return condition?.right?.x?.kind;
     return null;
   };
+  const isStagedPath = (suffix) => suffix === 'strength' || suffix === 'bars' || suffix === 'of.strength' || /(^|\.)levels\./.test(suffix);
   const byName = new Map(axes.map((a) => [a.name, a]));
   Object.entries(links || {}).forEach(([suffix, terms]) => {
     const kind = suffixKind(suffix);
@@ -688,7 +1080,9 @@ const validateLinks = (links, axes, where, condition = null) => {
     const points = grids.length === 1 ? grids[0].map((v) => [v]) : grids[0].flatMap((v) => grids[1].map((w) => [v, w]));
     for (const pt of points) {
       const v = pt.reduce((s, x, i) => s + (terms[i].sign < 0 ? -x : x), 0);
-      const bad = derivedError(kind, Number(v.toFixed(10)), opKindOf(suffix) || 'SMA');
+      const bad = isStagedPath(suffix)
+        ? stagedPathError(suffix, Number(v.toFixed(10)), stagedOpts)
+        : derivedError(kind, Number(v.toFixed(10)), opKindOf(suffix) || 'SMA');
       if (bad) {
         const expr = terms.map((t, i) => `${i === 0 ? (t.sign < 0 ? '−' : '') : (t.sign < 0 ? ' − ' : ' + ')}${t.axis}=${fmtNum(pt[i])}`).join('');
         errs.push(`${at}: ${expr} = ${fmtNum(v)}: ${bad}`);
@@ -833,13 +1227,120 @@ export const validateConstraints = (constraints, axes) => {
 };
 
 /**
+ * Errors of a stage 4b condition (client copy of FilterValidator's constructor branch / §6): the
+ * event and its strength, every Levels spec in range (`R2.C1.right.a.levels.maxDwellBars must be an
+ * integer in [1, 500]`), WITHIN's bars and anchor, a brick's X (no constant, no brick) and anchor A
+ * (one market condition: a comparison without bricks, a channel condition or a Levels event), lag,
+ * offsets, TF RUN and the units of the two sides (ATR_MULTIPLE only with itself or a number). `c` has
+ * the links applied. `ctx`: {where, levelsMeta, bricksMeta, channelMeta}.
+ */
+export const validateStagedCondition = (c, ctx = {}) => {
+  const lm = ctx.levelsMeta || DEFAULT_LEVELS_META;
+  const bm = ctx.bricksMeta || DEFAULT_BRICKS_META;
+  const errs = [];
+  const at = (path) => (ctx.where ? `${ctx.where}${path ? `.${path}` : ''}` : path || 'condition');
+  const checkSpec = (spec, path) => {
+    LEVEL_FIELDS.forEach((f) => {
+      const e = levelsRangeError(f, spec?.[f], lm.params);
+      if (e) errs.push(`${at(`${path}levels.${f}`)} ${e}`);
+    });
+    Object.entries(lm.fixed || {}).forEach(([k, v]) => {
+      if (finite(spec?.[k]) && Number(spec[k]) !== Number(v)) errs.push(`${at(`${path}levels.${k}`)} must be ${v} in stage 4b`);
+    });
+  };
+  const checkRunTf = (x, path) => {
+    if (x?.tf != null && x.tf !== '' && x.tf !== RUN_TF) errs.push(`${at(path)}: level conditions and bricks read the run timeframe (tf RUN)`);
+  };
+  const checkLevelEvent = (e, path) => {
+    checkRunTf(e, path);
+    const ev = lm.events.find((x) => x.name === e.event);
+    if (!ev) errs.push(`${at(path)}: unknown Levels event ${e.event || ''}`.trim());
+    const needs = ev ? ev.needsStrength : eventNeedsStrength(e.event);
+    if (needs && !(finite(e.strength) && Number(e.strength) > 0 && Number(e.strength) <= lm.strengthMax)) {
+      errs.push(`${at(`${path}${path ? '.' : ''}strength`)}: ${e.event} needs a strength in (0, ${fmtNum(lm.strengthMax)}]`);
+    }
+    checkSpec(e.levels, path ? `${path}.` : '');
+  };
+  const checkLevelOperand = (o, path) => {
+    checkRunTf(o, path);
+    if (!lm.outputs.some((x) => x.name === o.output)) errs.push(`${at(path)}: unknown Levels output ${o.output || ''}`.trim());
+    const off = Number(o.offset);
+    if (!Number.isInteger(off) || off < OFFSET_MIN || off > 0) errs.push(`${at(path)}: offset must be an integer from ${OFFSET_MIN} to 0`);
+    checkSpec(o.levels, `${path}.`);
+  };
+  /** A market condition: LEVEL_EVENT, CHANNEL_METRIC or COMPARE without bricks (LEVEL operands allowed). */
+  const checkMarket = (a, path) => {
+    if (!a || isWithin(a) || (a.type === 'COMPARE' && (isBrickOperand(a.left) || isBrickOperand(a.right)))) {
+      errs.push(`${at(path)}: the anchor event must be one market condition (no bricks inside)`);
+      return;
+    }
+    if (isLevelEvent(a)) checkLevelEvent(a, path);
+    else if (isChannelCondition(a)) {
+      errs.push(...validateChannelCondition(a, { metrics: ctx.channelMeta?.metrics, ranges: ctx.channelMeta?.ranges, where: at(path) })
+        .map((e) => (e.startsWith(at(path)) ? e : `${at(path)}: ${e}`)));
+    } else if (a.type === 'COMPARE') checkCompare(a, path, false);
+    else errs.push(`${at(path)}: unknown condition type`);
+  };
+  const checkSide = (o, side, path, bricksAllowed) => {
+    if (!o) { errs.push(`${at(path)}: missing ${side} operand`); return; }
+    if (o.kind === LEVEL_KIND) { checkLevelOperand(o, path); return; }
+    if (isBrickOperand(o)) {
+      if (!bricksAllowed) { errs.push(`${at(path)}: the anchor event must be one market condition (no bricks inside)`); return; }
+      checkRunTf(o, path);
+      if ((Number(o.offset) || 0) !== 0) errs.push(`${at(path)}: a brick has no offset - use lag`);
+      if (ANCHORED_KINDS.includes(o.kind)) {
+        const x = o.x;
+        if (!x || x.kind === CONST_KIND || isBrickOperand(x)) errs.push(`${at(`${path}.x`)}: X must be a bar field, an indicator or a Levels value (no constant, no brick)`);
+        else if (x.kind === LEVEL_KIND) checkLevelOperand(x, `${path}.x`);
+        else errs.push(...validateOperand(x, 'left', true).map((e) => `${at(`${path}.x`)}: ${e}`));
+        if (o.kind !== 'AT_LAST') {
+          const lag = Number(o.lag);
+          if (!(finite(o.lag) && Number.isInteger(lag) && lag >= 0 && lag <= bm.lagMax)) errs.push(`${at(`${path}.lag`)} must be an integer in [0, ${bm.lagMax}]`);
+        }
+      }
+      checkMarket(o.a, `${path}.a`);
+      return;
+    }
+    errs.push(...validateOperand(o, side, true).map((e) => `${at(path)}: ${e}`));
+  };
+  const checkCompare = (x, path, bricksAllowed) => {
+    const p = (s) => (path ? `${path}.${s}` : s);
+    checkSide(x.left, 'left', p('left'), bricksAllowed);
+    checkSide(x.right, 'right', p('right'), bricksAllowed);
+    const lu = operandUnitOf(x.left);
+    const ru = operandUnitOf(x.right);
+    if (lu && ru && lu !== ru) {
+      errs.push(`${at(path)}: UNIT_MISMATCH: ${anyOperandCaption(x.left)} (${unitLabel(lu)}) vs ${anyOperandCaption(x.right)} (${unitLabel(ru)}) — `
+        + (lu === 'ATR_MULTIPLE' || ru === 'ATR_MULTIPLE'
+          ? 'a DIST_* distance in ATR compares only with another DIST_* or a number'
+          : 'compare values of one unit (a constant fits any)'));
+    }
+    if (!OPERATORS.some((o) => o.value === x.op)) errs.push(`${at(path)}: unknown operator`);
+    else {
+      const e = inZoneOperatorError(x);
+      if (e) errs.push(`${at(path)}: ${e}`);
+    }
+    if (!finite(x.tolerancePct)) errs.push(`${at(p('tolerancePct'))} must be a number`);
+    else if (Math.abs(Number(x.tolerancePct)) >= SCREEN_TOLERANCE_LIMIT) errs.push(`${at(p('tolerancePct'))} must be in (−${SCREEN_TOLERANCE_LIMIT}, ${SCREEN_TOLERANCE_LIMIT})`);
+  };
+  if (isLevelEvent(c)) checkLevelEvent(c, '');
+  else if (isWithin(c)) {
+    checkRunTf(c, '');
+    const k = Number(c.bars);
+    if (!(finite(c.bars) && Number.isInteger(k) && k >= 1 && k <= bm.kMax)) errs.push(`${at('bars')} must be an integer in [1, ${bm.kMax}]`);
+    checkMarket(c.of, 'of');
+  } else if (c?.type === 'COMPARE') checkCompare(c, '', true);
+  return [...new Set(errs)];
+};
+
+/**
  * Errors of a draft: `{general: string[], axes: string[][], constraints: string[][],
  * constraintWarnings: string[], rules: [{general: string[], conditions: string[][]}]}`, `ok` when
  * all errors are empty (warnings do not block). `allowedTypes` = meta.signalTypes.
  * Conditions are checked at the axes' defaults (linked thresholds take the axes' values).
  */
 export const validateDraft = (draft, { allowedTypes = SIGNAL_TYPES, maxRules = MAX_RULES, maxConditions = MAX_CONDITIONS,
-  requireName = true, channelMeta = null } = {}) => {
+  requireName = true, channelMeta = null, levelsMeta = null, bricksMeta = null, maxAxes = MAX_AXES } = {}) => {
   const general = [];
   const name = (draft.name || '').trim();
   if (requireName && !name) general.push('Name is required');
@@ -848,7 +1349,12 @@ export const validateDraft = (draft, { allowedTypes = SIGNAL_TYPES, maxRules = M
   const axes = draft.axes || [];
   if (rules.length === 0) general.push('Add at least one rule');
   if (rules.length > maxRules) general.push(`At most ${maxRules} rules`);
-  const axisCheck = validateAxes(axes, axisUsage(rules));
+  const axisCheck = validateAxes(axes, axisUsage(rules), maxAxes);
+  const stagedOpts = {
+    levelsParams: levelsMeta?.params || LEVELS_PARAMS,
+    strengthMax: levelsMeta?.strengthMax ?? 50,
+    kMax: bricksMeta?.kMax ?? 250,
+  };
   general.push(...axisCheck.general);
   const constraintCheck = validateConstraints(draft.constraints, axes);
   general.push(...constraintCheck.general);
@@ -874,6 +1380,13 @@ export const validateDraft = (draft, { allowedTypes = SIGNAL_TYPES, maxRules = M
         if (gridErr) boundWarnings.push(`The default sweep has a point with ${gridErr}. The backend will refuse Optimize with these ranges before the run.`);
         return errs;
       }
+      if (isStagedCondition(condition)) {
+        // stage 4b: Levels conditions / operands and sequence bricks
+        return [
+          ...validateStagedCondition(applyLinks(condition, live, axes), { where, levelsMeta, bricksMeta, channelMeta }),
+          ...validateLinks(live, axes, where, condition, stagedOpts),
+        ];
+      }
       return [...validateCondition(applyLinks(condition, live, axes), { allowRun: true }), ...validateLinks(live, axes, where, condition)];
     });
     return { general: g, conditions };
@@ -898,6 +1411,9 @@ export const runTfError = (rules, tf) => {
   const notRunning = kindNotRunningOn(rules, tf);
   if (notRunning) return `${kindName(notRunning)} is not supported on ${tf} yet: run the strategy on HOUR or a coarser timeframe`;
   if (runTfsOf(rules).includes(tf)) return null;
+  if (!LEVELS_RUN_TFS.includes(tf) && hasStagedCondition(rules)) {
+    return `Level conditions and sequence bricks run on DAY / WEEK in stage 4: run this strategy on DAY or WEEK, not ${tf}`;
+  }
   if (!CHANNEL_RUN_TFS.includes(tf) && hasChannelCondition(rules)) {
     return `Channel conditions run on DAY / WEEK in stage 4: run this strategy on DAY or WEEK, not ${tf}`;
   }
@@ -939,6 +1455,26 @@ export const constructedErrorHint = (message) => {
   }
   if (/\.channel\.\w+ must be/i.test(m)) {
     return 'Channel detector params: coverage in (0.5, 1], min bars 2..1000, min width in [0, 1), min age 0..500 bars.';
+  }
+  // Stage 4b: Levels / sequence bricks
+  if (/level conditions and sequence bricks run on DAY/i.test(m)) {
+    return 'A strategy with Levels conditions or sequence bricks runs on DAY or WEEK only.';
+  }
+  if (/WEEK operands inside a brick|count bars of the run timeframe/i.test(m)) {
+    return 'Operands inside a brick (its X and its anchor event) must read the run timeframe: use RUN operands, or run on WEEK.';
+  }
+  if (/anchor event must be one market condition/i.test(m)) {
+    return 'A brick’s anchor (and WITHIN’s event) is one market condition: a Levels event, a channel condition or a comparison without bricks.';
+  }
+  if (/use lag/i.test(m)) return 'A brick has no offset: MAX_SINCE / MIN_SINCE shift their window with lag (lag 1 = the line as of the previous bar).';
+  if (/\.levels\.\w+.*must be/i.test(m)) {
+    return 'Levels params: strengths in (0, 50]; buffers and touch tolerance in [0, 5]; RunawayAtr [0, 10]; bar counts whole numbers '
+      + '(retest / dwell 1..500, base 0..500, max base 1..1000, touches 1..20); ConfirmMode 0 or 1.';
+  }
+  if (/a strength must be in|needs a strength/i.test(m)) return 'SUPPORT_BREAK / RESISTANCE_REACHED need a zone strength in (0, 50].';
+  if (/stage 4d/i.test(m)) return 'Levels conditions and sequence bricks are not available in screener filters yet (stage 4d).';
+  if (/UNIT_MISMATCH/i.test(m) && /ATR_MULTIPLE/.test(m)) {
+    return 'DIST_SUPPORT_ATR / DIST_RESISTANCE_ATR are distances in ATR, not prices: compare them only with another DIST_* or a number.';
   }
   const unit = unitMismatchHint(m);
   if (unit) return unit;
@@ -1024,6 +1560,19 @@ export const reasonsText = (byReason) => Object.entries(byReason || {})
  * The state-rule warning texts of BA spec §4.3 (fallback when the backend sends none). The rule is
  * a state rule by its fire rate in the preview (§4.3 p. 4), not by parsing its conditions.
  */
+/**
+ * m9: an entry rule (LongOpen / ShortOpen) that never fired in the preview window - the server's
+ * banner covers exit rules only. Mostly an anchor brick that is rarely evaluated (e.g. MIN_SINCE over
+ * SETUP_STOP: empty window outside a confirmation; AT_LAST is the brick for the setup lines).
+ */
+export const deadEntryRuleWarning = (rule, bars) => {
+  if (!(bars > 0) || rule.fired > 0 || !(rule.signalType === 'LongOpen' || rule.signalType === 'ShortOpen')) return null;
+  const ne = rule.notEvaluated > 0 ? `; not evaluated on ${ofBars(rule.notEvaluated, bars)}` : '';
+  return `Entry rule never fired on the ${bars} bars of the preview${ne}: the strategy cannot open a position with it. `
+    + 'Check the window and the conditions - a SETUP_STOP / SETUP_ZONE_LINE value exists only on a confirmation bar, so read it '
+    + 'with AT_LAST(…, CONFIRMED_ANY), not MIN_SINCE / MAX_SINCE.';
+};
+
 export const stateRuleWarning = (rule, bars, rate = STATE_RULE_FIRE_RATE) => {
   if (!(bars > 0) || rule.fired / bars <= rate) return null;
   const freq = ofBars(rule.fired, bars);

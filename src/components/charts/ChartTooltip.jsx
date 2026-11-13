@@ -6,6 +6,10 @@ import {
   OUTCOME_TEXT, NOT_TRADED_TEXT, ENTRY_TRIGGER_TEXT, EXIT_REASON_LONG_TEXT, isConfirmedOutcome, barsHeld
 } from '../../utils/levelChart';
 import { voteText, VOTE_COLORS, blockedByText } from '../signals/signalPanes';
+import { truncateLabel } from '../../utils/indicatorSeries';
+
+// m7: a signal comment (a constructed rule's text) is cut to this many characters in the tooltip.
+const COMMENT_MAX = 160;
 
 // Bar timestamp in the exchange wall clock (decision 0.18): price.date is a UTC-faked Date.
 const TOOLTIP_TS_FORMAT = { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' };
@@ -275,14 +279,19 @@ const ChartTooltip = ({ tooltipData }) => {
     if (!parent) return;
     const y = tooltipData.position.y;
     const parentRect = parent.getBoundingClientRect();
+    el.style.maxHeight = ''; // measure the natural height (the cap below is from the previous move)
     const height = el.offsetHeight;
     const bottomLimit = Math.min(parentRect.bottom, window.innerHeight) - parentRect.top;
+    const topLimit = Math.max(0, -parentRect.top); // keep the head on screen / inside the chart too
     let top = y + TOOLTIP_OFFSET_PX;
     if (top + height > bottomLimit) {
-      const topLimit = Math.max(0, -parentRect.top); // keep the head on screen too
       top = Math.max(topLimit, y - TOOLTIP_OFFSET_PX - height);
     }
     el.style.top = `${top}px`;
+    // m7: a tooltip taller than the chart (long rule texts) never runs past its top or bottom edge
+    const room = bottomLimit - top;
+    el.style.maxHeight = room > 0 ? `${room}px` : '';
+    el.style.overflow = room > 0 && height > room ? 'hidden' : '';
   });
 
   if (!tooltipData) return null;
@@ -375,7 +384,7 @@ const ChartTooltip = ({ tooltipData }) => {
               verticalAlign: 'middle'
             }}
           />
-          {name}: <span style={{ float: 'right' }}>{Number(value).toFixed(2)}</span>
+          <span title={name}>{truncateLabel(name)}</span>: <span style={{ float: 'right' }}>{Number(value).toFixed(2)}</span>
         </div>
       ))}
 
@@ -404,7 +413,7 @@ const ChartTooltip = ({ tooltipData }) => {
               {Array.isArray(signal.sources) && signal.sources.length > 0 && (
                 <div className="chart-tooltip-muted">from: {signal.sources.join(', ')}</div>
               )}
-              {signal.comment && <div style={{ fontSize: '0.8em' }}>{signal.comment}</div>}
+              {signal.comment && <div style={{ fontSize: '0.8em' }}>{truncateLabel(signal.comment, COMMENT_MAX)}</div>}
             </div>
           ))}
         </div>

@@ -57,7 +57,7 @@ const numOrNull = (v) => (v === '' || v == null || !Number.isFinite(Number(v)) ?
  * every kind with a length parameter (SMA, SMA_TILT, ATR, ATR_PCT, ER, RSI - the descriptor
  * says), never for a field or IBS (stage 3b F1, minor #91).
  */
-const toOperand = (o) => {
+export const toOperand = (o) => {
   if (!o) return null;
   if (o.kind === 'CONST') return { kind: 'CONST', value: numOrNull(o.value) };
   const out = { kind: o.kind, tf: o.tf, offset: Number(o.offset) || 0 };
@@ -65,7 +65,7 @@ const toOperand = (o) => {
   return out;
 };
 
-const fromOperand = (o) => {
+export const fromOperand = (o) => {
   if (!o) return null;
   if (o.kind === 'CONST') return { kind: 'CONST', value: o.value ?? '', n: null, tf: 'DAY', offset: 0 };
   return { kind: o.kind || 'CLOSE', n: o.n ?? null, tf: o.tf || 'DAY', offset: o.offset ?? 0, value: '' };
