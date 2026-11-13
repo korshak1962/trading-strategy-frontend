@@ -10,7 +10,7 @@ import ReporterStyleChart from '../ReporterStyleChart';
 import TickerCombobox from '../TickerCombobox';
 import { barGeometry, normalizeVotes } from '../signals/signalPanes';
 import { parseExchangeTs } from '../../utils/dates';
-import { ofBars, reasonsText, stateRuleWarning, SIGNAL_TYPE_CLASS } from './constructedFormat';
+import { ofBars, reasonsText, stateRuleWarning, deadEntryRuleWarning, SIGNAL_TYPE_CLASS } from './constructedFormat';
 
 const label = 'block text-xs text-gray-600 mb-1';
 
@@ -174,7 +174,7 @@ export default function ConstructedPreview({
                 {preview.rules.map((r) => {
                   const warnings = r.warnings.length > 0
                     ? r.warnings
-                    : [stateRuleWarning(r, preview.bars, stateRuleFireRate)].filter(Boolean);
+                    : [stateRuleWarning(r, preview.bars, stateRuleFireRate), deadEntryRuleWarning(r, preview.bars)].filter(Boolean);
                   return (
                     <tr key={r.ruleId ?? r.label} className="border-t align-top" data-testid="preview-rule-row">
                       <td className="px-2 py-1.5">
@@ -186,7 +186,7 @@ export default function ConstructedPreview({
                               title={`Fires on more than ${Math.round(stateRuleFireRate * 100)} % of the bars`}>state rule</span>
                           )}
                         </div>
-                        <div className="text-xs font-mono text-gray-600 mt-0.5">{r.label}</div>
+                        <div className="text-xs font-mono text-gray-600 mt-0.5 break-words">{r.label}</div>
                         {warnings.map((w, i) => (
                           <div key={i} className="mt-1 text-xs text-amber-800" data-testid="preview-rule-warning">{w}</div>
                         ))}
@@ -205,6 +205,12 @@ export default function ConstructedPreview({
               </tbody>
             </table>
           </div>
+          {preview.levelsLegend.length > 0 && (
+            <div className="-mt-2 mb-4 text-xs font-mono text-gray-600" data-testid="preview-levels-legend"
+              title="The Levels params of the rules above (the labels carry @L1, @L2, … when there are several specs)">
+              {preview.levelsLegend.map((l) => <div key={l}>{l}</div>)}
+            </div>
+          )}
 
           {prices.length > 0 ? (
             <>

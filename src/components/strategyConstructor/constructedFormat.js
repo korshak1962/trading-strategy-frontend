@@ -21,7 +21,7 @@ import {
   CHANNEL_TFS, CHANNEL_RUN_TFS, CHANNEL_LEVELS, CHANNEL_METRICS, CHANNEL_DEFAULTS, CHANNEL_RANGES, CHANNEL_KEYS,
   linkSuffixKind, getAtPath, updateAtPath, levelsOccurrences, isStagedCondition, isLevelEvent, isWithin, eventNeedsStrength,
   LEVEL_FIELDS, LEVELS_KEYS, LEVELS_DEFAULTS, LEVELS_PARAMS, LEVELS_RUN_TFS, DEFAULT_LEVELS_META, DEFAULT_BRICKS_META,
-  LEVEL_KIND, ANCHORED_KINDS, isStagedOperand, isBrickOperand,
+  LEVEL_KIND, ANCHORED_KINDS, isStagedOperand, isBrickOperand, rearmOf, LEVELS_REARM_DEFAULT,
 } from '../../api/constructedApi';
 import {
   conditionCaption, validateCondition, newCompareCondition, reasonText, fmtNum, unitMismatchHint, operandCaption,
@@ -552,23 +552,116 @@ const LEVELS_LABEL = Object.freeze({
   minStrength: 'MinStrength', breakBuffer: 'BreakBuffer', touchTolerance: 'TouchTolerance', maxRetestBars: 'MaxRetestBars',
   maxDwellBars: 'MaxDwellBars', confirmMode: 'ConfirmMode', runawayAtr: 'RunawayAtr', baseMinBars: 'BaseMinBars',
   maxBaseBars: 'MaxBaseBars', stopBuffer: 'StopBuffer', upgradeStrength: 'UpgradeStrength', upgradeMinTouches: 'UpgradeMinTouches',
+  takeProfitStrength: 'TakeProfitStrength',
 });
 /** Display name of a Levels field (`stopBuffer` → `StopBuffer`, as the backend's labels and the class params). */
 export const levelsFieldLabel = (f) => LEVELS_LABEL[f] || f;
 
-/** The editor spec over the defaults (numbers where given). */
-export const levelsSpecOf = (spec, defaults = LEVELS_DEFAULTS) => Object.fromEntries(LEVELS_KEYS
-  .map((k) => [k, finite(spec?.[k]) ? Number(spec[k]) : defaults[k]]));
+/** The editor spec over the defaults (numbers where given; the bool `rearm`). */
+export const levelsSpecOf = (spec, defaults = LEVELS_DEFAULTS) => ({
+  ...Object.fromEntries(LEVELS_KEYS.map((k) => [k, finite(spec?.[k]) ? Number(spec[k]) : defaults[k]])),
+  rearm: rearmOf(spec, defaults?.rearm ?? LEVELS_REARM_DEFAULT),
+});
 
 /**
- * The non-default Levels params as the backend's LevelsSpec.label(): '' for the defaults, else
- * "(MinStrength 4, StopBuffer 1)".
+ * The Levels spec as the backend's legend line (re-arm round, architect addendum §5): the non-default
+ * params, then `re-arm` / `re-arm (TP 4)` / `no re-arm` - "MinStrength 2, StopBuffer 1, re-arm (TP 4)".
+ * TakeProfitStrength is read only with re-arm, so it shows inside the re-arm part.
  */
 export const levelsSpecLabel = (spec, defaults = LEVELS_DEFAULTS) => {
   const s = levelsSpecOf(spec, defaults);
-  const parts = LEVEL_FIELDS.filter((k) => Number(s[k]) !== Number(defaults[k]))
+  const parts = LEVEL_FIELDS.filter((k) => k !== 'takeProfitStrength' && Number(s[k]) !== Number(defaults[k]))
     .map((k) => `${levelsFieldLabel(k)} ${fmtNum(s[k])}`);
-  return parts.length ? `(${parts.join(', ')})` : '';
+  const tp = Number(s.takeProfitStrength) > 0 ? ` (TP ${fmtNum(s.takeProfitStrength)})` : '';
+  parts.push(s.rearm ? `re-arm${tp}` : 'no re-arm');
+  return parts.join(', ');
+};
+
+/** Identity of a Levels spec (its 15 numbers and `rearm`): equal specs share one Levels pass and one tag. */
+const levelsSpecKey = (spec, defaults = LEVELS_DEFAULTS) => JSON.stringify(levelsSpecOf(spec, defaults));
+
+/** Every Levels spec of a condition, in condition order. */
+const specsOfCondition = (c) => levelsOccurrences(c).map((o) => getAtPath(c, o.path));
+
+/**
+ * The distinct Levels specs of the rules (links applied at the axes' defaults), by first appearance:
+ * `[{key, spec, tag}]`, tag `L1`, `L2`, … (the backend's `@L2` short-label tag).
+ */
+export const levelsSpecsOf = (rules, axes = [], defaults = LEVELS_DEFAULTS) => {
+  const out = [];
+  (rules || []).forEach((r) => (r.conditions || []).forEach((rc) => {
+    const applied = applyLinks(rc?.condition, pruneLinks(rc?.condition, rc?.links), axes);
+    specsOfCondition(applied).forEach((spec) => {
+      const key = levelsSpecKey(spec, defaults);
+      if (!out.some((x) => x.key === key)) out.push({ key, spec: levelsSpecOf(spec, defaults), tag: `L${out.length + 1}` });
+    });
+  }));
+  return out;
+};
+
+/**
+ * Caption options of the rules (short labels, addendum §5): `tagOf(spec)` = `@L2` when the strategy
+ * has more than one distinct Levels spec, else ''.
+ */
+export const levelsCaptionOpts = (rules, axes = [], defaults = LEVELS_DEFAULTS) => {
+  const specs = levelsSpecsOf(rules, axes, defaults);
+  if (specs.length < 2) return {};
+  return { tagOf: (spec) => `@${specs.find((x) => x.key === levelsSpecKey(spec, defaults))?.tag || '?'}` };
+};
+
+/** The Levels legend of the rules, one line per distinct spec: `Levels[L2]: MinStrength 2, re-arm (TP 4)` (`Levels: …` for one spec). */
+export const levelsLegendLines = (rules, axes = [], defaults = LEVELS_DEFAULTS) => {
+  const specs = levelsSpecsOf(rules, axes, defaults);
+  return specs.map((x) => `${specs.length > 1 ? `Levels[${x.tag}]` : 'Levels'}: ${levelsSpecLabel(x.spec, defaults)}`);
+};
+
+/** The link terms as one comparable string (`+$A-$B`), '' when unlinked. */
+const termsKey = (terms) => (Array.isArray(terms) && terms.length
+  ? terms.map((t) => `${t.sign < 0 ? '-' : '+'}${t.axis}`).sort().join('') : '');
+
+/**
+ * Re-arm round (addendum §6, RR5): the Levels take-profit of the replayed class position should be
+ * the strategy's own take-profit - a LongClose rule with `LEVEL RESISTANCE_REACHED(s)`. A warning
+ * (never an error: the rules are free) for each re-arm Levels spec whose TakeProfitStrength (value or
+ * link) matches no such rule, and when there are such rules but the Levels take-profit is 0.
+ */
+export const levelsTakeProfitWarnings = (rules, axes = [], defaults = LEVELS_DEFAULTS) => {
+  const tps = []; // the take-profit rules' strengths {value, link, rule}
+  const levels = []; // the re-arm Levels occurrences {value, link, rule}
+  (rules || []).forEach((r, ri) => {
+    const name = r.id != null ? `R${r.id}` : `rule #${ri + 1}`;
+    (r.conditions || []).forEach((rc) => {
+      const c = rc?.condition;
+      const links = pruneLinks(c, rc?.links);
+      const applied = applyLinks(c, links, axes);
+      if (r.signalType === 'LongClose' && isLevelEvent(applied) && applied.event === 'RESISTANCE_REACHED' && finite(applied.strength)) {
+        tps.push({ value: Number(applied.strength), link: termsKey(links.strength), rule: name });
+      }
+      levelsOccurrences(applied).forEach((o) => {
+        const spec = levelsSpecOf(getAtPath(applied, o.path), defaults);
+        if (!spec.rearm) return;
+        levels.push({ value: Number(spec.takeProfitStrength) || 0, link: termsKey(links[`${o.prefix}levels.takeProfitStrength`]), rule: name });
+      });
+    });
+  });
+  if (!levels.length) return [];
+  const out = [];
+  const same = (a, b) => (a.link && b.link ? a.link === b.link : a.value === b.value);
+  const seen = new Set();
+  levels.forEach((l) => {
+    const key = `${l.value}|${l.link}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    if (l.value > 0 && !tps.some((t) => same(t, l))) {
+      out.push(`Levels re-arm replays a class with take-profit ${fmtNum(l.value)}${l.link ? ' (linked)' : ''} (${l.rule}), `
+        + `but no LongClose rule has LEVEL RESISTANCE_REACHED(${fmtNum(l.value)}): the zones re-arm after exits your strategy does not take. `
+        + 'Link both strengths to one axis ($TakeProfitStrength), or set the Levels TakeProfitStrength to 0.');
+    } else if (l.value === 0 && tps.length) {
+      out.push(`${tps[0].rule} takes profit on LEVEL RESISTANCE_REACHED(${fmtNum(tps[0].value)}), but the re-arm Levels of ${l.rule} `
+        + 'replays a class without take-profit (TakeProfitStrength 0). Set the Levels TakeProfitStrength to the same value or link both to one axis.');
+    }
+  });
+  return out;
 };
 
 const offsetText = (o) => {
@@ -576,15 +669,23 @@ const offsetText = (o) => {
   return off === 0 ? '' : `[−${Math.abs(off)}]`;
 };
 
-/** "LEVEL SUPPORT_LINE", "MAX_SINCE(LEVEL SUPPORT_LINE, LEVEL CONFIRMED_ANY, lag 1)", "RUN close[0]", "1.5". */
-export const anyOperandCaption = (o, evalTf) => {
+/** `@L2` of a Levels spec when the caption options tag specs (several distinct specs), else ''. */
+const tagText = (spec, opts) => (opts?.tagOf ? opts.tagOf(spec) : '');
+
+/**
+ * The backend's SHORT label (re-arm round, addendum §5): "LEVEL SUPPORT_LINE", a brick's Levels
+ * arguments without the `LEVEL` prefix - "MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1)", "RUN close[0]",
+ * "1.5". The spec is never in the label (the legend lists it); `opts.tagOf` adds `@L2`.
+ */
+export const anyOperandCaption = (o, evalTf, opts = {}) => {
   if (!o) return '?';
-  if (o.kind === LEVEL_KIND) return `LEVEL ${o.output || '?'}${offsetText(o)}${levelsSpecLabel(o.levels)}`;
+  if (o.kind === LEVEL_KIND) return `${opts.bare ? '' : 'LEVEL '}${o.output || '?'}${offsetText(o)}${tagText(o.levels, opts)}`;
+  const arg = { ...opts, bare: true };
   if (ANCHORED_KINDS.includes(o.kind)) {
     const lag = o.kind === 'AT_LAST' ? '' : `, lag ${finite(o.lag) ? Number(o.lag) : 0}`;
-    return `${o.kind}(${anyOperandCaption(o.x, evalTf)}, ${anyConditionCaption(o.a, evalTf)}${lag})`;
+    return `${o.kind}(${anyOperandCaption(o.x, evalTf, arg)}, ${anyConditionCaption(o.a, evalTf, arg)}${lag})`;
   }
-  if (o.kind === 'BARS_SINCE') return `BARS_SINCE(${anyConditionCaption(o.a, evalTf)})`;
+  if (o.kind === 'BARS_SINCE') return `BARS_SINCE(${anyConditionCaption(o.a, evalTf, arg)})`;
   return operandCaption(o, evalTf);
 };
 
@@ -593,18 +694,19 @@ export const anyOperandCaption = (o, evalTf) => {
  * `LEVEL RESISTANCE_REACHED(4)`, `WITHIN(LEVEL BREAKOUT_UP, 3)`, `RUN close[0] < AT_LAST(…)`, a
  * channel condition, a plain comparison.
  */
-export const anyConditionCaption = (c, evalTf) => {
+export const anyConditionCaption = (c, evalTf, opts = {}) => {
   if (!c) return '?';
   if (isChannelCondition(c)) return channelConditionCaption(c);
   if (isLevelEvent(c)) {
     const s = eventNeedsStrength(c.event) ? `(${finite(c.strength) ? fmtNum(c.strength) : '?'})` : '';
-    return `LEVEL ${c.event || '?'}${s}${levelsSpecLabel(c.levels)}`;
+    return `${opts.bare ? '' : 'LEVEL '}${c.event || '?'}${s}${tagText(c.levels, opts)}`;
   }
-  if (isWithin(c)) return `WITHIN(${anyConditionCaption(c.of, evalTf)}, ${finite(c.bars) ? Number(c.bars) : '?'})`;
+  const inner = { ...opts, bare: false };
+  if (isWithin(c)) return `WITHIN(${anyConditionCaption(c.of, evalTf, { ...opts, bare: true })}, ${finite(c.bars) ? Number(c.bars) : '?'})`;
   if (c.type === 'COMPARE' && (isStagedOperand(c.left) || isStagedOperand(c.right))) {
     const tol = Number(c.tolerancePct) || 0;
     const factor = tol === 0 ? '' : ` × ${fmtNum(1 + tol / 100, 6)}`;
-    return `${anyOperandCaption(c.left, evalTf)} ${opSymbol(c.op)} ${anyOperandCaption(c.right, evalTf)}${factor}`;
+    return `${anyOperandCaption(c.left, evalTf, inner)} ${opSymbol(c.op)} ${anyOperandCaption(c.right, evalTf, inner)}${factor}`;
   }
   return conditionCaption(c, evalTf);
 };
@@ -632,7 +734,13 @@ export const lastLevelsTemplate = (rules, defaults = LEVELS_DEFAULTS) => {
     });
   }
   const raw = getAtPath(last.rc.condition, last.o.path);
-  return { spec: { ...levelsSpecOf(null, defaults), ...Object.fromEntries(LEVELS_KEYS.filter((k) => raw?.[k] !== undefined).map((k) => [k, raw[k]])) }, links };
+  return {
+    spec: {
+      ...levelsSpecOf(null, defaults),
+      ...Object.fromEntries([...LEVELS_KEYS, 'rearm'].filter((k) => raw?.[k] !== undefined).map((k) => [k, raw[k]])),
+    },
+    links,
+  };
 };
 
 /**
@@ -735,18 +843,18 @@ export const newRuleWithinCondition = (spec) => ({ id: null, condition: newWithi
  * `RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)` (BA §3.2 p. 7);
  * a channel condition: `RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)`.
  */
-export const ruleConditionCaption = (rc, evalTf, axes = []) => {
+export const ruleConditionCaption = (rc, evalTf, axes = [], opts = {}) => {
   const links = pruneLinks(rc?.condition, rc?.links);
   const applied = applyLinks(rc?.condition, links, axes);
-  const text = anyConditionCaption(applied, evalTf);
+  const text = anyConditionCaption(applied, evalTf, opts);
   const notes = linkNotes(links, axes);
   return notes ? `${text} (${notes})` : text;
 };
 
 /** "R2 LongClose: DAY close[0] < DAY SMA(200)[0] AND …" (rule id `R?` for an unsaved rule). */
-export const ruleCaption = (rule, evalTf, axes = []) => {
+export const ruleCaption = (rule, evalTf, axes = [], opts = {}) => {
   const head = `${rule.id != null ? `R${rule.id}` : 'R(new)'} ${rule.signalType}`;
-  const conds = (rule.conditions || []).map((c) => ruleConditionCaption(c, evalTf, axes));
+  const conds = (rule.conditions || []).map((c) => ruleConditionCaption(c, evalTf, axes, opts));
   return `${head}: ${conds.length ? conds.join(' AND ') : '(no conditions)'}`;
 };
 
@@ -858,6 +966,24 @@ const derivedError = (kind, v, opKind = 'SMA') => {
     if (!Number.isInteger(v) || v < min || v > max) return `${kindName(opKind)} ${fmtNum(v)} is not a length ${min}..${max}`;
   } else if (kind === 'TOLERANCE') {
     if (!(Math.abs(v) < TOLERANCE_LIMIT)) return `tolerance ${fmtNum(v)} % is outside (−${TOLERANCE_LIMIT}, ${TOLERANCE_LIMIT})`;
+  }
+  return null;
+};
+
+/** True for a `LEVEL IN_ZONE` operand. */
+const isInZone = (o) => o?.kind === LEVEL_KIND && o.output === 'IN_ZONE';
+
+/**
+ * m8: IN_ZONE is 1 inside a strong zone and NOT MET (no value) outside one, never 0 - so it can only
+ * pass as `IN_ZONE > x` / `≥ x` (or `x < IN_ZONE` / `≤`); the other direction never passes.
+ */
+export const inZoneOperatorError = (x) => {
+  const leftIn = isInZone(x?.left);
+  const rightIn = isInZone(x?.right);
+  if (!leftIn && !rightIn) return null;
+  const up = x.op === 'GT' || x.op === 'GTE';
+  if ((leftIn && !up) || (rightIn && up && !leftIn)) {
+    return 'IN_ZONE never passes in this direction: outside a zone it is "not met", not 0. Use IN_ZONE > 0 or IN_ZONE ≥ 1.';
   }
   return null;
 };
@@ -1190,6 +1316,10 @@ export const validateStagedCondition = (c, ctx = {}) => {
           : 'compare values of one unit (a constant fits any)'));
     }
     if (!OPERATORS.some((o) => o.value === x.op)) errs.push(`${at(path)}: unknown operator`);
+    else {
+      const e = inZoneOperatorError(x);
+      if (e) errs.push(`${at(path)}: ${e}`);
+    }
     if (!finite(x.tolerancePct)) errs.push(`${at(p('tolerancePct'))} must be a number`);
     else if (Math.abs(Number(x.tolerancePct)) >= SCREEN_TOLERANCE_LIMIT) errs.push(`${at(p('tolerancePct'))} must be in (−${SCREEN_TOLERANCE_LIMIT}, ${SCREEN_TOLERANCE_LIMIT})`);
   };
@@ -1430,6 +1560,19 @@ export const reasonsText = (byReason) => Object.entries(byReason || {})
  * The state-rule warning texts of BA spec §4.3 (fallback when the backend sends none). The rule is
  * a state rule by its fire rate in the preview (§4.3 p. 4), not by parsing its conditions.
  */
+/**
+ * m9: an entry rule (LongOpen / ShortOpen) that never fired in the preview window - the server's
+ * banner covers exit rules only. Mostly an anchor brick that is rarely evaluated (e.g. MIN_SINCE over
+ * SETUP_STOP: empty window outside a confirmation; AT_LAST is the brick for the setup lines).
+ */
+export const deadEntryRuleWarning = (rule, bars) => {
+  if (!(bars > 0) || rule.fired > 0 || !(rule.signalType === 'LongOpen' || rule.signalType === 'ShortOpen')) return null;
+  const ne = rule.notEvaluated > 0 ? `; not evaluated on ${ofBars(rule.notEvaluated, bars)}` : '';
+  return `Entry rule never fired on the ${bars} bars of the preview${ne}: the strategy cannot open a position with it. `
+    + 'Check the window and the conditions - a SETUP_STOP / SETUP_ZONE_LINE value exists only on a confirmation bar, so read it '
+    + 'with AT_LAST(…, CONFIRMED_ANY), not MIN_SINCE / MAX_SINCE.';
+};
+
 export const stateRuleWarning = (rule, bars, rate = STATE_RULE_FIRE_RATE) => {
   if (!(bars > 0) || rule.fired / bars <= rate) return null;
   const freq = ofBars(rule.fired, bars);

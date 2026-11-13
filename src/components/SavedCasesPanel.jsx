@@ -45,6 +45,7 @@ const SavedCasesPanel = ({ ticker, casesVersion, onChanged, onLoad, disabled, ru
   const [error, setError] = useState(null);
   const [busyId, setBusyId] = useState(null);       // row being loaded / deleted
   const [watchCase, setWatchCase] = useState(null); // case summary the Create watch dialog is open for
+  const [loaded, setLoaded] = useState(null);       // {id, name} of the case last loaded into the form (owner: show its #id)
   const requestSeq = useRef(0);                     // newest list request; older responses are dropped
   const lastTickerFilter = useRef(undefined);       // ticker of the last request (debounce only ticker edits)
   const [refreshTick, setRefreshTick] = useState(0); // bumped by the ↻ button → immediate refetch
@@ -100,6 +101,7 @@ const SavedCasesPanel = ({ ticker, casesVersion, onChanged, onLoad, disabled, ru
         return;
       }
       onLoad(dto);
+      setLoaded({ id: c.id, name: c.name });
     } catch (err) {
       if (err.status === 404) {
         setError(`Case "${c.name}" no longer exists`);
@@ -169,6 +171,12 @@ const SavedCasesPanel = ({ ticker, casesVersion, onChanged, onLoad, disabled, ru
             Only {ticker.trim() || 'this ticker'}
           </label>
 
+          {loaded && (
+            <p className="mb-2 text-xs text-gray-600" data-testid="loaded-case">
+              Loaded: <span className="font-mono text-gray-500">#{loaded.id}</span> {loaded.name}
+            </p>
+          )}
+
           {error && (
             <div className="mb-2 p-2 rounded bg-red-50 border border-red-200 text-red-700 text-xs" role="alert">
               {error}
@@ -184,10 +192,12 @@ const SavedCasesPanel = ({ ticker, casesVersion, onChanged, onLoad, disabled, ru
           ) : (
             <ul className="max-h-72 overflow-y-auto divide-y divide-gray-100">
               {cases.map((c) => (
-                <li key={c.id} className="py-2" title={c.note || undefined}>
+                <li key={c.id} className={`py-2${loaded?.id === c.id ? ' bg-blue-50' : ''}`} title={c.note || undefined}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="text-sm font-medium text-gray-900 break-words">
+                        {/* owner (2026-11-13): the case id, as used in reports and diagnostics */}
+                        <span className="mr-1 font-mono font-normal text-xs text-gray-500" data-testid="case-id">#{c.id}</span>
                         {c.name}
                         {/* A case of a deleted strategy (a deleted constructed one, Q8, or a removed strategy
                             class replaced by a constructed template, stage 3a #2): loads with a warning, does not run */}

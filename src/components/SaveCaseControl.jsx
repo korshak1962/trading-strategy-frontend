@@ -98,7 +98,7 @@ const SaveCaseControl = ({ mode, jobId, getConfig, onSaved, getCaseMeta, onOpenW
       {!open && (
         <div className="flex items-center gap-3">
           {savedAs && (
-            <span className="text-green-700" role="status">Saved as «{savedAs}»</span>
+            <span className="text-green-700" role="status">Saved as «{savedAs}»{savedCase?.id != null && <span className="ml-1 font-mono text-xs">#{savedCase.id}</span>}</span>
           )}
           {savedCase && (
             <button

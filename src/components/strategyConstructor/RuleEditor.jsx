@@ -21,7 +21,7 @@ import {
 } from '../../api/constructedApi';
 import {
   newRuleCondition, newRuleChannelCondition, newRuleLevelCondition, newRuleWithinCondition, ruleCaption, ruleConditionCaption,
-  linkedThresholdValue, isChannelCondition, withTemplateLinks, SIGNAL_TYPE_CLASS, SIGNAL_TYPE_HINT,
+  linkedThresholdValue, isChannelCondition, withTemplateLinks, SIGNAL_TYPE_CLASS, SIGNAL_TYPE_HINT, levelsCaptionOpts,
 } from './constructedFormat';
 import LinkPicker from './LinkPicker';
 import ChannelConditionRow from './ChannelConditionRow';
@@ -64,6 +64,8 @@ export default function RuleEditor({
   levelsMeta = DEFAULT_LEVELS_META, bricksMeta = DEFAULT_BRICKS_META, levelsTemplate = null, onApplyLevelsToAll = null,
 }) {
   const set = (patch) => onChange({ ...rule, ...patch });
+  // Short labels (re-arm round): a Levels caption carries no spec, `@L2` when the strategy has several specs
+  const capOpts = levelsCaptionOpts(allRules || [rule], axes, levelsMeta?.defaults);
   // An operand change can drop a linkable threshold (SMA → close, CONST → field): its link goes too.
   // Stage 4b: a new Levels occurrence (a side became a Levels value / brick) takes the template's links.
   const setCondition = (i, condition) => set({
@@ -147,7 +149,7 @@ export default function RuleEditor({
             errors: errors?.conditions?.[i] || [],
             onRemove: () => removeCondition(i),
             onMove: (d) => moveCondition(i, d),
-            caption: ruleConditionCaption(c, evalTf, axes),
+            caption: ruleConditionCaption(c, evalTf, axes, capOpts),
             linkedValue: (suffix) => linkedThresholdValue(c, suffix, axes),
             renderLink: (suffix) => (
               <LinkPicker
@@ -217,7 +219,7 @@ export default function RuleEditor({
         </button>
         <span className="text-xs text-gray-500">Conditions are AND-ed. For OR add another rule with the same signal type.</span>
       </div>
-      <div className="mt-2 text-xs font-mono text-gray-700" data-testid="rule-caption">{ruleCaption(rule, evalTf, axes)}</div>
+      <div className="mt-2 text-xs font-mono text-gray-700" data-testid="rule-caption">{ruleCaption(rule, evalTf, axes, capOpts)}</div>
       {stats && (
         <div className="mt-1 text-xs text-gray-600" data-testid="rule-inline-stats">
           Last preview: fired {stats.fired} of {stats.bars} bars

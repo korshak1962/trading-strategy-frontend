@@ -122,13 +122,34 @@ export const DEFAULT_CHANNEL_META = Object.freeze({
 
 // ---- Levels and sequence bricks (stage 4b) ----
 
-/** The linkable LevelsSpec fields (architect §2.3), in the backend's order. */
+/**
+ * The linkable (numeric) LevelsSpec fields (architect §2.3), in the backend's order. Re-arm round
+ * (architect_constructor_stage4b_rearm.md §3 + owner's edit): `takeProfitStrength` (0 = none; read
+ * only with `rearm`). No `regimeSmaLength`: the regime filter stays a separate rule condition.
+ */
 export const LEVEL_FIELDS = Object.freeze(['minStrength', 'breakBuffer', 'touchTolerance', 'maxRetestBars', 'maxDwellBars',
-  'confirmMode', 'runawayAtr', 'baseMinBars', 'maxBaseBars', 'stopBuffer', 'upgradeStrength', 'upgradeMinTouches']);
+  'confirmMode', 'runawayAtr', 'baseMinBars', 'maxBaseBars', 'stopBuffer', 'upgradeStrength', 'upgradeMinTouches',
+  'takeProfitStrength']);
 /** Fixed in stage 4b (shown, never edited or linked). */
 export const LEVELS_FIXED = Object.freeze({ warmupBars: 60, atrLength: 14 });
-/** Every field of the canonical LevelsSpec (14). */
+/** Every numeric field of the canonical LevelsSpec (15; plus the bool `rearm`). */
 export const LEVELS_KEYS = Object.freeze([...LEVEL_FIELDS, 'warmupBars', 'atrLength']);
+/** Re-arm after the class's own (solo, virtual) stop / support break: a structural switch, never an axis. */
+export const LEVELS_REARM_DEFAULT = true;
+/** Fields the Levels pass reads only with `rearm` (the virtual position of the class). */
+export const LEVELS_REARM_FIELDS = Object.freeze(['stopBuffer', 'upgradeStrength', 'upgradeMinTouches', 'takeProfitStrength']);
+export const LEVELS_REARM_HINT = 'Re-arm after stop / support break (class behaviour): Levels replays the LevelBreakoutRetest '
+  + 'class\'s own solo position (entry on each confirmation while flat, exit on its stop / support break / take-profit) and '
+  + 're-arms the zone after a stop or a support break, as the class does. The replay follows the solo class, not your '
+  + 'strategy\'s trades (stage 4c). Off = a zone confirms once, as before.';
+/** The bool `rearm` of a spec (a bool, 'true' / 'false' or 1 / 0), else the fallback. */
+export const rearmOf = (spec, fallback = LEVELS_REARM_DEFAULT) => {
+  const v = spec?.rearm;
+  if (typeof v === 'boolean') return v;
+  if (v === 'true' || v === 1 || v === '1') return true;
+  if (v === 'false' || v === 0 || v === '0') return false;
+  return fallback !== false;
+};
 export const STRENGTH_MAX = 50;
 export const WITHIN_BARS_MAX = 250;
 export const LAG_MAX = 10;
@@ -152,10 +173,13 @@ export const LEVELS_PARAMS = Object.freeze([
   lp('stopBuffer', 0.5, 0, 5, true, false, 'SETUP_STOP below the zone (or the retest low), ATR multiples', false),
   lp('upgradeStrength', 3, 0, 50, false, false, 'Strength a zone needs to become SUPPORT_LINE', false),
   lp('upgradeMinTouches', 2, 1, 20, true, true, 'Touches a zone needs to become SUPPORT_LINE', false),
+  lp('takeProfitStrength', 0, 0, 50, true, false, 'Re-arm only: take-profit of the replayed class position, '
+    + 'RESISTANCE_REACHED of this strength (0 = none). Keep it equal to your take-profit rule\'s strength', false),
 ]);
 export const LEVELS_DEFAULTS = Object.freeze({
   ...Object.fromEntries(LEVELS_PARAMS.map((p) => [p.name, p.defaultValue])),
   ...LEVELS_FIXED,
+  rearm: LEVELS_REARM_DEFAULT,
 });
 export const LEVEL_EVENTS = Object.freeze([
   { name: 'BREAKOUT_UP', needsStrength: false, hint: 'Close crossed above a tracked zone + BreakBuffer x ATR' },
@@ -169,7 +193,7 @@ export const LEVEL_EVENTS = Object.freeze([
   { name: 'RESISTANCE_REACHED', needsStrength: true, hint: 'Close reached the nearest resistance zone of this strength' },
 ]);
 export const LEVEL_OUTPUTS = Object.freeze([
-  { name: 'IN_ZONE', unit: 'RATIO', hint: '1 when the close is inside a strong zone' },
+  { name: 'IN_ZONE', unit: 'RATIO', hint: '1 when the close is inside a strong zone; outside one the value is "not met" (not 0), so compare only with > / ≥ (IN_ZONE > 0)' },
   { name: 'SETUP_STOP', unit: 'PRICE', hint: 'On a confirmation bar: the setup stop (zone or retest low - StopBuffer x ATR)' },
   { name: 'SETUP_ZONE_LINE', unit: 'PRICE', hint: 'On a confirmation bar: zone low - BreakBuffer x ATR' },
   { name: 'SUPPORT_LINE', unit: 'PRICE', hint: 'Highest strong zone fully below the close - BreakBuffer x ATR (the sticky-support candidate)' },
@@ -185,6 +209,7 @@ export const DEFAULT_LEVELS_META = Object.freeze({
   runTimeframes: LEVELS_RUN_TFS,
   defaults: LEVELS_DEFAULTS,
   strengthMax: STRENGTH_MAX,
+  rearmHint: LEVELS_REARM_HINT,
 });
 export const BRICK_KINDS = Object.freeze([
   { name: 'WITHIN', form: 'CONDITION', hasX: false, hasLag: false, unit: null, hint: 'PASS when the event passed on one of the last k bars' },
@@ -223,11 +248,18 @@ export const normalizeLevelsMeta = (m) => {
     hint: x.hint || f.hint || '',
     inPass: typeof x.inPass === 'boolean' ? x.inPass : !!f.inPass,
   })).filter((x) => LEVEL_FIELDS.includes(x.name));
+  // a backend without a field (takeProfitStrength before the re-arm round) keeps the fallback entry
+  if (params.length) LEVELS_PARAMS.filter((f) => !params.some((x) => x.name === f.name)).forEach((f) => params.push({ ...f }));
   const fixed = { ...LEVELS_FIXED };
   Object.keys(fixed).forEach((k) => { fixed[k] = finiteOr(m.fixed?.[k], fixed[k]); });
   const defaults = { ...LEVELS_DEFAULTS, ...fixed };
   params.forEach((p) => { defaults[p.name] = p.defaultValue; });
   LEVELS_KEYS.forEach((k) => { defaults[k] = finiteOr(m.defaults?.[k], defaults[k]); });
+  // re-arm round: the bool default from meta.levels.defaults.rearm, a `rearm` param entry, or `rearmDefault`
+  const rearmParam = Array.isArray(m.params) ? m.params.find((x) => x && x.name === 'rearm') : null;
+  const rearmRaw = m.defaults?.rearm ?? rearmParam?.defaultValue ?? rearmParam?.default ?? m.rearmDefault;
+  defaults.rearm = rearmRaw == null ? LEVELS_REARM_DEFAULT : rearmOf({ rearm: rearmRaw });
+  const rearmHint = (typeof m.rearmHint === 'string' && m.rearmHint) || rearmParam?.hint || LEVELS_REARM_HINT;
   return {
     events: events.length ? events : [...LEVEL_EVENTS],
     outputs: outputs.length ? outputs : [...LEVEL_OUTPUTS],
@@ -236,6 +268,7 @@ export const normalizeLevelsMeta = (m) => {
     runTimeframes: Array.isArray(m.runTimeframes) && m.runTimeframes.length ? m.runTimeframes : [...LEVELS_RUN_TFS],
     defaults,
     strengthMax: finiteOr(m.strengthMax, STRENGTH_MAX),
+    rearmHint,
   };
 };
 
@@ -599,12 +632,20 @@ export const pruneLinks = (condition, links) => {
 
 // ---- stage 4b wire shapes (nested `levels` / `of` / `x` / `a`) ----
 
-/** Editor LevelsSpec → LevelsSpecDTO (all 14 fields; a blank one goes as null = the default). */
-const toLevelsDTO = (s) => Object.fromEntries(LEVELS_KEYS.map((k) => [k, numOr(s?.[k])]));
+/** Editor LevelsSpec → LevelsSpecDTO (all 15 numeric fields, a blank one as null = the default; `rearm` always explicit). */
+const toLevelsDTO = (s) => ({
+  ...Object.fromEntries(LEVELS_KEYS.map((k) => [k, numOr(s?.[k])])),
+  rearm: rearmOf(s),
+});
 
-/** LevelsSpecDTO (partial or absent) → the editor spec, every field filled from the defaults. */
-export const fromLevelsDTO = (s, defaults = LEVELS_DEFAULTS) => Object.fromEntries(LEVELS_KEYS
-  .map((k) => [k, s?.[k] != null && s[k] !== '' ? s[k] : defaults[k]]));
+/**
+ * LevelsSpecDTO (partial or absent) → the editor spec, every field filled from the defaults. A
+ * stored spec without `rearm` (a pre-re-arm version) reads as the default (on, OR2).
+ */
+export const fromLevelsDTO = (s, defaults = LEVELS_DEFAULTS) => ({
+  ...Object.fromEntries(LEVELS_KEYS.map((k) => [k, s?.[k] != null && s[k] !== '' ? s[k] : defaults[k]])),
+  rearm: rearmOf(s, defaults.rearm),
+});
 
 /** Editor operand → OperandDTO, the stage 4b kinds included. */
 const toAnyOperandDTO = (o) => {
@@ -803,7 +844,8 @@ export const normalizeTemplate = (t) => ({
   // stage 4b: create options (`level-breakout-bricks`: takeProfit / regime); the definition is the no-option variant
   options: (Array.isArray(t?.options) ? t.options : [])
     .filter((o) => o && typeof o.key === 'string' && o.key)
-    .map((o) => ({ key: o.key, label: o.label || o.key, hint: o.hint || '' })),
+    // re-arm round: `defaultValue` (bool) = the option's initial state in the dialog (`rearm` on)
+    .map((o) => ({ key: o.key, label: o.label || o.key, hint: o.hint || '', defaultValue: o.defaultValue === true })),
 });
 
 /** ReferencesDTO `{cases[{id,name,version}], watches[{id,name,status}], profiles[{ticker,timeframe,strategyKey}]}`. */
@@ -855,6 +897,8 @@ export const normalizePreview = (p) => {
     })),
     sweepThresholds: isNum(p.sweepThresholds) ? p.sweepThresholds : 0,
     warnings: (Array.isArray(p.warnings) ? p.warnings : []).filter((w) => typeof w === 'string' && w),
+    // re-arm round (m7): one line per Levels spec, `Levels[L2]: MinStrength 2, StopBuffer 1, re-arm (TP 4)`
+    levelsLegend: (Array.isArray(p.levelsLegend) ? p.levelsLegend : []).filter((x) => typeof x === 'string' && x),
   };
 };
 

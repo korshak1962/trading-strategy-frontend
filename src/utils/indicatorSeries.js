@@ -136,6 +136,15 @@ export const buildSeriesList = (chartDataDTO) => {
 /** Display name of a series entry (legend, chips, tooltip). */
 export const seriesLabel = (series) => series?.label || series?.name || '';
 
+/** Legend chips / tooltip rows keep at most this many characters (m7: rule-line keys up to 64). */
+export const SERIES_LABEL_MAX = 40;
+
+/** `text` cut to `max` characters with a trailing ellipsis (the full text goes in a title). */
+export const truncateLabel = (text, max = SERIES_LABEL_MAX) => {
+  const t = String(text ?? '');
+  return t.length > max ? `${t.slice(0, Math.max(1, max - 1))}…` : t;
+};
+
 /** Ids selected for a fresh result: every series except the default-hidden ones. */
 export const defaultSelectedIds = (seriesList) =>
   new Set((seriesList || []).filter(series => !series.defaultHidden).map(series => series.id));
