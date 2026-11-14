@@ -193,7 +193,7 @@ export const LEVEL_EVENTS = Object.freeze([
   { name: 'RESISTANCE_REACHED', needsStrength: true, hint: 'Close reached the nearest resistance zone of this strength' },
 ]);
 export const LEVEL_OUTPUTS = Object.freeze([
-  { name: 'IN_ZONE', unit: 'RATIO', hint: '1 when the close is inside a strong zone; outside one the value is "not met" (not 0), so compare only with > / ≥ (IN_ZONE > 0)' },
+  { name: 'IN_ZONE', unit: 'RATIO', hint: '1 when the close is inside a strong zone; outside one the value is "not met" (not 0), so a comparison must hold at 1 (IN_ZONE > 0, IN_ZONE ≥ 1)' },
   { name: 'SETUP_STOP', unit: 'PRICE', hint: 'On a confirmation bar: the setup stop (zone or retest low - StopBuffer x ATR)' },
   { name: 'SETUP_ZONE_LINE', unit: 'PRICE', hint: 'On a confirmation bar: zone low - BreakBuffer x ATR' },
   { name: 'SUPPORT_LINE', unit: 'PRICE', hint: 'Highest strong zone fully below the close - BreakBuffer x ATR (the sticky-support candidate)' },

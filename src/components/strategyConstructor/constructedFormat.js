@@ -973,19 +973,34 @@ const derivedError = (kind, v, opKind = 'SMA') => {
 /** True for a `LEVEL IN_ZONE` operand. */
 const isInZone = (o) => o?.kind === LEVEL_KIND && o.output === 'IN_ZONE';
 
+/** The value a side has at a bar inside a zone: 1 for IN_ZONE, a finite constant, else null (unknown). */
+const inZoneSideValue = (o) => {
+  if (isInZone(o)) return 1;
+  if (o?.kind === CONST_KIND && o.value !== '' && o.value != null && Number.isFinite(Number(o.value))) return Number(o.value);
+  return null;
+};
+
+/** `a op b` as the evaluator compares (left op right × (1 + tolerance / 100)). */
+const compareHolds = (a, op, b) => (op === 'GT' ? a > b : op === 'GTE' ? a >= b : op === 'LT' ? a < b : op === 'LTE' ? a <= b : true);
+
 /**
- * m8: IN_ZONE is 1 inside a strong zone and NOT MET (no value) outside one, never 0 - so it can only
- * pass as `IN_ZONE > x` / `≥ x` (or `x < IN_ZONE` / `≤`); the other direction never passes.
+ * m8 (minor #25): IN_ZONE is 1 inside a strong zone and NOT MET (no value) outside one, never 0 - so
+ * a comparison with IN_ZONE can only pass inside a zone, at value 1. It is rejected when it is false
+ * at 1 against a constant (or IN_ZONE on both sides): `IN_ZONE < 1`, `IN_ZONE > 1`, `1 > IN_ZONE`.
+ * `IN_ZONE ≤ 1`, `IN_ZONE < 2`, `2 > IN_ZONE`, `IN_ZONE > 0` hold at 1 and pass. Against a non-constant
+ * operand the outcome depends on the bar, so nothing is rejected. `x` has the links applied.
  */
 export const inZoneOperatorError = (x) => {
   const leftIn = isInZone(x?.left);
   const rightIn = isInZone(x?.right);
   if (!leftIn && !rightIn) return null;
-  const up = x.op === 'GT' || x.op === 'GTE';
-  if ((leftIn && !up) || (rightIn && up && !leftIn)) {
-    return 'IN_ZONE never passes in this direction: outside a zone it is "not met", not 0. Use IN_ZONE > 0 or IN_ZONE ≥ 1.';
-  }
-  return null;
+  const a = inZoneSideValue(x.left);
+  const r = inZoneSideValue(x.right);
+  if (a == null || r == null || !finite(x.tolerancePct)) return null;
+  const b = r * (1 + (Number(x.tolerancePct) || 0) / 100);
+  if (compareHolds(a, x.op, b)) return null;
+  return `${anyOperandCaption(x.left)} ${opSymbol(x.op)} ${anyOperandCaption(x.right)} never passes: IN_ZONE is 1 inside a zone `
+    + 'and "not met" (not 0) outside one, and the comparison is false at 1. Use e.g. IN_ZONE > 0 or IN_ZONE ≥ 1.';
 };
 
 /** The meta.levels param of a Levels field (range / integer), from `params` or the fallback. */
