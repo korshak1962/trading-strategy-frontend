@@ -4,27 +4,50 @@
 //   MetricConditionRow  - CHANNEL_METRIC: TF, level (0 current / 1 parent / 2 grandparent), metric, min, max
 //   CompareConditionRow - COMPARE: left operand, operator, right operand (or constant), tolerance %
 // Each row shows its live caption and its validation errors.
+// Editor UX Stage A (screener logs/agents/architect.md §3.2, §5.1): a row heading with an ⓘ
+// ("COMPARE", "CHANNEL", …), headings above every control, the compare grid "Left value · Op ·
+// Right value · Tolerance %" (controls aligned at the bottom, the right group wraps as a whole), and a
+// help line. The code caption under the row is unchanged (Stage B replaces it).
 import { METRICS, OPERATORS, SCREEN_TFS, LEVELS } from '../../api/screenerApi';
+import { useEditorHelp, firstSentence, CHANNEL_HELP, RULE_TEXTS } from '../../api/editorTexts';
+import { sourceTooltipOf, compareHelpLine } from '../strategyConstructor/operandSource';
+import InfoTooltip from '../common/InfoTooltip';
+import FieldLabel from '../common/FieldLabel';
 import OperandPicker from './OperandPicker';
 import { conditionCaption, fmtNum, operandUnit } from './conditionFormat';
 
 const sel = 'p-1 border rounded text-sm bg-white';
 const LEVEL_LABEL = { 0: '0 · current', 1: '1 · parent', 2: '2 · grandparent' };
 
-/**
- * The frame of a condition row (number, controls, move / remove, caption, errors); also used by the
- * constructor's ChannelConditionRow. `bare` (constructor stage 4b: a condition nested in a sequence
- * brick or WITHIN) renders the controls only - no number, move / remove, caption or errors.
- */
-export function RowShell({ index, caption, errors, onRemove, onMove, count, disabled, children, testId, bare = false }) {
-  if (bare) {
-    return <span className="inline-flex flex-wrap items-center gap-2" data-testid={testId}>{children}</span>;
-  }
+/** A row heading: "COMPARE ⓘ" in the row's colour. */
+export function RowHeading({ text, tooltip, className = 'text-gray-600', testId }) {
   return (
-    <div className="border rounded p-3 bg-gray-50" data-testid={testId}>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold text-gray-500 w-5">{index + 1}.</span>
-        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">{children}</div>
+    <span className={`text-xs font-semibold uppercase tracking-wide ${className}`} data-testid={testId}>
+      {text}
+      <InfoTooltip text={tooltip} editor align="left" />
+    </span>
+  );
+}
+
+/**
+ * The frame of a condition row (number, heading, controls, move / remove, caption, errors); also used
+ * by the constructor's rows. `bare` (constructor stage 4b: a condition nested in a sequence brick or
+ * WITHIN) renders the controls only - no number, move / remove, caption or errors.
+ * `heading` (Stage A): `{text, tooltip, className}` shown above the controls.
+ */
+export function RowShell({ index, caption, errors, onRemove, onMove, count, disabled, children, testId, bare = false, heading = null, help = null }) {
+  if (bare) {
+    return <span className="inline-flex flex-wrap items-end gap-x-2 gap-y-1" data-testid={testId}>{children}</span>;
+  }
+  const hasErrors = errors?.length > 0;
+  return (
+    <div className={`border rounded p-3 bg-gray-50 ${hasErrors ? 'border-red-300' : ''}`} data-testid={testId}>
+      <div className="flex flex-wrap items-start gap-2">
+        <span className="text-xs font-semibold text-gray-500 w-5 pt-0.5">{index + 1}.</span>
+        <div className="flex flex-col gap-1 flex-1 min-w-0">
+          {heading && <RowHeading text={heading.text} tooltip={heading.tooltip} className={hasErrors ? 'text-red-700' : heading.className} />}
+          <div className="flex flex-wrap items-end gap-x-3 gap-y-2 min-w-0">{children}</div>
+        </div>
         <div className="flex items-center gap-1">
           <button type="button" className="px-1.5 text-gray-500 hover:text-gray-800 disabled:text-gray-300"
             disabled={disabled || index === 0} onClick={() => onMove(-1)} title="Move up" aria-label="Move up">↑</button>
@@ -34,8 +57,9 @@ export function RowShell({ index, caption, errors, onRemove, onMove, count, disa
             disabled={disabled} onClick={onRemove} title="Remove the condition" aria-label="Remove">✕</button>
         </div>
       </div>
+      {help && <div className="mt-1 ml-7 text-[11px] text-gray-500" data-testid="condition-help">{help}</div>}
       <div className="mt-1 ml-7 text-xs font-mono text-gray-700" data-testid="condition-caption">{caption}</div>
-      {errors?.length > 0 && (
+      {hasErrors && (
         <ul className="mt-1 ml-7 text-xs text-red-600 list-disc list-inside">
           {errors.map((e) => <li key={e}>{e}</li>)}
         </ul>
@@ -45,34 +69,55 @@ export function RowShell({ index, caption, errors, onRemove, onMove, count, disa
 }
 
 export function MetricConditionRow({ condition, onChange, evalTf, ...shell }) {
+  const editorHelp = useEditorHelp();
   const set = (patch) => onChange({ ...condition, ...patch });
   const metric = METRICS.find((m) => m.value === condition.metric);
+  const mh = (m) => editorHelp.metrics[m.value] || {};
+  const tfHelp = editorHelp.operand.timeframes;
   return (
-    <RowShell {...shell} caption={conditionCaption(condition, evalTf)} testId="metric-condition">
-      <span className="text-xs font-semibold text-indigo-700">Channel</span>
-      <select className={sel} value={condition.tf} disabled={shell.disabled} onChange={(e) => set({ tf: e.target.value })} aria-label="timeframe">
-        {SCREEN_TFS.map((tf) => <option key={tf} value={tf}>{tf}</option>)}
-      </select>
-      <select className={sel} value={condition.level} disabled={shell.disabled}
-        onChange={(e) => set({ level: parseInt(e.target.value, 10) })} aria-label="level">
-        {LEVELS.map((l) => <option key={l} value={l}>{LEVEL_LABEL[l]}</option>)}
-      </select>
-      <select className={sel} value={condition.metric} disabled={shell.disabled} onChange={(e) => set({ metric: e.target.value })}
-        aria-label="metric" title={metric?.hint}>
-        {METRICS.map((m) => <option key={m.value} value={m.value} title={m.hint}>{m.label}</option>)}
-      </select>
-      <label className="inline-flex items-center gap-1 text-xs text-gray-600">
-        min
+    <RowShell {...shell} caption={conditionCaption(condition, evalTf)} testId="metric-condition"
+      heading={{ text: 'Channel', tooltip: CHANNEL_HELP.source, className: 'text-indigo-700' }}
+      help={firstSentence(mh(metric || {}).tooltip || metric?.hint)}>
+      <FieldLabel label="Timeframe" tooltip={CHANNEL_HELP.tf}>
+        <select className={sel} value={condition.tf} disabled={shell.disabled} onChange={(e) => set({ tf: e.target.value })} aria-label="timeframe">
+          {SCREEN_TFS.map((tf) => <option key={tf} value={tf}>{tfHelp[tf]?.label || tf}</option>)}
+        </select>
+      </FieldLabel>
+      <FieldLabel label="Channel" tooltip={CHANNEL_HELP.level}>
+        <select className={sel} value={condition.level} disabled={shell.disabled}
+          onChange={(e) => set({ level: parseInt(e.target.value, 10) })} aria-label="level">
+          {LEVELS.map((l) => <option key={l} value={l}>{CHANNEL_HELP[`level.${l}`] || LEVEL_LABEL[l]}</option>)}
+        </select>
+      </FieldLabel>
+      <FieldLabel label="Metric" tooltip={CHANNEL_HELP.metric}>
+        <select className={sel} value={condition.metric} disabled={shell.disabled} onChange={(e) => set({ metric: e.target.value })}
+          aria-label="metric" title={mh(metric || {}).tooltip || metric?.hint}>
+          {METRICS.map((m) => <option key={m.value} value={m.value} title={mh(m).tooltip || m.hint}>{mh(m).label || m.menuLabel || m.label}</option>)}
+        </select>
+      </FieldLabel>
+      <FieldLabel label="Min" tooltip={CHANNEL_HELP.min}>
         <input type="number" step="any" className="p-1 border rounded text-sm w-20" value={condition.min}
           disabled={shell.disabled} onChange={(e) => set({ min: e.target.value })} aria-label="min" />
-      </label>
-      <label className="inline-flex items-center gap-1 text-xs text-gray-600">
-        max
+      </FieldLabel>
+      <FieldLabel label="Max" tooltip={CHANNEL_HELP.max}>
         <input type="number" step="any" className="p-1 border rounded text-sm w-20" value={condition.max}
           disabled={shell.disabled} onChange={(e) => set({ max: e.target.value })} aria-label="max" />
-      </label>
-      {metric?.unit && <span className="text-xs text-gray-500">{metric.unit}</span>}
+      </FieldLabel>
+      {metric?.unit && <span className="text-xs text-gray-500 pb-1">{metric.unit}</span>}
     </RowShell>
+  );
+}
+
+/** A titled group of the compare grid ("Left value", "Right value"). */
+function ValueGroup({ title, tooltip, children, testId }) {
+  return (
+    <div className="inline-flex flex-col gap-0.5 min-w-0" data-testid={testId}>
+      <span className="text-xs font-semibold text-gray-600">
+        {title}
+        <InfoTooltip text={tooltip} editor align="left" />
+      </span>
+      <div className="inline-flex flex-wrap items-end gap-x-2 gap-y-1">{children}</div>
+    </div>
   );
 }
 
@@ -88,13 +133,16 @@ export function MetricConditionRow({ condition, onChange, evalTf, ...shell }) {
  *   renderOperand({side, value, onChange, picker, otherUnit}) - stage 4b: renders a side itself
  *                         (a Levels value or a sequence brick); `picker` is the default OperandPicker
  *   bare                - no frame (a condition nested in a brick / WITHIN)
+ *   help                - the help line under the row (Stage A; default: the sides' Source tooltips)
  * Length ranges, defaults and units come from the indicator descriptors (indicatorCatalog.js).
  * The right side offers only kinds of the left side's unit (or a constant).
  */
 export function CompareConditionRow({
   condition, onChange, evalTf, allowRun = false, renderLink = null, linkedValue = null, caption = null,
-  runTf = null, renderOperand = null, ...shell
+  runTf = null, renderOperand = null, help = null, ...shell
 }) {
+  const editorHelp = useEditorHelp();
+  const oh = editorHelp.operand;
   const set = (patch) => onChange({ ...condition, ...patch });
   const sideProps = (side) => ({
     allowRun,
@@ -115,27 +163,31 @@ export function CompareConditionRow({
     });
   };
   const tolLinked = linkedValue ? linkedValue('tolerancePct') : null;
+  const op = oh.operators[condition.op];
   return (
-    <RowShell {...shell} caption={caption ?? conditionCaption(condition, evalTf)} testId="compare-condition">
-      <span className="text-xs font-semibold text-teal-700">Compare</span>
-      {sideEditor('left')}
-      <select className={sel} value={condition.op} disabled={shell.disabled} onChange={(e) => set({ op: e.target.value })} aria-label="operator">
-        {OPERATORS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-      {sideEditor('right')}
-      <label className="inline-flex items-center gap-1 text-xs text-gray-600"
-        title="right × (1 + tolerance / 100). Plus makes > stricter (breakout with a margin), minus loosens it.">
-        tolerance
-        {tolLinked != null ? (
-          <span className="px-1.5 py-1 border rounded text-sm bg-indigo-50 border-indigo-300 text-indigo-900 font-mono"
-            title="Linked: the tolerance comes from the axes" data-testid="linked-tolerance">{fmtNum(tolLinked)}</span>
-        ) : (
-          <input type="number" step="0.1" className="p-1 border rounded text-sm w-16" value={condition.tolerancePct}
-            disabled={shell.disabled} onChange={(e) => set({ tolerancePct: e.target.value })} aria-label="tolerance %" />
-        )}
-        %
-      </label>
-      {renderLink?.('tolerancePct')}
+    <RowShell {...shell} caption={caption ?? conditionCaption(condition, evalTf)} testId="compare-condition"
+      heading={{ text: 'Compare', tooltip: RULE_TEXTS.rowCompare, className: 'text-teal-700' }}
+      help={help ?? compareHelpLine([sourceTooltipOf(condition.left), sourceTooltipOf(condition.right)])}>
+      <ValueGroup title="Left value" tooltip={oh.help.leftValue} testId="compare-left">{sideEditor('left')}</ValueGroup>
+      <FieldLabel label="Op" tooltip={oh.help.op} align="center">
+        <select className={sel} value={condition.op} disabled={shell.disabled} onChange={(e) => set({ op: e.target.value })} aria-label="operator"
+          title={op?.tooltip}>
+          {OPERATORS.map((o) => <option key={o.value} value={o.value} title={oh.operators[o.value]?.tooltip}>{oh.operators[o.value]?.menuLabel || o.menuLabel || o.label}</option>)}
+        </select>
+      </FieldLabel>
+      <ValueGroup title="Right value" tooltip={oh.help.rightValue} testId="compare-right">{sideEditor('right')}</ValueGroup>
+      <FieldLabel label="Tolerance %" tooltip={oh.help.tolerancePct} align="right">
+        <span className="inline-flex items-center gap-1 text-xs text-gray-600">
+          {tolLinked != null ? (
+            <span className="px-1.5 py-1 border rounded text-sm bg-indigo-50 border-indigo-300 text-indigo-900 font-mono"
+              title="Linked: the tolerance comes from the axes" data-testid="linked-tolerance">{fmtNum(tolLinked)}</span>
+          ) : (
+            <input type="number" step="0.1" className="p-1 border rounded text-sm w-16" value={condition.tolerancePct}
+              disabled={shell.disabled} onChange={(e) => set({ tolerancePct: e.target.value })} aria-label="tolerance %" />
+          )}
+          {renderLink?.('tolerancePct')}
+        </span>
+      </FieldLabel>
     </RowShell>
   );
 }
