@@ -11,15 +11,9 @@ import {
 import ConstructedAttempts from './strategyConstructor/ConstructedAttempts';
 import { getConstructedVersionCached } from '../api/constructedApi';
 import useChannelMetrics from './strategyConstructor/useChannelMetrics';
+// shared hover/focus tooltip (editor UX Stage A: extracted to common/, same markup and classes)
+import InfoTooltip from './common/InfoTooltip';
 
-// Small hover/focus tooltip: an "i" icon followed by a floating description box (CSS-driven,
-// see .param-info-icon / .param-tooltip in StrategyConfig.css).
-const InfoTooltip = ({ text }) => (
-  <span className="param-tooltip-anchor">
-    <span className="param-info-icon" tabIndex={0} role="img" aria-label="info">i</span>
-    <span className="param-tooltip" role="tooltip">{text}</span>
-  </span>
-);
 
 // Optimize mode: a small chip on params whose range came from the applied parameter profile
 // (screener BA-021 §8.4). Read-only display; editing the range removes the chip.

@@ -15,6 +15,7 @@
 // Fallback before / without a meta: the bar fields + SMA (stage 3a behaviour).
 
 import { useSyncExternalStore } from 'react';
+import { INDICATOR_TEXTS } from './editorTexts';
 
 /** Bar-field operand kinds (no parameter; unit PRICE, VOLUME for volume). */
 export const FIELD_KINDS = Object.freeze(['OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME']);
@@ -81,6 +82,12 @@ export function normalizeIndicator(d) {
     timeframes: Array.isArray(d.timeframes) ? d.timeframes : [],
     runTimeframes: Array.isArray(d.runTimeframes) && d.runTimeframes.length ? d.runTimeframes : [...ALL_RUN_TFS],
     linearInNextClose: d.linearInNextClose === true,
+    // editor UX Stage A: the Source-menu name and the ⓘ text (new keys; displayName / description
+    // stay for captions, titles and the Indicators Chart)
+    menuLabel: (typeof d.menuLabel === 'string' && d.menuLabel) || INDICATOR_TEXTS[d.name]?.menuLabel
+      || (typeof d.displayName === 'string' && d.displayName) || d.name,
+    tooltip: (typeof d.tooltip === 'string' && d.tooltip) || INDICATOR_TEXTS[d.name]?.tooltip
+      || (typeof d.description === 'string' ? d.description : ''),
   };
 }
 

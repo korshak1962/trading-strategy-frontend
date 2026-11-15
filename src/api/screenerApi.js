@@ -10,28 +10,37 @@
 
 import { apiRequest, readJson, jsonBody, enc } from './httpClient';
 import { hasLength, setIndicatorCatalog } from './indicatorCatalog';
+import { CHANNEL_METRIC_TEXTS, OPERATOR_TEXTS, setEditorHelp } from './editorTexts';
 
 const API_BASE_URL = '/api/screener';
 
 // ---- static contract (fallbacks when /meta is absent or partial) ----
 
-export const METRICS = Object.freeze([
+// `label` feeds the screener captions (metricLabel) and stays; `menuLabel` / `tooltip` are the
+// editor UX Stage A menu texts (meta.metricHelp over the fallbacks of editorTexts.js).
+const withMetricTexts = (list) => list.map((m) => ({
+  ...m,
+  menuLabel: CHANNEL_METRIC_TEXTS[m.value]?.label || m.label,
+  tooltip: CHANNEL_METRIC_TEXTS[m.value]?.tooltip || m.hint,
+}));
+export const METRICS = Object.freeze(withMetricTexts([
   { value: 'WIDTH_PCT', label: 'Width %', unit: '%', hint: 'Upper line above the lower one by this many % of price' },
   { value: 'SLOPE_PCT_YEAR', label: 'Slope %/year', unit: '%/yr', hint: 'Signed annualized slope, e.g. -30 = falling 30 % a year' },
   { value: 'POSITION', label: 'Position', unit: '', hint: '0 = at the lower line, 1 = at the upper line; not clipped (<0 below, >1 above)' },
   { value: 'AGE_BARS', label: 'Age (bars)', unit: 'bars', hint: 'Bars since the channel start (not since its confirmation)' },
   { value: 'TOUCHES_UPPER', label: 'Touches upper', unit: '', hint: 'Bars whose high touched the upper line (within 0.1 ATR)' },
   { value: 'TOUCHES_LOWER', label: 'Touches lower', unit: '', hint: 'Bars whose low touched the lower line (within 0.1 ATR)' },
-]);
+]));
 
 // Operand kinds and their rules (length n, unit, TFs) come from meta.indicators / operandKinds:
 // see indicatorCatalog.js (stage 3b F1; fallback = the bar fields + SMA).
+// `label` is the caption symbol (opSymbol) and stays; `menuLabel` / `tooltip` = editor UX Stage A.
 export const OPERATORS = Object.freeze([
   { value: 'GT', label: '>' },
   { value: 'GTE', label: '≥' },
   { value: 'LT', label: '<' },
   { value: 'LTE', label: '≤' },
-]);
+].map((o) => ({ ...o, menuLabel: OPERATOR_TEXTS[o.value].menuLabel, tooltip: OPERATOR_TEXTS[o.value].tooltip })));
 export const SCREEN_TFS = Object.freeze(['DAY', 'WEEK']);
 export const LEVELS = Object.freeze([0, 1, 2]);
 export const SMA_MIN = 5;
@@ -226,6 +235,8 @@ export const getScreenerMeta = async () => {
   const res = await apiRequest(`${API_BASE_URL}/meta`, undefined, 'Loading screener metadata failed');
   const meta = await readJson(res);
   setIndicatorCatalog({ indicators: meta?.indicators, operandKinds: meta?.operandKinds });
+  // editor UX Stage A: operand and metric texts (absent on an old backend → the fallbacks)
+  setEditorHelp({ operandHelp: meta?.operandHelp, metricHelp: meta?.metricHelp });
   return meta;
 };
 

@@ -1,0 +1,700 @@
+{
+ "bricks": {
+  "hint": "The stop and the sticky support follow the last level confirmation, not your trade: honest alone or with LongBlock partners; for the entries of other strategies wait for stage 4c. Levels runs over the bars of the run window (as the LevelBreakoutRetest class), so its events depend on the window start. With re-arm the indicator replays the solo class's position (no regime), not your strategy's position.",
+  "kMax": 250,
+  "kinds": [
+   {
+    "form": "CONDITION",
+    "hasLag": false,
+    "hasX": false,
+    "hint": "PASS when the event passed on one of the last k bars",
+    "name": "WITHIN",
+    "unit": null
+   },
+   {
+    "form": "OPERAND",
+    "hasLag": false,
+    "hasX": false,
+    "hint": "Bars since the last time the event passed (0 on that bar)",
+    "name": "BARS_SINCE",
+    "unit": "BARS"
+   },
+   {
+    "form": "OPERAND",
+    "hasLag": false,
+    "hasX": true,
+    "hint": "X on the bar the event last passed",
+    "name": "AT_LAST",
+    "unit": null
+   },
+   {
+    "form": "OPERAND",
+    "hasLag": true,
+    "hasX": true,
+    "hint": "Highest X after the last event, up to lag bars ago (lag 1: the line as of the previous bar)",
+    "name": "MAX_SINCE",
+    "unit": null
+   },
+   {
+    "form": "OPERAND",
+    "hasLag": true,
+    "hasX": true,
+    "hint": "Lowest X after the last event, up to lag bars ago",
+    "name": "MIN_SINCE",
+    "unit": null
+   }
+  ],
+  "lagMax": 10
+ },
+ "channel": {
+  "defaults": {
+   "coveragePct": 0.95,
+   "minAgeBars": 0,
+   "minBars": 5,
+   "minWidthPct": 0.05
+  },
+  "levels": [
+   0,
+   1,
+   2
+  ],
+  "linkSuffixes": [
+   "min",
+   "max"
+  ],
+  "metrics": [
+   {
+    "hint": "Close in the channel: 0 = lower line, 1 = upper line; below 0 / above 1 = outside (ln close, lines of the tree after t-1 extended to t)",
+    "name": "POSITION",
+    "unit": "RATIO"
+   },
+   {
+    "hint": "Slope of the channel in % per year (252 DAY / 52 WEEK bars)",
+    "name": "SLOPE_PCT_YEAR",
+    "unit": "PERCENT"
+   },
+   {
+    "hint": "Width of the channel in % of price",
+    "name": "WIDTH_PCT",
+    "unit": "PERCENT"
+   },
+   {
+    "hint": "Width of the channel in price at the bar: upper - lower",
+    "name": "WIDTH",
+    "unit": "PRICE_RANGE"
+   },
+   {
+    "hint": "Bars of the channel timeframe since the channel's start",
+    "name": "AGE_BARS",
+    "unit": "BARS"
+   },
+   {
+    "hint": "1 when the level has a channel, else 0 (EXISTS in [0, 0] = no channel)",
+    "name": "EXISTS",
+    "unit": "RATIO"
+   }
+  ],
+  "ranges": {
+   "coveragePct": {
+    "integer": false,
+    "max": 1,
+    "maxInclusive": true,
+    "min": 0.5,
+    "minInclusive": false
+   },
+   "minBars": {
+    "integer": true,
+    "max": 1000,
+    "maxInclusive": true,
+    "min": 2,
+    "minInclusive": true
+   },
+   "minWidthPct": {
+    "integer": false,
+    "max": 1,
+    "maxInclusive": false,
+    "min": 0,
+    "minInclusive": true
+   },
+   "minAgeBars": {
+    "integer": true,
+    "max": 500,
+    "maxInclusive": true,
+    "min": 0,
+    "minInclusive": true
+   }
+  },
+  "runTimeframes": [
+   "DAY",
+   "WEEK"
+  ],
+  "timeframes": [
+   "RUN",
+   "DAY",
+   "WEEK"
+  ]
+ },
+ "indicators": [
+  {
+   "description": "Simple moving average of the close over n bars of its timeframe (stored rows only)",
+   "displayName": "SMA",
+   "hi": null,
+   "linearInNextClose": true,
+   "lo": 0,
+   "name": "SMA",
+   "params": [
+    {
+     "defaultValue": 50,
+     "description": "SMA length in bars",
+     "integer": true,
+     "max": 200,
+     "min": 5,
+     "name": "n",
+     "step": 5,
+     "storedOnly": true
+    }
+   ],
+   "runTimeframes": [
+    "MIN5",
+    "HOUR",
+    "DAY",
+    "WEEK",
+    "MONTH"
+   ],
+   "source": "close",
+   "timeframes": [
+    "DAY",
+    "WEEK",
+    "RUN"
+   ],
+   "unit": "PRICE",
+   "warmup": "n - 1 bars of its timeframe"
+  },
+  {
+   "description": "Slope of the SMA over its last 5 values in % of the SMA per bar (stored SMA lengths only)",
+   "displayName": "SMA tilt",
+   "hi": null,
+   "linearInNextClose": false,
+   "lo": null,
+   "name": "SMA_TILT",
+   "params": [
+    {
+     "defaultValue": 20,
+     "description": "SMA length in bars",
+     "integer": true,
+     "max": 200,
+     "min": 5,
+     "name": "n",
+     "step": 5,
+     "storedOnly": true
+    }
+   ],
+   "runTimeframes": [
+    "HOUR",
+    "DAY",
+    "WEEK",
+    "MONTH"
+   ],
+   "source": "sma",
+   "timeframes": [
+    "DAY",
+    "WEEK",
+    "RUN"
+   ],
+   "unit": "PERCENT",
+   "warmup": "n - 1 + 4 bars of its timeframe"
+  },
+  {
+   "description": "Internal bar strength: (close - low) / (high - low) of the bar, 0 = closed at the low, 1 = at the high",
+   "displayName": "IBS",
+   "hi": 1,
+   "linearInNextClose": false,
+   "lo": 0,
+   "name": "IBS",
+   "params": [],
+   "runTimeframes": [
+    "HOUR",
+    "DAY",
+    "WEEK",
+    "MONTH"
+   ],
+   "source": "high, low, close",
+   "timeframes": [
+    "DAY",
+    "WEEK",
+    "RUN"
+   ],
+   "unit": "RATIO",
+   "warmup": "none"
+  },
+  {
+   "description": "Average true range (Wilder) over n bars of its timeframe, from the first bar of the ticker's history; a distance in price",
+   "displayName": "ATR",
+   "hi": null,
+   "linearInNextClose": false,
+   "lo": 0,
+   "name": "ATR",
+   "params": [
+    {
+     "defaultValue": 14,
+     "description": "ATR length in bars",
+     "integer": true,
+     "max": 100,
+     "min": 2,
+     "name": "n",
+     "step": 1,
+     "storedOnly": false
+    }
+   ],
+   "runTimeframes": [
+    "HOUR",
+    "DAY",
+    "WEEK",
+    "MONTH"
+   ],
+   "source": "high, low, close",
+   "timeframes": [
+    "DAY",
+    "WEEK",
+    "RUN"
+   ],
+   "unit": "PRICE_RANGE",
+   "warmup": "n - 1 bars of its timeframe from the start of history"
+  },
+  {
+   "description": "ATR (Wilder, n bars, from the start of history) in percent of the bar's close",
+   "displayName": "ATR %",
+   "hi": null,
+   "linearInNextClose": false,
+   "lo": 0,
+   "name": "ATR_PCT",
+   "params": [
+    {
+     "defaultValue": 14,
+     "description": "ATR length in bars",
+     "integer": true,
+     "max": 100,
+     "min": 2,
+     "name": "n",
+     "step": 1,
+     "storedOnly": false
+    }
+   ],
+   "runTimeframes": [
+    "HOUR",
+    "DAY",
+    "WEEK",
+    "MONTH"
+   ],
+   "source": "high, low, close",
+   "timeframes": [
+    "DAY",
+    "WEEK",
+    "RUN"
+   ],
+   "unit": "PERCENT",
+   "warmup": "n - 1 bars of its timeframe from the start of history"
+  },
+  {
+   "description": "Kaufman efficiency ratio of the close over n bars: 1 = a straight move, 0 = chop",
+   "displayName": "Efficiency ratio",
+   "hi": 1,
+   "linearInNextClose": false,
+   "lo": 0,
+   "name": "ER",
+   "params": [
+    {
+     "defaultValue": 10,
+     "description": "ER length in bars",
+     "integer": true,
+     "max": 200,
+     "min": 2,
+     "name": "n",
+     "step": 1,
+     "storedOnly": false
+    }
+   ],
+   "runTimeframes": [
+    "HOUR",
+    "DAY",
+    "WEEK",
+    "MONTH"
+   ],
+   "source": "close",
+   "timeframes": [
+    "DAY",
+    "WEEK",
+    "RUN"
+   ],
+   "unit": "RATIO",
+   "warmup": "n bars of its timeframe"
+  },
+  {
+   "description": "Relative strength index (Wilder) of the close over n bars, from the first bar of the ticker's history",
+   "displayName": "RSI",
+   "hi": 100,
+   "linearInNextClose": false,
+   "lo": 0,
+   "name": "RSI",
+   "params": [
+    {
+     "defaultValue": 14,
+     "description": "RSI length in bars",
+     "integer": true,
+     "max": 100,
+     "min": 2,
+     "name": "n",
+     "step": 1,
+     "storedOnly": false
+    }
+   ],
+   "runTimeframes": [
+    "HOUR",
+    "DAY",
+    "WEEK",
+    "MONTH"
+   ],
+   "source": "close",
+   "timeframes": [
+    "DAY",
+    "WEEK",
+    "RUN"
+   ],
+   "unit": "PERCENT",
+   "warmup": "n bars of its timeframe from the start of history"
+  }
+ ],
+ "levels": {
+  "defaults": {
+   "atrLength": 14,
+   "baseMinBars": 5,
+   "breakBuffer": 0.5,
+   "confirmMode": 0,
+   "maxBaseBars": 120,
+   "maxDwellBars": 3,
+   "maxRetestBars": 15,
+   "minStrength": 3,
+   "rearm": true,
+   "runawayAtr": 1,
+   "stopBuffer": 0.5,
+   "takeProfitStrength": 0,
+   "touchTolerance": 0.25,
+   "upgradeMinTouches": 2,
+   "upgradeStrength": 3,
+   "warmupBars": 60
+  },
+  "events": [
+   {
+    "hint": "Close crossed above a tracked zone + BreakBuffer x ATR",
+    "name": "BREAKOUT_UP",
+    "needsStrength": false
+   },
+   {
+    "hint": "Breakout confirmed by a retest of the zone",
+    "name": "CONFIRMED_RETEST",
+    "needsStrength": false
+   },
+   {
+    "hint": "Breakout ran away RunawayAtr x ATR above the zone",
+    "name": "CONFIRMED_RUNAWAY",
+    "needsStrength": false
+   },
+   {
+    "hint": "Breakout held above the zone for BaseMinBars and made a new high",
+    "name": "CONFIRMED_BASE",
+    "needsStrength": false
+   },
+   {
+    "hint": "Any of the three confirmations",
+    "name": "CONFIRMED_ANY",
+    "needsStrength": false
+   },
+   {
+    "hint": "The breakout failed: close back below the zone - BreakBuffer x ATR",
+    "name": "FAILED",
+    "needsStrength": false
+   },
+   {
+    "hint": "A confirmed zone broke down",
+    "name": "BROKEN_DOWN",
+    "needsStrength": false
+   },
+   {
+    "hint": "Close below the nearest support zone of this strength (fully below the previous close) - BreakBuffer x ATR",
+    "name": "SUPPORT_BREAK",
+    "needsStrength": true
+   },
+   {
+    "hint": "Close reached the nearest resistance zone of this strength (fully above the previous close)",
+    "name": "RESISTANCE_REACHED",
+    "needsStrength": true
+   }
+  ],
+  "fixed": {
+   "warmupBars": 60,
+   "atrLength": 14
+  },
+  "linkSuffixes": [
+   "strength",
+   "bars",
+   "levels.minStrength",
+   "levels.breakBuffer",
+   "levels.touchTolerance",
+   "levels.maxRetestBars",
+   "levels.maxDwellBars",
+   "levels.confirmMode",
+   "levels.runawayAtr",
+   "levels.baseMinBars",
+   "levels.maxBaseBars",
+   "levels.stopBuffer",
+   "levels.upgradeStrength",
+   "levels.upgradeMinTouches",
+   "levels.takeProfitStrength"
+  ],
+  "outputs": [
+   {
+    "hint": "1 when the close is inside a strong zone",
+    "name": "IN_ZONE",
+    "unit": "RATIO"
+   },
+   {
+    "hint": "On a confirmation bar: the setup stop (zone or retest low - StopBuffer x ATR)",
+    "name": "SETUP_STOP",
+    "unit": "PRICE"
+   },
+   {
+    "hint": "On a confirmation bar: zone low - BreakBuffer x ATR",
+    "name": "SETUP_ZONE_LINE",
+    "unit": "PRICE"
+   },
+   {
+    "hint": "Highest strong zone fully below the close - BreakBuffer x ATR (the sticky-support candidate)",
+    "name": "SUPPORT_LINE",
+    "unit": "PRICE"
+   },
+   {
+    "hint": "Close above the nearest strong support, in ATR",
+    "name": "DIST_SUPPORT_ATR",
+    "unit": "ATR_MULTIPLE"
+   },
+   {
+    "hint": "Nearest strong resistance above the close, in ATR",
+    "name": "DIST_RESISTANCE_ATR",
+    "unit": "ATR_MULTIPLE"
+   },
+   {
+    "hint": "Where the stop would be had you bought at this close (long side only): SETUP_STOP on a confirmation bar, else the support zone low - StopBuffer x ATR; read it as AT_ENTRY(LEVEL OPEN_STOP)",
+    "name": "OPEN_STOP",
+    "unit": "PRICE"
+   },
+   {
+    "hint": "Where the initial sticky-support line would be had you bought at this close (long side only): SETUP_ZONE_LINE on a confirmation bar, else SUPPORT_LINE; read it as AT_ENTRY(LEVEL OPEN_LINE)",
+    "name": "OPEN_LINE",
+    "unit": "PRICE"
+   }
+  ],
+  "params": [
+   {
+    "defaultValue": 3,
+    "hint": "Strength a zone needs to be tracked (and for IN_ZONE / DIST_*)",
+    "inPass": true,
+    "integer": false,
+    "max": 50,
+    "min": 0,
+    "minInclusive": false,
+    "name": "minStrength"
+   },
+   {
+    "defaultValue": 0.5,
+    "hint": "Breakout / break-down line beyond the zone, ATR multiples",
+    "inPass": true,
+    "integer": false,
+    "max": 5,
+    "min": 0,
+    "minInclusive": true,
+    "name": "breakBuffer"
+   },
+   {
+    "defaultValue": 0.25,
+    "hint": "A retest touch: low within this many ATR above the zone",
+    "inPass": true,
+    "integer": false,
+    "max": 5,
+    "min": 0,
+    "minInclusive": true,
+    "name": "touchTolerance"
+   },
+   {
+    "defaultValue": 15,
+    "hint": "Bars to wait for a retest (only with baseMinBars 0)",
+    "inPass": true,
+    "integer": true,
+    "max": 500,
+    "min": 1,
+    "minInclusive": true,
+    "name": "maxRetestBars"
+   },
+   {
+    "defaultValue": 3,
+    "hint": "Bars in the zone after the touch before the setup is missed",
+    "inPass": true,
+    "integer": true,
+    "max": 500,
+    "min": 1,
+    "minInclusive": true,
+    "name": "maxDwellBars"
+   },
+   {
+    "defaultValue": 0,
+    "hint": "0 = close above the zone on the touch bar, 1 = close above the touch bar's high",
+    "inPass": true,
+    "integer": true,
+    "max": 1,
+    "min": 0,
+    "minInclusive": true,
+    "name": "confirmMode"
+   },
+   {
+    "defaultValue": 1,
+    "hint": "Runaway entry without a retest this many ATR above the zone (0 = off)",
+    "inPass": true,
+    "integer": false,
+    "max": 10,
+    "min": 0,
+    "minInclusive": true,
+    "name": "runawayAtr"
+   },
+   {
+    "defaultValue": 5,
+    "hint": "Base entry after this many bars holding above the zone (0 = off)",
+    "inPass": true,
+    "integer": true,
+    "max": 500,
+    "min": 0,
+    "minInclusive": true,
+    "name": "baseMinBars"
+   },
+   {
+    "defaultValue": 120,
+    "hint": "Safety cap of the base wait",
+    "inPass": true,
+    "integer": true,
+    "max": 1000,
+    "min": 1,
+    "minInclusive": true,
+    "name": "maxBaseBars"
+   },
+   {
+    "defaultValue": 0.5,
+    "hint": "SETUP_STOP below the zone (or the retest low), ATR multiples",
+    "inPass": false,
+    "integer": false,
+    "max": 5,
+    "min": 0,
+    "minInclusive": true,
+    "name": "stopBuffer"
+   },
+   {
+    "defaultValue": 3,
+    "hint": "Strength a zone needs to become SUPPORT_LINE",
+    "inPass": false,
+    "integer": false,
+    "max": 50,
+    "min": 0,
+    "minInclusive": false,
+    "name": "upgradeStrength"
+   },
+   {
+    "defaultValue": 2,
+    "hint": "Touches a zone needs to become SUPPORT_LINE",
+    "inPass": false,
+    "integer": true,
+    "max": 20,
+    "min": 1,
+    "minInclusive": true,
+    "name": "upgradeMinTouches"
+   },
+   {
+    "defaultValue": 1,
+    "hint": "Re-arm after stop / support break (class behaviour): replays the class's own solo position (no regime) and re-arms the zone it exited; 1 = on (default)",
+    "inPass": true,
+    "integer": true,
+    "max": 1,
+    "min": 0,
+    "minInclusive": true,
+    "name": "rearm"
+   },
+   {
+    "defaultValue": 0,
+    "hint": "With re-arm: the virtual position's take-profit strength (0 = none); link it to the axis of your RESISTANCE_REACHED rule",
+    "inPass": true,
+    "integer": false,
+    "max": 50,
+    "min": 0,
+    "minInclusive": true,
+    "name": "takeProfitStrength"
+   }
+  ],
+  "runTimeframes": [
+   "DAY",
+   "WEEK"
+  ],
+  "strengthMax": 50
+ },
+ "maxAxes": 16,
+ "maxConditions": 10,
+ "maxRules": 20,
+ "minTradesPerThreshold": 10,
+ "offsetMin": -100,
+ "operandTimeframes": [
+  "DAY",
+  "WEEK",
+  "RUN"
+ ],
+ "position": {
+  "hint": "Position operands read the merged position at the start of the bar and have a value only in a LONG (FLAT / SHORT: the condition FAILs, NOT_LONG). X is a market operand of the run timeframe: a bar field, an indicator, LEVEL or a brick. Not in the screener, not inside a brick / WITHIN; a version with one is position dependent.",
+  "kinds": [
+   {
+    "form": "AT_ENTRY",
+    "hint": "X on the entry bar of the open long (seeded: the seed bar); 'in position' = AT_ENTRY(close) > 0; a % stop = close < AT_ENTRY(close) with tolerance -5",
+    "name": "AT_ENTRY"
+   },
+   {
+    "form": "WINDOW",
+    "hint": "The maximum of X over (entry, t - lag], bars without a value skipped; lag 1 = the class's ratchet (the entry bar is not in the window)",
+    "name": "MAX_SINCE_ENTRY"
+   },
+   {
+    "form": "WINDOW",
+    "hint": "The minimum of X over (entry, t - lag]",
+    "name": "MIN_SINCE_ENTRY"
+   }
+  ],
+  "lagMax": 10,
+  "refusedInRules": [
+   "ShortClose"
+  ],
+  "runTimeframes": [
+   "DAY",
+   "WEEK"
+  ],
+  "side": "LONG"
+ },
+ "signalTypes": [
+  "LongOpen",
+  "LongClose",
+  "LongBlock",
+  "ShortOpen",
+  "ShortClose"
+ ],
+ "smaMax": 200,
+ "smaMin": 5,
+ "stateRuleFireRate": 0.2,
+ "timeframes": [
+  "DAY",
+  "WEEK",
+  "MONTH",
+  "HOUR",
+  "MIN5"
+ ]
+}

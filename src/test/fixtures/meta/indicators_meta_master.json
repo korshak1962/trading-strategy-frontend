@@ -1,0 +1,257 @@
+{
+ "barCount": null,
+ "caps": {
+  "maxSpecs": 20,
+  "maxBars": {
+   "HOUR": 60000,
+   "MIN5": 30000
+  },
+  "maxPoints": 600000
+ },
+ "firstBar": null,
+ "indicators": [
+  {
+   "description": "Simple moving average of the close over n bars of its timeframe (stored rows only)",
+   "displayName": "SMA",
+   "hi": null,
+   "linearInNextClose": true,
+   "lo": 0,
+   "name": "SMA",
+   "params": [
+    {
+     "defaultValue": 50,
+     "description": "SMA length in bars",
+     "integer": true,
+     "max": 200,
+     "min": 5,
+     "name": "n",
+     "step": 5,
+     "storedOnly": true
+    }
+   ],
+   "runTimeframes": [
+    "MIN5",
+    "HOUR",
+    "DAY",
+    "WEEK",
+    "MONTH"
+   ],
+   "source": "close",
+   "timeframes": [
+    "DAY",
+    "WEEK",
+    "RUN"
+   ],
+   "unit": "PRICE",
+   "warmup": "n - 1 bars of its timeframe"
+  },
+  {
+   "description": "Slope of the SMA over its last 5 values in % of the SMA per bar (stored SMA lengths only)",
+   "displayName": "SMA tilt",
+   "hi": null,
+   "linearInNextClose": false,
+   "lo": null,
+   "name": "SMA_TILT",
+   "params": [
+    {
+     "defaultValue": 20,
+     "description": "SMA length in bars",
+     "integer": true,
+     "max": 200,
+     "min": 5,
+     "name": "n",
+     "step": 5,
+     "storedOnly": true
+    }
+   ],
+   "runTimeframes": [
+    "HOUR",
+    "DAY",
+    "WEEK",
+    "MONTH"
+   ],
+   "source": "sma",
+   "timeframes": [
+    "DAY",
+    "WEEK",
+    "RUN"
+   ],
+   "unit": "PERCENT",
+   "warmup": "n - 1 + 4 bars of its timeframe"
+  },
+  {
+   "description": "Internal bar strength: (close - low) / (high - low) of the bar, 0 = closed at the low, 1 = at the high",
+   "displayName": "IBS",
+   "hi": 1,
+   "linearInNextClose": false,
+   "lo": 0,
+   "name": "IBS",
+   "params": [],
+   "runTimeframes": [
+    "HOUR",
+    "DAY",
+    "WEEK",
+    "MONTH"
+   ],
+   "source": "high, low, close",
+   "timeframes": [
+    "DAY",
+    "WEEK",
+    "RUN"
+   ],
+   "unit": "RATIO",
+   "warmup": "none"
+  },
+  {
+   "description": "Average true range (Wilder) over n bars of its timeframe, from the first bar of the ticker's history; a distance in price",
+   "displayName": "ATR",
+   "hi": null,
+   "linearInNextClose": false,
+   "lo": 0,
+   "name": "ATR",
+   "params": [
+    {
+     "defaultValue": 14,
+     "description": "ATR length in bars",
+     "integer": true,
+     "max": 100,
+     "min": 2,
+     "name": "n",
+     "step": 1,
+     "storedOnly": false
+    }
+   ],
+   "runTimeframes": [
+    "HOUR",
+    "DAY",
+    "WEEK",
+    "MONTH"
+   ],
+   "source": "high, low, close",
+   "timeframes": [
+    "DAY",
+    "WEEK",
+    "RUN"
+   ],
+   "unit": "PRICE_RANGE",
+   "warmup": "n - 1 bars of its timeframe from the start of history"
+  },
+  {
+   "description": "ATR (Wilder, n bars, from the start of history) in percent of the bar's close",
+   "displayName": "ATR %",
+   "hi": null,
+   "linearInNextClose": false,
+   "lo": 0,
+   "name": "ATR_PCT",
+   "params": [
+    {
+     "defaultValue": 14,
+     "description": "ATR length in bars",
+     "integer": true,
+     "max": 100,
+     "min": 2,
+     "name": "n",
+     "step": 1,
+     "storedOnly": false
+    }
+   ],
+   "runTimeframes": [
+    "HOUR",
+    "DAY",
+    "WEEK",
+    "MONTH"
+   ],
+   "source": "high, low, close",
+   "timeframes": [
+    "DAY",
+    "WEEK",
+    "RUN"
+   ],
+   "unit": "PERCENT",
+   "warmup": "n - 1 bars of its timeframe from the start of history"
+  },
+  {
+   "description": "Kaufman efficiency ratio of the close over n bars: 1 = a straight move, 0 = chop",
+   "displayName": "Efficiency ratio",
+   "hi": 1,
+   "linearInNextClose": false,
+   "lo": 0,
+   "name": "ER",
+   "params": [
+    {
+     "defaultValue": 10,
+     "description": "ER length in bars",
+     "integer": true,
+     "max": 200,
+     "min": 2,
+     "name": "n",
+     "step": 1,
+     "storedOnly": false
+    }
+   ],
+   "runTimeframes": [
+    "HOUR",
+    "DAY",
+    "WEEK",
+    "MONTH"
+   ],
+   "source": "close",
+   "timeframes": [
+    "DAY",
+    "WEEK",
+    "RUN"
+   ],
+   "unit": "RATIO",
+   "warmup": "n bars of its timeframe"
+  },
+  {
+   "description": "Relative strength index (Wilder) of the close over n bars, from the first bar of the ticker's history",
+   "displayName": "RSI",
+   "hi": 100,
+   "linearInNextClose": false,
+   "lo": 0,
+   "name": "RSI",
+   "params": [
+    {
+     "defaultValue": 14,
+     "description": "RSI length in bars",
+     "integer": true,
+     "max": 100,
+     "min": 2,
+     "name": "n",
+     "step": 1,
+     "storedOnly": false
+    }
+   ],
+   "runTimeframes": [
+    "HOUR",
+    "DAY",
+    "WEEK",
+    "MONTH"
+   ],
+   "source": "close",
+   "timeframes": [
+    "DAY",
+    "WEEK",
+    "RUN"
+   ],
+   "unit": "PERCENT",
+   "warmup": "n bars of its timeframe from the start of history"
+  }
+ ],
+ "lastBar": null,
+ "runSession": {
+  "appliesTo": [
+   "HOUR",
+   "MIN5"
+  ],
+  "rule": "bar key time in (09:30, 16:00]"
+ },
+ "smaMaintainedByDownloads": null,
+ "smaStored": null,
+ "smaStoredText": null,
+ "smaTopUp": null,
+ "ticker": null,
+ "timeframe": null,
+ "zone": null
+}

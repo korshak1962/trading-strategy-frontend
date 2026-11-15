@@ -46,6 +46,11 @@ import {
   LEVEL_KIND, ANCHORED_KINDS, BRICK_OPERAND_KINDS, isStagedOperand, isBrickOperand,
   POSITION_KINDS, POSITION_WINDOW_KINDS, isPositionOperand,
 } from './indicatorCatalog';
+import {
+  LEVEL_EVENT_TEXTS, LEVEL_OUTPUT_TEXTS, LEVELS_PARAM_TEXTS, LEVELS_FIXED_TEXTS, LEVELS_HELP, LEVELS_GROUPS,
+  BRICK_TEXTS, BRICKS_HELP, POSITION_TEXTS, POSITION_HELP, CHANNEL_METRIC_TEXTS, CHANNEL_HELP,
+  helpOf, helpMap, normalizeOperandHelp, normalizeSignalTypeHelp, normalizeAxisHelp, setEditorHelp,
+} from './editorTexts';
 
 export {
   LEVEL_KIND, ANCHORED_KINDS, BRICK_OPERAND_KINDS, isStagedOperand, isBrickOperand,
@@ -93,6 +98,15 @@ export const MIN_TRADES_PER_THRESHOLD = 10; // Q11: trades per threshold in swee
 export const MAX_RULES = 20;
 export const MAX_CONDITIONS = 10;
 
+// Editor UX Stage A: a fallback list item gets its plain-English `label` / `tooltip` (and the other
+// text keys of its texts entry, e.g. `inMenu`) from editorTexts.js.
+function withTexts(texts, list) {
+  return list.map((x) => {
+    const t = texts[x.name] || {};
+    return { ...x, ...t, label: t.label || x.label || x.name, tooltip: t.tooltip || x.hint || '' };
+  });
+}
+
 // ---- channel conditions (stage 4a, architect §1 K1, §2.2, §3.2) ----
 
 /** The channel's TFs in a rule: RUN = the run's TF (DAY / WEEK only), or a fixed DAY / WEEK channel. */
@@ -101,7 +115,7 @@ export const CHANNEL_TFS = Object.freeze(['RUN', 'DAY', 'WEEK']);
 export const CHANNEL_RUN_TFS = Object.freeze(['DAY', 'WEEK']);
 export const CHANNEL_LEVELS = Object.freeze([0, 1, 2]);
 /** Semantics-B metrics (TOUCHES_* are not in B yet). `unit` = backend ValueUnit. */
-export const CHANNEL_METRICS = Object.freeze([
+export const CHANNEL_METRICS = Object.freeze(withTexts(CHANNEL_METRIC_TEXTS, [
   { name: 'POSITION', label: 'Position', unit: 'RATIO',
     hint: '(ln close − lower) / (upper − lower) on the bar: 0 = at the lower line, 1 = at the upper line; not clipped (<0 below, >1 above)' },
   { name: 'SLOPE_PCT_YEAR', label: 'Slope %/year', unit: 'PERCENT', hint: 'Signed annualized slope of the channel, e.g. −30 = falling 30 % a year' },
@@ -110,7 +124,7 @@ export const CHANNEL_METRICS = Object.freeze([
   { name: 'AGE_BARS', label: 'Age (bars)', unit: 'BARS', hint: 'Bars of the channel TF since the channel start' },
   { name: 'EXISTS', label: 'Exists', unit: 'RATIO',
     hint: '1 when the channel of this level exists on the bar, else 0 (level 1 / 2: L0 and its parent / grandparent exist). EXISTS in [0, 0] = "no channel"' },
-]);
+]));
 /** Detector parameters of a channel condition (architect K1: written in full in every version). */
 export const CHANNEL_DEFAULTS = Object.freeze({ coveragePct: 0.95, minBars: 5, minWidthPct: 0.05, minAgeBars: 0 });
 /** Ranges as FilterValidator checks them: coveragePct (0.5, 1], minBars [2, 1000], minWidthPct [0, 1), minAgeBars [0, 500]. */
@@ -129,6 +143,7 @@ export const DEFAULT_CHANNEL_META = Object.freeze({
   runTimeframes: CHANNEL_RUN_TFS,
   defaults: CHANNEL_DEFAULTS,
   ranges: CHANNEL_RANGES,
+  help: helpMap(null, CHANNEL_HELP),
 });
 
 // ---- Levels and sequence bricks (stage 4b) ----
@@ -170,8 +185,30 @@ export const STRENGTH_EVENTS = Object.freeze(['SUPPORT_BREAK', 'RESISTANCE_REACH
 const lp = (name, defaultValue, min, max, minInclusive, integer, hint, inPass) => ({
   name, defaultValue, min, max, minInclusive, integer, hint, inPass,
 });
+/**
+ * Editor UX Stage A: a Levels param's plain-English `plainLabel` (the meta `label`; the code-style
+ * `levelsFieldLabel` stays for captions and new axis names), `tooltip`, `group` and `choices`.
+ */
+function paramTexts(x, f = {}) {
+  const t = LEVELS_PARAM_TEXTS[x.name] || {};
+  return {
+    plainLabel: (typeof x.label === 'string' && x.label) || f.plainLabel || t.label || x.name,
+    tooltip: (typeof x.tooltip === 'string' && x.tooltip) || f.tooltip || t.tooltip || x.hint || '',
+    group: (typeof x.group === 'string' && LEVELS_GROUPS.includes(x.group) && x.group) || f.group || t.group || null,
+    choices: normalizeChoices(x.choices) || f.choices || t.choices || null,
+  };
+}
+function normalizeChoices(list) {
+  if (!Array.isArray(list) || !list.length) return null;
+  const out = list.filter((c) => c && Number.isFinite(Number(c.value)))
+    .map((c) => ({ value: Number(c.value), label: typeof c.label === 'string' && c.label ? c.label : String(c.value) }));
+  return out.length ? out : null;
+}
+function withParamTexts(list) {
+  return list.map((p) => ({ ...p, ...paramTexts(p) }));
+}
 /** Fallback of meta.levels.params (backend ConstructedLevelsMeta). */
-export const LEVELS_PARAMS = Object.freeze([
+export const LEVELS_PARAMS = Object.freeze(withParamTexts([
   lp('minStrength', 3, 0, 50, false, false, 'Strength a zone needs to be tracked (and for IN_ZONE / DIST_*)', true),
   lp('breakBuffer', 0.5, 0, 5, true, false, 'Breakout / break-down line beyond the zone, ATR multiples', true),
   lp('touchTolerance', 0.25, 0, 5, true, false, 'A retest touch: low within this many ATR above the zone', true),
@@ -186,13 +223,13 @@ export const LEVELS_PARAMS = Object.freeze([
   lp('upgradeMinTouches', 2, 1, 20, true, true, 'Touches a zone needs to become SUPPORT_LINE', false),
   lp('takeProfitStrength', 0, 0, 50, true, false, 'Re-arm only: take-profit of the replayed class position, '
     + 'RESISTANCE_REACHED of this strength (0 = none). Keep it equal to your take-profit rule\'s strength', false),
-]);
+]));
 export const LEVELS_DEFAULTS = Object.freeze({
   ...Object.fromEntries(LEVELS_PARAMS.map((p) => [p.name, p.defaultValue])),
   ...LEVELS_FIXED,
   rearm: LEVELS_REARM_DEFAULT,
 });
-export const LEVEL_EVENTS = Object.freeze([
+export const LEVEL_EVENTS = Object.freeze(withTexts(LEVEL_EVENT_TEXTS, [
   { name: 'BREAKOUT_UP', needsStrength: false, hint: 'Close crossed above a tracked zone + BreakBuffer x ATR' },
   { name: 'CONFIRMED_RETEST', needsStrength: false, hint: 'Breakout confirmed by a retest of the zone' },
   { name: 'CONFIRMED_RUNAWAY', needsStrength: false, hint: 'Breakout ran away RunawayAtr x ATR above the zone' },
@@ -202,8 +239,8 @@ export const LEVEL_EVENTS = Object.freeze([
   { name: 'BROKEN_DOWN', needsStrength: false, hint: 'A confirmed zone broke down' },
   { name: 'SUPPORT_BREAK', needsStrength: true, hint: 'Close below the nearest support zone of this strength - BreakBuffer x ATR' },
   { name: 'RESISTANCE_REACHED', needsStrength: true, hint: 'Close reached the nearest resistance zone of this strength' },
-]);
-export const LEVEL_OUTPUTS = Object.freeze([
+]).map((e) => ({ ...e, inMenu: e.inMenu !== false })));
+export const LEVEL_OUTPUTS = Object.freeze(withTexts(LEVEL_OUTPUT_TEXTS, [
   { name: 'IN_ZONE', unit: 'RATIO', hint: '1 when the close is inside a strong zone; outside one the value is "not met" (not 0), so a comparison must hold at 1 (IN_ZONE > 0, IN_ZONE ≥ 1)' },
   { name: 'SETUP_STOP', unit: 'PRICE', hint: 'On a confirmation bar: the setup stop (zone or retest low - StopBuffer x ATR)' },
   { name: 'SETUP_ZONE_LINE', unit: 'PRICE', hint: 'On a confirmation bar: zone low - BreakBuffer x ATR' },
@@ -213,8 +250,12 @@ export const LEVEL_OUTPUTS = Object.freeze([
   // stage 4c-1: the lines of a long opened at this close (read them as AT_ENTRY(LEVEL OPEN_*))
   { name: 'OPEN_STOP', unit: 'PRICE', hint: 'Where the stop would be had you bought at this close (long side only): SETUP_STOP on a confirmation bar, else the support zone low - StopBuffer x ATR; read it as AT_ENTRY(LEVEL OPEN_STOP)' },
   { name: 'OPEN_LINE', unit: 'PRICE', hint: 'Where the initial sticky-support line would be had you bought at this close (long side only): SETUP_ZONE_LINE on a confirmation bar, else SUPPORT_LINE; read it as AT_ENTRY(LEVEL OPEN_LINE)' },
-]);
+]));
 export const LEVELS_RUN_TFS = Object.freeze(['DAY', 'WEEK']);
+/** Editor UX Stage A: the fixed fields with their plain-English texts (meta.levels.fixedParams). */
+export const LEVELS_FIXED_PARAMS = Object.freeze(Object.entries(LEVELS_FIXED).map(([name, value]) => ({
+  name, value, label: LEVELS_FIXED_TEXTS[name]?.label || name, tooltip: LEVELS_FIXED_TEXTS[name]?.tooltip || '',
+})));
 export const DEFAULT_LEVELS_META = Object.freeze({
   events: LEVEL_EVENTS,
   outputs: LEVEL_OUTPUTS,
@@ -224,27 +265,31 @@ export const DEFAULT_LEVELS_META = Object.freeze({
   defaults: LEVELS_DEFAULTS,
   strengthMax: STRENGTH_MAX,
   rearmHint: LEVELS_REARM_HINT,
+  fixedParams: LEVELS_FIXED_PARAMS,
+  help: helpMap(null, LEVELS_HELP),
 });
-export const BRICK_KINDS = Object.freeze([
+export const BRICK_KINDS = Object.freeze(withTexts(BRICK_TEXTS, [
   { name: 'WITHIN', form: 'CONDITION', hasX: false, hasLag: false, unit: null, hint: 'PASS when the event passed on one of the last k bars' },
   { name: 'BARS_SINCE', form: 'OPERAND', hasX: false, hasLag: false, unit: 'BARS', hint: 'Bars since the last time the event passed (0 on that bar)' },
   { name: 'AT_LAST', form: 'OPERAND', hasX: true, hasLag: false, unit: null, hint: 'X on the bar the event last passed' },
   { name: 'MAX_SINCE', form: 'OPERAND', hasX: true, hasLag: true, unit: null, hint: 'Highest X after the last event, up to lag bars ago (lag 1: the line as of the previous bar)' },
   { name: 'MIN_SINCE', form: 'OPERAND', hasX: true, hasLag: true, unit: null, hint: 'Lowest X after the last event, up to lag bars ago' },
-]);
+]));
 export const BRICKS_HINT = 'The stop and the sticky support follow the last level confirmation, not your trade: honest alone or '
   + 'with LongBlock partners; for the entries of other strategies wait for stage 4c. Levels runs over the bars of the run window '
   + '(as the LevelBreakoutRetest class), so its events depend on the window start.';
-export const DEFAULT_BRICKS_META = Object.freeze({ kinds: BRICK_KINDS, kMax: WITHIN_BARS_MAX, lagMax: LAG_MAX, hint: BRICKS_HINT });
+export const DEFAULT_BRICKS_META = Object.freeze({
+  kinds: BRICK_KINDS, kMax: WITHIN_BARS_MAX, lagMax: LAG_MAX, hint: BRICKS_HINT, help: helpMap(null, BRICKS_HELP),
+});
 
 // ---- position operands (stage 4c-1) ----
 
 /** Fallback of meta.position.kinds (backend ConstructedStrategyServiceImpl.positionMeta). */
-export const POSITION_KIND_META = Object.freeze([
+export const POSITION_KIND_META = Object.freeze(withTexts(POSITION_TEXTS, [
   { name: 'AT_ENTRY', form: 'AT_ENTRY', hint: 'X on the entry bar of the open long (seeded: the seed bar); "in position" = AT_ENTRY(close) > 0; a % stop = close < AT_ENTRY(close) with tolerance -5' },
   { name: 'MAX_SINCE_ENTRY', form: 'WINDOW', hint: 'The maximum of X over (entry, t - lag], bars without a value skipped; lag 1 = the class ratchet (the entry bar is not in the window)' },
   { name: 'MIN_SINCE_ENTRY', form: 'WINDOW', hint: 'The minimum of X over (entry, t - lag]' },
-]);
+]));
 export const POSITION_RUN_TFS = Object.freeze(['DAY', 'WEEK']);
 export const POSITION_REFUSED_IN = Object.freeze(['ShortClose']);
 export const POSITION_HINT = 'Position operands read the merged position at the start of the bar and have a value only in a LONG '
@@ -252,14 +297,14 @@ export const POSITION_HINT = 'Position operands read the merged position at the 
   + 'LEVEL or a brick. Not in the screener, not inside a brick / WITHIN; a version with one is position dependent.';
 export const DEFAULT_POSITION_META = Object.freeze({
   kinds: POSITION_KIND_META, lagMax: LAG_MAX, runTimeframes: POSITION_RUN_TFS, side: 'LONG',
-  refusedInRules: POSITION_REFUSED_IN, hint: POSITION_HINT,
+  refusedInRules: POSITION_REFUSED_IN, hint: POSITION_HINT, help: helpMap(null, POSITION_HELP),
 });
 
 /** meta.position (PositionMetaDTO) merged over the fallbacks. */
 export const normalizePositionMeta = (m) => {
   if (!m || typeof m !== 'object') return DEFAULT_POSITION_META;
   const kinds = mergeByName(m.kinds, POSITION_KIND_META, (k, f) => ({
-    name: k.name, form: k.form || f.form || 'AT_ENTRY', hint: k.hint || f.hint || '',
+    name: k.name, form: k.form || f.form || 'AT_ENTRY', hint: k.hint || f.hint || '', ...helpOf(k, f),
   })).filter((k) => POSITION_KINDS.includes(k.name));
   return {
     kinds: kinds.length ? kinds : [...POSITION_KIND_META],
@@ -268,6 +313,7 @@ export const normalizePositionMeta = (m) => {
     side: typeof m.side === 'string' && m.side ? m.side : 'LONG',
     refusedInRules: Array.isArray(m.refusedInRules) ? m.refusedInRules.filter((x) => typeof x === 'string') : [...POSITION_REFUSED_IN],
     hint: typeof m.hint === 'string' && m.hint ? m.hint : POSITION_HINT,
+    help: helpMap(m.help, POSITION_HELP),
   };
 };
 
@@ -284,8 +330,13 @@ export const normalizeLevelsMeta = (m) => {
     name: x.name,
     hint: x.hint || f.hint || '',
     needsStrength: typeof x.needsStrength === 'boolean' ? x.needsStrength : STRENGTH_EVENTS.includes(x.name),
+    ...helpOf(x, f),
+    // an old backend sends no flag: every event but BROKEN_DOWN is in the menu (architect §3.2)
+    inMenu: typeof x.inMenu === 'boolean' ? x.inMenu : x.name !== 'BROKEN_DOWN',
   }));
-  const outputs = mergeByName(m.outputs, LEVEL_OUTPUTS, (x, f) => ({ name: x.name, unit: x.unit || f.unit || null, hint: x.hint || f.hint || '' }));
+  const outputs = mergeByName(m.outputs, LEVEL_OUTPUTS, (x, f) => ({
+    name: x.name, unit: x.unit || f.unit || null, hint: x.hint || f.hint || '', ...helpOf(x, f),
+  }));
   const params = mergeByName(m.params, LEVELS_PARAMS, (x, f) => ({
     name: x.name,
     defaultValue: finiteOr(x.defaultValue ?? x.default, f.defaultValue),
@@ -295,6 +346,7 @@ export const normalizeLevelsMeta = (m) => {
     integer: typeof x.integer === 'boolean' ? x.integer : !!f.integer,
     hint: x.hint || f.hint || '',
     inPass: typeof x.inPass === 'boolean' ? x.inPass : !!f.inPass,
+    ...paramTexts(x, f),
   })).filter((x) => LEVEL_FIELDS.includes(x.name));
   // a backend without a field (takeProfitStrength before the re-arm round) keeps the fallback entry
   if (params.length) LEVELS_PARAMS.filter((f) => !params.some((x) => x.name === f.name)).forEach((f) => params.push({ ...f }));
@@ -317,6 +369,12 @@ export const normalizeLevelsMeta = (m) => {
     defaults,
     strengthMax: finiteOr(m.strengthMax, STRENGTH_MAX),
     rearmHint,
+    fixedParams: Object.keys(fixed).map((name) => {
+      const x = Array.isArray(m.fixedParams) ? m.fixedParams.find((p) => p && p.name === name) : null;
+      const f = LEVELS_FIXED_PARAMS.find((p) => p.name === name) || {};
+      return { name, value: finiteOr(x?.value, fixed[name]), ...helpOf(x || { name }, f) };
+    }),
+    help: helpMap(m.help, LEVELS_HELP),
   };
 };
 
@@ -330,12 +388,14 @@ export const normalizeBricksMeta = (m) => {
     hasLag: typeof k.hasLag === 'boolean' ? k.hasLag : !!f.hasLag,
     unit: k.unit ?? f.unit ?? null,
     hint: k.hint || f.hint || '',
+    ...helpOf(k, f),
   }));
   return {
     kinds: kinds.length ? kinds : [...BRICK_KINDS],
     kMax: finiteOr(m.kMax, WITHIN_BARS_MAX),
     lagMax: finiteOr(m.lagMax, LAG_MAX),
     hint: typeof m.hint === 'string' && m.hint ? m.hint : BRICKS_HINT,
+    help: helpMap(m.help, BRICKS_HELP),
   };
 };
 
@@ -384,8 +444,11 @@ export const normalizeChannelMeta = (m) => {
     ? m.metrics.map((x) => {
       const name = typeof x === 'string' ? x : x?.name;
       if (!name || /^TOUCHES_/.test(name)) return null;
-      const base = known.get(name) || { name, label: name, unit: null, hint: '' };
-      return { ...base, unit: x?.unit || base.unit, hint: x?.hint || base.hint, label: x?.label || base.label };
+      const base = known.get(name) || { name, label: name, unit: null, hint: '', tooltip: '' };
+      return {
+        ...base, unit: x?.unit || base.unit, hint: x?.hint || base.hint, label: x?.label || base.label,
+        tooltip: x?.tooltip || base.tooltip || x?.hint || base.hint || '',
+      };
     }).filter(Boolean)
     : [...CHANNEL_METRICS];
   const defaults = { ...CHANNEL_DEFAULTS };
@@ -398,6 +461,7 @@ export const normalizeChannelMeta = (m) => {
     runTimeframes: Array.isArray(m.runTimeframes) && m.runTimeframes.length ? m.runTimeframes : [...CHANNEL_RUN_TFS],
     defaults,
     ranges,
+    help: helpMap(m.help, CHANNEL_HELP),
   };
 };
 
@@ -417,6 +481,10 @@ export const normalizeMeta = (m) => ({
   bricks: normalizeBricksMeta(m?.bricks),
   position: normalizePositionMeta(m?.position),
   maxAxes: isNum(m?.maxAxes) && m.maxAxes > 0 ? m.maxAxes : MAX_AXES,
+  // editor UX Stage A (new keys only; an old backend → the fallbacks of editorTexts.js)
+  operandHelp: normalizeOperandHelp(m?.operandHelp),
+  signalTypeHelp: normalizeSignalTypeHelp(m?.signalTypeHelp),
+  axisHelp: normalizeAxisHelp(m?.axisHelp),
 });
 
 // ---- adapters ----
@@ -993,6 +1061,7 @@ export const getConstructedMeta = async () => {
   const meta = normalizeMeta(await readJson(res));
   setIndicatorCatalog({ indicators: meta.indicators });
   setLevelOutputUnits(meta.levels.outputs);
+  setEditorHelp({ operandHelp: meta.operandHelp, signalTypeHelp: meta.signalTypeHelp, axisHelp: meta.axisHelp });
   return meta;
 };
 
