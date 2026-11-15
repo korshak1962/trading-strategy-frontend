@@ -1,0 +1,4617 @@
+{
+ "constructed": {
+  "alpha:3@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > DAY SMA(50)[0]",
+      "R2 LongBlock: DAY close[0] ≤ DAY SMA(50)[0]"
+     ],
+     "conditions": [
+      "DAY close[0] > DAY SMA(50)[0]",
+      "DAY close[0] ≤ DAY SMA(50)[0]"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > DAY SMA(50)[0]",
+      "R2 LongBlock: DAY close[0] ≤ DAY SMA(50)[0]"
+     ],
+     "conditions": [
+      "DAY close[0] > DAY SMA(50)[0]",
+      "DAY close[0] ≤ DAY SMA(50)[0]"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > DAY SMA(50)[0]",
+      "R2 LongBlock: DAY close[0] ≤ DAY SMA(50)[0]"
+     ],
+     "conditions": [
+      "DAY close[0] > DAY SMA(50)[0]",
+      "DAY close[0] ≤ DAY SMA(50)[0]"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > DAY SMA(50)[0]",
+      "R2 LongBlock: DAY close[0] ≤ DAY SMA(50)[0]"
+     ],
+     "conditions": [
+      "DAY close[0] > DAY SMA(50)[0]",
+      "DAY close[0] ≤ DAY SMA(50)[0]"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > DAY SMA(50)[0]",
+      "R2 LongBlock: DAY close[0] ≤ DAY SMA(50)[0]"
+     ],
+     "conditions": [
+      "DAY close[0] > DAY SMA(50)[0]",
+      "DAY close[0] ≤ DAY SMA(50)[0]"
+     ]
+    }
+   },
+   "linkNotes": [
+    "",
+    ""
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:4@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$Gap = 0, $MaLength = 100",
+    "-$Gap = 0, $MaLength = 100"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:5@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$FastLength = 20, $FastLength + $Spread = 50",
+    "$FastLength = 20, $FastLength + $Spread = 50"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:6@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$Gap = 0, $MaLength = 100",
+    "-$Gap = 0, $MaLength = 100"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:7@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$FastLength = 20, $FastLength + $Spread = 50",
+    "$FastLength = 20, $FastLength + $Spread = 50"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:8@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN close[−1] > RUN SMA(20)[0]"
+     ],
+     "conditions": [
+      "RUN close[−1] > RUN SMA(20)[0]"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN close[−1] > RUN SMA(20)[0]"
+     ],
+     "conditions": [
+      "RUN close[−1] > RUN SMA(20)[0]"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN close[−1] > RUN SMA(20)[0]"
+     ],
+     "conditions": [
+      "RUN close[−1] > RUN SMA(20)[0]"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN close[−1] > RUN SMA(20)[0]"
+     ],
+     "conditions": [
+      "RUN close[−1] > RUN SMA(20)[0]"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN close[−1] > RUN SMA(20)[0]"
+     ],
+     "conditions": [
+      "RUN close[−1] > RUN SMA(20)[0]"
+     ]
+    }
+   },
+   "linkNotes": [
+    ""
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:9@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > DAY SMA(20)[0]"
+     ],
+     "conditions": [
+      "DAY close[0] > DAY SMA(20)[0]"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > DAY SMA(20)[0]"
+     ],
+     "conditions": [
+      "DAY close[0] > DAY SMA(20)[0]"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > DAY SMA(20)[0]"
+     ],
+     "conditions": [
+      "DAY close[0] > DAY SMA(20)[0]"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > DAY SMA(20)[0]"
+     ],
+     "conditions": [
+      "DAY close[0] > DAY SMA(20)[0]"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > DAY SMA(20)[0]"
+     ],
+     "conditions": [
+      "DAY close[0] > DAY SMA(20)[0]"
+     ]
+    }
+   },
+   "linkNotes": [
+    ""
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:10@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$Gap = 0, $MaLength = 100",
+    "-$Gap = 0, $MaLength = 100"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:10@2": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$Gap = 2, $MaLength = 100",
+    "-$Gap = -2, $MaLength = 100"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:10@3": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN close[−1] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[−1] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN close[−1] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[−1] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN close[−1] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[−1] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN close[−1] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[−1] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN close[−1] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[−1] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$Gap = 0, $MaLength = 100",
+    "-$Gap = 0, $MaLength = 100"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:11@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$FastLength = 20, $FastLength + $Spread = 50",
+    "$FastLength = 20, $FastLength + $Spread = 50"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:11@2": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$FastLength = 20, $FastLength + $Spread = 60",
+    "$FastLength = 20, $FastLength + $Spread = 60"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:11@3": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)",
+      "RUN SMA(20)[0] ≤ RUN SMA(60)[0] ($FastLength = 20, $FastLength + $Spread = 60)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$FastLength = 20, $FastLength + $Spread = 60",
+    "$FastLength = 20, $FastLength + $Spread = 60"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:12@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > DAY SMA(20)[−1]",
+      "R2 LongClose: DAY close[0] < DAY SMA(20)[−1]"
+     ],
+     "conditions": [
+      "DAY close[0] > DAY SMA(20)[−1]",
+      "DAY close[0] < DAY SMA(20)[−1]"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > DAY SMA(20)[−1]",
+      "R2 LongClose: DAY close[0] < DAY SMA(20)[−1]"
+     ],
+     "conditions": [
+      "DAY close[0] > DAY SMA(20)[−1]",
+      "DAY close[0] < DAY SMA(20)[−1]"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > DAY SMA(20)[−1]",
+      "R2 LongClose: DAY close[0] < DAY SMA(20)[−1]"
+     ],
+     "conditions": [
+      "DAY close[0] > DAY SMA(20)[−1]",
+      "DAY close[0] < DAY SMA(20)[−1]"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > DAY SMA(20)[−1]",
+      "R2 LongClose: DAY close[0] < DAY SMA(20)[−1]"
+     ],
+     "conditions": [
+      "DAY close[0] > DAY SMA(20)[−1]",
+      "DAY close[0] < DAY SMA(20)[−1]"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > DAY SMA(20)[−1]",
+      "R2 LongClose: DAY close[0] < DAY SMA(20)[−1]"
+     ],
+     "conditions": [
+      "DAY close[0] > DAY SMA(20)[−1]",
+      "DAY close[0] < DAY SMA(20)[−1]"
+     ]
+    }
+   },
+   "linkNotes": [
+    "",
+    ""
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:13@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$Gap = 0, $MaLength = 100",
+    "-$Gap = 0, $MaLength = 100"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:14@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$FastLength = 20, $FastLength + $Spread = 50",
+    "$FastLength = 20, $FastLength + $Spread = 50"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:15@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$Gap = 0, $MaLength = 100",
+    "-$Gap = 0, $MaLength = 100"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:16@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$Gap = 0, $MaLength = 100",
+    "-$Gap = 0, $MaLength = 100"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:16@2": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] × 1.02 ($Gap = 2, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] × 0.98 (-$Gap = -2, $MaLength = 100)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$Gap = 2, $MaLength = 100",
+    "-$Gap = -2, $MaLength = 100"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:17@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$FastLength = 20, $FastLength + $Spread = 50",
+    "$FastLength = 20, $FastLength + $Spread = 50"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:18@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "R2 ShortOpen: RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ],
+     "conditions": [
+      "RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "R2 ShortOpen: RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ],
+     "conditions": [
+      "RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "R2 ShortOpen: RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ],
+     "conditions": [
+      "RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "R2 ShortOpen: RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ],
+     "conditions": [
+      "RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "R2 ShortOpen: RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ],
+     "conditions": [
+      "RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$Length = 20, $TiltBuy = 0",
+    "$Length = 20, $TiltSell = 0"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:36@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1]",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN low[0] < RUN low[−1]"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1]",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN low[0] < RUN low[−1]"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1]",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN low[0] < RUN low[−1]"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1]",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN low[0] < RUN low[−1]"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1]",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN low[0] < RUN low[−1]"
+     ]
+    }
+   },
+   "linkNotes": [
+    "",
+    ""
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:37@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN close[−1]",
+      "R2 ShortOpen: RUN close[0] < RUN close[−1]"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN close[−1]",
+      "RUN close[0] < RUN close[−1]"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN close[−1]",
+      "R2 ShortOpen: RUN close[0] < RUN close[−1]"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN close[−1]",
+      "RUN close[0] < RUN close[−1]"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN close[−1]",
+      "R2 ShortOpen: RUN close[0] < RUN close[−1]"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN close[−1]",
+      "RUN close[0] < RUN close[−1]"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN close[−1]",
+      "R2 ShortOpen: RUN close[0] < RUN close[−1]"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN close[−1]",
+      "RUN close[0] < RUN close[−1]"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN close[−1]",
+      "R2 ShortOpen: RUN close[0] < RUN close[−1]"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN close[−1]",
+      "RUN close[0] < RUN close[−1]"
+     ]
+    }
+   },
+   "linkNotes": [
+    "",
+    ""
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:38@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1] AND RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1] AND RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "R3 LongClose: RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "R4 LongClose: RUN L0 EXISTS in [0, 0]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "RUN low[0] < RUN low[−1]",
+      "RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "RUN L0 EXISTS in [0, 0]"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1] AND RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1] AND RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "R3 LongClose: RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "R4 LongClose: RUN L0 EXISTS in [0, 0]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "RUN low[0] < RUN low[−1]",
+      "RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "RUN L0 EXISTS in [0, 0]"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1] AND RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1] AND RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "R3 LongClose: RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "R4 LongClose: RUN L0 EXISTS in [0, 0]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "RUN low[0] < RUN low[−1]",
+      "RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "RUN L0 EXISTS in [0, 0]"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1] AND RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1] AND RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "R3 LongClose: RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "R4 LongClose: RUN L0 EXISTS in [0, 0]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "RUN low[0] < RUN low[−1]",
+      "RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "RUN L0 EXISTS in [0, 0]"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1] AND RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1] AND RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "R3 LongClose: RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "R4 LongClose: RUN L0 EXISTS in [0, 0]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "RUN low[0] < RUN low[−1]",
+      "RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "RUN L0 EXISTS in [0, 0]"
+     ]
+    }
+   },
+   "linkNotes": [
+    "",
+    "$BuyLow = -0.1, $BuyHigh = 0.2",
+    "",
+    "$SellLow = 0.75",
+    "$StopPos = -0.25",
+    ""
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "alpha:39@1": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "12 Levels params linked",
+    "24 Levels params linked",
+    "24 Levels params linked",
+    "24 Levels params linked"
+   ],
+   "levelsSpecs": [
+    "re-arm"
+   ],
+   "levelsLegend": [
+    "Levels: re-arm"
+   ]
+  },
+  "template:price-vs-ma": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "R2 LongClose: RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN SMA(100)[0] ($Gap = 0, $MaLength = 100)",
+      "RUN close[0] < RUN SMA(100)[0] (-$Gap = 0, $MaLength = 100)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$Gap = 0, $MaLength = 100",
+    "-$Gap = 0, $MaLength = 100"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "template:ma-crossover": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "R2 LongClose: RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] > RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)",
+      "RUN SMA(20)[0] ≤ RUN SMA(50)[0] ($FastLength = 20, $FastLength + $Spread = 50)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$FastLength = 20, $FastLength + $Spread = 50",
+    "$FastLength = 20, $FastLength + $Spread = 50"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "template:sma-tilt": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "R2 ShortOpen: RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ],
+     "conditions": [
+      "RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "R2 ShortOpen: RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ],
+     "conditions": [
+      "RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "R2 ShortOpen: RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ],
+     "conditions": [
+      "RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "R2 ShortOpen: RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ],
+     "conditions": [
+      "RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "R2 ShortOpen: RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ],
+     "conditions": [
+      "RUN SMA_TILT(20)[0] > 0 ($Length = 20, $TiltBuy = 0)",
+      "RUN SMA_TILT(20)[0] < 0 ($Length = 20, $TiltSell = 0)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "$Length = 20, $TiltBuy = 0",
+    "$Length = 20, $TiltSell = 0"
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "template:higher-prev-high": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1]",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN low[0] < RUN low[−1]"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1]",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN low[0] < RUN low[−1]"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1]",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN low[0] < RUN low[−1]"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1]",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN low[0] < RUN low[−1]"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1]",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN low[0] < RUN low[−1]"
+     ]
+    }
+   },
+   "linkNotes": [
+    "",
+    ""
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "template:higher-prev-close": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN close[−1]",
+      "R2 ShortOpen: RUN close[0] < RUN close[−1]"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN close[−1]",
+      "RUN close[0] < RUN close[−1]"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN close[−1]",
+      "R2 ShortOpen: RUN close[0] < RUN close[−1]"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN close[−1]",
+      "RUN close[0] < RUN close[−1]"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN close[−1]",
+      "R2 ShortOpen: RUN close[0] < RUN close[−1]"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN close[−1]",
+      "RUN close[0] < RUN close[−1]"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN close[−1]",
+      "R2 ShortOpen: RUN close[0] < RUN close[−1]"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN close[−1]",
+      "RUN close[0] < RUN close[−1]"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN close[−1]",
+      "R2 ShortOpen: RUN close[0] < RUN close[−1]"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN close[−1]",
+      "RUN close[0] < RUN close[−1]"
+     ]
+    }
+   },
+   "linkNotes": [
+    "",
+    ""
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "template:channel-higher-high": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1] AND RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1] AND RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "R3 LongClose: RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "R4 LongClose: RUN L0 EXISTS in [0, 0]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "RUN low[0] < RUN low[−1]",
+      "RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "RUN L0 EXISTS in [0, 0]"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1] AND RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1] AND RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "R3 LongClose: RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "R4 LongClose: RUN L0 EXISTS in [0, 0]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "RUN low[0] < RUN low[−1]",
+      "RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "RUN L0 EXISTS in [0, 0]"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1] AND RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1] AND RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "R3 LongClose: RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "R4 LongClose: RUN L0 EXISTS in [0, 0]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "RUN low[0] < RUN low[−1]",
+      "RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "RUN L0 EXISTS in [0, 0]"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1] AND RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1] AND RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "R3 LongClose: RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "R4 LongClose: RUN L0 EXISTS in [0, 0]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "RUN low[0] < RUN low[−1]",
+      "RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "RUN L0 EXISTS in [0, 0]"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN high[0] > RUN high[−1] AND RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "R2 ShortOpen: RUN low[0] < RUN low[−1] AND RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "R3 LongClose: RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "R4 LongClose: RUN L0 EXISTS in [0, 0]"
+     ],
+     "conditions": [
+      "RUN high[0] > RUN high[−1]",
+      "RUN L0 POSITION in [−0.1, 0.2] ($BuyLow = -0.1, $BuyHigh = 0.2)",
+      "RUN low[0] < RUN low[−1]",
+      "RUN L0 POSITION ≥ 0.75 ($SellLow = 0.75)",
+      "RUN L0 POSITION ≤ −0.25 ($StopPos = -0.25)",
+      "RUN L0 EXISTS in [0, 0]"
+     ]
+    }
+   },
+   "linkNotes": [
+    "",
+    "$BuyLow = -0.1, $BuyHigh = 0.2",
+    "",
+    "$SellLow = 0.75",
+    "$StopPos = -0.25",
+    ""
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "template:level-breakout-bricks{entryAnchor=false,rearm=false,regime=false,takeProfit=false}": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "12 Levels params linked",
+    "24 Levels params linked",
+    "24 Levels params linked",
+    "24 Levels params linked"
+   ],
+   "levelsSpecs": [
+    "no re-arm"
+   ],
+   "levelsLegend": [
+    "Levels: no re-arm"
+   ]
+  },
+  "template:level-breakout-bricks{entryAnchor=false,rearm=true,regime=false,takeProfit=false}": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "12 Levels params linked",
+    "24 Levels params linked",
+    "24 Levels params linked",
+    "24 Levels params linked"
+   ],
+   "levelsSpecs": [
+    "re-arm"
+   ],
+   "levelsLegend": [
+    "Levels: re-arm"
+   ]
+  },
+  "template:level-breakout-bricks{entryAnchor=false,rearm=false,regime=false,takeProfit=true}": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "13 Levels params linked",
+    "26 Levels params linked",
+    "26 Levels params linked",
+    "26 Levels params linked",
+    "$TakeProfitStrength = 4, 13 Levels params linked",
+    "13 Levels params linked"
+   ],
+   "levelsSpecs": [
+    "no re-arm"
+   ],
+   "levelsLegend": [
+    "Levels: no re-arm"
+   ]
+  },
+  "template:level-breakout-bricks{entryAnchor=false,rearm=true,regime=false,takeProfit=true}": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "13 Levels params linked",
+    "26 Levels params linked",
+    "26 Levels params linked",
+    "26 Levels params linked",
+    "$TakeProfitStrength = 4, 13 Levels params linked",
+    "13 Levels params linked"
+   ],
+   "levelsSpecs": [
+    "re-arm (TP 4)"
+   ],
+   "levelsLegend": [
+    "Levels: re-arm (TP 4)"
+   ]
+  },
+  "template:level-breakout-bricks{entryAnchor=false,rearm=false,regime=true,takeProfit=false}": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "12 Levels params linked",
+    "$RegimeLength = 50",
+    "24 Levels params linked",
+    "24 Levels params linked",
+    "24 Levels params linked"
+   ],
+   "levelsSpecs": [
+    "no re-arm"
+   ],
+   "levelsLegend": [
+    "Levels: no re-arm"
+   ]
+  },
+  "template:level-breakout-bricks{entryAnchor=false,rearm=true,regime=true,takeProfit=false}": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (24 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (24 Levels params linked)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "12 Levels params linked",
+    "$RegimeLength = 50",
+    "24 Levels params linked",
+    "24 Levels params linked",
+    "24 Levels params linked"
+   ],
+   "levelsSpecs": [
+    "re-arm"
+   ],
+   "levelsLegend": [
+    "Levels: re-arm"
+   ]
+  },
+  "template:level-breakout-bricks{entryAnchor=false,rearm=false,regime=true,takeProfit=true}": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "13 Levels params linked",
+    "$RegimeLength = 50",
+    "26 Levels params linked",
+    "26 Levels params linked",
+    "26 Levels params linked",
+    "$TakeProfitStrength = 4, 13 Levels params linked",
+    "13 Levels params linked"
+   ],
+   "levelsSpecs": [
+    "no re-arm"
+   ],
+   "levelsLegend": [
+    "Levels: no re-arm"
+   ]
+  },
+  "template:level-breakout-bricks{entryAnchor=false,rearm=true,regime=true,takeProfit=true}": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < AT_LAST(SETUP_ZONE_LINE, CONFIRMED_ANY) (26 Levels params linked)",
+      "RUN close[0] < MAX_SINCE(SUPPORT_LINE, CONFIRMED_ANY, lag 1) (26 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "BARS_SINCE(CONFIRMED_ANY) ≥ 1 (13 Levels params linked)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "13 Levels params linked",
+    "$RegimeLength = 50",
+    "26 Levels params linked",
+    "26 Levels params linked",
+    "26 Levels params linked",
+    "$TakeProfitStrength = 4, 13 Levels params linked",
+    "13 Levels params linked"
+   ],
+   "levelsSpecs": [
+    "re-arm (TP 4)"
+   ],
+   "levelsLegend": [
+    "Levels: re-arm (TP 4)"
+   ]
+  },
+  "template:level-breakout-bricks{entryAnchor=true,rearm=false,regime=false,takeProfit=false}": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "12 Levels params linked",
+    "12 Levels params linked",
+    "12 Levels params linked",
+    "12 Levels params linked"
+   ],
+   "levelsSpecs": [
+    "no re-arm"
+   ],
+   "levelsLegend": [
+    "Levels: no re-arm"
+   ]
+  },
+  "template:level-breakout-bricks{entryAnchor=true,rearm=true,regime=false,takeProfit=false}": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "12 Levels params linked",
+    "12 Levels params linked",
+    "12 Levels params linked",
+    "12 Levels params linked"
+   ],
+   "levelsSpecs": [
+    "re-arm"
+   ],
+   "levelsLegend": [
+    "Levels: re-arm"
+   ]
+  },
+  "template:level-breakout-bricks{entryAnchor=true,rearm=false,regime=false,takeProfit=true}": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    }
+   },
+   "linkNotes": [
+    "13 Levels params linked",
+    "13 Levels params linked",
+    "13 Levels params linked",
+    "13 Levels params linked",
+    "$TakeProfitStrength = 4, 13 Levels params linked",
+    ""
+   ],
+   "levelsSpecs": [
+    "no re-arm"
+   ],
+   "levelsLegend": [
+    "Levels: no re-arm"
+   ]
+  },
+  "template:level-breakout-bricks{entryAnchor=true,rearm=true,regime=false,takeProfit=true}": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    }
+   },
+   "linkNotes": [
+    "13 Levels params linked",
+    "13 Levels params linked",
+    "13 Levels params linked",
+    "13 Levels params linked",
+    "$TakeProfitStrength = 4, 13 Levels params linked",
+    ""
+   ],
+   "levelsSpecs": [
+    "re-arm (TP 4)"
+   ],
+   "levelsLegend": [
+    "Levels: re-arm (TP 4)"
+   ]
+  },
+  "template:level-breakout-bricks{entryAnchor=true,rearm=false,regime=true,takeProfit=false}": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "12 Levels params linked",
+    "$RegimeLength = 50",
+    "12 Levels params linked",
+    "12 Levels params linked",
+    "12 Levels params linked"
+   ],
+   "levelsSpecs": [
+    "no re-arm"
+   ],
+   "levelsLegend": [
+    "Levels: no re-arm"
+   ]
+  },
+  "template:level-breakout-bricks{entryAnchor=true,rearm=true,regime=true,takeProfit=false}": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "12 Levels params linked",
+    "$RegimeLength = 50",
+    "12 Levels params linked",
+    "12 Levels params linked",
+    "12 Levels params linked"
+   ],
+   "levelsSpecs": [
+    "re-arm"
+   ],
+   "levelsLegend": [
+    "Levels: re-arm"
+   ]
+  },
+  "template:level-breakout-bricks{entryAnchor=true,rearm=false,regime=true,takeProfit=true}": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    }
+   },
+   "linkNotes": [
+    "13 Levels params linked",
+    "$RegimeLength = 50",
+    "13 Levels params linked",
+    "13 Levels params linked",
+    "13 Levels params linked",
+    "$TakeProfitStrength = 4, 13 Levels params linked",
+    ""
+   ],
+   "levelsSpecs": [
+    "no re-arm"
+   ],
+   "levelsLegend": [
+    "Levels: no re-arm"
+   ]
+  },
+  "template:level-breakout-bricks{entryAnchor=true,rearm=true,regime=true,takeProfit=true}": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (13 Levels params linked) AND RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "R5 LongClose: LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked) AND AT_ENTRY(RUN close[0]) > 0"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (13 Levels params linked)",
+      "RUN close[0] > RUN SMA(50)[0] ($RegimeLength = 50)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (13 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (13 Levels params linked)",
+      "RUN close[0] < MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1) (13 Levels params linked)",
+      "LEVEL RESISTANCE_REACHED(4) ($TakeProfitStrength = 4, 13 Levels params linked)",
+      "AT_ENTRY(RUN close[0]) > 0"
+     ]
+    }
+   },
+   "linkNotes": [
+    "13 Levels params linked",
+    "$RegimeLength = 50",
+    "13 Levels params linked",
+    "13 Levels params linked",
+    "13 Levels params linked",
+    "$TakeProfitStrength = 4, 13 Levels params linked",
+    ""
+   ],
+   "levelsSpecs": [
+    "re-arm (TP 4)"
+   ],
+   "levelsLegend": [
+    "Levels: re-arm (TP 4)"
+   ]
+  },
+  "handmade:H-fields-run": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN high[−1]",
+      "R2 LongClose: RUN low[0] < RUN low[−3] × 0.995",
+      "R3 ShortOpen: RUN open[0] ≤ RUN close[−1]",
+      "R4 LongBlock: RUN volume[0] ≥ RUN volume[−1] × 1.3",
+      "R5 ShortClose: RUN close[0] > 110.5"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN high[−1]",
+      "RUN low[0] < RUN low[−3] × 0.995",
+      "RUN open[0] ≤ RUN close[−1]",
+      "RUN volume[0] ≥ RUN volume[−1] × 1.3",
+      "RUN close[0] > 110.5"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN high[−1]",
+      "R2 LongClose: RUN low[0] < RUN low[−3] × 0.995",
+      "R3 ShortOpen: RUN open[0] ≤ RUN close[−1]",
+      "R4 LongBlock: RUN volume[0] ≥ RUN volume[−1] × 1.3",
+      "R5 ShortClose: RUN close[0] > 110.5"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN high[−1]",
+      "RUN low[0] < RUN low[−3] × 0.995",
+      "RUN open[0] ≤ RUN close[−1]",
+      "RUN volume[0] ≥ RUN volume[−1] × 1.3",
+      "RUN close[0] > 110.5"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN high[−1]",
+      "R2 LongClose: RUN low[0] < RUN low[−3] × 0.995",
+      "R3 ShortOpen: RUN open[0] ≤ RUN close[−1]",
+      "R4 LongBlock: RUN volume[0] ≥ RUN volume[−1] × 1.3",
+      "R5 ShortClose: RUN close[0] > 110.5"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN high[−1]",
+      "RUN low[0] < RUN low[−3] × 0.995",
+      "RUN open[0] ≤ RUN close[−1]",
+      "RUN volume[0] ≥ RUN volume[−1] × 1.3",
+      "RUN close[0] > 110.5"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN high[−1]",
+      "R2 LongClose: RUN low[0] < RUN low[−3] × 0.995",
+      "R3 ShortOpen: RUN open[0] ≤ RUN close[−1]",
+      "R4 LongBlock: RUN volume[0] ≥ RUN volume[−1] × 1.3",
+      "R5 ShortClose: RUN close[0] > 110.5"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN high[−1]",
+      "RUN low[0] < RUN low[−3] × 0.995",
+      "RUN open[0] ≤ RUN close[−1]",
+      "RUN volume[0] ≥ RUN volume[−1] × 1.3",
+      "RUN close[0] > 110.5"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > RUN high[−1]",
+      "R2 LongClose: RUN low[0] < RUN low[−3] × 0.995",
+      "R3 ShortOpen: RUN open[0] ≤ RUN close[−1]",
+      "R4 LongBlock: RUN volume[0] ≥ RUN volume[−1] × 1.3",
+      "R5 ShortClose: RUN close[0] > 110.5"
+     ],
+     "conditions": [
+      "RUN close[0] > RUN high[−1]",
+      "RUN low[0] < RUN low[−3] × 0.995",
+      "RUN open[0] ≤ RUN close[−1]",
+      "RUN volume[0] ≥ RUN volume[−1] × 1.3",
+      "RUN close[0] > 110.5"
+     ]
+    }
+   },
+   "linkNotes": [
+    "",
+    "",
+    "",
+    "",
+    ""
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "handmade:H-fields-day-week": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > WEEK close[−1]",
+      "R2 LongClose: DAY close[0] < WEEK low[−1] × 1.0025",
+      "R3 ShortOpen: WEEK high[0] < WEEK high[−2]"
+     ],
+     "conditions": [
+      "DAY close[0] > WEEK close[−1]",
+      "DAY close[0] < WEEK low[−1] × 1.0025",
+      "WEEK high[0] < WEEK high[−2]"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > WEEK close[−1]",
+      "R2 LongClose: DAY close[0] < WEEK low[−1] × 1.0025",
+      "R3 ShortOpen: WEEK high[0] < WEEK high[−2]"
+     ],
+     "conditions": [
+      "DAY close[0] > WEEK close[−1]",
+      "DAY close[0] < WEEK low[−1] × 1.0025",
+      "WEEK high[0] < WEEK high[−2]"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > WEEK close[−1]",
+      "R2 LongClose: DAY close[0] < WEEK low[−1] × 1.0025",
+      "R3 ShortOpen: WEEK high[0] (provisional) < WEEK high[−2]"
+     ],
+     "conditions": [
+      "DAY close[0] > WEEK close[−1]",
+      "DAY close[0] < WEEK low[−1] × 1.0025",
+      "WEEK high[0] (provisional) < WEEK high[−2]"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > WEEK close[−1]",
+      "R2 LongClose: DAY close[0] < WEEK low[−1] × 1.0025",
+      "R3 ShortOpen: WEEK high[0] < WEEK high[−2]"
+     ],
+     "conditions": [
+      "DAY close[0] > WEEK close[−1]",
+      "DAY close[0] < WEEK low[−1] × 1.0025",
+      "WEEK high[0] < WEEK high[−2]"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: DAY close[0] > WEEK close[−1]",
+      "R2 LongClose: DAY close[0] < WEEK low[−1] × 1.0025",
+      "R3 ShortOpen: WEEK high[0] < WEEK high[−2]"
+     ],
+     "conditions": [
+      "DAY close[0] > WEEK close[−1]",
+      "DAY close[0] < WEEK low[−1] × 1.0025",
+      "WEEK high[0] < WEEK high[−2]"
+     ]
+    }
+   },
+   "linkNotes": [
+    "",
+    "",
+    ""
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "handmade:H-indicators-RUN": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] < RUN close[0] AND RUN SMA_TILT(20)[0] > 0",
+      "R2 LongClose: RUN RSI(14)[−1] > 70",
+      "R3 ShortOpen: RUN ibs[0] < 0.2",
+      "R4 LongBlock: RUN ATR_PCT(14)[0] > 2.5",
+      "R5 ShortClose: RUN ER(10)[0] > 0.4",
+      "R6 LongClose: RUN ATR(14)[0] > RUN ATR(5)[−1]",
+      "R7 LongOpen: RUN SMA(10)[−2] ≥ RUN SMA(50)[0] × 1.015"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] < RUN close[0]",
+      "RUN SMA_TILT(20)[0] > 0",
+      "RUN RSI(14)[−1] > 70",
+      "RUN ibs[0] < 0.2",
+      "RUN ATR_PCT(14)[0] > 2.5",
+      "RUN ER(10)[0] > 0.4",
+      "RUN ATR(14)[0] > RUN ATR(5)[−1]",
+      "RUN SMA(10)[−2] ≥ RUN SMA(50)[0] × 1.015"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] < RUN close[0] AND RUN SMA_TILT(20)[0] > 0",
+      "R2 LongClose: RUN RSI(14)[−1] > 70",
+      "R3 ShortOpen: RUN ibs[0] < 0.2",
+      "R4 LongBlock: RUN ATR_PCT(14)[0] > 2.5",
+      "R5 ShortClose: RUN ER(10)[0] > 0.4",
+      "R6 LongClose: RUN ATR(14)[0] > RUN ATR(5)[−1]",
+      "R7 LongOpen: RUN SMA(10)[−2] ≥ RUN SMA(50)[0] × 1.015"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] < RUN close[0]",
+      "RUN SMA_TILT(20)[0] > 0",
+      "RUN RSI(14)[−1] > 70",
+      "RUN ibs[0] < 0.2",
+      "RUN ATR_PCT(14)[0] > 2.5",
+      "RUN ER(10)[0] > 0.4",
+      "RUN ATR(14)[0] > RUN ATR(5)[−1]",
+      "RUN SMA(10)[−2] ≥ RUN SMA(50)[0] × 1.015"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] < RUN close[0] AND RUN SMA_TILT(20)[0] > 0",
+      "R2 LongClose: RUN RSI(14)[−1] > 70",
+      "R3 ShortOpen: RUN ibs[0] < 0.2",
+      "R4 LongBlock: RUN ATR_PCT(14)[0] > 2.5",
+      "R5 ShortClose: RUN ER(10)[0] > 0.4",
+      "R6 LongClose: RUN ATR(14)[0] > RUN ATR(5)[−1]",
+      "R7 LongOpen: RUN SMA(10)[−2] ≥ RUN SMA(50)[0] × 1.015"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] < RUN close[0]",
+      "RUN SMA_TILT(20)[0] > 0",
+      "RUN RSI(14)[−1] > 70",
+      "RUN ibs[0] < 0.2",
+      "RUN ATR_PCT(14)[0] > 2.5",
+      "RUN ER(10)[0] > 0.4",
+      "RUN ATR(14)[0] > RUN ATR(5)[−1]",
+      "RUN SMA(10)[−2] ≥ RUN SMA(50)[0] × 1.015"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] < RUN close[0] AND RUN SMA_TILT(20)[0] > 0",
+      "R2 LongClose: RUN RSI(14)[−1] > 70",
+      "R3 ShortOpen: RUN ibs[0] < 0.2",
+      "R4 LongBlock: RUN ATR_PCT(14)[0] > 2.5",
+      "R5 ShortClose: RUN ER(10)[0] > 0.4",
+      "R6 LongClose: RUN ATR(14)[0] > RUN ATR(5)[−1]",
+      "R7 LongOpen: RUN SMA(10)[−2] ≥ RUN SMA(50)[0] × 1.015"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] < RUN close[0]",
+      "RUN SMA_TILT(20)[0] > 0",
+      "RUN RSI(14)[−1] > 70",
+      "RUN ibs[0] < 0.2",
+      "RUN ATR_PCT(14)[0] > 2.5",
+      "RUN ER(10)[0] > 0.4",
+      "RUN ATR(14)[0] > RUN ATR(5)[−1]",
+      "RUN SMA(10)[−2] ≥ RUN SMA(50)[0] × 1.015"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN SMA(20)[0] < RUN close[0] AND RUN SMA_TILT(20)[0] > 0",
+      "R2 LongClose: RUN RSI(14)[−1] > 70",
+      "R3 ShortOpen: RUN ibs[0] < 0.2",
+      "R4 LongBlock: RUN ATR_PCT(14)[0] > 2.5",
+      "R5 ShortClose: RUN ER(10)[0] > 0.4",
+      "R6 LongClose: RUN ATR(14)[0] > RUN ATR(5)[−1]",
+      "R7 LongOpen: RUN SMA(10)[−2] ≥ RUN SMA(50)[0] × 1.015"
+     ],
+     "conditions": [
+      "RUN SMA(20)[0] < RUN close[0]",
+      "RUN SMA_TILT(20)[0] > 0",
+      "RUN RSI(14)[−1] > 70",
+      "RUN ibs[0] < 0.2",
+      "RUN ATR_PCT(14)[0] > 2.5",
+      "RUN ER(10)[0] > 0.4",
+      "RUN ATR(14)[0] > RUN ATR(5)[−1]",
+      "RUN SMA(10)[−2] ≥ RUN SMA(50)[0] × 1.015"
+     ]
+    }
+   },
+   "linkNotes": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "handmade:H-indicators-DAY": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: DAY SMA(20)[0] < DAY close[0] AND DAY SMA_TILT(20)[0] > 0",
+      "R2 LongClose: DAY RSI(14)[−1] > 70",
+      "R3 ShortOpen: DAY ibs[0] < 0.2",
+      "R4 LongBlock: DAY ATR_PCT(14)[0] > 2.5",
+      "R5 ShortClose: DAY ER(10)[0] > 0.4",
+      "R6 LongClose: DAY ATR(14)[0] > DAY ATR(5)[−1]",
+      "R7 LongOpen: DAY SMA(10)[−2] ≥ DAY SMA(50)[0] × 1.015"
+     ],
+     "conditions": [
+      "DAY SMA(20)[0] < DAY close[0]",
+      "DAY SMA_TILT(20)[0] > 0",
+      "DAY RSI(14)[−1] > 70",
+      "DAY ibs[0] < 0.2",
+      "DAY ATR_PCT(14)[0] > 2.5",
+      "DAY ER(10)[0] > 0.4",
+      "DAY ATR(14)[0] > DAY ATR(5)[−1]",
+      "DAY SMA(10)[−2] ≥ DAY SMA(50)[0] × 1.015"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: DAY SMA(20)[0] < DAY close[0] AND DAY SMA_TILT(20)[0] > 0",
+      "R2 LongClose: DAY RSI(14)[−1] > 70",
+      "R3 ShortOpen: DAY ibs[0] < 0.2",
+      "R4 LongBlock: DAY ATR_PCT(14)[0] > 2.5",
+      "R5 ShortClose: DAY ER(10)[0] > 0.4",
+      "R6 LongClose: DAY ATR(14)[0] > DAY ATR(5)[−1]",
+      "R7 LongOpen: DAY SMA(10)[−2] ≥ DAY SMA(50)[0] × 1.015"
+     ],
+     "conditions": [
+      "DAY SMA(20)[0] < DAY close[0]",
+      "DAY SMA_TILT(20)[0] > 0",
+      "DAY RSI(14)[−1] > 70",
+      "DAY ibs[0] < 0.2",
+      "DAY ATR_PCT(14)[0] > 2.5",
+      "DAY ER(10)[0] > 0.4",
+      "DAY ATR(14)[0] > DAY ATR(5)[−1]",
+      "DAY SMA(10)[−2] ≥ DAY SMA(50)[0] × 1.015"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: DAY SMA(20)[0] < DAY close[0] AND DAY SMA_TILT(20)[0] > 0",
+      "R2 LongClose: DAY RSI(14)[−1] > 70",
+      "R3 ShortOpen: DAY ibs[0] < 0.2",
+      "R4 LongBlock: DAY ATR_PCT(14)[0] > 2.5",
+      "R5 ShortClose: DAY ER(10)[0] > 0.4",
+      "R6 LongClose: DAY ATR(14)[0] > DAY ATR(5)[−1]",
+      "R7 LongOpen: DAY SMA(10)[−2] ≥ DAY SMA(50)[0] × 1.015"
+     ],
+     "conditions": [
+      "DAY SMA(20)[0] < DAY close[0]",
+      "DAY SMA_TILT(20)[0] > 0",
+      "DAY RSI(14)[−1] > 70",
+      "DAY ibs[0] < 0.2",
+      "DAY ATR_PCT(14)[0] > 2.5",
+      "DAY ER(10)[0] > 0.4",
+      "DAY ATR(14)[0] > DAY ATR(5)[−1]",
+      "DAY SMA(10)[−2] ≥ DAY SMA(50)[0] × 1.015"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: DAY SMA(20)[0] < DAY close[0] AND DAY SMA_TILT(20)[0] > 0",
+      "R2 LongClose: DAY RSI(14)[−1] > 70",
+      "R3 ShortOpen: DAY ibs[0] < 0.2",
+      "R4 LongBlock: DAY ATR_PCT(14)[0] > 2.5",
+      "R5 ShortClose: DAY ER(10)[0] > 0.4",
+      "R6 LongClose: DAY ATR(14)[0] > DAY ATR(5)[−1]",
+      "R7 LongOpen: DAY SMA(10)[−2] ≥ DAY SMA(50)[0] × 1.015"
+     ],
+     "conditions": [
+      "DAY SMA(20)[0] < DAY close[0]",
+      "DAY SMA_TILT(20)[0] > 0",
+      "DAY RSI(14)[−1] > 70",
+      "DAY ibs[0] < 0.2",
+      "DAY ATR_PCT(14)[0] > 2.5",
+      "DAY ER(10)[0] > 0.4",
+      "DAY ATR(14)[0] > DAY ATR(5)[−1]",
+      "DAY SMA(10)[−2] ≥ DAY SMA(50)[0] × 1.015"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: DAY SMA(20)[0] < DAY close[0] AND DAY SMA_TILT(20)[0] > 0",
+      "R2 LongClose: DAY RSI(14)[−1] > 70",
+      "R3 ShortOpen: DAY ibs[0] < 0.2",
+      "R4 LongBlock: DAY ATR_PCT(14)[0] > 2.5",
+      "R5 ShortClose: DAY ER(10)[0] > 0.4",
+      "R6 LongClose: DAY ATR(14)[0] > DAY ATR(5)[−1]",
+      "R7 LongOpen: DAY SMA(10)[−2] ≥ DAY SMA(50)[0] × 1.015"
+     ],
+     "conditions": [
+      "DAY SMA(20)[0] < DAY close[0]",
+      "DAY SMA_TILT(20)[0] > 0",
+      "DAY RSI(14)[−1] > 70",
+      "DAY ibs[0] < 0.2",
+      "DAY ATR_PCT(14)[0] > 2.5",
+      "DAY ER(10)[0] > 0.4",
+      "DAY ATR(14)[0] > DAY ATR(5)[−1]",
+      "DAY SMA(10)[−2] ≥ DAY SMA(50)[0] × 1.015"
+     ]
+    }
+   },
+   "linkNotes": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "handmade:H-indicators-WEEK": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: WEEK SMA(20)[0] < WEEK close[0] AND WEEK SMA_TILT(20)[0] > 0",
+      "R2 LongClose: WEEK RSI(14)[−1] > 70",
+      "R3 ShortOpen: WEEK ibs[0] < 0.2",
+      "R4 LongBlock: WEEK ATR_PCT(14)[0] > 2.5",
+      "R5 ShortClose: WEEK ER(10)[0] > 0.4",
+      "R6 LongClose: WEEK ATR(14)[0] > WEEK ATR(5)[−1]",
+      "R7 LongOpen: WEEK SMA(10)[−2] ≥ WEEK SMA(50)[0] × 1.015"
+     ],
+     "conditions": [
+      "WEEK SMA(20)[0] < WEEK close[0]",
+      "WEEK SMA_TILT(20)[0] > 0",
+      "WEEK RSI(14)[−1] > 70",
+      "WEEK ibs[0] < 0.2",
+      "WEEK ATR_PCT(14)[0] > 2.5",
+      "WEEK ER(10)[0] > 0.4",
+      "WEEK ATR(14)[0] > WEEK ATR(5)[−1]",
+      "WEEK SMA(10)[−2] ≥ WEEK SMA(50)[0] × 1.015"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: WEEK SMA(20)[0] < WEEK close[0] AND WEEK SMA_TILT(20)[0] > 0",
+      "R2 LongClose: WEEK RSI(14)[−1] > 70",
+      "R3 ShortOpen: WEEK ibs[0] < 0.2",
+      "R4 LongBlock: WEEK ATR_PCT(14)[0] > 2.5",
+      "R5 ShortClose: WEEK ER(10)[0] > 0.4",
+      "R6 LongClose: WEEK ATR(14)[0] > WEEK ATR(5)[−1]",
+      "R7 LongOpen: WEEK SMA(10)[−2] ≥ WEEK SMA(50)[0] × 1.015"
+     ],
+     "conditions": [
+      "WEEK SMA(20)[0] < WEEK close[0]",
+      "WEEK SMA_TILT(20)[0] > 0",
+      "WEEK RSI(14)[−1] > 70",
+      "WEEK ibs[0] < 0.2",
+      "WEEK ATR_PCT(14)[0] > 2.5",
+      "WEEK ER(10)[0] > 0.4",
+      "WEEK ATR(14)[0] > WEEK ATR(5)[−1]",
+      "WEEK SMA(10)[−2] ≥ WEEK SMA(50)[0] × 1.015"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: WEEK SMA(20)[0] (provisional) < WEEK close[0] (provisional) AND WEEK SMA_TILT(20)[0] (provisional) > 0",
+      "R2 LongClose: WEEK RSI(14)[−1] > 70",
+      "R3 ShortOpen: WEEK ibs[0] (provisional) < 0.2",
+      "R4 LongBlock: WEEK ATR_PCT(14)[0] (provisional) > 2.5",
+      "R5 ShortClose: WEEK ER(10)[0] (provisional) > 0.4",
+      "R6 LongClose: WEEK ATR(14)[0] (provisional) > WEEK ATR(5)[−1]",
+      "R7 LongOpen: WEEK SMA(10)[−2] ≥ WEEK SMA(50)[0] (provisional) × 1.015"
+     ],
+     "conditions": [
+      "WEEK SMA(20)[0] (provisional) < WEEK close[0] (provisional)",
+      "WEEK SMA_TILT(20)[0] (provisional) > 0",
+      "WEEK RSI(14)[−1] > 70",
+      "WEEK ibs[0] (provisional) < 0.2",
+      "WEEK ATR_PCT(14)[0] (provisional) > 2.5",
+      "WEEK ER(10)[0] (provisional) > 0.4",
+      "WEEK ATR(14)[0] (provisional) > WEEK ATR(5)[−1]",
+      "WEEK SMA(10)[−2] ≥ WEEK SMA(50)[0] (provisional) × 1.015"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: WEEK SMA(20)[0] < WEEK close[0] AND WEEK SMA_TILT(20)[0] > 0",
+      "R2 LongClose: WEEK RSI(14)[−1] > 70",
+      "R3 ShortOpen: WEEK ibs[0] < 0.2",
+      "R4 LongBlock: WEEK ATR_PCT(14)[0] > 2.5",
+      "R5 ShortClose: WEEK ER(10)[0] > 0.4",
+      "R6 LongClose: WEEK ATR(14)[0] > WEEK ATR(5)[−1]",
+      "R7 LongOpen: WEEK SMA(10)[−2] ≥ WEEK SMA(50)[0] × 1.015"
+     ],
+     "conditions": [
+      "WEEK SMA(20)[0] < WEEK close[0]",
+      "WEEK SMA_TILT(20)[0] > 0",
+      "WEEK RSI(14)[−1] > 70",
+      "WEEK ibs[0] < 0.2",
+      "WEEK ATR_PCT(14)[0] > 2.5",
+      "WEEK ER(10)[0] > 0.4",
+      "WEEK ATR(14)[0] > WEEK ATR(5)[−1]",
+      "WEEK SMA(10)[−2] ≥ WEEK SMA(50)[0] × 1.015"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: WEEK SMA(20)[0] < WEEK close[0] AND WEEK SMA_TILT(20)[0] > 0",
+      "R2 LongClose: WEEK RSI(14)[−1] > 70",
+      "R3 ShortOpen: WEEK ibs[0] < 0.2",
+      "R4 LongBlock: WEEK ATR_PCT(14)[0] > 2.5",
+      "R5 ShortClose: WEEK ER(10)[0] > 0.4",
+      "R6 LongClose: WEEK ATR(14)[0] > WEEK ATR(5)[−1]",
+      "R7 LongOpen: WEEK SMA(10)[−2] ≥ WEEK SMA(50)[0] × 1.015"
+     ],
+     "conditions": [
+      "WEEK SMA(20)[0] < WEEK close[0]",
+      "WEEK SMA_TILT(20)[0] > 0",
+      "WEEK RSI(14)[−1] > 70",
+      "WEEK ibs[0] < 0.2",
+      "WEEK ATR_PCT(14)[0] > 2.5",
+      "WEEK ER(10)[0] > 0.4",
+      "WEEK ATR(14)[0] > WEEK ATR(5)[−1]",
+      "WEEK SMA(10)[−2] ≥ WEEK SMA(50)[0] × 1.015"
+     ]
+    }
+   },
+   "linkNotes": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "handmade:H-week-sma-on-run": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > WEEK SMA(10)[0] AND WEEK ibs[−1] < 0.5",
+      "R2 LongClose: RUN close[0] < WEEK SMA(30)[−1]"
+     ],
+     "conditions": [
+      "RUN close[0] > WEEK SMA(10)[0]",
+      "WEEK ibs[−1] < 0.5",
+      "RUN close[0] < WEEK SMA(30)[−1]"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > WEEK SMA(10)[0] AND WEEK ibs[−1] < 0.5",
+      "R2 LongClose: RUN close[0] < WEEK SMA(30)[−1]"
+     ],
+     "conditions": [
+      "RUN close[0] > WEEK SMA(10)[0]",
+      "WEEK ibs[−1] < 0.5",
+      "RUN close[0] < WEEK SMA(30)[−1]"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > WEEK SMA(10)[0] (provisional) AND WEEK ibs[−1] < 0.5",
+      "R2 LongClose: RUN close[0] < WEEK SMA(30)[−1]"
+     ],
+     "conditions": [
+      "RUN close[0] > WEEK SMA(10)[0] (provisional)",
+      "WEEK ibs[−1] < 0.5",
+      "RUN close[0] < WEEK SMA(30)[−1]"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > WEEK SMA(10)[0] AND WEEK ibs[−1] < 0.5",
+      "R2 LongClose: RUN close[0] < WEEK SMA(30)[−1]"
+     ],
+     "conditions": [
+      "RUN close[0] > WEEK SMA(10)[0]",
+      "WEEK ibs[−1] < 0.5",
+      "RUN close[0] < WEEK SMA(30)[−1]"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] > WEEK SMA(10)[0] AND WEEK ibs[−1] < 0.5",
+      "R2 LongClose: RUN close[0] < WEEK SMA(30)[−1]"
+     ],
+     "conditions": [
+      "RUN close[0] > WEEK SMA(10)[0]",
+      "WEEK ibs[−1] < 0.5",
+      "RUN close[0] < WEEK SMA(30)[−1]"
+     ]
+    }
+   },
+   "linkNotes": [
+    "",
+    "",
+    ""
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "handmade:H-bricks": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] ≥ MAX_SINCE(RUN close[0], RUN close[0] > RUN SMA(10)[0], lag 2)",
+      "R2 LongClose: RUN low[0] < MIN_SINCE(RUN low[−1], RUN ibs[0] < 0.15, lag 0)",
+      "R3 LongClose: RUN close[0] < AT_LAST(RUN SMA(20)[0], RUN ibs[0] < 0.15) × 0.99",
+      "R4 ShortOpen: BARS_SINCE(RUN close[0] > RUN high[−1]) > 3",
+      "R5 LongBlock: WITHIN(RUN close[0] > RUN SMA(10)[0], 3)",
+      "R6 ShortClose: RUN RSI(14)[0] < MAX_SINCE(RUN RSI(14)[0], RUN ibs[0] < 0.15, lag 1)"
+     ],
+     "conditions": [
+      "RUN close[0] ≥ MAX_SINCE(RUN close[0], RUN close[0] > RUN SMA(10)[0], lag 2)",
+      "RUN low[0] < MIN_SINCE(RUN low[−1], RUN ibs[0] < 0.15, lag 0)",
+      "RUN close[0] < AT_LAST(RUN SMA(20)[0], RUN ibs[0] < 0.15) × 0.99",
+      "BARS_SINCE(RUN close[0] > RUN high[−1]) > 3",
+      "WITHIN(RUN close[0] > RUN SMA(10)[0], 3)",
+      "RUN RSI(14)[0] < MAX_SINCE(RUN RSI(14)[0], RUN ibs[0] < 0.15, lag 1)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] ≥ MAX_SINCE(RUN close[0], RUN close[0] > RUN SMA(10)[0], lag 2)",
+      "R2 LongClose: RUN low[0] < MIN_SINCE(RUN low[−1], RUN ibs[0] < 0.15, lag 0)",
+      "R3 LongClose: RUN close[0] < AT_LAST(RUN SMA(20)[0], RUN ibs[0] < 0.15) × 0.99",
+      "R4 ShortOpen: BARS_SINCE(RUN close[0] > RUN high[−1]) > 3",
+      "R5 LongBlock: WITHIN(RUN close[0] > RUN SMA(10)[0], 3)",
+      "R6 ShortClose: RUN RSI(14)[0] < MAX_SINCE(RUN RSI(14)[0], RUN ibs[0] < 0.15, lag 1)"
+     ],
+     "conditions": [
+      "RUN close[0] ≥ MAX_SINCE(RUN close[0], RUN close[0] > RUN SMA(10)[0], lag 2)",
+      "RUN low[0] < MIN_SINCE(RUN low[−1], RUN ibs[0] < 0.15, lag 0)",
+      "RUN close[0] < AT_LAST(RUN SMA(20)[0], RUN ibs[0] < 0.15) × 0.99",
+      "BARS_SINCE(RUN close[0] > RUN high[−1]) > 3",
+      "WITHIN(RUN close[0] > RUN SMA(10)[0], 3)",
+      "RUN RSI(14)[0] < MAX_SINCE(RUN RSI(14)[0], RUN ibs[0] < 0.15, lag 1)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] ≥ MAX_SINCE(RUN close[0], RUN close[0] > RUN SMA(10)[0], lag 2)",
+      "R2 LongClose: RUN low[0] < MIN_SINCE(RUN low[−1], RUN ibs[0] < 0.15, lag 0)",
+      "R3 LongClose: RUN close[0] < AT_LAST(RUN SMA(20)[0], RUN ibs[0] < 0.15) × 0.99",
+      "R4 ShortOpen: BARS_SINCE(RUN close[0] > RUN high[−1]) > 3",
+      "R5 LongBlock: WITHIN(RUN close[0] > RUN SMA(10)[0], 3)",
+      "R6 ShortClose: RUN RSI(14)[0] < MAX_SINCE(RUN RSI(14)[0], RUN ibs[0] < 0.15, lag 1)"
+     ],
+     "conditions": [
+      "RUN close[0] ≥ MAX_SINCE(RUN close[0], RUN close[0] > RUN SMA(10)[0], lag 2)",
+      "RUN low[0] < MIN_SINCE(RUN low[−1], RUN ibs[0] < 0.15, lag 0)",
+      "RUN close[0] < AT_LAST(RUN SMA(20)[0], RUN ibs[0] < 0.15) × 0.99",
+      "BARS_SINCE(RUN close[0] > RUN high[−1]) > 3",
+      "WITHIN(RUN close[0] > RUN SMA(10)[0], 3)",
+      "RUN RSI(14)[0] < MAX_SINCE(RUN RSI(14)[0], RUN ibs[0] < 0.15, lag 1)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] ≥ MAX_SINCE(RUN close[0], RUN close[0] > RUN SMA(10)[0], lag 2)",
+      "R2 LongClose: RUN low[0] < MIN_SINCE(RUN low[−1], RUN ibs[0] < 0.15, lag 0)",
+      "R3 LongClose: RUN close[0] < AT_LAST(RUN SMA(20)[0], RUN ibs[0] < 0.15) × 0.99",
+      "R4 ShortOpen: BARS_SINCE(RUN close[0] > RUN high[−1]) > 3",
+      "R5 LongBlock: WITHIN(RUN close[0] > RUN SMA(10)[0], 3)",
+      "R6 ShortClose: RUN RSI(14)[0] < MAX_SINCE(RUN RSI(14)[0], RUN ibs[0] < 0.15, lag 1)"
+     ],
+     "conditions": [
+      "RUN close[0] ≥ MAX_SINCE(RUN close[0], RUN close[0] > RUN SMA(10)[0], lag 2)",
+      "RUN low[0] < MIN_SINCE(RUN low[−1], RUN ibs[0] < 0.15, lag 0)",
+      "RUN close[0] < AT_LAST(RUN SMA(20)[0], RUN ibs[0] < 0.15) × 0.99",
+      "BARS_SINCE(RUN close[0] > RUN high[−1]) > 3",
+      "WITHIN(RUN close[0] > RUN SMA(10)[0], 3)",
+      "RUN RSI(14)[0] < MAX_SINCE(RUN RSI(14)[0], RUN ibs[0] < 0.15, lag 1)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: RUN close[0] ≥ MAX_SINCE(RUN close[0], RUN close[0] > RUN SMA(10)[0], lag 2)",
+      "R2 LongClose: RUN low[0] < MIN_SINCE(RUN low[−1], RUN ibs[0] < 0.15, lag 0)",
+      "R3 LongClose: RUN close[0] < AT_LAST(RUN SMA(20)[0], RUN ibs[0] < 0.15) × 0.99",
+      "R4 ShortOpen: BARS_SINCE(RUN close[0] > RUN high[−1]) > 3",
+      "R5 LongBlock: WITHIN(RUN close[0] > RUN SMA(10)[0], 3)",
+      "R6 ShortClose: RUN RSI(14)[0] < MAX_SINCE(RUN RSI(14)[0], RUN ibs[0] < 0.15, lag 1)"
+     ],
+     "conditions": [
+      "RUN close[0] ≥ MAX_SINCE(RUN close[0], RUN close[0] > RUN SMA(10)[0], lag 2)",
+      "RUN low[0] < MIN_SINCE(RUN low[−1], RUN ibs[0] < 0.15, lag 0)",
+      "RUN close[0] < AT_LAST(RUN SMA(20)[0], RUN ibs[0] < 0.15) × 0.99",
+      "BARS_SINCE(RUN close[0] > RUN high[−1]) > 3",
+      "WITHIN(RUN close[0] > RUN SMA(10)[0], 3)",
+      "RUN RSI(14)[0] < MAX_SINCE(RUN RSI(14)[0], RUN ibs[0] < 0.15, lag 1)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ],
+   "levelsSpecs": [],
+   "levelsLegend": []
+  },
+  "handmade:H-levels": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: WITHIN(CONFIRMED_ANY, 5) AND RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "R3 LongClose: LEVEL SUPPORT_BREAK(2)",
+      "R4 LongClose: LEVEL RESISTANCE_REACHED(3) AND BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "R5 LongBlock: LEVEL DIST_SUPPORT_ATR > 3",
+      "R6 ShortOpen: LEVEL IN_ZONE > 0.5 AND LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "R7 ShortClose: RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ],
+     "conditions": [
+      "WITHIN(CONFIRMED_ANY, 5)",
+      "RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "LEVEL SUPPORT_BREAK(2)",
+      "LEVEL RESISTANCE_REACHED(3)",
+      "BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "LEVEL DIST_SUPPORT_ATR > 3",
+      "LEVEL IN_ZONE > 0.5",
+      "LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: WITHIN(CONFIRMED_ANY, 5) AND RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "R3 LongClose: LEVEL SUPPORT_BREAK(2)",
+      "R4 LongClose: LEVEL RESISTANCE_REACHED(3) AND BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "R5 LongBlock: LEVEL DIST_SUPPORT_ATR > 3",
+      "R6 ShortOpen: LEVEL IN_ZONE > 0.5 AND LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "R7 ShortClose: RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ],
+     "conditions": [
+      "WITHIN(CONFIRMED_ANY, 5)",
+      "RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "LEVEL SUPPORT_BREAK(2)",
+      "LEVEL RESISTANCE_REACHED(3)",
+      "BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "LEVEL DIST_SUPPORT_ATR > 3",
+      "LEVEL IN_ZONE > 0.5",
+      "LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: WITHIN(CONFIRMED_ANY, 5) AND RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "R3 LongClose: LEVEL SUPPORT_BREAK(2)",
+      "R4 LongClose: LEVEL RESISTANCE_REACHED(3) AND BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "R5 LongBlock: LEVEL DIST_SUPPORT_ATR > 3",
+      "R6 ShortOpen: LEVEL IN_ZONE > 0.5 AND LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "R7 ShortClose: RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ],
+     "conditions": [
+      "WITHIN(CONFIRMED_ANY, 5)",
+      "RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "LEVEL SUPPORT_BREAK(2)",
+      "LEVEL RESISTANCE_REACHED(3)",
+      "BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "LEVEL DIST_SUPPORT_ATR > 3",
+      "LEVEL IN_ZONE > 0.5",
+      "LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: WITHIN(CONFIRMED_ANY, 5) AND RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "R3 LongClose: LEVEL SUPPORT_BREAK(2)",
+      "R4 LongClose: LEVEL RESISTANCE_REACHED(3) AND BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "R5 LongBlock: LEVEL DIST_SUPPORT_ATR > 3",
+      "R6 ShortOpen: LEVEL IN_ZONE > 0.5 AND LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "R7 ShortClose: RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ],
+     "conditions": [
+      "WITHIN(CONFIRMED_ANY, 5)",
+      "RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "LEVEL SUPPORT_BREAK(2)",
+      "LEVEL RESISTANCE_REACHED(3)",
+      "BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "LEVEL DIST_SUPPORT_ATR > 3",
+      "LEVEL IN_ZONE > 0.5",
+      "LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: WITHIN(CONFIRMED_ANY, 5) AND RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "R3 LongClose: LEVEL SUPPORT_BREAK(2)",
+      "R4 LongClose: LEVEL RESISTANCE_REACHED(3) AND BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "R5 LongBlock: LEVEL DIST_SUPPORT_ATR > 3",
+      "R6 ShortOpen: LEVEL IN_ZONE > 0.5 AND LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "R7 ShortClose: RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ],
+     "conditions": [
+      "WITHIN(CONFIRMED_ANY, 5)",
+      "RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "LEVEL SUPPORT_BREAK(2)",
+      "LEVEL RESISTANCE_REACHED(3)",
+      "BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "LEVEL DIST_SUPPORT_ATR > 3",
+      "LEVEL IN_ZONE > 0.5",
+      "LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ],
+   "levelsSpecs": [
+    "re-arm"
+   ],
+   "levelsLegend": [
+    "Levels: re-arm"
+   ]
+  },
+  "handmade:D-min-since-entry": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MIN_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MIN_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MIN_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MIN_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MIN_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MIN_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MIN_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MIN_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "R2 LongClose: RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "R3 LongClose: RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "R4 LongClose: RUN close[0] < MIN_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ],
+     "conditions": [
+      "LEVEL CONFIRMED_ANY (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_STOP) (12 Levels params linked)",
+      "RUN close[0] < AT_ENTRY(OPEN_LINE) (12 Levels params linked)",
+      "RUN close[0] < MIN_SINCE_ENTRY(SUPPORT_LINE, lag 1) (12 Levels params linked)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "12 Levels params linked",
+    "12 Levels params linked",
+    "12 Levels params linked",
+    "12 Levels params linked"
+   ],
+   "levelsSpecs": [
+    "no re-arm"
+   ],
+   "levelsLegend": [
+    "Levels: no re-arm"
+   ]
+  },
+  "handmade:D-broken-down": {
+   "byTf": {
+    "MIN5": {
+     "rules": [
+      "R1 LongOpen: WITHIN(BROKEN_DOWN, 5) AND RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "R3 LongClose: LEVEL SUPPORT_BREAK(2)",
+      "R4 LongClose: LEVEL RESISTANCE_REACHED(3) AND BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "R5 LongBlock: LEVEL DIST_SUPPORT_ATR > 3",
+      "R6 ShortOpen: LEVEL IN_ZONE > 0.5 AND LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "R7 ShortClose: RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ],
+     "conditions": [
+      "WITHIN(BROKEN_DOWN, 5)",
+      "RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "LEVEL SUPPORT_BREAK(2)",
+      "LEVEL RESISTANCE_REACHED(3)",
+      "BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "LEVEL DIST_SUPPORT_ATR > 3",
+      "LEVEL IN_ZONE > 0.5",
+      "LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ]
+    },
+    "HOUR": {
+     "rules": [
+      "R1 LongOpen: WITHIN(BROKEN_DOWN, 5) AND RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "R3 LongClose: LEVEL SUPPORT_BREAK(2)",
+      "R4 LongClose: LEVEL RESISTANCE_REACHED(3) AND BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "R5 LongBlock: LEVEL DIST_SUPPORT_ATR > 3",
+      "R6 ShortOpen: LEVEL IN_ZONE > 0.5 AND LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "R7 ShortClose: RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ],
+     "conditions": [
+      "WITHIN(BROKEN_DOWN, 5)",
+      "RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "LEVEL SUPPORT_BREAK(2)",
+      "LEVEL RESISTANCE_REACHED(3)",
+      "BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "LEVEL DIST_SUPPORT_ATR > 3",
+      "LEVEL IN_ZONE > 0.5",
+      "LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ]
+    },
+    "DAY": {
+     "rules": [
+      "R1 LongOpen: WITHIN(BROKEN_DOWN, 5) AND RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "R3 LongClose: LEVEL SUPPORT_BREAK(2)",
+      "R4 LongClose: LEVEL RESISTANCE_REACHED(3) AND BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "R5 LongBlock: LEVEL DIST_SUPPORT_ATR > 3",
+      "R6 ShortOpen: LEVEL IN_ZONE > 0.5 AND LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "R7 ShortClose: RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ],
+     "conditions": [
+      "WITHIN(BROKEN_DOWN, 5)",
+      "RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "LEVEL SUPPORT_BREAK(2)",
+      "LEVEL RESISTANCE_REACHED(3)",
+      "BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "LEVEL DIST_SUPPORT_ATR > 3",
+      "LEVEL IN_ZONE > 0.5",
+      "LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ]
+    },
+    "WEEK": {
+     "rules": [
+      "R1 LongOpen: WITHIN(BROKEN_DOWN, 5) AND RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "R3 LongClose: LEVEL SUPPORT_BREAK(2)",
+      "R4 LongClose: LEVEL RESISTANCE_REACHED(3) AND BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "R5 LongBlock: LEVEL DIST_SUPPORT_ATR > 3",
+      "R6 ShortOpen: LEVEL IN_ZONE > 0.5 AND LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "R7 ShortClose: RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ],
+     "conditions": [
+      "WITHIN(BROKEN_DOWN, 5)",
+      "RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "LEVEL SUPPORT_BREAK(2)",
+      "LEVEL RESISTANCE_REACHED(3)",
+      "BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "LEVEL DIST_SUPPORT_ATR > 3",
+      "LEVEL IN_ZONE > 0.5",
+      "LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ]
+    },
+    "MONTH": {
+     "rules": [
+      "R1 LongOpen: WITHIN(BROKEN_DOWN, 5) AND RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "R2 LongClose: RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "R3 LongClose: LEVEL SUPPORT_BREAK(2)",
+      "R4 LongClose: LEVEL RESISTANCE_REACHED(3) AND BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "R5 LongBlock: LEVEL DIST_SUPPORT_ATR > 3",
+      "R6 ShortOpen: LEVEL IN_ZONE > 0.5 AND LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "R7 ShortClose: RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ],
+     "conditions": [
+      "WITHIN(BROKEN_DOWN, 5)",
+      "RUN close[0] > LEVEL SUPPORT_LINE[−1]",
+      "RUN close[0] < AT_LAST(SETUP_STOP, CONFIRMED_ANY)",
+      "LEVEL SUPPORT_BREAK(2)",
+      "LEVEL RESISTANCE_REACHED(3)",
+      "BARS_SINCE(BREAKOUT_UP) ≥ 1",
+      "LEVEL DIST_SUPPORT_ATR > 3",
+      "LEVEL IN_ZONE > 0.5",
+      "LEVEL DIST_RESISTANCE_ATR[−1] < 1",
+      "RUN high[0] > MAX_SINCE(SETUP_ZONE_LINE, CONFIRMED_RETEST, lag 3)"
+     ]
+    }
+   },
+   "linkNotes": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ],
+   "levelsSpecs": [
+    "re-arm"
+   ],
+   "levelsLegend": [
+    "Levels: re-arm"
+   ]
+  }
+ },
+ "filters": {
+  "alpha-filter:2@1": {
+   "DAY": [
+    "DAY current channel: 10 ≤ Width % ≤ 100",
+    "DAY current channel: −0.1 ≤ Position ≤ 0.2",
+    "DAY current channel: Slope %/year ≥ 10",
+    "WEEK high[0] (provisional) > WEEK high[−1] × 1.005"
+   ],
+   "WEEK": [
+    "DAY current channel: 10 ≤ Width % ≤ 100",
+    "DAY current channel: −0.1 ≤ Position ≤ 0.2",
+    "DAY current channel: Slope %/year ≥ 10",
+    "WEEK high[0] > WEEK high[−1] × 1.005"
+   ]
+  },
+  "alpha-filter:2@2": {
+   "DAY": [
+    "DAY current channel: 10 ≤ Width % ≤ 100",
+    "DAY current channel: −0.1 ≤ Position ≤ 0.2",
+    "DAY current channel: Slope %/year ≥ 10",
+    "WEEK high[0] (provisional) > WEEK high[−1] × 1.005",
+    "WEEK low[0] (provisional) > WEEK low[−1] × 1.001"
+   ],
+   "WEEK": [
+    "DAY current channel: 10 ≤ Width % ≤ 100",
+    "DAY current channel: −0.1 ≤ Position ≤ 0.2",
+    "DAY current channel: Slope %/year ≥ 10",
+    "WEEK high[0] > WEEK high[−1] × 1.005",
+    "WEEK low[0] > WEEK low[−1] × 1.001"
+   ]
+  },
+  "alpha-filter:3@1": {
+   "DAY": [
+    "WEEK current channel: Width % ≥ 15",
+    "WEEK current channel: Slope %/year ≥ 20",
+    "WEEK current channel: −15 ≤ Position ≤ 0.2",
+    "WEEK high[0] (provisional) > WEEK high[−1] × 1.001",
+    "WEEK low[0] (provisional) > WEEK low[−1] × 1.001"
+   ],
+   "WEEK": [
+    "WEEK current channel: Width % ≥ 15",
+    "WEEK current channel: Slope %/year ≥ 20",
+    "WEEK current channel: −15 ≤ Position ≤ 0.2",
+    "WEEK high[0] > WEEK high[−1] × 1.001",
+    "WEEK low[0] > WEEK low[−1] × 1.001"
+   ]
+  },
+  "alpha-filter:3@2": {
+   "DAY": [
+    "WEEK current channel: Width % ≥ 15",
+    "WEEK current channel: Slope %/year ≥ 20",
+    "WEEK current channel: −0.1 ≤ Position ≤ 0.2",
+    "WEEK high[0] (provisional) > WEEK high[−1] × 1.001",
+    "WEEK low[0] (provisional) > WEEK low[−1] × 1.001"
+   ],
+   "WEEK": [
+    "WEEK current channel: Width % ≥ 15",
+    "WEEK current channel: Slope %/year ≥ 20",
+    "WEEK current channel: −0.1 ≤ Position ≤ 0.2",
+    "WEEK high[0] > WEEK high[−1] × 1.001",
+    "WEEK low[0] > WEEK low[−1] × 1.001"
+   ]
+  }
+ }
+}
