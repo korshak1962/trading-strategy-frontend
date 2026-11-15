@@ -5,9 +5,11 @@
 // Stage 3b-0: a row whose current version this server cannot read (`unreadable`, saved by a newer
 // server) carries the badge and offers Delete only (no Edit; it is not in available-strategies, so
 // it cannot be run, optimized, watched or saved in a case either).
+// Stage 4c-1: a position-dependent current version (a rule reads the trade) carries the PD badge.
 import { fmtExchangeIntl } from '../../utils/dates';
 import UnreadableBadge from '../UnreadableBadge';
 import { SIGNAL_TYPE_CLASS } from './constructedFormat';
+import PositionDependentBadge from './PositionDependentBadge';
 
 const btn = 'py-0.5 px-2 text-xs border rounded hover:bg-gray-100 disabled:text-gray-400 disabled:hover:bg-white';
 // updated_at is the server's wall clock: shown as received.
@@ -74,6 +76,7 @@ export default function ConstructedStrategyList({ items, selectedId, busyId, onN
                       <span className="ml-1 px-1.5 rounded bg-indigo-100 text-indigo-800 text-xs font-normal"
                         title={`Created from the template «${s.templateId}»`} data-testid="constructed-row-template">template</span>
                     )}
+                    {s.positionDependent && <PositionDependentBadge testId="constructed-row-pd" />}
                   </td>
                   <td className="px-2 py-1.5">v{s.version}</td>
                   <td className="px-2 py-1.5">{s.unreadable ? '—' : (s.ruleCount ?? '—')}</td>

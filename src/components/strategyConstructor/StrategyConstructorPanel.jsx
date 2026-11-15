@@ -24,6 +24,7 @@ import ImportFromFilterDialog from './ImportFromFilterDialog';
 import ConstructedPreview from './ConstructedPreview';
 import AxesEditor from './AxesEditor';
 import TemplatePickerDialog from './TemplatePickerDialog';
+import PositionDependentBadge from './PositionDependentBadge';
 import {
   DEFAULT_META, getConstructedMeta, listConstructed, getConstructed, createConstructed, updateConstructed,
   deleteConstructed, previewConstructed, toConstructedRequest, toDefinitionRequest, normalizeMeta, referenceCount,
@@ -35,6 +36,7 @@ import {
   newDraft, newRule, definitionSignature, validateDraft, runTfsOf, runTfsHint, runTfError, strategyLabel, axisUsage, newAxis,
   axisHintFor, lastLevelsTemplate, applyLevelsToAll,
   constructedErrorHint, channelBlockWarnings, levelsTakeProfitWarnings, levelsLegendLines,
+  usesPosition, positionRuleWarnings,
 } from './constructedFormat';
 
 const input = 'w-full p-2 border rounded';
@@ -173,7 +175,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
   const validation = useMemo(
     () => (draft ? validateDraft(draft, {
       allowedTypes: meta.signalTypes, maxRules: meta.maxRules, maxConditions: meta.maxConditions, channelMeta: meta.channel,
-      levelsMeta: meta.levels, bricksMeta: meta.bricks, maxAxes: meta.maxAxes,
+      levelsMeta: meta.levels, bricksMeta: meta.bricks, positionMeta: meta.position, maxAxes: meta.maxAxes,
     }) : null),
     [draft, meta],
   );
@@ -181,6 +183,9 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
   const previewTfs = meta.timeframes.filter((tf) => CONSTRUCTED_TFS.includes(tf));
   const usage = useMemo(() => axisUsage(draft?.rules), [draft]);
   const channelWarnings = useMemo(() => channelBlockWarnings(draft?.rules), [draft]);
+  // stage 4c-1: a LongOpen / LongBlock rule reading the trade changes nothing; PD = a rule reads the trade
+  const positionWarnings = useMemo(() => positionRuleWarnings(draft?.rules), [draft]);
+  const draftIsPd = useMemo(() => usesPosition(draft?.rules), [draft]);
   // re-arm round: the Levels take-profit vs the take-profit rule (non-blocking), and the Levels legend (@L2 tags)
   const levelsWarnings = useMemo(
     () => levelsTakeProfitWarnings(draft?.rules, draft?.axes || [], meta.levels?.defaults), [draft, meta]);
@@ -386,7 +391,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
     setPreviewError(null);
     const v = validateDraft(draft, {
       allowedTypes: meta.signalTypes, maxRules: meta.maxRules, maxConditions: meta.maxConditions, requireName: false,
-      channelMeta: meta.channel, levelsMeta: meta.levels, bricksMeta: meta.bricks, maxAxes: meta.maxAxes,
+      channelMeta: meta.channel, levelsMeta: meta.levels, bricksMeta: meta.bricks, positionMeta: meta.position, maxAxes: meta.maxAxes,
     });
     if (!v.ok) { setPreviewError('Fix the rules first (see the messages above).'); return; }
     const tfErr = runTfError(draft.rules, previewForm.timeFrame);
@@ -487,6 +492,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
                 <span className="ml-2 px-1.5 rounded bg-indigo-100 text-indigo-800 text-xs font-medium align-middle"
                   title={`Created from the template «${saved.templateId}»`} data-testid="constructed-template-badge">template</span>
               )}
+              {draftIsPd && <PositionDependentBadge testId="constructed-pd-badge" long />}
               {dirtyRules && draft.id != null && (
                 <span className="ml-2 text-sm font-normal text-amber-700">definition changed: saving creates v{(saved?.version ?? 0) + 1}</span>
               )}
@@ -572,6 +578,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
                 levelsMeta={meta.levels}
                 bricksMeta={meta.bricks}
                 levelsTemplate={levelsTemplate}
+                positionMeta={meta.position}
                 onApplyLevelsToAll={(ci, prefix) => applyLevelsEverywhere(i, ci, prefix)}
               />
             ))}
@@ -587,6 +594,19 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
             <div className="mt-3 p-3 rounded bg-amber-50 border border-amber-300 text-amber-800 text-sm" role="status"
               data-testid="constructed-levels-warnings">
               {levelsWarnings.map((w) => <div key={w}>{w}</div>)}
+            </div>
+          )}
+          {draftIsPd && (
+            <div className="mt-3 text-xs text-purple-800" data-testid="constructed-position-note">
+              Position operands read the trade: LONG only (in FLAT / SHORT their conditions fail, NOT_LONG). A percent stop
+              {' '}<code>close &lt; AT_ENTRY(close)</code> with tolerance −5 is measured from the entry bar&apos;s close; on a seeded
+              watch (“I already hold it”) that is the seed bar&apos;s close, not the price you paid. Runs on DAY / WEEK.
+            </div>
+          )}
+          {positionWarnings.length > 0 && (
+            <div className="mt-3 p-3 rounded bg-amber-50 border border-amber-300 text-amber-800 text-sm" role="status"
+              data-testid="constructed-position-warnings">
+              {positionWarnings.map((w) => <div key={w}>{w}</div>)}
             </div>
           )}
           {channelWarnings.length > 0 && (

@@ -5,6 +5,9 @@
 // nextTriggersAdapter.js (never the raw JSON). Wording follows the backend's NextTriggerText
 // (architect.md §2.12): prices with 2 decimals (the API keeps the full double), "≈" for APPROX only,
 // strict inequalities kept ("above 780.00" means 780.00 itself does not buy).
+// Constructor stage 4c-1 (screener architect.md §2.6): a position-dependent constructed version can
+// answer NOT_ESTIMABLE *with lines* (partial: one rule cannot be estimated, the others' lines are
+// kept) - `hasPartialLines`; the texts below list those lines and name the rest as not estimable.
 
 import { strategyLabel } from '../strategyConstructor/constructedFormat';
 
@@ -210,6 +213,9 @@ export const kindText = (estimate, position) => {
     case 'NONE': return withReason(`no ${action} possible`, estimate.reason);
     case 'NOT_ESTIMABLE':
       if (isBenchmark(estimate)) return 'N/A — benchmark (closes the PnL on the range end; gives no signal in a merged run)';
+      if (hasPartialLines(estimate)) {
+        return `partly estimable: the lines come from the rules that can be estimated; not estimable${estimate.reason ? ` — ${estimate.reason}` : ''}`;
+      }
       return withReason('not estimable', estimate.reason);
     case 'UNAVAILABLE': return withReason('unavailable', estimate.reason);
     case 'POSSIBLE_OUTSIDE_BAND': {
@@ -231,6 +237,15 @@ export const kindText = (estimate, position) => {
 export const actionLines = (estimate) => (estimate
   ? estimate.lines.filter(l => !l.informational && l.price !== null)
   : []);
+
+/**
+ * Stage 4c-1: a NOT_ESTIMABLE estimate that still carries actionable lines (a position-dependent
+ * constructed version: one rule cannot be estimated on the next bar, the other rules' lines are kept).
+ */
+export const hasPartialLines = (estimate) => estimate?.kind === 'NOT_ESTIMABLE' && actionLines(estimate).length > 0;
+
+/** The lines a summary lists: those of a LINES estimate or the partial lines of a NOT_ESTIMABLE one. */
+const listedLines = (estimate) => (estimate?.kind === 'LINES' || hasPartialLines(estimate) ? actionLines(estimate) : []);
 
 export const infoLines = (estimate) => (estimate ? estimate.lines.filter(l => l.informational) : []);
 
@@ -371,7 +386,10 @@ export const partialText = (estimate) => {
     .map(p => {
       const band = p.kind === 'POSSIBLE_OUTSIDE_BAND' ? bandOf(p) : null;
       if (band) return `${strategyShortName(p.key)} possible only if close < ${fmtTriggerPrice(band[0])} or > ${fmtTriggerPrice(band[1])}`;
-      return p.reason ? `${strategyShortName(p.key)}: ${p.reason}` : null;
+      if (!p.reason) return null;
+      // stage 4c-1: a partly estimable strategy - its other rules' lines are in the merged lines
+      const kept = p.lines.some(l => !l.informational && l.price !== null) ? ' (its other rules\' lines are shown)' : '';
+      return `${strategyShortName(p.key)}: ${p.reason}${kept}`;
     })
     .filter(Boolean);
   if (details.length) return `partial: ${details.join('; ')}`;
@@ -405,13 +423,14 @@ export const oneLiner = (nt) => {
   const m = nt.merged;
   if (!m) return `${head}: —`;
   let body;
-  if (m.kind === 'LINES') {
+  if (m.kind === 'LINES' || hasPartialLines(m)) {
     const lines = actionLines(m);
     // BUY alternatives read as "…, or …" (backend NextTriggerText); exits / vetoes as "… · …"
     const buys = lines.filter(l => l.side === 'BUY').map(lineText);
     const rest = lines.filter(l => l.side !== 'BUY').map(lineText);
     const parts = [buys.join(', or '), ...rest].filter(Boolean);
     body = parts.length ? parts.join(' · ') : (kindText({ ...m, kind: 'NONE' }, nt.position));
+    if (hasPartialLines(m)) body += ` · not estimable${m.reason ? `: ${m.reason}` : ''}`;
   } else {
     body = kindText(m, nt.position);
   }
@@ -434,7 +453,7 @@ export const compactSummary = (nt) => {
   if (nt.status !== 'OK') return { tone: 'muted', text: statusText(nt), more: 0, partial: false, title };
   const m = nt.merged;
   if (!m) return { tone: 'muted', text: '—', more: 0, partial: false, title };
-  const primary = m.kind === 'LINES' ? primaryLine(m) : null;
+  const primary = m.kind === 'LINES' || hasPartialLines(m) ? primaryLine(m) : null;
   if (primary) {
     const dist = isNum(primary.distancePct)
       ? ` (${signed(primary.distancePct, 1)} %${isNum(primary.distanceAtr) ? `, ${signed(primary.distanceAtr, 1)} ATR` : ''})`
@@ -444,7 +463,7 @@ export const compactSummary = (nt) => {
       tone: primary.side === 'BUY' ? 'buy' : 'sell',
       text: `${lineShortText(primary)}${dist}`,
       more: others,
-      partial: m.partial,
+      partial: m.partial || hasPartialLines(m),
       title,
     };
   }
@@ -490,9 +509,9 @@ export const paneChip = (nt, strategyKey = null) => {
   if (nt.position === 'SHORT') return { tone: 'none', text: 'next bar: short not estimated', title: oneLiner(nt) };
   const estimate = strategyKey ? nt.strategyByKey[strategyKey] : nt.merged;
   if (!estimate) return null;
-  const lines = estimate.kind === 'LINES' ? actionLines(estimate) : [];
+  const lines = listedLines(estimate);
   const body = lines.length > 0
-    ? lines.map(lineText).join(' · ')
+    ? lines.map(lineText).join(' · ') + (hasPartialLines(estimate) ? ` · not estimable${estimate.reason ? `: ${estimate.reason}` : ''}` : '')
     : kindText(estimate.kind === 'LINES' ? { ...estimate, kind: 'NONE' } : estimate, nt.position) || '—';
   const partial = estimate.partial ? ` · ${partialText(estimate)}` : '';
   const sides = new Set(lines.map(l => l.side));
@@ -500,7 +519,8 @@ export const paneChip = (nt, strategyKey = null) => {
   // FLAT, nothing actionable: the setup preview as a suffix (tone stays 'none' - not an order)
   const preview = strategyKey ? estimatePreview(nt, estimate) : setupPreview(nt);
   const previewPart = preview ? ` · ${previewShortText(preview, false)}` : '';
-  const text = `next bar: ${body}${previewPart}${estimate.partial ? ' · partial' : ''}`;
+  const text = `next bar: ${lines.length > 0 ? lines.map(lineText).join(' · ') : body}${previewPart}`
+    + `${estimate.partial || hasPartialLines(estimate) ? ' · partial' : ''}`;
   const title = `Next bar (${label}), position ${nt.position || '—'} at the ${fmtBarKey(nt, nt.basisBarDate)} close`
     + `${strategyKey ? ' (the merged position this strategy runs on)' : ''}:\n${body}${partial}`
     + `${preview ? `\n${previewTitle(preview, nt)}` : ''}`;

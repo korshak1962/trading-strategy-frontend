@@ -13,6 +13,10 @@
 // the backend's label form, the client checks (event / strength, Levels ranges, bars / lag, the
 // brick's X and anchor A, units with ATR_MULTIPLE), run TFs DAY / WEEK, new rows and the Levels
 // template a new occurrence copies ("Apply to all Levels").
+// Stage 4c-1 (screener architect.md §2.7, §4): position operands AT_ENTRY / MAX_SINCE_ENTRY /
+// MIN_SINCE_ENTRY (LONG only) - captions, new operands, the client checks (X a market operand, no
+// offset, lag on the windows only, not inside a brick / WITHIN, never in a ShortClose rule), the run
+// TFs (DAY / WEEK; a fixed-TF X pins it), the LongOpen / LongBlock warning and `usesPosition`.
 
 import {
   SIGNAL_TYPES, STATE_RULE_FIRE_RATE, MIN_TRADES_PER_THRESHOLD, MAX_RULES, MAX_CONDITIONS, CONSTRUCTED_TFS, RUN_TF,
@@ -22,6 +26,7 @@ import {
   linkSuffixKind, getAtPath, updateAtPath, levelsOccurrences, isStagedCondition, isLevelEvent, isWithin, eventNeedsStrength,
   LEVEL_FIELDS, LEVELS_KEYS, LEVELS_DEFAULTS, LEVELS_PARAMS, LEVELS_RUN_TFS, DEFAULT_LEVELS_META, DEFAULT_BRICKS_META,
   LEVEL_KIND, ANCHORED_KINDS, isStagedOperand, isBrickOperand, rearmOf, LEVELS_REARM_DEFAULT,
+  POSITION_KINDS, POSITION_WINDOW_KINDS, isPositionOperand, DEFAULT_POSITION_META, POSITION_RUN_TFS,
 } from '../../api/constructedApi';
 import {
   conditionCaption, validateCondition, newCompareCondition, reasonText, fmtNum, unitMismatchHint, operandCaption,
@@ -686,6 +691,11 @@ export const anyOperandCaption = (o, evalTf, opts = {}) => {
     return `${o.kind}(${anyOperandCaption(o.x, evalTf, arg)}, ${anyConditionCaption(o.a, evalTf, arg)}${lag})`;
   }
   if (o.kind === 'BARS_SINCE') return `BARS_SINCE(${anyConditionCaption(o.a, evalTf, arg)})`;
+  // stage 4c-1: `AT_ENTRY(OPEN_STOP)`, `MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1)` (the backend's PositionOperand label)
+  if (o.kind === 'AT_ENTRY') return `AT_ENTRY(${anyOperandCaption(o.x, evalTf, arg)})`;
+  if (POSITION_WINDOW_KINDS.includes(o.kind)) {
+    return `${o.kind}(${anyOperandCaption(o.x, evalTf, arg)}, lag ${finite(o.lag) ? Number(o.lag) : 0})`;
+  }
   return operandCaption(o, evalTf);
 };
 
@@ -833,6 +843,48 @@ export const newBrickOperand = (kind, spec = LEVELS_DEFAULTS, prev = null) => {
   return out;
 };
 
+/**
+ * A new position operand of `kind` (stage 4c-1); keeps X of `prev` when it is a position operand too.
+ * Defaults: X = RUN close[0]; a window's lag 1 (the class ratchet: the entry bar is not in the window).
+ */
+export const newPositionOperand = (kind, prev = null) => {
+  const out = { kind, tf: RUN_TF, offset: 0, n: null, value: '', x: isPositionOperand(prev) && prev.x ? prev.x : newPlainOperand() };
+  out.lag = POSITION_WINDOW_KINDS.includes(kind) ? (isPositionOperand(prev) && finite(prev.lag) ? prev.lag : 1) : '';
+  return out;
+};
+
+/** true when a side of the condition is a position operand (only a COMPARE side may be one). */
+export const conditionUsesPosition = (c) => c?.type === 'COMPARE' && (isPositionOperand(c.left) || isPositionOperand(c.right));
+
+/** true when the rule reads the trade (a condition with a position operand). */
+export const ruleUsesPosition = (rule) => (rule?.conditions || []).some((rc) => conditionUsesPosition(rc?.condition));
+
+/** true when a rule of the draft reads the trade: the version is position dependent (PD). */
+export const usesPosition = (rules) => (rules || []).some(ruleUsesPosition);
+
+/**
+ * true when a rule reads AT_ENTRY(close) (any X that is the bar field close): a percent stop from the
+ * entry. On a seeded watch position (HOLDING) the entry is the seed bar, so it reads that bar's close,
+ * not the user's price (spec v3 §3.4; ENTRY_PRICE is deferred).
+ */
+export const readsEntryClose = (rules) => (rules || []).some((r) => (r.conditions || []).some(({ condition: c }) => (
+  c?.type === 'COMPARE' && [c.left, c.right].some((o) => o?.kind === 'AT_ENTRY' && o.x?.kind === 'CLOSE')
+)));
+
+/** The 400 text of a ShortClose rule with a position operand (ConstructedPositions.shortCloseMessage). */
+const shortCloseMessage = (name) => `${name}: position operands read a LONG position; a ShortClose rule with them can only `
+  + 'eat this bar\'s long signals';
+
+/**
+ * Warnings of the rules with position operands (ConstructedWarnings.positionOperands): a LongOpen /
+ * LongBlock rule reading the trade changes nothing (in a long an open is ignored; FLAT / SHORT: FAIL).
+ */
+export const positionRuleWarnings = (rules) => (rules || []).flatMap((r, i) => {
+  if (!ruleUsesPosition(r) || !(r.signalType === 'LongOpen' || r.signalType === 'LongBlock')) return [];
+  const name = r.id != null ? `R${r.id}` : `rule #${i + 1}`;
+  return [`${name} ${r.signalType} reads the trade (LONG only): in a long an open is ignored, so the rule changes nothing.`];
+});
+
 export const newRuleLevelCondition = (spec) => ({ id: null, condition: newLevelCondition(spec), links: {} });
 export const newRuleWithinCondition = (spec) => ({ id: null, condition: newWithinCondition(spec), links: {} });
 
@@ -879,8 +931,15 @@ const runTfsByOperandsOf = (rules) => {
   let anyWeek = false;
   let runOffset = false;
   let staged = false;
+  let posXTf = null; // stage 4c-1: a fixed TF of a position operand's X (it must equal the run TF)
   const walkOp = (o) => {
     if (!o || o.kind === 'CONST') return;
+    if (isPositionOperand(o)) {
+      staged = true;
+      if (o.x?.tf === 'DAY' || o.x?.tf === 'WEEK') posXTf = posXTf === 'DAY' ? 'DAY' : o.x.tf;
+      walkOp(o.x);
+      return;
+    }
     if (isStagedOperand(o)) { // stage 4b: Levels / bricks run on DAY / WEEK; walk X and the anchor
       staged = true;
       walkOp(o.x);
@@ -903,6 +962,7 @@ const runTfsByOperandsOf = (rules) => {
     [c.left, c.right].forEach(walkOp);
   };
   (rules || []).forEach((r) => (r.conditions || []).forEach(({ condition }) => walkCond(condition)));
+  if (posXTf) return [posXTf]; // X of a position operand reads the run TF: DAY X → DAY runs, WEEK X → WEEK runs
   if (anyDay) return ['DAY'];
   if (anyWeek || runOffset || staged) return [...CHANNEL_RUN_TFS];
   return [...CONSTRUCTED_TFS];
@@ -921,7 +981,9 @@ export const runTfsOf = (rules) => runTfsByOperandsOf(rules).filter((tf) => kind
 
 /** "(it has DAY conditions)" etc. - why the strategy runs on these TFs. */
 export const runTfsHint = (runTfs, rules = null) => {
+  if (runTfs.length === 1 && rules && usesPosition(rules)) return `(a position operand reads X on the run TF: X is ${runTfs[0]})`;
   if (runTfs.length === 1) return '(it has DAY conditions)';
+  if (runTfs.length === 2 && rules && usesPosition(rules)) return '(position operands run on DAY / WEEK)';
   if (runTfs.length === 2 && rules && hasStagedCondition(rules)) return '(level conditions and sequence bricks run on DAY / WEEK)';
   if (runTfs.length === 2 && rules && hasChannelCondition(rules)) return '(channel conditions run on DAY / WEEK)';
   if (runTfs.length === 2) return '(WEEK conditions or RUN offsets: HOUR / MIN5 / MONTH take only RUN operands at [0])';
@@ -1075,6 +1137,8 @@ const validateLinks = (links, axes, where, condition = null, stagedOpts = {}) =>
     if (suffix === 'right.n') return condition?.right?.kind;
     if (suffix === 'left.x.n') return condition?.left?.x?.kind; // stage 4b: a brick's X length
     if (suffix === 'right.x.n') return condition?.right?.x?.kind;
+    if (suffix === 'left.x.x.n') return condition?.left?.x?.x?.kind; // stage 4c-1: a brick X of a position operand
+    if (suffix === 'right.x.x.n') return condition?.right?.x?.x?.kind;
     return null;
   };
   const isStagedPath = (suffix) => suffix === 'strength' || suffix === 'bars' || suffix === 'of.strength' || /(^|\.)levels\./.test(suffix);
@@ -1252,6 +1316,7 @@ export const validateConstraints = (constraints, axes) => {
 export const validateStagedCondition = (c, ctx = {}) => {
   const lm = ctx.levelsMeta || DEFAULT_LEVELS_META;
   const bm = ctx.bricksMeta || DEFAULT_BRICKS_META;
+  const pm = ctx.positionMeta || DEFAULT_POSITION_META;
   const errs = [];
   const at = (path) => (ctx.where ? `${ctx.where}${path ? `.${path}` : ''}` : path || 'condition');
   const checkSpec = (spec, path) => {
@@ -1285,6 +1350,10 @@ export const validateStagedCondition = (c, ctx = {}) => {
   };
   /** A market condition: LEVEL_EVENT, CHANNEL_METRIC or COMPARE without bricks (LEVEL operands allowed). */
   const checkMarket = (a, path) => {
+    if (a?.type === 'COMPARE' && (isPositionOperand(a.left) || isPositionOperand(a.right))) {
+      errs.push(`${at(path)}: the anchor event must be one market condition (no position operands inside)`);
+      return;
+    }
     if (!a || isWithin(a) || (a.type === 'COMPARE' && (isBrickOperand(a.left) || isBrickOperand(a.right)))) {
       errs.push(`${at(path)}: the anchor event must be one market condition (no bricks inside)`);
       return;
@@ -1296,16 +1365,49 @@ export const validateStagedCondition = (c, ctx = {}) => {
     } else if (a.type === 'COMPARE') checkCompare(a, path, false);
     else errs.push(`${at(path)}: unknown condition type`);
   };
-  const checkSide = (o, side, path, bricksAllowed) => {
+  /**
+   * Stage 4c-1: AT_ENTRY(X) / MAX_SINCE_ENTRY(X, lag) / MIN_SINCE_ENTRY(X, lag) on a side of a rule
+   * condition (FilterValidator.positionOperand): tf RUN, no offset, lag on the windows only (0..lagMax),
+   * X a market operand (a bar field, an indicator, LEVEL or a brick; no constant, no position operand).
+   */
+  const checkPosition = (o, path) => {
+    if (o.tf != null && o.tf !== '' && o.tf !== RUN_TF) errs.push(`${at(`${path}.tf`)}: position operands read the run timeframe (tf RUN)`);
+    if ((Number(o.offset) || 0) !== 0) errs.push(`${at(`${path}.offset`)}: position operands have no offset (use lag on MAX_SINCE_ENTRY / MIN_SINCE_ENTRY)`);
+    if (POSITION_WINDOW_KINDS.includes(o.kind)) {
+      const lag = Number(o.lag);
+      if (!(finite(o.lag) && Number.isInteger(lag) && lag >= 0 && lag <= pm.lagMax)) errs.push(`${at(`${path}.lag`)} must be an integer in [0, ${pm.lagMax}]`);
+    } else if (finite(o.lag) && Number(o.lag) !== 0) {
+      errs.push(`${at(`${path}.lag`)}: only MAX_SINCE_ENTRY / MIN_SINCE_ENTRY have a lag`);
+    }
+    const x = o.x;
+    if (!x) { errs.push(`${at(`${path}.x`)} (the market operand) is required for ${o.kind}`); return; }
+    if (x.kind === CONST_KIND || isPositionOperand(x)) {
+      errs.push(`${at(`${path}.x`)}: ${o.kind} reads a market series (a bar field, an indicator, LEVEL or a brick)`);
+      return;
+    }
+    if (x.kind === LEVEL_KIND) checkLevelOperand(x, `${path}.x`);
+    else if (isBrickOperand(x)) checkSide(x, 'left', `${path}.x`, true, false);
+    else errs.push(...validateOperand(x, 'left', true).map((e) => `${at(`${path}.x`)}: ${e}`));
+  };
+  const checkSide = (o, side, path, bricksAllowed, positionAllowed = bricksAllowed) => {
     if (!o) { errs.push(`${at(path)}: missing ${side} operand`); return; }
     if (o.kind === LEVEL_KIND) { checkLevelOperand(o, path); return; }
+    if (isPositionOperand(o)) {
+      if (!positionAllowed) {
+        errs.push(`${at(path)}: ${bricksAllowed ? 'no position operands inside a brick' : 'one market condition (no position operands inside)'}`);
+        return;
+      }
+      checkPosition(o, path);
+      return;
+    }
     if (isBrickOperand(o)) {
       if (!bricksAllowed) { errs.push(`${at(path)}: the anchor event must be one market condition (no bricks inside)`); return; }
       checkRunTf(o, path);
       if ((Number(o.offset) || 0) !== 0) errs.push(`${at(path)}: a brick has no offset - use lag`);
       if (ANCHORED_KINDS.includes(o.kind)) {
         const x = o.x;
-        if (!x || x.kind === CONST_KIND || isBrickOperand(x)) errs.push(`${at(`${path}.x`)}: X must be a bar field, an indicator or a Levels value (no constant, no brick)`);
+        if (isPositionOperand(x)) errs.push(`${at(`${path}.x`)}: one market condition (no position operands inside a brick)`);
+        else if (!x || x.kind === CONST_KIND || isBrickOperand(x)) errs.push(`${at(`${path}.x`)}: X must be a bar field, an indicator or a Levels value (no constant, no brick)`);
         else if (x.kind === LEVEL_KIND) checkLevelOperand(x, `${path}.x`);
         else errs.push(...validateOperand(x, 'left', true).map((e) => `${at(`${path}.x`)}: ${e}`));
         if (o.kind !== 'AT_LAST') {
@@ -1355,7 +1457,7 @@ export const validateStagedCondition = (c, ctx = {}) => {
  * Conditions are checked at the axes' defaults (linked thresholds take the axes' values).
  */
 export const validateDraft = (draft, { allowedTypes = SIGNAL_TYPES, maxRules = MAX_RULES, maxConditions = MAX_CONDITIONS,
-  requireName = true, channelMeta = null, levelsMeta = null, bricksMeta = null, maxAxes = MAX_AXES } = {}) => {
+  requireName = true, channelMeta = null, levelsMeta = null, bricksMeta = null, positionMeta = null, maxAxes = MAX_AXES } = {}) => {
   const general = [];
   const name = (draft.name || '').trim();
   if (requireName && !name) general.push('Name is required');
@@ -1380,6 +1482,9 @@ export const validateDraft = (draft, { allowedTypes = SIGNAL_TYPES, maxRules = M
     const conds = r.conditions || [];
     if (conds.length === 0) g.push('A rule needs at least one condition');
     if (conds.length > maxConditions) g.push(`At most ${maxConditions} conditions in a rule`);
+    // stage 4c-1 (owner 2026-11-14, ShortClose = A): position operands read a LONG position
+    const refused = positionMeta?.refusedInRules || DEFAULT_POSITION_META.refusedInRules;
+    if (refused.includes(r.signalType) && ruleUsesPosition(r)) g.push(shortCloseMessage(`R${r.id ?? '(new)'}`));
     const conditions = conds.map(({ id, condition, links }, ci) => {
       const live = pruneLinks(condition, links);
       const where = `R${r.id ?? '(new)'}.C${id ?? ci + 1}`;
@@ -1398,7 +1503,7 @@ export const validateDraft = (draft, { allowedTypes = SIGNAL_TYPES, maxRules = M
       if (isStagedCondition(condition)) {
         // stage 4b: Levels conditions / operands and sequence bricks
         return [
-          ...validateStagedCondition(applyLinks(condition, live, axes), { where, levelsMeta, bricksMeta, channelMeta }),
+          ...validateStagedCondition(applyLinks(condition, live, axes), { where, levelsMeta, bricksMeta, channelMeta, positionMeta }),
           ...validateLinks(live, axes, where, condition, stagedOpts),
         ];
       }
@@ -1426,6 +1531,12 @@ export const runTfError = (rules, tf) => {
   const notRunning = kindNotRunningOn(rules, tf);
   if (notRunning) return `${kindName(notRunning)} is not supported on ${tf} yet: run the strategy on HOUR or a coarser timeframe`;
   if (runTfsOf(rules).includes(tf)) return null;
+  if (!POSITION_RUN_TFS.includes(tf) && usesPosition(rules)) {
+    return `Position operands (AT_ENTRY / MAX_SINCE_ENTRY / MIN_SINCE_ENTRY) run on DAY / WEEK in stage 4c: run this strategy on DAY or WEEK, not ${tf}`;
+  }
+  if (usesPosition(rules) && runTfsOf(rules).length === 1) {
+    return `A position operand reads X on the run timeframe: its X is a ${runTfsOf(rules)[0]} operand, so run on ${runTfsOf(rules)[0]} (or use RUN inside AT_ENTRY / *_SINCE_ENTRY)`;
+  }
   if (!LEVELS_RUN_TFS.includes(tf) && hasStagedCondition(rules)) {
     return `Level conditions and sequence bricks run on DAY / WEEK in stage 4: run this strategy on DAY or WEEK, not ${tf}`;
   }
@@ -1470,6 +1581,23 @@ export const constructedErrorHint = (message) => {
   }
   if (/\.channel\.\w+ must be/i.test(m)) {
     return 'Channel detector params: coverage in (0.5, 1], min bars 2..1000, min width in [0, 1), min age 0..500 bars.';
+  }
+  // Stage 4c-1: position operands
+  if (/ShortClose rule with them/i.test(m)) {
+    return 'Position operands read a LONG position. A ShortClose rule with them could only cancel this bar\u2019s long signals: '
+      + 'use LongClose for an exit from the long.';
+  }
+  if (/position operands run on DAY|operands inside AT_ENTRY/i.test(m)) {
+    return 'AT_ENTRY / MAX_SINCE_ENTRY / MIN_SINCE_ENTRY run on DAY or WEEK, and their X reads the run timeframe (use RUN operands inside).';
+  }
+  if (/no position operands inside|exist only in constructed strategy rules/i.test(m)) {
+    return 'A position operand stands only on a side of a rule\u2019s comparison: not inside a brick, not in WITHIN\u2019s event, not in a screener filter.';
+  }
+  if (/reads a market series/i.test(m)) {
+    return 'The X of AT_ENTRY / *_SINCE_ENTRY is a market operand (a bar field, an indicator, a Levels value or a brick), not a constant.';
+  }
+  if (/position operands have no offset|only MAX_SINCE_ENTRY \/ MIN_SINCE_ENTRY have a lag/i.test(m)) {
+    return 'A position operand has no offset; MAX_SINCE_ENTRY / MIN_SINCE_ENTRY shift their window with lag (lag 1 = the line as of the previous bar), AT_ENTRY has none.';
   }
   // Stage 4b: Levels / sequence bricks
   if (/level conditions and sequence bricks run on DAY/i.test(m)) {

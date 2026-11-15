@@ -10,15 +10,20 @@
 // event, a comparison without bricks, a channel condition) - AnchorConditionEditor, also WITHIN's
 // event. Inside a brick's anchor and WITHIN's event there are no bricks (`allowBricks` false), and a
 // nested comparison carries no links. Links: `P.levels.*`, `P.x.levels.*`, `P.x.n`, `P.a.levels.*`.
+// Stage 4c-1: on a side of a rule's comparison (`allowPosition`) also the position operands
+// AT_ENTRY / MAX_SINCE_ENTRY / MIN_SINCE_ENTRY (LONG only, PositionOperandEditor); never inside a
+// brick's X / anchor, WITHIN's event or a position operand's X.
 import { CompareConditionRow } from '../universeScreener/ConditionRows';
 import OperandPicker from '../universeScreener/OperandPicker';
 import {
-  DEFAULT_LEVELS_META, DEFAULT_BRICKS_META, LEVEL_KIND, ANCHORED_KINDS, isStagedOperand, isBrickOperand, isLevelEvent,
+  DEFAULT_LEVELS_META, DEFAULT_BRICKS_META, DEFAULT_POSITION_META, LEVEL_KIND, ANCHORED_KINDS, isStagedOperand, isBrickOperand,
+  isLevelEvent, isPositionOperand,
 } from '../../api/constructedApi';
 import { levelOutputUnit, unitLabel, UNIT_HINT, operandUnitOf } from '../../api/indicatorCatalog';
 import {
-  newLevelCondition, newLevelOperand, newPlainOperand, newBrickOperand, newChannelCondition,
+  newLevelCondition, newLevelOperand, newPlainOperand, newBrickOperand, newChannelCondition, newPositionOperand,
 } from './constructedFormat';
+import PositionOperandEditor from './PositionOperandEditor';
 import { LevelEventFields } from './LevelConditionRow';
 import ChannelConditionRow from './ChannelConditionRow';
 import LevelsSpecEditor from './LevelsSpecEditor';
@@ -166,13 +171,15 @@ function BrickXEditor({ x, onChange, prefix, linkable, ctx }) {
  * @param {string|null} props.otherUnit the left side's unit (right side only)
  * @param {string} props.prefix path prefix of the side (`left.`, `right.`, `of.left.`)
  * @param {boolean} props.allowBricks offer the bricks (false inside an anchor / WITHIN)
+ * @param {boolean} [props.allowPosition] offer the position operands (stage 4c-1: a rule condition's side only)
  * @param {boolean} props.linkable Levels / X lengths of this side can carry links
  * @param {Object} props.ctx editor context
  */
 export default function BrickOperandEditor({
-  side, value, onChange, picker, otherUnit = null, prefix, allowBricks = true, linkable = true, ctx,
+  side, value, onChange, picker, otherUnit = null, prefix, allowBricks = true, allowPosition = false, linkable = true, ctx,
 }) {
   const bm = ctx.bricksMeta || DEFAULT_BRICKS_META;
+  const pm = ctx.positionMeta || DEFAULT_POSITION_META;
   const form = isStagedOperand(value) ? value.kind : 'VALUE';
   const brickKinds = bm.kinds.filter((k) => k.form === 'OPERAND');
   const kindMeta = bm.kinds.find((k) => k.name === form) || null;
@@ -180,6 +187,7 @@ export default function BrickOperandEditor({
     if (f === form) return;
     if (f === 'VALUE') onChange(newPlainOperand());
     else if (f === LEVEL_KIND) onChange(newLevelOperand(ctx.levelsSpec, otherUnit === 'ATR_MULTIPLE' ? 'DIST_SUPPORT_ATR' : 'SUPPORT_LINE'));
+    else if (pm.kinds.some((k) => k.name === f)) onChange(newPositionOperand(f, value));
     else onChange(newBrickOperand(f, ctx.levelsSpec, isBrickOperand(value) ? value : null));
   };
   const unit = operandUnitOf(value);
@@ -189,15 +197,27 @@ export default function BrickOperandEditor({
     <span className="inline-flex flex-wrap items-center gap-1" data-testid={tid}>
       <select className={`${sel} text-xs`} value={form} disabled={ctx.disabled} onChange={(e) => changeForm(e.target.value)}
         aria-label={`${side} side form`} data-testid={`${tid}-form`}
-        title="A plain operand, a Levels value or a sequence brick (the latter two run on DAY / WEEK)">
+        title={allowPosition
+          ? 'A plain operand, a Levels value, a sequence brick or a position operand (all but the first run on DAY / WEEK)'
+          : 'A plain operand, a Levels value or a sequence brick (the latter two run on DAY / WEEK)'}>
         <option value="VALUE">value</option>
         <option value={LEVEL_KIND}>Levels value</option>
         {allowBricks && brickKinds.map((k) => <option key={k.name} value={k.name} title={k.hint}>{BRICK_LABEL[k.name] || k.name}</option>)}
         {!allowBricks && isBrickOperand(value) && <option value={value.kind}>{value.kind} (not allowed here)</option>}
+        {allowPosition && (
+          <optgroup label="Position (LONG only)">
+            {pm.kinds.map((k) => <option key={k.name} value={k.name} title={k.hint}>{k.name}</option>)}
+          </optgroup>
+        )}
+        {!allowPosition && isPositionOperand(value) && <option value={value.kind}>{value.kind} (not allowed here)</option>}
       </select>
       {form === 'VALUE' && picker}
       {form === LEVEL_KIND && (
         <LevelOperandFields operand={value} onChange={onChange} prefix={prefix} linkable={linkable} ctx={ctx} otherUnit={otherUnit} />
+      )}
+      {isPositionOperand(value) && (
+        <PositionOperandEditor value={value} onChange={onChange} prefix={prefix} linkable={linkable} ctx={ctx}
+          sideEditor={BrickOperandEditor} />
       )}
       {isBrickOperand(value) && (
         <span className="inline-flex flex-wrap items-center gap-1 border border-amber-300 rounded px-1.5 py-1 bg-amber-50/40"

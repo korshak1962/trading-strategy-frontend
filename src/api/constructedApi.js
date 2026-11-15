@@ -31,15 +31,26 @@
 // Thresholds are paths (`strength`, `bars`, `of.strength`, `[P.]levels.<field>`, `P.x.n`), linked
 // to axes like the stage 3a suffixes; get / set by path below. Run on DAY / WEEK only; at most
 // `meta.maxAxes` (16) axes; template options (`{takeProfit, regime}`) on create.
+//
+// Stage 4c-1 (screener logs/agents/architect.md §2.7, backend_dev.md): position operands, LONG only,
+// constructed rules only - `{kind: AT_ENTRY, tf: 'RUN', offset: 0, x}`, `{kind: MAX_SINCE_ENTRY |
+// MIN_SINCE_ENTRY, tf: 'RUN', offset: 0, lag, x}` (existing OperandDTO fields). X is a market operand:
+// a bar field, an indicator, LEVEL or a brick. Links inside X: `P.x.n`, `P.x.levels.*` (and a brick X's
+// `P.x.x.n`, `P.x.x.levels.*`, `P.x.a.levels.*`); `lag` is never an axis. `meta.position`, the Levels
+// outputs OPEN_STOP / OPEN_LINE, `positionDependent` on the DTOs (summary, version, preview).
 
 import { apiRequest, readJson, jsonBody, enc } from './httpClient';
 import { toConditionDTO, fromConditionDTO, toOperand, fromOperand } from './screenerApi';
 import {
   DEFAULT_INDICATORS, normalizeIndicator, hasLength, setIndicatorCatalog, setLevelOutputUnits,
   LEVEL_KIND, ANCHORED_KINDS, BRICK_OPERAND_KINDS, isStagedOperand, isBrickOperand,
+  POSITION_KINDS, POSITION_WINDOW_KINDS, isPositionOperand,
 } from './indicatorCatalog';
 
-export { LEVEL_KIND, ANCHORED_KINDS, BRICK_OPERAND_KINDS, isStagedOperand, isBrickOperand };
+export {
+  LEVEL_KIND, ANCHORED_KINDS, BRICK_OPERAND_KINDS, isStagedOperand, isBrickOperand,
+  POSITION_KINDS, POSITION_WINDOW_KINDS, isPositionOperand,
+};
 
 export { DEFAULT_INDICATORS };
 
@@ -199,6 +210,9 @@ export const LEVEL_OUTPUTS = Object.freeze([
   { name: 'SUPPORT_LINE', unit: 'PRICE', hint: 'Highest strong zone fully below the close - BreakBuffer x ATR (the sticky-support candidate)' },
   { name: 'DIST_SUPPORT_ATR', unit: 'ATR_MULTIPLE', hint: 'Close above the nearest strong support, in ATR' },
   { name: 'DIST_RESISTANCE_ATR', unit: 'ATR_MULTIPLE', hint: 'Nearest strong resistance above the close, in ATR' },
+  // stage 4c-1: the lines of a long opened at this close (read them as AT_ENTRY(LEVEL OPEN_*))
+  { name: 'OPEN_STOP', unit: 'PRICE', hint: 'Where the stop would be had you bought at this close (long side only): SETUP_STOP on a confirmation bar, else the support zone low - StopBuffer x ATR; read it as AT_ENTRY(LEVEL OPEN_STOP)' },
+  { name: 'OPEN_LINE', unit: 'PRICE', hint: 'Where the initial sticky-support line would be had you bought at this close (long side only): SETUP_ZONE_LINE on a confirmation bar, else SUPPORT_LINE; read it as AT_ENTRY(LEVEL OPEN_LINE)' },
 ]);
 export const LEVELS_RUN_TFS = Object.freeze(['DAY', 'WEEK']);
 export const DEFAULT_LEVELS_META = Object.freeze({
@@ -222,6 +236,40 @@ export const BRICKS_HINT = 'The stop and the sticky support follow the last leve
   + 'with LongBlock partners; for the entries of other strategies wait for stage 4c. Levels runs over the bars of the run window '
   + '(as the LevelBreakoutRetest class), so its events depend on the window start.';
 export const DEFAULT_BRICKS_META = Object.freeze({ kinds: BRICK_KINDS, kMax: WITHIN_BARS_MAX, lagMax: LAG_MAX, hint: BRICKS_HINT });
+
+// ---- position operands (stage 4c-1) ----
+
+/** Fallback of meta.position.kinds (backend ConstructedStrategyServiceImpl.positionMeta). */
+export const POSITION_KIND_META = Object.freeze([
+  { name: 'AT_ENTRY', form: 'AT_ENTRY', hint: 'X on the entry bar of the open long (seeded: the seed bar); "in position" = AT_ENTRY(close) > 0; a % stop = close < AT_ENTRY(close) with tolerance -5' },
+  { name: 'MAX_SINCE_ENTRY', form: 'WINDOW', hint: 'The maximum of X over (entry, t - lag], bars without a value skipped; lag 1 = the class ratchet (the entry bar is not in the window)' },
+  { name: 'MIN_SINCE_ENTRY', form: 'WINDOW', hint: 'The minimum of X over (entry, t - lag]' },
+]);
+export const POSITION_RUN_TFS = Object.freeze(['DAY', 'WEEK']);
+export const POSITION_REFUSED_IN = Object.freeze(['ShortClose']);
+export const POSITION_HINT = 'Position operands read the merged position at the start of the bar and have a value only in a LONG '
+  + '(FLAT / SHORT: the condition FAILs, NOT_LONG). X is a market operand of the run timeframe: a bar field, an indicator, '
+  + 'LEVEL or a brick. Not in the screener, not inside a brick / WITHIN; a version with one is position dependent.';
+export const DEFAULT_POSITION_META = Object.freeze({
+  kinds: POSITION_KIND_META, lagMax: LAG_MAX, runTimeframes: POSITION_RUN_TFS, side: 'LONG',
+  refusedInRules: POSITION_REFUSED_IN, hint: POSITION_HINT,
+});
+
+/** meta.position (PositionMetaDTO) merged over the fallbacks. */
+export const normalizePositionMeta = (m) => {
+  if (!m || typeof m !== 'object') return DEFAULT_POSITION_META;
+  const kinds = mergeByName(m.kinds, POSITION_KIND_META, (k, f) => ({
+    name: k.name, form: k.form || f.form || 'AT_ENTRY', hint: k.hint || f.hint || '',
+  })).filter((k) => POSITION_KINDS.includes(k.name));
+  return {
+    kinds: kinds.length ? kinds : [...POSITION_KIND_META],
+    lagMax: finiteOr(m.lagMax, LAG_MAX),
+    runTimeframes: Array.isArray(m.runTimeframes) && m.runTimeframes.length ? m.runTimeframes : [...POSITION_RUN_TFS],
+    side: typeof m.side === 'string' && m.side ? m.side : 'LONG',
+    refusedInRules: Array.isArray(m.refusedInRules) ? m.refusedInRules.filter((x) => typeof x === 'string') : [...POSITION_REFUSED_IN],
+    hint: typeof m.hint === 'string' && m.hint ? m.hint : POSITION_HINT,
+  };
+};
 
 /** A meta list of `{name, …}` (or names) merged item by item over the fallback list. */
 const mergeByName = (list, fallback, map) => (Array.isArray(list) && list.length
@@ -302,6 +350,7 @@ export const DEFAULT_META = Object.freeze({
   channel: DEFAULT_CHANNEL_META,
   levels: DEFAULT_LEVELS_META,
   bricks: DEFAULT_BRICKS_META,
+  position: DEFAULT_POSITION_META,
   maxAxes: MAX_AXES,
 });
 
@@ -366,6 +415,7 @@ export const normalizeMeta = (m) => ({
   channel: normalizeChannelMeta(m?.channel),
   levels: normalizeLevelsMeta(m?.levels),
   bricks: normalizeBricksMeta(m?.bricks),
+  position: normalizePositionMeta(m?.position),
   maxAxes: isNum(m?.maxAxes) && m.maxAxes > 0 ? m.maxAxes : MAX_AXES,
 });
 
@@ -431,18 +481,21 @@ const fromLinkExpr = (x) => {
 
 // ---- threshold paths (stage 4b, architect §4.2; backend StagedThresholds) ----
 
-const LEVELS_PATH_RE = /^(?:(?:left|right|left\.x|left\.a|right\.x|right\.a|of)\.)?levels\.([A-Za-z]+)$/;
+// stage 4c-1: a position operand's X adds one `x.` (`right.x.levels.*`, a brick X: `right.x.x.levels.*`, `right.x.a.levels.*`)
+const LEVELS_PATH_RE = /^(?:(?:(?:left|right)(?:\.x)?(?:\.[xa])?|of)\.)?levels\.([A-Za-z]+)$/;
+/** The X length paths: a brick's / position operand's X (`right.x.n`), a brick X of a position operand (`right.x.x.n`). */
+const X_LENGTH_PATHS = Object.freeze(['left.x.n', 'right.x.n', 'left.x.x.n', 'right.x.x.n']);
 
 /**
  * The axis kind a threshold suffix links to, null for an unknown suffix: the stage 3a / 4a suffixes
  * (LINK_SUFFIX_KIND), `strength` / `bars` / `of.strength` / `[P.]levels.<field>` → CONST,
- * `left.x.n` / `right.x.n` (a brick's X length) → LENGTH.
+ * `left.x.n` / `right.x.n` (a brick's X length; 4c-1 also a position operand's X, `P.x.x.n` a brick X of one) → LENGTH.
  */
 export const linkSuffixKind = (suffix) => {
   if (typeof suffix !== 'string') return null;
   if (LINK_SUFFIX_KIND[suffix]) return LINK_SUFFIX_KIND[suffix];
   if (suffix === 'strength' || suffix === 'bars' || suffix === 'of.strength') return 'CONST';
-  if (suffix === 'left.x.n' || suffix === 'right.x.n') return 'LENGTH';
+  if (X_LENGTH_PATHS.includes(suffix)) return 'LENGTH';
   const m = LEVELS_PATH_RE.exec(suffix);
   return m && LEVEL_FIELDS.includes(m[1]) ? 'CONST' : null;
 };
@@ -499,6 +552,7 @@ export const levelsOccurrences = (condition) => {
       walkOp(o.x, `${prefix}x.`, linkable);
       walkCond(o.a, `${prefix}a.`, linkable && isLevelEvent(o.a));
     } else if (o.kind === 'BARS_SINCE') walkCond(o.a, `${prefix}a.`, linkable && isLevelEvent(o.a));
+    else if (POSITION_KINDS.includes(o.kind)) walkOp(o.x, `${prefix}x.`, linkable); // stage 4c-1
   };
   walkCond(condition, '', true);
   return out.map((x) => ({ ...x, path: `${x.prefix}levels` }));
@@ -616,8 +670,14 @@ export const linkableSuffixes = (condition) => {
   if (condition.right?.kind === 'CONST') out.push('right.const');
   out.push('tolerancePct');
   ['left', 'right'].forEach((s) => {
-    const x = condition[s]?.x;
-    if (ANCHORED_KINDS.includes(condition[s]?.kind) && x && x.kind !== LEVEL_KIND && hasLength(x.kind, x.n)) out.push(`${s}.x.n`);
+    const side = condition[s];
+    const x = side?.x;
+    if ((ANCHORED_KINDS.includes(side?.kind) || POSITION_KINDS.includes(side?.kind)) && x && x.kind !== LEVEL_KIND
+      && hasLength(x.kind, x.n)) out.push(`${s}.x.n`);
+    // stage 4c-1: a brick X of a position operand - its own X length
+    const xx = x?.x;
+    if (POSITION_KINDS.includes(side?.kind) && ANCHORED_KINDS.includes(x?.kind) && xx && xx.kind !== LEVEL_KIND
+      && hasLength(xx.kind, xx.n)) out.push(`${s}.x.x.n`);
   });
   out.push(...levelPaths());
   return out;
@@ -661,6 +721,11 @@ const toAnyOperandDTO = (o) => {
   if (o.kind === 'BARS_SINCE') {
     return { kind: o.kind, tf: o.tf || RUN_TF, offset: Number(o.offset) || 0, a: toAnyConditionDTO(o.a) };
   }
+  if (POSITION_KINDS.includes(o.kind)) { // stage 4c-1: no anchor, `lag` only on the windows
+    const out = { kind: o.kind, tf: o.tf || RUN_TF, offset: Number(o.offset) || 0, x: toAnyOperandDTO(o.x) };
+    if (POSITION_WINDOW_KINDS.includes(o.kind)) out.lag = numOr(o.lag, 0);
+    return out;
+  }
   return toOperand(o);
 };
 
@@ -682,7 +747,7 @@ export const toAnyConditionDTO = (c) => {
   return out;
 };
 
-const isStagedKind = (k) => k === LEVEL_KIND || BRICK_OPERAND_KINDS.includes(k);
+const isStagedKind = (k) => k === LEVEL_KIND || BRICK_OPERAND_KINDS.includes(k) || POSITION_KINDS.includes(k);
 
 /** OperandDTO → editor operand, the stage 4b kinds included. */
 const fromAnyOperandDTO = (o) => {
@@ -690,6 +755,9 @@ const fromAnyOperandDTO = (o) => {
   if (!isStagedKind(o.kind)) return fromOperand(o);
   const base = { kind: o.kind, n: null, tf: o.tf || RUN_TF, offset: o.offset ?? 0, value: '' };
   if (o.kind === LEVEL_KIND) return { ...base, output: o.output || 'SUPPORT_LINE', levels: fromLevelsDTO(o.levels) };
+  if (POSITION_KINDS.includes(o.kind)) {
+    return { ...base, x: fromAnyOperandDTO(o.x), lag: POSITION_WINDOW_KINDS.includes(o.kind) ? (o.lag ?? 0) : '' };
+  }
   const out = { ...base, a: fromAnyConditionDTO(o.a) };
   if (ANCHORED_KINDS.includes(o.kind)) {
     out.x = fromAnyOperandDTO(o.x);
@@ -813,6 +881,8 @@ export const fromConstructedDTO = (d) => {
     usage: (Array.isArray(d.usage) ? d.usage : []).map(normalizeUsage),
     params: Array.isArray(d.params) ? d.params : [],
     versionChanged: typeof d.versionChanged === 'boolean' ? d.versionChanged : null,
+    // stage 4c-1: a version with a position operand runs as a position-dependent strategy (derived, never stored)
+    positionDependent: d.positionDependent === true,
   };
 };
 
@@ -831,6 +901,7 @@ const normalizeSummary = (s) => ({
   updatedAt: s?.updatedAt ?? null,
   templateId: s?.templateId ?? null,
   unreadable: typeof s?.unreadable === 'string' && s.unreadable ? s.unreadable : null,
+  positionDependent: s?.positionDependent === true, // stage 4c-1
 });
 
 /** TemplateDTO `{templateId, name, description, definition: {rules[], axes[], constraints?[]}}` → editor shapes. */
@@ -899,6 +970,8 @@ export const normalizePreview = (p) => {
     warnings: (Array.isArray(p.warnings) ? p.warnings : []).filter((w) => typeof w === 'string' && w),
     // re-arm round (m7): one line per Levels spec, `Levels[L2]: MinStrength 2, StopBuffer 1, re-arm (TP 4)`
     levelsLegend: (Array.isArray(p.levelsLegend) ? p.levelsLegend : []).filter((x) => typeof x === 'string' && x),
+    // stage 4c-1: the previewed version reads the trade (its `warnings` carry the POSITION_SOLO note)
+    positionDependent: p.positionDependent === true,
   };
 };
 

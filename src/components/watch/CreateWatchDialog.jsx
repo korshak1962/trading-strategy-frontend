@@ -6,9 +6,15 @@
 // The entry price defaults to the close of the entry day's bar (first trading bar on/after it).
 // Client-side hints (DAY / WEEK only, long-only) are advisory; the backend's 400 codes decide and
 // are shown readably. After creation: the warnings (amber) and the baseline state.
+// Constructor stage 4c-1 (spec v3 §3.4): in mode A, when a constructed strategy of the case reads
+// AT_ENTRY(close) (a percent stop from the entry), a hint says it is measured from the seed bar's
+// close, not from the price entered here (the user's price is not visible to the operands yet).
 import { useEffect, useRef, useState } from 'react';
 import './watch.css';
 import { createWatch } from '../../api/watchApi';
+import { getCase } from '../../api/strategyApi';
+import { getConstructedVersionCached } from '../../api/constructedApi';
+import { parseConstructedKey, readsEntryClose } from '../strategyConstructor/constructedFormat';
 import { fetchPrices } from '../../api/channelApi';
 import { startDownload } from '../../api/downloaderApi';
 import { addDaysIso, daysAgoIso, exchangeToday, exchangeZoneForTicker } from '../../utils/dates';
@@ -49,6 +55,7 @@ const CreateWatchDialog = ({ caseInfo, onClose, onCreated, onOpenWatchlist }) =>
   const [downloadMsg, setDownloadMsg] = useState(null);
   const [downloading, setDownloading] = useState(false);
   const priceSeq = useRef(0);
+  const [entryCloseHint, setEntryCloseHint] = useState(false); // stage 4c-1: a % stop reads the seed bar's close
 
   const hint = watchBlockReason(caseInfo);
 
@@ -75,6 +82,23 @@ const CreateWatchDialog = ({ caseInfo, onClose, onCreated, onOpenWatchlist }) =>
     }, 250);
     return () => clearTimeout(timer);
   }, [mode, entryDate, ticker, priceTouched]);
+
+  // Stage 4c-1: does a constructed version of the case read AT_ENTRY(close)? (mode A only; a failure shows no hint)
+  useEffect(() => {
+    if (mode !== 'HOLDING' || caseInfo.id == null) return undefined;
+    let alive = true;
+    (async () => {
+      try {
+        const c = await getCase(caseInfo.id);
+        const refs = Object.keys(c?.config?.strategyNameToParams || {}).map(parseConstructedKey).filter(Boolean);
+        const versions = await Promise.all(refs.map((k) => getConstructedVersionCached(k.id, k.version).catch(() => null)));
+        if (alive) setEntryCloseHint(versions.some((v) => v && readsEntryClose(v.rules)));
+      } catch {
+        if (alive) setEntryCloseHint(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [mode, caseInfo.id]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -214,6 +238,15 @@ const CreateWatchDialog = ({ caseInfo, onClose, onCreated, onOpenWatchlist }) =>
                     data-testid="watch-entry-price"
                   />
                 </label>
+                {entryCloseHint && (
+                  <p className="col-span-2 p-2 rounded bg-amber-50 border border-amber-300 text-amber-800 text-xs" role="status"
+                    data-testid="create-watch-entry-close-hint">
+                    A constructed strategy of this case measures a percent stop from the entry (<code>AT_ENTRY(close)</code>).
+                    On this seeded position the entry is the seed bar (the first trading bar on or after the date), so the stop is
+                    measured from <b>that bar&apos;s close</b>, not from the price you enter here. Level stops (OPEN_STOP / OPEN_LINE,
+                    the sticky support) do not depend on your price.
+                  </p>
+                )}
                 {priceHint && (
                   <p className="col-span-2 text-xs text-gray-500">
                     {priceHint}

@@ -188,8 +188,18 @@ export const LEVEL_KIND = 'LEVEL';
 export const ANCHORED_KINDS = Object.freeze(['AT_LAST', 'MAX_SINCE', 'MIN_SINCE']);
 export const BRICK_OPERAND_KINDS = Object.freeze([...ANCHORED_KINDS, 'BARS_SINCE']);
 export const isBrickOperand = (o) => !!o && BRICK_OPERAND_KINDS.includes(o.kind);
-/** LEVEL or a brick: an operand the screener's OperandPicker cannot edit. */
-export const isStagedOperand = (o) => !!o && (o.kind === LEVEL_KIND || BRICK_OPERAND_KINDS.includes(o.kind));
+/**
+ * Stage 4c-1 position operands (constructed strategy rules only, LONG only): AT_ENTRY(X) = X on the
+ * entry bar of the open long; MAX_SINCE_ENTRY / MIN_SINCE_ENTRY(X, lag) = the extreme of X over
+ * (entry, t − lag]. X is a market operand of the run TF (a bar field, an indicator, LEVEL or a brick).
+ */
+export const POSITION_KINDS = Object.freeze(['AT_ENTRY', 'MAX_SINCE_ENTRY', 'MIN_SINCE_ENTRY']);
+/** The position kinds with a window (and a lag). */
+export const POSITION_WINDOW_KINDS = Object.freeze(['MAX_SINCE_ENTRY', 'MIN_SINCE_ENTRY']);
+export const isPositionOperand = (o) => !!o && POSITION_KINDS.includes(o.kind);
+/** LEVEL, a brick or a position operand: an operand the screener's OperandPicker cannot edit. */
+export const isStagedOperand = (o) => !!o
+  && (o.kind === LEVEL_KIND || BRICK_OPERAND_KINDS.includes(o.kind) || POSITION_KINDS.includes(o.kind));
 
 // Units of the Levels outputs (meta.levels.outputs, static fallback = the backend's LevelOutput)
 let levelOutputUnits = {
@@ -199,6 +209,8 @@ let levelOutputUnits = {
   SUPPORT_LINE: 'PRICE',
   DIST_SUPPORT_ATR: 'ATR_MULTIPLE',
   DIST_RESISTANCE_ATR: 'ATR_MULTIPLE',
+  OPEN_STOP: 'PRICE', // stage 4c-1
+  OPEN_LINE: 'PRICE',
 };
 
 /** Registers meta.levels.outputs `[{name, unit}]` (a missing list keeps the fallback). */
@@ -214,14 +226,15 @@ export const levelOutputUnit = (output) => levelOutputUnits[output] || null;
 
 /**
  * Value unit (backend ValueUnit) of an operand; null for a constant (fits any unit) or an unknown
- * kind. Stage 4b: LEVEL → its output's unit, BARS_SINCE → BARS, AT_LAST / MAX_SINCE / MIN_SINCE → X's.
+ * kind. Stage 4b: LEVEL → its output's unit, BARS_SINCE → BARS, AT_LAST / MAX_SINCE / MIN_SINCE → X's;
+ * stage 4c-1: AT_ENTRY / MAX_SINCE_ENTRY / MIN_SINCE_ENTRY → X's.
  */
 export const operandUnitOf = (o) => {
   if (!o || !o.kind || o.kind === CONST_KIND) return null;
   if (isFieldKind(o.kind)) return FIELD_UNIT[o.kind];
   if (o.kind === LEVEL_KIND) return levelOutputUnit(o.output);
   if (o.kind === 'BARS_SINCE') return 'BARS';
-  if (ANCHORED_KINDS.includes(o.kind)) return operandUnitOf(o.x);
+  if (ANCHORED_KINDS.includes(o.kind) || POSITION_KINDS.includes(o.kind)) return operandUnitOf(o.x);
   return descriptorOf(o.kind)?.unit || null;
 };
 

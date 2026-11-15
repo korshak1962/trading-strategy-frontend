@@ -5,12 +5,15 @@
 // actually happened" for a run that ended in the past, the live price vs the lines for a bar in
 // progress, the always-visible execution note and the per-strategy breakdown (collapsed).
 // Reads only the normalized object of nextTriggersAdapter.js.
+// Stage 4c-1: a NOT_ESTIMABLE estimate with lines (a position-dependent constructed version, one rule
+// not estimable) lists its lines under a "partly estimable" sentence and badge.
 import { useState } from 'react';
 import './nextBarCard.css';
 import {
   actionLines, categoryBadge, distanceText, fmtTriggerPrice, fmtTriggerTs, infoLines, isIntrabarStop,
   kindText, lineText, nextBarLabel, nowVsLineText, partialText, statusText, OUTCOME_TEXT,
   DEFAULT_EXECUTION_NOTE, isBenchmark, fmtBarKey, isSetupPreview, setupPreview, previewSentences, lineRuleText,
+  hasPartialLines,
 } from './nextTriggersFormat';
 import { isConstructedKey, strategyLabel } from '../strategyConstructor/constructedFormat';
 
@@ -59,9 +62,15 @@ const EstimateBody = ({ estimate, position, nowPrice, showInfo = true, showSourc
   const sentence = estimate.kind !== 'LINES' || lines.length === 0
     ? kindText(estimate.kind === 'LINES' ? { ...estimate, kind: 'NONE' } : estimate, position)
     : null;
+  const partialLines = hasPartialLines(estimate);
   return (
     <div>
-      {sentence && <div className="text-sm text-gray-700" data-testid="next-bar-kind">{sentence}</div>}
+      {sentence && (
+        <div className={`text-sm ${partialLines ? 'text-purple-800' : 'text-gray-700'}`} data-testid="next-bar-kind"
+          data-partial-lines={partialLines ? 'true' : undefined}>
+          {sentence}
+        </div>
+      )}
       {estimate.kind !== 'POSSIBLE_OUTSIDE_BAND' && lines.map((line, i) => (
         <LineRow key={`l${i}`} line={line} nowPrice={nowPrice} showSource={showSource} />
       ))}
@@ -115,7 +124,9 @@ const StrategyBreakdown = ({ nt }) => (
           {strategyLabel(s.key)}
           {s.strategyClass && s.strategyClass !== s.key && !isConstructedKey(s.key) && <span className="font-normal text-gray-500"> ({s.strategyClass})</span>}
           {s.kind !== 'LINES' && !isBenchmark(s) && (
-            <span className="ml-2 nbt-badge">{s.kind.toLowerCase().replace(/_/g, ' ')}</span>
+            hasPartialLines(s)
+              ? <span className="ml-2 nbt-badge nbt-badge--partial" title={s.reason || ''} data-testid="next-bar-strategy-partial">partly estimable</span>
+              : <span className="ml-2 nbt-badge">{s.kind.toLowerCase().replace(/_/g, ' ')}</span>
           )}
         </div>
         <EstimateBody estimate={s} position={nt.position} nowPrice={nt.nextBar.inProgress ? nt.nextBar.nowPrice : null} />
@@ -177,7 +188,9 @@ const NextBarCard = ({ nt, compact = false, stale = false }) => {
               .filter(Boolean).join(' ')}
           </span>
         </h3>
-        {m?.partial && <span className="nbt-badge nbt-badge--partial" title={partial || ''}>partial</span>}
+        {(m?.partial || hasPartialLines(m)) && (
+          <span className="nbt-badge nbt-badge--partial" title={partial || m?.reason || ''}>partial</span>
+        )}
         {nb.inProgress && nowPrice !== null && (
           <span className="nbt-badge nbt-badge--live" title={nb.nowAt ? `last update ${fmtTriggerTs(nb.nowAt)}` : ''}>
             now {fmtTriggerPrice(nowPrice)}

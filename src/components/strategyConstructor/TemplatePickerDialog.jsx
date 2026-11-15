@@ -8,12 +8,15 @@
 // Stage 4b: a template's create options (`level-breakout-bricks`: take profit R5 / regime filter on
 // R1) as checkboxes, sent as `options: {key: true|false}`; the listed rules are the no-option variant.
 // Re-arm round: an option starts at its `defaultValue` (`rearm` on) and every option is sent explicitly.
+// Stage 4c-1: the listed rules are the variant with the options at their defaults (`entryAnchor` on:
+// R2–R4 read the trade's entry); a template whose rules read the trade carries the PD badge.
 import { useEffect, useState } from 'react';
 import { listTemplates, createFromTemplate } from '../../api/constructedApi';
 import { describeApiError } from '../../api/httpClient';
 import {
-  AXIS_KIND_LABEL, constraintText, ruleCaption, runTfsOf, runTfsHint, levelsCaptionOpts, levelsLegendLines,
+  AXIS_KIND_LABEL, constraintText, ruleCaption, runTfsOf, runTfsHint, levelsCaptionOpts, levelsLegendLines, usesPosition,
 } from './constructedFormat';
+import PositionDependentBadge from './PositionDependentBadge';
 import { fmtNum } from '../universeScreener/conditionFormat';
 import '../watch/watch.css';
 
@@ -115,7 +118,13 @@ export default function TemplatePickerDialog({ onCreated, onClose }) {
         {template && (
           <div className="mt-3" data-testid="template-details">
             {template.description && <p className="text-sm text-gray-700 mb-2">{template.description}</p>}
-            <div className="text-sm font-medium text-gray-700 mb-1">Rules</div>
+            <div className="text-sm font-medium text-gray-700 mb-1">
+              Rules
+              {usesPosition(template.rules) && (
+                <PositionDependentBadge testId="template-pd-badge" long
+                  title="These rules read the trade (AT_ENTRY / MAX_SINCE_ENTRY, LONG only): the strategy is position dependent. Unticking an option that adds them (entryAnchor) gives a stateless variant." />
+              )}
+            </div>
             <ul className="text-xs font-mono space-y-1 mb-2" data-testid="template-rules">
               {template.rules.map((r, i) => (
                 <li key={i}>{ruleCaption(r, 'DAY', template.axes, levelsCaptionOpts(template.rules, template.axes))}</li>
@@ -155,7 +164,7 @@ export default function TemplatePickerDialog({ onCreated, onClose }) {
             {template.options.length > 0 && (
               <fieldset className="mt-3" data-testid="template-options">
                 <legend className="text-sm font-medium text-gray-700 mb-1">
-                  Options <span className="font-normal text-gray-500">(the rules above are the variant without options)</span>
+                  Options <span className="font-normal text-gray-500">(the rules above are the variant with the options at their defaults)</span>
                 </legend>
                 {template.options.map((o) => (
                   <label key={o.key} className="flex items-start gap-2 text-sm text-gray-700 mb-1" title={o.hint || undefined}>

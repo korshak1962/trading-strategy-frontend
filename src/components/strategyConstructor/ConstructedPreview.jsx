@@ -11,6 +11,7 @@ import TickerCombobox from '../TickerCombobox';
 import { barGeometry, normalizeVotes } from '../signals/signalPanes';
 import { parseExchangeTs } from '../../utils/dates';
 import { ofBars, reasonsText, stateRuleWarning, deadEntryRuleWarning, SIGNAL_TYPE_CLASS } from './constructedFormat';
+import PositionDependentBadge from './PositionDependentBadge';
 
 const label = 'block text-xs text-gray-600 mb-1';
 
@@ -153,7 +154,16 @@ export default function ConstructedPreview({
               <> ({Object.entries(typeCounts).map(([t, n]) => `${t} ${n}`).join(', ')})</>
             )}
             {' · '}thresholds in sweep: {preview.sweepThresholds}
+            {preview.positionDependent && (
+              <PositionDependentBadge testId="preview-pd-badge" long
+                title="Position-dependent: the preview runs the strategy alone (solo) on its own position; in a case the position is shared, so the counts of rules with position operands may differ." />
+            )}
           </p>
+          {preview.positionDependent && !preview.warnings.some((w) => /POSITION_SOLO/.test(w)) && (
+            <p className="mb-2 text-xs text-purple-800" data-testid="preview-position-solo">
+              Solo run: the position operands read this strategy&apos;s own position; in a case the position is shared, so the counts may differ.
+            </p>
+          )}
           {preview.warnings.length > 0 && (
             <div className="mb-3 p-3 rounded bg-amber-50 border border-amber-300 text-amber-800 text-sm" role="status" data-testid="preview-warnings">
               {preview.warnings.map((w, i) => <div key={i}>{w}</div>)}

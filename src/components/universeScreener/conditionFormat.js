@@ -262,8 +262,11 @@ export const REASON_TEXT = Object.freeze({
   NO_ZONE: 'no level zone of that strength',
   NO_EVENT: 'not a confirmation bar (no setup line)',
   NEVER: 'the anchor event never passed yet',
-  EMPTY_WINDOW: 'empty window since the anchor event (no value yet)',
+  EMPTY_WINDOW: 'empty window since the anchor event / the entry (no value yet)',
   NO_VALUE_AT_ANCHOR: 'X has no value on the anchor bar',
+  // constructor stage 4c-1: position operands (LONG only)
+  NOT_LONG: 'not in a long (position operands read only a LONG)',
+  NO_VALUE_AT_ENTRY: 'X has no value on the entry bar',
 });
 
 export const reasonText = (r) => (r ? REASON_TEXT[r] || r : '');

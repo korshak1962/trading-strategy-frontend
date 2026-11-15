@@ -15,13 +15,18 @@
 // sequence brick (BrickOperandEditor: AT_LAST / MAX_SINCE / MIN_SINCE / BARS_SINCE). Thresholds
 // are paths (`strength`, `bars`, `[P.]levels.<field>`, `P.x.n`); a new Levels occurrence copies the
 // spec and the links of the strategy's last one (`levelsTemplate`).
+// Stage 4c-1: a comparison side may be a position operand (AT_ENTRY / MAX_SINCE_ENTRY /
+// MIN_SINCE_ENTRY, LONG only); a rule reading the trade carries the "reads the trade" mark, and
+// ShortClose is refused for it (meta.position.refusedInRules).
 import { CompareConditionRow } from '../universeScreener/ConditionRows';
 import {
   pruneLinks, thresholdLiteral, isLevelEvent, isWithin, DEFAULT_CHANNEL_META, DEFAULT_LEVELS_META, DEFAULT_BRICKS_META,
+  DEFAULT_POSITION_META,
 } from '../../api/constructedApi';
 import {
   newRuleCondition, newRuleChannelCondition, newRuleLevelCondition, newRuleWithinCondition, ruleCaption, ruleConditionCaption,
   linkedThresholdValue, isChannelCondition, withTemplateLinks, SIGNAL_TYPE_CLASS, SIGNAL_TYPE_HINT, levelsCaptionOpts,
+  ruleUsesPosition,
 } from './constructedFormat';
 import LinkPicker from './LinkPicker';
 import ChannelConditionRow from './ChannelConditionRow';
@@ -55,6 +60,7 @@ const iconBtn = 'px-1.5 text-gray-500 hover:text-gray-800 disabled:text-gray-300
  * @param {Object} [props.bricksMeta] meta.bricks (stage 4b)
  * @param {{spec: Object, links: Object}|null} [props.levelsTemplate] the spec / field links a new Levels occurrence copies
  * @param {((condIndex: number, prefix: string) => void)|null} [props.onApplyLevelsToAll] "Apply to all Levels in this strategy"
+ * @param {Object} [props.positionMeta] meta.position (stage 4c-1)
  * Operand kinds, lengths and units come from the indicator descriptors (indicatorCatalog.js); a
  * kind that does not run on `evalTf` (the preview's run TF, e.g. ATR on MIN5) is disabled.
  */
@@ -62,6 +68,7 @@ export default function RuleEditor({
   rule, index, count, onChange, onRemove, onMove, signalTypes, maxConditions, evalTf, errors, stats, disabled,
   axes = [], onCreateAxis = null, channelMeta = DEFAULT_CHANNEL_META, allRules = null,
   levelsMeta = DEFAULT_LEVELS_META, bricksMeta = DEFAULT_BRICKS_META, levelsTemplate = null, onApplyLevelsToAll = null,
+  positionMeta = DEFAULT_POSITION_META,
 }) {
   const set = (patch) => onChange({ ...rule, ...patch });
   // Short labels (re-arm round): a Levels caption carries no spec, `@L2` when the strategy has several specs
@@ -96,6 +103,8 @@ export default function RuleEditor({
     set({ conditions: cs });
   };
   const types = signalTypes.includes(rule.signalType) ? signalTypes : [...signalTypes, rule.signalType];
+  const readsTrade = ruleUsesPosition(rule); // stage 4c-1
+  const refusedTypes = positionMeta?.refusedInRules || DEFAULT_POSITION_META.refusedInRules;
 
   return (
     <div className="border rounded-lg p-3 bg-white" data-testid="constructor-rule">
@@ -114,10 +123,25 @@ export default function RuleEditor({
             title={SIGNAL_TYPE_HINT[rule.signalType]}
             data-testid="rule-signal-type"
           >
-            {types.map((t) => <option key={t} value={t} title={SIGNAL_TYPE_HINT[t]}>{t}</option>)}
+            {types.map((t) => {
+              const refused = readsTrade && refusedTypes.includes(t);
+              return (
+                <option key={t} value={t} disabled={refused && t !== rule.signalType}
+                  title={refused ? `${t} cannot read the trade: position operands read a LONG position` : SIGNAL_TYPE_HINT[t]}>
+                  {t}{refused ? ' (not with position operands)' : ''}
+                </option>
+              );
+            })}
           </select>
         </label>
         <span className="text-xs text-gray-500">when all conditions hold on the bar</span>
+        {readsTrade && (
+          <span className="px-1.5 rounded text-xs font-medium bg-purple-50 text-purple-800 border"
+            style={{ borderColor: 'var(--c-purple-200)' }} data-testid="rule-reads-trade"
+            title="A condition of this rule reads the trade (AT_ENTRY / *_SINCE_ENTRY): it has a value only in a LONG">
+            reads the trade
+          </span>
+        )}
         <input
           className="p-1 border rounded text-sm flex-1 min-w-[8rem]"
           value={rule.note}
@@ -168,7 +192,7 @@ export default function RuleEditor({
           const { key, ...rest } = common;
           // stage 4b: the context of the Levels / brick editors (links by full path)
           const ctx = {
-            levelsMeta, bricksMeta, channelMeta, evalTf, disabled, allRules: allRules || [rule],
+            levelsMeta, bricksMeta, channelMeta, positionMeta, evalTf, disabled, allRules: allRules || [rule],
             levelsSpec: levelsTemplate?.spec,
             renderLink: rest.renderLink,
             linkedValue: rest.linkedValue,
@@ -187,7 +211,7 @@ export default function RuleEditor({
           return (
             <CompareConditionRow key={key} {...rest} evalTf={evalTf} allowRun runTf={evalTf}
               renderOperand={(args) => (
-                <BrickOperandEditor {...args} prefix={`${args.side}.`} allowBricks linkable ctx={ctx} />
+                <BrickOperandEditor {...args} prefix={`${args.side}.`} allowBricks allowPosition linkable ctx={ctx} />
               )} />
           );
         })}
