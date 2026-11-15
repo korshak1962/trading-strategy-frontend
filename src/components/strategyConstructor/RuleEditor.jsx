@@ -33,6 +33,8 @@ import ChannelConditionRow from './ChannelConditionRow';
 import LevelConditionRow from './LevelConditionRow';
 import WithinConditionRow from './WithinConditionRow';
 import BrickOperandEditor from './BrickOperandEditor';
+import FieldLabel from '../common/FieldLabel';
+import { useEditorHelp, OPERAND_HELP, POSITION_HELP, RULE_TEXTS } from '../../api/editorTexts';
 
 const sel = 'p-1 border rounded text-sm bg-white';
 const iconBtn = 'px-1.5 text-gray-500 hover:text-gray-800 disabled:text-gray-300';
@@ -105,52 +107,58 @@ export default function RuleEditor({
   const types = signalTypes.includes(rule.signalType) ? signalTypes : [...signalTypes, rule.signalType];
   const readsTrade = ruleUsesPosition(rule); // stage 4c-1
   const refusedTypes = positionMeta?.refusedInRules || DEFAULT_POSITION_META.refusedInRules;
+  // editor UX Stage A: plain-English signal types (meta.signalTypeHelp over the fallbacks)
+  const signalHelp = useEditorHelp().signalTypes;
+  const posHelp = positionMeta?.help || POSITION_HELP;
+  const typeLabel = (t) => signalHelp[t]?.label || t;
 
   return (
     <div className="border rounded-lg p-3 bg-white" data-testid="constructor-rule">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-semibold text-gray-700 w-16" title="Permanent rule id: threshold names R<id>.C<id>.* use it">
+      <div className="flex flex-wrap items-end gap-2">
+        <span className="text-sm font-semibold text-gray-700 w-16 pb-1" title="Permanent rule id: threshold names R<id>.C<id>.* use it">
           {rule.id != null ? `R${rule.id}` : 'new rule'}
         </span>
-        <label className="inline-flex items-center gap-1 text-sm text-gray-600">
-          emits
+        <FieldLabel label="Signal type" tooltip={`${RULE_TEXTS.signalType} ${signalHelp[rule.signalType]?.tooltip || ''}`.trim()}
+          code={rule.signalType} testId="info-rule-signal-type">
           <select
             className={`${sel} font-medium border ${SIGNAL_TYPE_CLASS[rule.signalType] || ''}`}
             value={rule.signalType}
             disabled={disabled}
             onChange={(e) => set({ signalType: e.target.value })}
             aria-label="signal type"
-            title={SIGNAL_TYPE_HINT[rule.signalType]}
+            title={signalHelp[rule.signalType]?.tooltip || SIGNAL_TYPE_HINT[rule.signalType]}
             data-testid="rule-signal-type"
           >
             {types.map((t) => {
               const refused = readsTrade && refusedTypes.includes(t);
               return (
                 <option key={t} value={t} disabled={refused && t !== rule.signalType}
-                  title={refused ? `${t} cannot read the trade: position operands read a LONG position` : SIGNAL_TYPE_HINT[t]}>
-                  {t}{refused ? ' (not with position operands)' : ''}
+                  title={refused ? `${typeLabel(t)}: ${posHelp.refused}` : (signalHelp[t]?.tooltip || SIGNAL_TYPE_HINT[t])}>
+                  {typeLabel(t)}{refused ? ' (not with "From my open long")' : ''}
                 </option>
               );
             })}
           </select>
-        </label>
-        <span className="text-xs text-gray-500">when all conditions hold on the bar</span>
+        </FieldLabel>
+        <span className="text-xs text-gray-500 pb-1 self-end">when all conditions hold on the bar</span>
         {readsTrade && (
-          <span className="px-1.5 rounded text-xs font-medium bg-purple-50 text-purple-800 border"
+          <span className="px-1.5 rounded text-xs font-medium bg-purple-50 text-purple-800 border self-end mb-1"
             style={{ borderColor: 'var(--c-purple-200)' }} data-testid="rule-reads-trade"
-            title="A condition of this rule reads the trade (AT_ENTRY / *_SINCE_ENTRY): it has a value only in a LONG">
-            reads the trade
+            title={posHelp.badgeTooltip || POSITION_HELP.badgeTooltip}>
+            {posHelp.badge || POSITION_HELP.badge}
           </span>
         )}
-        <input
-          className="p-1 border rounded text-sm flex-1 min-w-[8rem]"
-          value={rule.note}
-          disabled={disabled}
-          placeholder="note (optional)"
-          onChange={(e) => set({ note: e.target.value })}
-          aria-label="rule note"
-        />
-        <div className="flex items-center gap-1">
+        <FieldLabel label="Note" tooltip={OPERAND_HELP.note} className="flex-1 min-w-[8rem]" testId="info-rule-note">
+          <input
+            className="p-1 border rounded text-sm w-full"
+            value={rule.note}
+            disabled={disabled}
+            placeholder="note (optional)"
+            onChange={(e) => set({ note: e.target.value })}
+            aria-label="rule note"
+          />
+        </FieldLabel>
+        <div className="flex items-center gap-1 self-end pb-1">
           <button type="button" className={iconBtn} disabled={disabled || index === 0} onClick={() => onMove(-1)}
             title="Move the rule up" aria-label="Move the rule up">↑</button>
           <button type="button" className={iconBtn} disabled={disabled || index === count - 1} onClick={() => onMove(1)}
@@ -193,6 +201,7 @@ export default function RuleEditor({
           // stage 4b: the context of the Levels / brick editors (links by full path)
           const ctx = {
             levelsMeta, bricksMeta, channelMeta, positionMeta, evalTf, disabled, allRules: allRules || [rule],
+            signalType: rule.signalType, // Stage A: "From my open long" is refused in a Cover short rule
             levelsSpec: levelsTemplate?.spec,
             renderLink: rest.renderLink,
             linkedValue: rest.linkedValue,
@@ -215,7 +224,7 @@ export default function RuleEditor({
               )} />
           );
         })}
-        {rule.conditions.length === 0 && <p className="text-sm text-gray-500">No conditions yet.</p>}
+        {rule.conditions.length === 0 && <p className="text-sm text-gray-500" data-testid="rule-empty">{RULE_TEXTS.emptyRule}</p>}
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <button type="button" disabled={disabled || rule.conditions.length >= maxConditions}

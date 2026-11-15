@@ -20,7 +20,8 @@ import {
 import { SCREEN_TFS } from '../../api/screenerApi';
 import { unitsClash, RUN_TF } from '../universeScreener/conditionFormat';
 import { newLevelOperand, newPlainOperand, newBrickOperand, newPositionOperand } from './constructedFormat';
-import { getEditorHelp, POSITION_HELP, BRICK_TEXTS, POSITION_TEXTS, firstSentence } from '../../api/editorTexts';
+import { eventNeedsStrength } from '../../api/constructedApi';
+import { getEditorHelp, POSITION_HELP, BRICK_TEXTS, POSITION_TEXTS, RULE_TEXTS, firstSentence } from '../../api/editorTexts';
 
 export const PRICE_BAR = 'PRICE_BAR';
 export const UNKNOWN_PREFIX = 'UNKNOWN:';
@@ -215,3 +216,15 @@ export const sourceTooltipOf = (o) => {
 /** The help line of a comparison: the first sentence of each side's Source tooltip (distinct ones). */
 export const compareHelpLine = (sideTips) => sideTips.map(firstSentence).filter(Boolean)
   .filter((t, i, a) => a.indexOf(t) === i).join(' · ');
+
+/**
+ * The Levels Event menu: the `inMenu` events, plus the selected one when it is out of the menu
+ * (BROKEN_DOWN, labelled "(retired)") or unknown to this build ("(not in this version)").
+ */
+export const eventMenuOf = (events, selected) => {
+  const shown = (events || []).filter((e) => e.inMenu !== false || e.name === selected);
+  if (selected && !(events || []).some((e) => e.name === selected)) {
+    shown.push({ name: selected, label: `${selected} ${RULE_TEXTS.unknownSuffix}`, tooltip: '', hint: '', needsStrength: eventNeedsStrength(selected) });
+  }
+  return shown;
+};

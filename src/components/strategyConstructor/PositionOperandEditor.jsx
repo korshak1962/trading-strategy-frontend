@@ -8,9 +8,14 @@
 // the position group): a bar field / indicator, a Levels value (OPEN_STOP / OPEN_LINE read here) or a
 // brick. Links inside X use the paths `P.x.n`, `P.x.levels.*` (a brick X: `P.x.x.n`, `P.x.a.levels.*`);
 // `lag` is never an axis. In FLAT / SHORT the condition FAILs (NOT_LONG).
+// Editor UX Stage A: a nested block "Highest since entry ⓘ — LONG only" with the "Value X" section
+// and "Skip last bars"; the purple frame stays.
 import OperandPicker from '../universeScreener/OperandPicker';
+import FieldLabel from '../common/FieldLabel';
+import InfoTooltip from '../common/InfoTooltip';
 import { DEFAULT_POSITION_META, POSITION_WINDOW_KINDS } from '../../api/constructedApi';
 import { unitLabel, UNIT_HINT, operandUnitOf } from '../../api/indicatorCatalog';
+import { POSITION_HELP } from '../../api/editorTexts';
 import { newPlainOperand } from './constructedFormat';
 
 const pathId = (p) => p.replace(/\.$/, '').replace(/\./g, '-');
@@ -27,6 +32,7 @@ const pathId = (p) => p.replace(/\.$/, '').replace(/\./g, '-');
 export default function PositionOperandEditor({ value, onChange, prefix, linkable, ctx, sideEditor }) {
   const SideEditor = sideEditor;
   const pm = ctx.positionMeta || DEFAULT_POSITION_META;
+  const help = pm.help || POSITION_HELP;
   const kindMeta = pm.kinds.find((k) => k.name === value.kind) || null;
   const isWindow = POSITION_WINDOW_KINDS.includes(value.kind);
   const xPrefix = `${prefix}x.`;
@@ -42,32 +48,35 @@ export default function PositionOperandEditor({ value, onChange, prefix, linkabl
       testId={`position-x-${pathId(prefix)}-op`} />
   );
   return (
-    <span className="inline-flex flex-wrap items-center gap-1 border rounded px-1.5 py-1 bg-purple-50"
-      style={{ borderColor: 'var(--c-purple-200)' }}
-      title={`${kindMeta?.hint || ''}. ${pm.hint}`} data-testid={`${tid}-position`}>
-      <span className="font-mono text-xs font-semibold text-purple-800">{value.kind}(</span>
-      <span className="text-xs text-gray-600">X</span>
-      <span className="inline-flex flex-wrap items-center gap-1" data-testid={`position-x-${pathId(prefix)}`}>
-        <SideEditor side="left" value={x} onChange={(nx) => onChange({ ...value, x: nx })} picker={xPicker}
-          prefix={xPrefix} allowBricks allowPosition={false} linkable={linkable} ctx={ctx} />
+    <div className="basis-full flex flex-col gap-1.5 border rounded px-2 py-1.5 bg-purple-50"
+      style={{ borderColor: 'var(--c-purple-200)' }} data-testid={`${tid}-position`}>
+      <span className="text-xs font-semibold text-purple-800">
+        {kindMeta?.label || value.kind}
+        <InfoTooltip text={`${kindMeta?.tooltip || ''} ${help.group || ''}`.trim()} code={value.kind} editor align="left"
+          testId={`info-${tid}-position`} />
+        <span className="ml-2 font-normal text-purple-700">— {pm.side || 'LONG'} only</span>
+        {unit && <span className="ml-2 text-[11px] font-normal text-gray-500" title={`Unit: ${UNIT_HINT[unit] || unitLabel(unit)}`}>{unitLabel(unit)}</span>}
       </span>
-      {isWindow && (
-        <label className="inline-flex items-center gap-1 text-xs text-gray-600"
-          title={`Window (entry, t − lag]: lag 1 = the line as of the previous bar, the class ratchet (0..${pm.lagMax}). Not an axis.`}>
-          , lag
-          <input type="number" min={0} max={pm.lagMax} step={1} className="p-1 border rounded text-sm w-14"
-            value={value.lag ?? 0} disabled={ctx.disabled} aria-label="position window lag" data-testid={`${tid}-position-lag`}
-            onChange={(e) => onChange({ ...value, lag: e.target.value === '' ? '' : parseInt(e.target.value, 10) })} />
-        </label>
-      )}
-      <span className="font-mono text-xs font-semibold text-purple-800">)</span>
-      {unit && <span className="text-[11px] text-gray-500" title={`Unit: ${UNIT_HINT[unit] || unitLabel(unit)}`}>{unitLabel(unit)}</span>}
-      <span className="basis-full text-[11px] text-purple-800" data-testid={`${tid}-position-hint`}>
-        {pm.side || 'LONG'} only: in FLAT / SHORT the condition fails (NOT_LONG).{' '}
-        {value.kind === 'AT_ENTRY'
-          ? '% stop: close < AT_ENTRY(close) with tolerance −5; “in position”: AT_ENTRY(close) > 0. A seeded watch reads the seed bar’s close, not your price.'
-          : 'Trailing: close < MAX_SINCE_ENTRY(X, lag 1) (the entry bar is not in the window).'}
-      </span>
-    </span>
+      <div className="flex flex-col gap-0.5">
+        <span className="text-xs font-semibold text-gray-600 border-b border-gray-200">
+          Value X
+          <InfoTooltip text={help.x} editor align="left" />
+        </span>
+        <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
+          <span className="inline-flex flex-wrap items-end gap-x-2 gap-y-1" data-testid={`position-x-${pathId(prefix)}`}>
+            <SideEditor side="left" value={x} onChange={(nx) => onChange({ ...value, x: nx })} picker={xPicker}
+              prefix={xPrefix} allowBricks allowPosition={false} linkable={linkable} ctx={ctx} />
+          </span>
+          {isWindow && (
+            <FieldLabel label="Skip last bars" tooltip={help.lag} testId={`info-${tid}-position-lag`}>
+              <input type="number" min={0} max={pm.lagMax} step={1} className="p-1 border rounded text-sm w-14"
+                value={value.lag ?? 0} disabled={ctx.disabled} aria-label="position window lag" data-testid={`${tid}-position-lag`}
+                onChange={(e) => onChange({ ...value, lag: e.target.value === '' ? '' : parseInt(e.target.value, 10) })} />
+            </FieldLabel>
+          )}
+        </div>
+      </div>
+      <span className="text-[11px] text-purple-800" data-testid={`${tid}-position-hint`}>{help.noLong}</span>
+    </div>
   );
 }

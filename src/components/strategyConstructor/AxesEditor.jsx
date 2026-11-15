@@ -10,6 +10,8 @@
 // axes' grid values in Optimize must satisfy them (the backend refuses a run with a violating point).
 import { AXIS_KINDS, MAX_AXES, CONSTRAINT_OPS, CONSTRAINT_OP_SYMBOL, MAX_CONSTRAINTS } from '../../api/constructedApi';
 import { AXIS_KIND_LABEL, newAxis, newConstraint, constraintText, hasSameKindPair } from './constructedFormat';
+import InfoTooltip from '../common/InfoTooltip';
+import { useEditorHelp } from '../../api/editorTexts';
 
 const cell = 'p-1 border rounded text-sm';
 const num = `${cell} w-20`;
@@ -39,6 +41,7 @@ export default function AxesEditor({
   axes, onChange, onAdd, onRemove, usage, errors, disabled,
   constraints = [], onConstraintsChange = null, constraintErrors = null, constraintWarnings = [], maxAxes = MAX_AXES,
 }) {
+  const axisHelp = useEditorHelp().axes; // editor UX Stage A: column ⓘ
   const set = (i, field) => (e) => onChange(i, { [field]: e.target.value });
   return (
     <div className="mt-6" data-testid="constructed-axes">
@@ -76,15 +79,15 @@ export default function AxesEditor({
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-xs text-gray-600">
               <tr>
-                <th className="px-1 py-1 text-left">Name</th>
-                <th className="px-1 py-1 text-left">Kind</th>
-                <th className="px-1 py-1 text-left">Value</th>
-                <th className="px-1 py-1 text-left" title="Default sweep range in Optimize; Min = Max = Value: fixed">Min</th>
-                <th className="px-1 py-1 text-left">Max</th>
-                <th className="px-1 py-1 text-left">Step</th>
-                <th className="px-1 py-1 text-left" title="Hard bounds of the value (optional): a value or a grid point outside → 400">Bounds</th>
-                <th className="px-1 py-1 text-left">Description</th>
-                <th className="px-1 py-1 text-left">Used</th>
+                <th className="px-1 py-1 text-left">Name<InfoTooltip text={axisHelp.name} editor align="left" testId="info-axis-name" /></th>
+                <th className="px-1 py-1 text-left">Kind<InfoTooltip text={axisHelp.kind} editor align="left" testId="info-axis-kind" /></th>
+                <th className="px-1 py-1 text-left">Value<InfoTooltip text={axisHelp.value} editor align="center" testId="info-axis-value" /></th>
+                <th className="px-1 py-1 text-left" title="Default sweep range in Optimize; Min = Max = Value: fixed">Min<InfoTooltip text={axisHelp.min} editor align="center" testId="info-axis-min" /></th>
+                <th className="px-1 py-1 text-left">Max<InfoTooltip text={axisHelp.max} editor align="center" testId="info-axis-max" /></th>
+                <th className="px-1 py-1 text-left">Step<InfoTooltip text={axisHelp.step} editor align="center" testId="info-axis-step" /></th>
+                <th className="px-1 py-1 text-left" title="Hard bounds of the value (optional): a value or a grid point outside → 400">Bounds<InfoTooltip text={axisHelp.bounds} editor align="center" testId="info-axis-bounds" /></th>
+                <th className="px-1 py-1 text-left">Description<InfoTooltip text={axisHelp.description} editor align="center" testId="info-axis-description" /></th>
+                <th className="px-1 py-1 text-left">Used<InfoTooltip text={axisHelp.used} editor align="right" testId="info-axis-used" /></th>
                 <th className="px-1 py-1" />
               </tr>
             </thead>
