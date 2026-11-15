@@ -7,25 +7,34 @@
 // the folded "Channel detector" block (coverage, min bars, min width, min age). Semantics B: on bar
 // t the channel tree after bar t−1, replayed from the ticker's first stored DAY bar - no look-ahead.
 // Frame and style: the screener's RowShell (ConditionRows.jsx).
+// Editor UX Stage A (architect §3.2, §5.5; designer §4.6): headings Source "Channel" · Timeframe ·
+// Channel (Current (0) / Parent (1) / Grandparent (2)) · Metric · Min · Max with ⓘ; the detector is a
+// collapsed ParamBlock ("Channel detector: default settings" / "Min age 30 bars"), not linkable.
 import { useState } from 'react';
 import { RowShell } from '../universeScreener/ConditionRows';
 import { fmtNum } from '../universeScreener/conditionFormat';
-import { DEFAULT_CHANNEL_META } from '../../api/constructedApi';
-import {
-  CHANNEL_LEVEL_LABEL, channelMetricOf, channelSpecOf, channelSpecLabel,
-} from './constructedFormat';
+import { DEFAULT_CHANNEL_META, CHANNEL_KEYS } from '../../api/constructedApi';
+import { CHANNEL_HELP, firstSentence, RULE_TEXTS } from '../../api/editorTexts';
+import FieldLabel from '../common/FieldLabel';
+import ParamBlock from '../common/ParamBlock';
+import { CHANNEL_LEVEL_LABEL, channelMetricOf, channelSpecOf } from './constructedFormat';
 
 const sel = 'p-1 border rounded text-sm bg-white';
 const num = 'p-1 border rounded text-sm w-20';
 const UNIT_TEXT = Object.freeze({ RATIO: '', PERCENT: '%', BARS: 'bars', PRICE_RANGE: 'price', PRICE: 'price' });
-const TF_HINT = Object.freeze({
-  RUN: 'The TF the strategy runs on (DAY or WEEK)',
-  DAY: 'A DAY channel: the strategy then runs on DAY only',
-  WEEK: 'A WEEK channel (weeks built from DAY bars); on a DAY run the tree after the previous week',
-});
+const TF_LABEL = Object.freeze({ RUN: 'Run TF', DAY: 'Day', WEEK: 'Week' });
 
 const toPct = (v) => (v === '' || v == null || !Number.isFinite(Number(v)) ? String(v ?? '') : String(Number((Number(v) * 100).toFixed(6))));
 const fromPct = (t) => (t !== '' && Number.isFinite(Number(t)) ? Number((Number(t) / 100).toFixed(10)) : t);
+const pctText = (v) => String(Number((Number(v) * 100).toFixed(6)));
+
+/** Summary words of the four detector params (Stage A, designer §4.6). */
+const DETECTOR_FIELDS = Object.freeze({
+  coveragePct: { summaryLabel: 'Coverage', percent: true, unitSuffix: ' %', aria: 'channel coverage %' },
+  minBars: { summaryLabel: 'Min length', unitSuffix: ' bars', aria: 'channel min bars' },
+  minWidthPct: { summaryLabel: 'Min width', percent: true, unitSuffix: ' %', aria: 'channel min width %' },
+  minAgeBars: { summaryLabel: 'Min age', unitSuffix: ' bars', aria: 'channel min age bars' },
+});
 
 /**
  * A number box that shows a fraction as a percentage (0.95 ↔ 95) and keeps the typed text while
@@ -57,6 +66,9 @@ function PercentInput({ value, onChange, disabled, label, testId }) {
  * @param {(suffix: 'min'|'max') => JSX.Element|null} [props.renderLink] the LinkPicker of a bound
  * @param {(suffix: 'min'|'max') => number|null} [props.linkedValue] the linked value of a bound, null when not linked
  * @param {string} props.caption the condition's caption with link notes
+ * @param {boolean} [props.sameAsPrevious] its detector params equal the previous channel condition's (Stage A)
+ * @param {boolean} [props.errorOpen] a server error names the channel params (Stage A)
+ * @param {(() => void)|null} [props.onApplyToAll] copy the detector params into every channel condition (Stage A)
  * @param {number} props.index
  * @param {number} props.count
  * @param {boolean} props.disabled
@@ -65,9 +77,12 @@ function PercentInput({ value, onChange, disabled, label, testId }) {
  * @param {(delta: number) => void} props.onMove
  */
 export default function ChannelConditionRow({
-  condition, onChange, channelMeta = DEFAULT_CHANNEL_META, renderLink = null, linkedValue = null, caption, ...shell
+  condition, onChange, channelMeta = DEFAULT_CHANNEL_META, renderLink = null, linkedValue = null, caption,
+  sameAsPrevious = false, errorOpen = false, onApplyToAll = null, ...shell
 }) {
   const meta = channelMeta || DEFAULT_CHANNEL_META;
+  const help = meta.help || CHANNEL_HELP;
+  const tfHint = (tf) => help[`tf.${tf}`] || undefined;
   const set = (patch) => onChange({ ...condition, ...patch });
   const spec = channelSpecOf(condition, meta.defaults);
   const setSpec = (k, v) => onChange({ ...condition, channel: { ...spec, ...(condition.channel || {}), [k]: v } });
@@ -77,90 +92,116 @@ export default function ChannelConditionRow({
     : [...meta.metrics, { name: condition.metric, label: `${condition.metric} (not in semantics B)`, unit: null, hint: '' }];
   const unit = UNIT_TEXT[metric?.unit] ?? '';
   const ch = condition.channel || {};
-  const detectorSummary = channelSpecLabel(spec, meta.defaults).trim() || 'defaults (0.95 / 5 / 0.05, age ≥ 0)';
 
   const bound = (suffix) => {
     const linked = linkedValue ? linkedValue(suffix) : null;
     return (
-      <label className="inline-flex items-center gap-1 text-xs text-gray-600">
-        {suffix}
-        {linked != null ? (
-          <span className="px-1.5 py-1 border rounded text-sm bg-indigo-50 border-indigo-300 text-indigo-900 font-mono"
-            title="Linked: the bound comes from the axes" data-testid={`linked-${suffix}`}>{fmtNum(linked)}</span>
-        ) : (
-          <input type="number" step="any" className={num} value={condition[suffix] ?? ''}
-            disabled={shell.disabled} onChange={(e) => set({ [suffix]: e.target.value })} aria-label={`channel ${suffix}`}
-            placeholder="none" data-testid={`channel-${suffix}`} />
-        )}
-        {renderLink?.(suffix)}
-      </label>
+      <FieldLabel label={suffix === 'min' ? 'Min' : 'Max'} tooltip={help[suffix]} testId={`info-channel-${suffix}`}>
+        <span className="inline-flex items-center gap-1 text-xs text-gray-600">
+          {linked != null ? (
+            <span className="px-1.5 py-1 border rounded text-sm bg-indigo-50 border-indigo-300 text-indigo-900 font-mono"
+              title="Linked: the bound comes from the axes" data-testid={`linked-${suffix}`}>{fmtNum(linked)}</span>
+          ) : (
+            <input type="number" step="any" className={num} value={condition[suffix] ?? ''}
+              disabled={shell.disabled} onChange={(e) => set({ [suffix]: e.target.value })} aria-label={`channel ${suffix}`}
+              placeholder="none" data-testid={`channel-${suffix}`} />
+          )}
+          {renderLink?.(suffix)}
+        </span>
+      </FieldLabel>
     );
   };
 
-  return (
-    <RowShell {...shell} caption={caption} testId="channel-condition">
-      <span className="text-xs font-semibold text-indigo-700"
-        title="Semantics B: on bar t the channel tree after bar t−1 (no look-ahead), replayed from the ticker's first stored DAY bar">
-        Channel
+  const detectorFields = CHANNEL_KEYS.map((k) => {
+    const d = DETECTOR_FIELDS[k];
+    const r = meta.ranges?.[k] || {};
+    const control = d.percent ? (
+      <span className="inline-flex items-center gap-1">
+        <PercentInput value={ch[k] ?? spec[k]} disabled={shell.disabled} label={d.aria} onChange={(v) => setSpec(k, v)} testId={`channel-${k}`} />
+        %
       </span>
-      <select className={sel} value={condition.tf} disabled={shell.disabled} onChange={(e) => set({ tf: e.target.value })}
-        aria-label="channel timeframe" title={TF_HINT[condition.tf]} data-testid="channel-tf">
-        {meta.timeframes.map((tf) => <option key={tf} value={tf} title={TF_HINT[tf]}>{tf}</option>)}
-        {!meta.timeframes.includes(condition.tf) && <option value={condition.tf}>{condition.tf}</option>}
-      </select>
-      <select className={sel} value={condition.level} disabled={shell.disabled}
-        onChange={(e) => set({ level: parseInt(e.target.value, 10) })} aria-label="channel level" data-testid="channel-level">
-        {meta.levels.map((l) => <option key={l} value={l}>{CHANNEL_LEVEL_LABEL[l] ?? l}</option>)}
-      </select>
-      <select className={sel} value={condition.metric} disabled={shell.disabled} onChange={(e) => set({ metric: e.target.value })}
-        aria-label="channel metric" title={metric?.hint} data-testid="channel-metric">
-        {metrics.map((m) => <option key={m.name} value={m.name} title={m.hint}>{m.label || m.name}</option>)}
-      </select>
+    ) : (
+      <input type="number" step="1" min="0" className={num} value={ch[k] ?? spec[k]} disabled={shell.disabled}
+        onChange={(e) => setSpec(k, e.target.value)} aria-label={d.aria} data-testid={`channel-${k}`} />
+    );
+    return {
+      key: k,
+      label: help[`field.${k}`] || k,
+      summaryLabel: d.summaryLabel,
+      unitSuffix: d.unitSuffix,
+      display: d.percent ? pctText : undefined,
+      tooltip: help[k],
+      value: ch[k] ?? spec[k],
+      defaultValue: meta.defaults?.[k],
+      min: r.min,
+      max: r.max,
+      minInclusive: !r.minExclusive,
+      maxExclusive: !!r.maxExclusive,
+      integer: !!r.integer,
+      linkedValue: null,
+      link: null,
+      render: () => control,
+      reset: () => setSpec(k, meta.defaults?.[k]),
+    };
+  });
+
+  return (
+    <RowShell {...shell} caption={caption} testId="channel-condition"
+      heading={{ text: 'Channel', tooltip: RULE_TEXTS.rowChannel, className: 'text-indigo-700' }}
+      help={firstSentence(metric?.tooltip || metric?.hint)}>
+      <FieldLabel label="Source" tooltip={help.source}>
+        <span className="px-1 py-1 text-sm text-gray-500"
+          title="Semantics B: on bar t the channel tree after bar t−1 (no look-ahead), replayed from the ticker's first stored DAY bar">
+          Channel
+        </span>
+      </FieldLabel>
+      <FieldLabel label="Timeframe" tooltip={help.tf} testId="info-channel-tf">
+        <select className={sel} value={condition.tf} disabled={shell.disabled} onChange={(e) => set({ tf: e.target.value })}
+          aria-label="channel timeframe" title={tfHint(condition.tf)} data-testid="channel-tf">
+          {meta.timeframes.map((tf) => <option key={tf} value={tf} title={tfHint(tf)}>{TF_LABEL[tf] || tf}</option>)}
+          {!meta.timeframes.includes(condition.tf) && <option value={condition.tf}>{condition.tf}</option>}
+        </select>
+      </FieldLabel>
+      <FieldLabel label="Channel" tooltip={help.level} testId="info-channel-level">
+        <select className={sel} value={condition.level} disabled={shell.disabled}
+          onChange={(e) => set({ level: parseInt(e.target.value, 10) })} aria-label="channel level" data-testid="channel-level">
+          {meta.levels.map((l) => <option key={l} value={l}>{help[`level.${l}`] || CHANNEL_LEVEL_LABEL[l] || l}</option>)}
+        </select>
+      </FieldLabel>
+      <FieldLabel label="Metric" tooltip={help.metric} code={condition.metric || null} testId="info-channel-metric">
+        <select className={sel} value={condition.metric} disabled={shell.disabled} onChange={(e) => set({ metric: e.target.value })}
+          aria-label="channel metric" title={metric?.tooltip || metric?.hint} data-testid="channel-metric">
+          {metrics.map((m) => <option key={m.name} value={m.name} title={m.tooltip || m.hint}>{m.label || m.name}</option>)}
+        </select>
+      </FieldLabel>
       {bound('min')}
       {bound('max')}
-      {unit && <span className="text-xs text-gray-500">{unit}</span>}
+      {unit && <span className="text-xs text-gray-500 pb-1">{unit}</span>}
       {condition.metric === 'EXISTS' && (
-        <span className="text-xs text-gray-500">0 = no channel, 1 = exists; in [0, 0] → “no channel”</span>
+        <span className="text-xs text-gray-500 pb-1">0 = no channel, 1 = exists; Min 0 / Max 0 = “no channel”</span>
       )}
 
-      <details className="basis-full w-full mt-1" data-testid="channel-detector">
-        <summary className="cursor-pointer text-xs text-gray-600">
-          Channel detector: <span className="font-mono">{detectorSummary}</span>
-        </summary>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <label className="inline-flex items-center gap-1 text-xs text-gray-600"
-            title="Share of the bars inside the channel (as the Channel Explorer / screener detector)">
-            coverage
-            <PercentInput value={ch.coveragePct ?? spec.coveragePct} disabled={shell.disabled} label="channel coverage %"
-              onChange={(v) => setSpec('coveragePct', v)} testId="channel-coveragePct" />
-            %
-          </label>
-          <label className="inline-flex items-center gap-1 text-xs text-gray-600" title="Minimum bars of a channel">
-            min bars
-            <input type="number" step="1" className={num} value={ch.minBars ?? spec.minBars} disabled={shell.disabled}
-              onChange={(e) => setSpec('minBars', e.target.value)} aria-label="channel min bars" data-testid="channel-minBars" />
-          </label>
-          <label className="inline-flex items-center gap-1 text-xs text-gray-600"
-            title="Recursion stops splitting a channel once its envelope is this tight, as a percentage of price">
-            min width
-            <PercentInput value={ch.minWidthPct ?? spec.minWidthPct} disabled={shell.disabled} label="channel min width %"
-              onChange={(v) => setSpec('minWidthPct', v)} testId="channel-minWidthPct" />
-            %
-          </label>
-          <label className="inline-flex items-center gap-1 text-xs text-gray-600"
-            title="Level 0 = the deepest confirmed channel at least this many bars old (else its parent). ChannelQuartile uses 30 on DAY">
-            min age
-            <input type="number" step="1" min="0" className={num} value={ch.minAgeBars ?? spec.minAgeBars} disabled={shell.disabled}
-              onChange={(e) => setSpec('minAgeBars', e.target.value)} aria-label="channel min age bars" data-testid="channel-minAgeBars" />
-            bars
-          </label>
-        </div>
-        <p className="mt-1 text-xs text-gray-500">
-          Channel at least N bars old (ChannelQuartile uses 30). Not a threshold: these params are fixed, never swept.
-          Bar t sees the channel tree built up to bar t−1, replayed from the ticker&apos;s first stored DAY bar,
-          so the strategy may show other channels than the Channel Explorer / screener on a short window.
-        </p>
-      </details>
+      <ParamBlock
+        id="channel-detector"
+        legacyTestId="channel-detector"
+        title="Channel detector"
+        tooltip={help.detector}
+        defaultsText="default settings"
+        changedTitle="Changed from defaults"
+        fields={detectorFields}
+        sameAsPrevious={sameAsPrevious}
+        errorOpen={errorOpen}
+        onApplyToAll={onApplyToAll}
+        applyLabel="Apply to all channel conditions in this strategy"
+        applyTooltip={help.applyToAll}
+        disabled={shell.disabled}
+        footer={(
+          <span className="text-xs text-gray-500">
+            Not a threshold: these params are fixed, never swept. Bar t sees the channel tree built up to bar t−1, replayed from
+            the ticker&apos;s first stored DAY bar, so the strategy may show other channels than the Channel Explorer / screener on a short window.
+          </span>
+        )}
+      />
     </RowShell>
   );
 }

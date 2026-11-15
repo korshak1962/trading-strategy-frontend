@@ -80,7 +80,7 @@ export function LevelEventFields({ condition, onChange, prefix = '', linkable = 
         onApplyToAll={ctx.onApplyLevels ? () => ctx.onApplyLevels(prefix) : null}
         disabled={ctx.disabled}
         sameAsPrevious={ctx.levelsSameAsPrevious ? ctx.levelsSameAsPrevious(prefix) : false}
-        setLabel={ctx.levelsSetLabel ? ctx.levelsSetLabel(condition.levels) : null}
+        setLabel={ctx.levelsSetLabel ? ctx.levelsSetLabel(prefix) : null}
         errorOpen={ctx.levelsErrorOpen ? ctx.levelsErrorOpen(prefix) : false}
       />
     </>

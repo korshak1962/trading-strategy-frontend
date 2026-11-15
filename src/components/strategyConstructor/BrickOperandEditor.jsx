@@ -101,7 +101,7 @@ export function LevelOperandFields({ operand, onChange, prefix, linkable, ctx, o
         onApplyToAll={ctx.onApplyLevels ? () => ctx.onApplyLevels(prefix) : null}
         disabled={ctx.disabled}
         sameAsPrevious={ctx.levelsSameAsPrevious ? ctx.levelsSameAsPrevious(prefix) : false}
-        setLabel={ctx.levelsSetLabel ? ctx.levelsSetLabel(operand.levels) : null}
+        setLabel={ctx.levelsSetLabel ? ctx.levelsSetLabel(prefix) : null}
         errorOpen={ctx.levelsErrorOpen ? ctx.levelsErrorOpen(prefix) : false}
       />
     </>

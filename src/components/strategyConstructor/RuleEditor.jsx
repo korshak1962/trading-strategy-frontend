@@ -26,7 +26,7 @@ import {
 import {
   newRuleCondition, newRuleChannelCondition, newRuleLevelCondition, newRuleWithinCondition, ruleCaption, ruleConditionCaption,
   linkedThresholdValue, isChannelCondition, withTemplateLinks, SIGNAL_TYPE_CLASS, SIGNAL_TYPE_HINT, levelsCaptionOpts,
-  ruleUsesPosition,
+  ruleUsesPosition, channelSpecOf, sameChannelSpec,
 } from './constructedFormat';
 import LinkPicker from './LinkPicker';
 import ChannelConditionRow from './ChannelConditionRow';
@@ -35,6 +35,7 @@ import WithinConditionRow from './WithinConditionRow';
 import BrickOperandEditor from './BrickOperandEditor';
 import FieldLabel from '../common/FieldLabel';
 import { useEditorHelp, OPERAND_HELP, POSITION_HELP, RULE_TEXTS } from '../../api/editorTexts';
+import { levelsBlockInfo, linkInfoOf } from '../common/paramBlockFormat';
 
 const sel = 'p-1 border rounded text-sm bg-white';
 const iconBtn = 'px-1.5 text-gray-500 hover:text-gray-800 disabled:text-gray-300';
@@ -111,6 +112,20 @@ export default function RuleEditor({
   const signalHelp = useEditorHelp().signalTypes;
   const posHelp = positionMeta?.help || POSITION_HELP;
   const typeLabel = (t) => signalHelp[t]?.label || t;
+  // Stage A ParamBlock: the previous channel condition of the strategy (for "same as above")
+  const rulesInOrder = allRules || [rule];
+  const prevChannelOf = (condIndex) => {
+    let prev = null;
+    for (const r of rulesInOrder) {
+      const cs = r.conditions || [];
+      for (let j = 0; j < cs.length; j += 1) {
+        if (r === rule && j === condIndex) return prev;
+        if (isChannelCondition(cs[j].condition)) prev = cs[j].condition;
+      }
+    }
+    return prev;
+  };
+  const condErrors = (i) => errors?.conditions?.[i] || [];
 
   return (
     <div className="border rounded-lg p-3 bg-white" data-testid="constructor-rule">
@@ -198,6 +213,7 @@ export default function RuleEditor({
             ),
           };
           const { key, ...rest } = common;
+          const levelsInfo = levelsBlockInfo(c, axes, rulesInOrder, levelsMeta?.defaults);
           // stage 4b: the context of the Levels / brick editors (links by full path)
           const ctx = {
             levelsMeta, bricksMeta, channelMeta, positionMeta, evalTf, disabled, allRules: allRules || [rule],
@@ -206,6 +222,11 @@ export default function RuleEditor({
             renderLink: rest.renderLink,
             linkedValue: rest.linkedValue,
             onApplyLevels: onApplyLevelsToAll ? (prefix) => onApplyLevelsToAll(i, prefix) : null,
+            // Stage A ParamBlock: link axes of a path, "same as above", "Levels set n", open on a server error
+            linkInfo: (suffix) => linkInfoOf(c.links?.[suffix], axes),
+            levelsSameAsPrevious: (prefix) => !!levelsInfo[prefix]?.sameAsPrevious,
+            levelsSetLabel: (prefix) => levelsInfo[prefix]?.setLabel || null,
+            levelsErrorOpen: () => condErrors(i).some((e) => /levels\./i.test(e)),
           };
           if (isLevelEvent(c.condition)) return <LevelConditionRow key={key} {...rest} ctx={ctx} />;
           if (isWithin(c.condition)) return <WithinConditionRow key={key} {...rest} ctx={ctx} />;
@@ -214,6 +235,11 @@ export default function RuleEditor({
             const hasBound = (s) => c.condition[s] !== '' && c.condition[s] != null && Number.isFinite(Number(c.condition[s]));
             return (
               <ChannelConditionRow key={key} {...rest} channelMeta={channelMeta}
+                sameAsPrevious={(() => {
+                  const prev = prevChannelOf(i);
+                  return !!prev && sameChannelSpec(channelSpecOf(prev, channelMeta?.defaults), channelSpecOf(c.condition, channelMeta?.defaults));
+                })()}
+                errorOpen={condErrors(i).some((e) => /channel|coverage|minBars|minWidth|minAge/i.test(e))}
                 renderLink={(suffix) => (hasBound(suffix) || c.links?.[suffix] ? rest.renderLink(suffix) : null)} />
             );
           }

@@ -62,7 +62,7 @@ export default function PositionOperandEditor({ value, onChange, prefix, linkabl
           Value X
           <InfoTooltip text={help.x} editor align="left" />
         </span>
-        <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
+        <div className="flex flex-col items-start gap-1">
           <span className="inline-flex flex-wrap items-end gap-x-2 gap-y-1" data-testid={`position-x-${pathId(prefix)}`}>
             <SideEditor side="left" value={x} onChange={(nx) => onChange({ ...value, x: nx })} picker={xPicker}
               prefix={xPrefix} allowBricks allowPosition={false} linkable={linkable} ctx={ctx} />
