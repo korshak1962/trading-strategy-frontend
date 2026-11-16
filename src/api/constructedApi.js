@@ -374,7 +374,8 @@ export const normalizeLevelsMeta = (m) => {
       const f = LEVELS_FIXED_PARAMS.find((p) => p.name === name) || {};
       return { name, value: finiteOr(x?.value, fixed[name]), ...helpOf(x || { name }, f) };
     }),
-    help: helpMap(m.help, LEVELS_HELP),
+    // the Re-arm checkbox caption: the live `rearm` param label (no help key on the backend)
+    help: helpMap({ ...(m.help && typeof m.help === 'object' ? m.help : {}), rearmLabel: rearmParam?.label }, LEVELS_HELP),
   };
 };
 
@@ -1058,10 +1059,12 @@ const previewEnd = (day) => `${day}T23:59:59`;
  */
 export const getConstructedMeta = async () => {
   const res = await apiRequest(`${API_BASE_URL}/meta`, undefined, 'Loading constructor metadata failed');
-  const meta = normalizeMeta(await readJson(res));
+  const raw = await readJson(res);
+  const meta = normalizeMeta(raw);
   setIndicatorCatalog({ indicators: meta.indicators });
   setLevelOutputUnits(meta.levels.outputs);
-  setEditorHelp({ operandHelp: meta.operandHelp, signalTypeHelp: meta.signalTypeHelp, axisHelp: meta.axisHelp });
+  // the raw meta lists, as getScreenerMeta registers them: both tabs register the same live texts
+  setEditorHelp({ operandHelp: raw?.operandHelp, signalTypeHelp: raw?.signalTypeHelp, axisHelp: raw?.axisHelp });
   return meta;
 };
 

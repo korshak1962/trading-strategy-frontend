@@ -21,7 +21,7 @@ import { SCREEN_TFS } from '../../api/screenerApi';
 import { unitsClash, RUN_TF } from '../universeScreener/conditionFormat';
 import { newLevelOperand, newPlainOperand, newBrickOperand, newPositionOperand } from './constructedFormat';
 import { eventNeedsStrength } from '../../api/constructedApi';
-import { getEditorHelp, POSITION_HELP, BRICK_TEXTS, POSITION_TEXTS, RULE_TEXTS, firstSentence } from '../../api/editorTexts';
+import { getEditorHelp, positionRefusedText, BRICK_TEXTS, POSITION_TEXTS, RULE_TEXTS, firstSentence } from '../../api/editorTexts';
 
 export const PRICE_BAR = 'PRICE_BAR';
 export const UNKNOWN_PREFIX = 'UNKNOWN:';
@@ -172,7 +172,7 @@ export const sourceGroups = (ctx) => {
     const refused = (ctx.refusedInRules || POSITION_REFUSED_DEFAULT).includes(ctx.signalType);
     ctx.positions.forEach((k) => pos.items.push({
       source: k.name, label: k.label || k.name, tooltip: k.tooltip || k.hint || '',
-      disabledReason: refused ? (ctx.refusedText || POSITION_HELP.refused) : null,
+      disabledReason: refused ? (ctx.refusedText || positionRefusedText()) : null,
     }));
     groups.push(pos);
   }
@@ -201,14 +201,23 @@ export const sourceItemOf = (groups, source) => {
   return null;
 };
 
-/** The ⓘ text of an operand's Source (the help line of a comparison). */
-export const sourceTooltipOf = (o) => {
+/**
+ * The ⓘ text of an operand's Source (the help line of a comparison). `kinds`: the live meta kinds
+ * (meta.bricks.kinds / meta.position.kinds, `{name, tooltip, hint}`) the Source menu shows, so the
+ * help line of an event / since-entry source reads the same text as its ⓘ (tester M7); the static
+ * fallbacks only when no kind is given.
+ */
+export const sourceTooltipOf = (o, kinds = null) => {
   const help = getEditorHelp().operand;
   const { source, field } = sourceOf(o);
   if (source === PRICE_BAR) return help.barFields[field]?.tooltip || help.sources.PRICE_BAR?.tooltip || '';
   if (source === CONST_KIND || source === LEVEL_KIND) return help.sources[source]?.tooltip || '';
-  if (BRICK_OPERAND_KINDS.includes(source)) return BRICK_TEXTS[source]?.tooltip || '';
-  if (POSITION_KINDS.includes(source)) return POSITION_TEXTS[source]?.tooltip || '';
+  if (BRICK_OPERAND_KINDS.includes(source) || POSITION_KINDS.includes(source)) {
+    const k = Array.isArray(kinds) ? kinds.find((x) => x?.name === source) : null;
+    const live = (k && (k.tooltip || k.hint)) || '';
+    if (live) return live;
+    return (BRICK_OPERAND_KINDS.includes(source) ? BRICK_TEXTS : POSITION_TEXTS)[source]?.tooltip || '';
+  }
   const d = descriptorOf(source);
   return d?.tooltip || d?.description || '';
 };

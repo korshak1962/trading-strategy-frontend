@@ -34,7 +34,7 @@ import LevelConditionRow from './LevelConditionRow';
 import WithinConditionRow from './WithinConditionRow';
 import BrickOperandEditor from './BrickOperandEditor';
 import FieldLabel from '../common/FieldLabel';
-import { useEditorHelp, OPERAND_HELP, POSITION_HELP, RULE_TEXTS } from '../../api/editorTexts';
+import { useEditorHelp, OPERAND_HELP, POSITION_HELP, RULE_TEXTS, positionRefusedText } from '../../api/editorTexts';
 import { levelsBlockInfo, linkInfoOf } from '../common/paramBlockFormat';
 
 const sel = 'p-1 border rounded text-sm bg-white';
@@ -148,7 +148,7 @@ export default function RuleEditor({
               const refused = readsTrade && refusedTypes.includes(t);
               return (
                 <option key={t} value={t} disabled={refused && t !== rule.signalType}
-                  title={refused ? `${typeLabel(t)}: ${posHelp.refused}` : (signalHelp[t]?.tooltip || SIGNAL_TYPE_HINT[t])}>
+                  title={refused ? positionRefusedText() : (signalHelp[t]?.tooltip || SIGNAL_TYPE_HINT[t])}>
                   {typeLabel(t)}{refused ? ' (not with "From my open long")' : ''}
                 </option>
               );
@@ -245,6 +245,7 @@ export default function RuleEditor({
           }
           return (
             <CompareConditionRow key={key} {...rest} evalTf={evalTf} allowRun runTf={evalTf}
+              sourceKinds={[...(bricksMeta?.kinds || []), ...(positionMeta?.kinds || [])]}
               renderOperand={(args) => (
                 <BrickOperandEditor {...args} prefix={`${args.side}.`} allowBricks allowPosition linkable ctx={ctx} />
               )} />

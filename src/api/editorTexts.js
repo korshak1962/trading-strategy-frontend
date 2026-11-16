@@ -18,9 +18,9 @@ import { useSyncExternalStore } from 'react';
 
 /** Source groups of the Source menu, in menu order. */
 export const SOURCE_GROUPS = Object.freeze([
-  { name: 'MARKET', label: 'Market data', tooltip: 'Values read from the bars: a price field or an indicator.' },
-  { name: 'NUMBER', label: 'Number', tooltip: 'A fixed number. Right side only.' },
-  { name: 'LEVELS', label: 'Levels (DAY / WEEK)', tooltip: 'Lines and distances from the support/resistance level tracker. Runs on DAY / WEEK only.' },
+  { name: 'MARKET', label: 'Market data', tooltip: 'A price-bar field or an indicator.' },
+  { name: 'NUMBER', label: 'Number', tooltip: 'A fixed number (right side only).' },
+  { name: 'LEVELS', label: 'Levels (DAY / WEEK)', tooltip: 'Lines and distances from the level tracker (DAY / WEEK runs only).' },
   { name: 'EVENT_FUNCTIONS', label: 'From the last event (DAY / WEEK)',
     tooltip: 'A value remembered since a market event last happened. It follows the event, not your trade.' },
   { name: 'POSITION_FUNCTIONS', label: 'From my open long (LONG only)',
@@ -30,28 +30,28 @@ export const SOURCE_GROUPS = Object.freeze([
 /** The Source items that are not an indicator descriptor (indicators come from meta.indicators). */
 export const SOURCE_TEXTS = Object.freeze({
   PRICE_BAR: { label: 'Price bar',
-    tooltip: 'The bar (candle) itself: open, high, low, close or volume. "Price broke the previous high" = Price bar Close [0] > Price bar High [-1].' },
+    tooltip: 'The bar (candle) itself: open, high, low, close or volume. "Price broke the previous high" = Price bar Close, bars back 0, is above Price bar High, bars back −1.' },
   CONST: { label: 'Number', tooltip: 'A fixed number. Fits any unit. Linkable.' },
-  LEVEL: { label: 'Levels', tooltip: 'Lines and distances from the support/resistance level tracker (run TF, DAY / WEEK).' },
+  LEVEL: { label: 'Levels', tooltip: 'Lines and distances from the support / resistance level tracker (run TF, DAY / WEEK).' },
 });
 
 /** Bar fields (the Field select of "Price bar"). */
 export const BAR_FIELD_TEXTS = Object.freeze({
-  OPEN: { label: 'Open', tooltip: 'First price of the bar. All fills use the close.' },
-  HIGH: { label: 'High', tooltip: 'Highest price of the bar. All fills use the close.' },
-  LOW: { label: 'Low', tooltip: 'Lowest price of the bar. All fills use the close.' },
-  CLOSE: { label: 'Close', tooltip: 'Last price of the bar. All fills use the close.' },
-  VOLUME: { label: 'Volume', tooltip: 'Shares traded in the bar.' },
+  OPEN: { label: 'Open', tooltip: 'The first price of the bar.' },
+  HIGH: { label: 'High', tooltip: 'The highest price of the bar.' },
+  LOW: { label: 'Low', tooltip: 'The lowest price of the bar.' },
+  CLOSE: { label: 'Close', tooltip: 'The last price of the bar. All fills use the close.' },
+  VOLUME: { label: 'Volume', tooltip: 'The shares traded in the bar.' },
 });
 
 /** Indicators: `menuLabel` / `tooltip` beside the descriptor's displayName / description (unchanged). */
 export const INDICATOR_TEXTS = Object.freeze({
   SMA: { menuLabel: 'Moving average (SMA)', tooltip: 'Simple moving average of the close over Length bars of its timeframe (stored lengths only).' },
   SMA_TILT: { menuLabel: 'SMA slope', tooltip: 'Slope of the SMA over its last 5 values, in % of the SMA per bar. Positive = rising.' },
-  RSI: { menuLabel: 'Relative strength index (RSI)', tooltip: 'Wilder RSI of the close over Length bars, 0–100.' },
+  RSI: { menuLabel: 'Relative strength index (RSI)', tooltip: 'Wilder RSI of the close over Length bars, 0 to 100.' },
   ATR: { menuLabel: 'Average true range (ATR)', tooltip: 'Average bar range (Wilder) over Length bars, in price: volatility.' },
   ATR_PCT: { menuLabel: 'ATR as % of price', tooltip: 'ATR in percent of the close: volatility comparable across tickers.' },
-  ER: { menuLabel: 'Efficiency ratio', tooltip: 'Kaufman efficiency ratio over Length bars: 1 = straight move, 0 = chop.' },
+  ER: { menuLabel: 'Efficiency ratio', tooltip: 'Kaufman efficiency ratio over Length bars: 1 = a straight move, 0 = chop.' },
   IBS: { menuLabel: 'Close position in bar (IBS)', tooltip: 'Where the close sits in the bar\'s range: 0 = at the low, 1 = at the high.' },
 });
 
@@ -65,23 +65,23 @@ export const OPERATOR_TEXTS = Object.freeze({
 
 /** Operand timeframes (the written `tf` codes stay RUN / DAY / WEEK). */
 export const TIMEFRAME_TEXTS = Object.freeze({
-  RUN: { label: 'Run TF', tooltip: 'The timeframe the backtest runs on.' },
-  DAY: { label: 'Day', tooltip: 'Daily bars, whatever the run timeframe.' },
-  WEEK: { label: 'Week', tooltip: 'Weekly bars. WEEK on a DAY run = the forming week (provisional).' },
+  RUN: { label: 'Run TF', tooltip: 'The backtest\'s own timeframe.' },
+  DAY: { label: 'Day', tooltip: 'The DAY bar. On a DAY run the same as Run TF.' },
+  WEEK: { label: 'Week', tooltip: 'The WEEK bar. On a DAY run the forming week (provisional).' },
 });
 
 /** Help of the operand / comparison controls (meta.operandHelp.help). */
 export const OPERAND_HELP = Object.freeze({
   leftValue: 'The value tested on each bar.',
   rightValue: 'The value the left value is compared with.',
-  source: 'Where the value comes from: a price field, an indicator, a number, a Levels line, or a value remembered since an event or since your entry.',
+  source: 'Where the value comes from: the price bar, an indicator, a number, the level tracker or a value remembered since an event or since your entry.',
   tf: 'Where the value is read. Run TF = the backtest\'s own timeframe. On HOUR / MIN5 / MONTH only Run TF with Bars back 0. WEEK on a DAY run = the forming week (provisional).',
   field: 'Which price of the bar: open, high, low, close or volume.',
   n: 'Bars the indicator uses. Linkable.',
   const: 'The number to compare with. Linkable.',
   offset: '0 = this bar, −1 = the bar before, on the value\'s own timeframe.',
   op: 'How the left value must relate to the right value.',
-  tolerancePct: 'Right × (1 + t/100): +1 with "is above" = at least 1 % above; −5 with "is below" = more than 5 % below.',
+  tolerancePct: 'Right × (1 + t / 100): +1 with "is above" = at least 1 % above; −5 with "is below" = more than 5 % below.',
   link: 'Tie this number to an axis; Optimize sweeps axes.',
   note: 'Your description. Not used in the calculation.',
 });
@@ -95,27 +95,27 @@ export const LEVEL_EVENT_TEXTS = Object.freeze({
     tooltip: 'After a breakout the low returned to the zone (within Touch tolerance × ATR) and price held (same-bar close above the zone, or a later close above the touch bar\'s high).' },
   CONFIRMED_RUNAWAY: { label: 'Breakout confirmed: runaway', tooltip: 'Price ran Runaway distance × ATR above the zone top without a retest.' },
   CONFIRMED_BASE: { label: 'Breakout confirmed: base',
-    tooltip: 'Price held above the zone ≥ "Base: min bars", then closed above the highest high since the breakout.' },
-  CONFIRMED_ANY: { label: 'Breakout confirmed (any way)', tooltip: 'Retest, runaway or base. The LevelBreakoutRetest strategy buys here when flat.' },
+    tooltip: 'Price held above the zone at least "Base: min bars above zone" bars, then closed above the highest high since the breakout.' },
+  CONFIRMED_ANY: { label: 'Breakout confirmed (any way)', tooltip: 'Retest, runaway or base. The level breakout strategy buys here when flat.' },
   FAILED: { label: 'Breakout failed', tooltip: 'Before a confirmation the close fell below the zone bottom − Break buffer × ATR.' },
   SUPPORT_BREAK: { label: 'Support broken',
-    tooltip: 'The close fell below the nearest support of strength ≥ s by more than Break buffer × ATR.' },
-  RESISTANCE_REACHED: { label: 'Resistance reached', tooltip: 'The close reached the bottom of the nearest resistance of strength ≥ s. A take-profit.' },
+    tooltip: 'The close fell below the nearest support of at least the given strength by more than Break buffer × ATR.' },
+  RESISTANCE_REACHED: { label: 'Resistance reached', tooltip: 'The close reached the bottom of the nearest resistance of at least the given strength. A take-profit.' },
   BROKEN_DOWN: { label: 'Confirmed zone broken down (retired)',
     tooltip: 'Stored strategies only: a confirmed zone\'s close fell below its bottom − Break buffer × ATR. Pick another event to change it; it cannot be chosen again.',
     inMenu: false },
 });
 
 export const LEVEL_OUTPUT_TEXTS = Object.freeze({
-  IN_ZONE: { label: 'Inside a zone (1 = yes)', tooltip: '1 when the close is inside a zone ≥ Min zone strength; no value outside, so test "≥ 1".' },
-  SETUP_STOP: { label: 'Setup stop', tooltip: 'On a confirmation bar: (retest low or zone bottom) − Stop buffer × ATR.' },
-  SETUP_ZONE_LINE: { label: 'Setup zone line', tooltip: 'On a confirmation bar: zone bottom − Break buffer × ATR (initial sticky support).' },
+  IN_ZONE: { label: 'Inside a zone (1 = yes)', tooltip: '1 when the close is inside a zone of at least Min zone strength; no value outside a zone, so test it as "is at or above 1".' },
+  SETUP_STOP: { label: 'Setup stop', tooltip: 'On a confirmation bar: (retest low or zone bottom) − Stop buffer × ATR. Keep it with "Value at last event" or "Value at entry".' },
+  SETUP_ZONE_LINE: { label: 'Setup zone line', tooltip: 'On a confirmation bar: zone bottom − Break buffer × ATR (the initial sticky support).' },
   SUPPORT_LINE: { label: 'Support line',
     tooltip: 'The highest qualifying zone below the close, bottom − Break buffer × ATR. The sticky support rises to it.' },
-  DIST_SUPPORT_ATR: { label: 'Distance to support, ATR', tooltip: 'Close above the nearest strong support, in ATR.' },
-  DIST_RESISTANCE_ATR: { label: 'Distance to resistance, ATR', tooltip: 'Nearest strong resistance above the close, in ATR.' },
-  OPEN_STOP: { label: 'Stop if bought here', tooltip: 'Stop a long bought at this close would get. Read it as "Value at entry".' },
-  OPEN_LINE: { label: 'Support line if bought here', tooltip: 'Initial sticky support of a long bought at this close. Read it as "Value at entry".' },
+  DIST_SUPPORT_ATR: { label: 'Distance to support, ATR', tooltip: 'How far the close is above the nearest strong support, in ATR.' },
+  DIST_RESISTANCE_ATR: { label: 'Distance to resistance, ATR', tooltip: 'How far the nearest strong resistance is above the close, in ATR.' },
+  OPEN_STOP: { label: 'Stop if bought here', tooltip: 'The stop a long bought at this close would get. Read it as "Value at entry".' },
+  OPEN_LINE: { label: 'Support line if bought here', tooltip: 'The initial sticky support of a long bought at this close. Read it as "Value at entry".' },
 });
 
 /** Levels field groups (the expanded block), in display order. */
@@ -123,7 +123,7 @@ export const LEVELS_GROUPS = Object.freeze(['ZONES', 'BREAKOUT', 'RETEST', 'WAIT
 
 export const LEVELS_PARAM_TEXTS = Object.freeze({
   minStrength: { label: 'Min zone strength', group: 'ZONES',
-    tooltip: 'Minimum zone strength to be tracked at all. Also the zone filter of "Inside a zone" and the distances. Higher = fewer, stronger levels.' },
+    tooltip: 'Minimum zone strength to be tracked at all. Also the zone filter of "Inside a zone" and of the distances to support / resistance. Higher = fewer, stronger levels.' },
   breakBuffer: { label: 'Break buffer, ATR', group: 'BREAKOUT',
     tooltip: 'How far beyond the zone the close must go to count as a breakout (above the top) or a failure / break (below the bottom), in ATR.' },
   touchTolerance: { label: 'Touch tolerance, ATR', group: 'RETEST',
@@ -139,9 +139,9 @@ export const LEVELS_PARAM_TEXTS = Object.freeze({
     tooltip: 'Confirm without a retest when the close is this many ATR above the zone top (0 = no runaway entries).' },
   baseMinBars: { label: 'Base: min bars above zone (0 = off)', group: 'RUNAWAY_BASE',
     tooltip: 'Confirm without a retest after price holds above the zone this many bars and closes at a new high (0 = no base entries).' },
-  maxBaseBars: { label: 'Base: max wait, bars', group: 'RUNAWAY_BASE', tooltip: 'Safety cap: longest wait for a base, in bars.' },
+  maxBaseBars: { label: 'Base: max wait, bars', group: 'RUNAWAY_BASE', tooltip: 'Safety cap: the longest wait for a base, in bars.' },
   stopBuffer: { label: 'Stop buffer, ATR', group: 'STOP_SUPPORT',
-    tooltip: 'The setup stop sits this many ATR below the zone bottom (or the retest low). Used by the setup stop, the stop if bought here and the re-arm replay.' },
+    tooltip: 'The setup stop sits this many ATR below the zone bottom (or the retest low). Used by "Setup stop", "Stop if bought here" and the re-arm replay.' },
   upgradeStrength: { label: 'Support upgrade: min strength', group: 'STOP_SUPPORT',
     tooltip: 'The minimum zone strength for the support line: the sticky support moves up only to zones at least this strong.' },
   upgradeMinTouches: { label: 'Support upgrade: min touches', group: 'STOP_SUPPORT',
@@ -151,20 +151,20 @@ export const LEVELS_PARAM_TEXTS = Object.freeze({
 });
 
 export const LEVELS_FIXED_TEXTS = Object.freeze({
-  warmupBars: { label: 'Warm-up bars', tooltip: 'Bars read before the run window so zones exist on the first bar. Fixed.' },
-  atrLength: { label: 'ATR length', tooltip: 'ATR period for every "× ATR" (Wilder, run TF, as of the previous bar). Fixed.' },
+  warmupBars: { label: 'Warm-up bars', tooltip: 'Bars read before the run window so that zones exist on the first bar. Fixed.' },
+  atrLength: { label: 'ATR length', tooltip: 'ATR period of every "× ATR" setting (Wilder, run TF, as of the previous bar). Fixed.' },
 });
 
 export const LEVELS_HELP = Object.freeze({
-  summary: 'Settings of the level tracker for this condition. "class defaults" = the same as the LevelBreakoutRetest strategy. Only changed fields are listed. Not optimized unless linked to an axis.',
-  strength: 'Only zones at least this strong (0 < s ≤ 50). Linkable.',
+  summary: 'Settings of the level tracker for this condition. "Class defaults" = the same as the level breakout strategy. Only changed fields are listed. Not optimized unless linked to an axis.',
+  strength: 'Only zones at least this strong (0 < s ≤ 50). Strength grows with the number and weight of the zone\'s pivots and touches. Linkable.',
   offset: '0 = this bar, −1 = the bar before, on the run TF.',
-  output: 'A price line or a distance from the level tracker on this bar. Empty on bars where it does not exist (the condition then is "not met", not false).',
-  event: 'A Levels event happened on at least one zone on this bar. Zones are support/resistance areas built from price pivots: breakout → retest / runaway / base → confirmation or failure.',
+  output: 'A price line or a distance from the level tracker on this bar. Empty on bars where it does not exist (the condition is then not met, not false).',
+  event: 'A Levels event happened on at least one zone on this bar. Zones are support / resistance areas built from price pivots. Each strong enough zone is tracked: breakout, then retest / runaway / base, then confirmation or failure.',
   applyToAll: 'Copy these settings and their axis links into every Levels condition and value of this strategy.',
-  rearm: 'On (as the class): the tracker replays the class\'s own stand-alone long. After its stop or support-break exit, the zone is re-armed, so a new breakout of it can be bought again. Off: each zone confirms once. The replay ignores your other rules and other strategies.',
+  rearm: 'Re-arm after stop / support break, and the take-profit strength of the replayed class position.',
   rearmLabel: 'Re-arm after stop / support break',
-  showAll: 'Show every field, grouped.',
+  showAll: 'Show every setting in its group, including those at the class default.',
   'group.ZONES': 'Zones',
   'group.BREAKOUT': 'Breakout',
   'group.RETEST': 'Retest',
@@ -177,76 +177,97 @@ export const LEVELS_HELP = Object.freeze({
 // ---- event functions (meta.bricks) and position functions (meta.position) ----
 
 export const BRICK_TEXTS = Object.freeze({
-  WITHIN: { label: 'Within the last k bars', tooltip: 'The event happened on this bar or on the k−1 before.' },
+  WITHIN: { label: 'Within the last k bars', tooltip: 'The event happened on this bar or on the k − 1 bars before.' },
   AT_LAST: { label: 'Value at last event', tooltip: 'X on the bar the event last happened. Never happened = not met.' },
   MAX_SINCE: { label: 'Highest since event', tooltip: 'Highest X after the event (its bar excluded), skipping the last n bars.' },
-  MIN_SINCE: { label: 'Lowest since event', tooltip: 'Lowest X after the event, skipping the last n bars.' },
-  BARS_SINCE: { label: 'Bars since event', tooltip: '0 on the event bar. Never happened = not met.' },
+  MIN_SINCE: { label: 'Lowest since event', tooltip: 'Lowest X after the event (its bar excluded), skipping the last n bars.' },
+  BARS_SINCE: { label: 'Bars since event', tooltip: 'Bars since the event last happened: 0 on the event bar. Never happened = not met.' },
 });
 
 export const BRICKS_HELP = Object.freeze({
-  group: 'A value remembered since a market event last happened. It follows the event, not your trade. For "since my entry" use From my open long. DAY / WEEK only; Levels starts at the run window start, so results depend on the From date.',
-  x: 'The value to remember: a bar field, an indicator or a Levels line.',
-  a: 'The market event the function counts from.',
-  anchorType: 'The kind of event the function counts from.',
+  groupLabel: 'From the last event',
+  group: 'A value remembered since a market event last happened. It follows the event, not your trade. DAY / WEEK only. Levels starts at the run window start, so results depend on the From date.',
+  x: 'Value X: what the function reads (a bar field, an indicator or a Levels line).',
+  a: 'Event: the market event the function counts from.',
+  anchorType: 'The kind of event the function counts from: a Levels event, a comparison or a channel condition (no functions inside).',
   'anchorType.LEVEL_EVENT': 'Levels event',
   'anchorType.COMPARE': 'Comparison',
   'anchorType.CHANNEL_METRIC': 'Channel',
-  lag: 'Ignore the last n bars: 1 = as of the previous bar (the usual ratchet). 0–10.',
-  bars: 'k bars, 1–250. Linkable.',
-  within: 'True if the event happened on this bar or any of the k−1 bars before (1–250). Linkable.',
+  lag: 'Skip last bars: ignore the last n bars. 1 = as of the previous bar (the usual ratchet), so today\'s value cannot exit today. 0 to 10.',
+  bars: 'Within the last k bars, 1 to 250. Linkable.',
+  within: 'True if the event happened on this bar or on any of the k − 1 bars before.',
 });
 
 export const POSITION_TEXTS = Object.freeze({
   AT_ENTRY: { label: 'Value at entry',
-    tooltip: 'X on your long\'s entry bar (seeded: the seed bar). Close at entry > 0 = "in a long".' },
-  MAX_SINCE_ENTRY: { label: 'Highest since entry', tooltip: 'Trailing line since entry (entry bar excluded).' },
-  MIN_SINCE_ENTRY: { label: 'Lowest since entry', tooltip: 'Lowest X since entry.' },
+    tooltip: 'X on your long\'s entry bar (a seeded watch: the seed bar). Close at entry above 0 = "in a long"; close below close at entry with tolerance −5 = a 5 % stop.' },
+  MAX_SINCE_ENTRY: { label: 'Highest since entry', tooltip: 'The highest X since entry (the entry bar excluded), skipping the last n bars: a trailing line.' },
+  MIN_SINCE_ENTRY: { label: 'Lowest since entry', tooltip: 'The lowest X since entry (the entry bar excluded), skipping the last n bars.' },
 });
 
 export const POSITION_HELP = Object.freeze({
+  groupLabel: 'From my open long',
   group: 'A value from your open long. Without one the condition is false. Not in "Cover short" rules.',
-  x: 'The value to read: a bar field, an indicator, a Levels line or a value from the last event (run TF).',
-  lag: 'Ignore the last n bars: 1 = the line as of the previous bar (the class ratchet). Not optimizable (0–10).',
+  x: 'Value X: what to read (a bar field, an indicator, a Levels line or a value from the last event) on the run TF.',
+  lag: 'Skip last bars: 1 = the line as of the previous bar (the class ratchet). Not optimizable. 0 to 10.',
   badge: 'uses my open long',
-  badgeTooltip: 'This rule uses a value from your open long, so the strategy depends on the open position.',
+  badgeTooltip: 'This rule reads your open long, so the strategy depends on the position.',
   noLong: 'Without an open long the condition is false.',
-  refused: 'Not in "Cover short" rules: a value from your open long has no meaning while covering a short.',
+  refused: 'Not available in a "Cover short" rule.',
 });
+
+/**
+ * The one disabled reason of "From my open long" in a "Cover short" rule (R4 / tester M6), shown in
+ * both places: the Source menu's position items and the signal-type "Cover short" option of a rule
+ * that reads the trade. Frontend-only on purpose: the live meta.position.help.refused ("Not available
+ * in a "Cover short" rule.") reads well in the Source menu but not on the "Cover short" option itself,
+ * so one sentence that reads well in both places is used, never prefixed with a label.
+ */
+export const POSITION_REFUSED_REASON = 'Not in "Cover short" rules: a value from your open long has no meaning while covering a short.';
+export const positionRefusedText = () => POSITION_REFUSED_REASON;
 
 // ---- channels (meta.channel; screener: metricHelp) ----
 
 export const CHANNEL_METRIC_TEXTS = Object.freeze({
   POSITION: { label: 'Position in channel',
-    tooltip: '0 = at the lower line, 1 = at the upper line; not clipped (below 0 = under the channel, above 1 = over it).' },
-  SLOPE_PCT_YEAR: { label: 'Slope, % per year', tooltip: 'Signed annualized slope of the channel, e.g. −30 = falling 30 % a year.' },
-  WIDTH_PCT: { label: 'Width, % of price', tooltip: 'Upper line above the lower one by this many % of price.' },
-  WIDTH: { label: 'Width, price', tooltip: 'Upper line minus lower line on the bar, in price.' },
-  AGE_BARS: { label: 'Age, bars', tooltip: 'Bars of the channel timeframe since the channel start.' },
+    tooltip: 'Where the close sits in the channel: 0 = on the lower line, 1 = on the upper line; below 0 or above 1 = outside.' },
+  SLOPE_PCT_YEAR: { label: 'Slope, % per year', tooltip: 'Slope of the channel in % per year (252 DAY / 52 WEEK bars). Positive = rising.' },
+  WIDTH_PCT: { label: 'Width, % of price', tooltip: 'Width of the channel in % of price.' },
+  WIDTH: { label: 'Width, price', tooltip: 'Width of the channel in price on the bar: upper line − lower line.' },
+  AGE_BARS: { label: 'Age, bars', tooltip: 'Bars of the channel\'s timeframe since the channel started.' },
   EXISTS: { label: 'Channel exists (1 = yes)',
-    tooltip: '1 when the channel of this level exists on the bar, else 0. Min 0 / Max 0 = "no channel".' },
-  TOUCHES_UPPER: { label: 'Touches of upper line', tooltip: 'Bars whose high touched the upper line (within 0.1 ATR).' },
-  TOUCHES_LOWER: { label: 'Touches of lower line', tooltip: 'Bars whose low touched the lower line (within 0.1 ATR).' },
+    tooltip: '1 when there is a channel at this depth, else 0 (between 0 and 0 = no channel).' },
+});
+
+/** Screener metrics (semantics A, ScreenerMetaDTO.metricHelp; TOUCHES_* only here). */
+export const SCREENER_METRIC_TEXTS = Object.freeze({
+  WIDTH_PCT: { label: 'Width, % of price', tooltip: 'Width of the channel in % of price.' },
+  SLOPE_PCT_YEAR: { label: 'Slope, % per year', tooltip: 'Slope of the channel in % per year (252 DAY / 52 WEEK bars). Positive = rising.' },
+  POSITION: { label: 'Position in channel',
+    tooltip: 'Where the close sits in the channel: 0 = on the lower line, 1 = on the upper line; below 0 or above 1 = outside.' },
+  AGE_BARS: { label: 'Age, bars', tooltip: 'Bars of the channel\'s timeframe since the channel started.' },
+  TOUCHES_UPPER: { label: 'Touches of upper line', tooltip: 'How many times price touched the channel\'s upper line.' },
+  TOUCHES_LOWER: { label: 'Touches of lower line', tooltip: 'How many times price touched the channel\'s lower line.' },
 });
 
 export const CHANNEL_HELP = Object.freeze({
   source: 'A condition on the recursive price channel as of the previous bar (no look-ahead).',
-  tf: 'The channel\'s timeframe.',
+  tf: 'Timeframe of the channel. Channels run on DAY / WEEK only.',
   'tf.RUN': 'The timeframe the strategy runs on (DAY or WEEK).',
   'tf.DAY': 'A DAY channel: the strategy then runs on DAY only.',
-  'tf.WEEK': 'A WEEK channel (weeks built from DAY bars); on a DAY run the tree after the previous week.',
-  level: 'Channel depth: 0 = the deepest confirmed channel, 1 its parent, 2 grandparent.',
+  'tf.WEEK': 'A WEEK channel (weeks built from DAY bars); on a DAY run the channel as of the previous week.',
+  level: 'Channel depth: 0 = the deepest confirmed channel, 1 its parent, 2 its grandparent.',
   'level.0': 'Current (0)',
   'level.1': 'Parent (1)',
   'level.2': 'Grandparent (2)',
-  metric: 'What to measure on the channel.',
+  metric: 'What to measure on the channel, as of the previous bar (no look-ahead).',
   min: 'Lower bound of the metric; empty = no bound. Linkable.',
   max: 'Upper bound of the metric; empty = no bound. Linkable.',
-  detector: 'Settings of the channel detector for this condition. "default settings" = the detector defaults. Only changed fields are listed.',
-  coveragePct: 'Share of the bars inside the channel (as the Channel Explorer / screener detector).',
-  minBars: 'Minimum bars of a channel.',
-  minWidthPct: 'Recursion stops splitting a channel once its envelope is this tight, as a percentage of price.',
-  minAgeBars: 'Level 0 = the deepest confirmed channel at least this many bars old (else its parent). ChannelQuartile uses 30 on DAY.',
+  detector: 'Settings of the channel detector for this condition. "Default settings" = the detector\'s defaults. Only changed fields are listed.',
+  coveragePct: 'Share of the bars that must lie inside the channel (as in the Channel Explorer and the screener detector).',
+  minBars: 'Minimum length of a channel, in bars.',
+  minWidthPct: 'Recursion stops splitting a channel once it is this narrow, as a percentage of price.',
+  minAgeBars: 'Depth 0 = the deepest confirmed channel at least this many bars old (else its parent).',
   applyToAll: 'Copy these detector settings into every channel condition of this strategy.',
   'field.coveragePct': 'Coverage, % of bars inside',
   'field.minBars': 'Min channel length, bars',
@@ -266,12 +287,12 @@ export const SIGNAL_TYPE_TEXTS = Object.freeze({
 
 export const AXIS_HELP = Object.freeze({
   name: 'The axis name ($X) used in links.',
-  kind: 'length (indicator lengths), tolerance % or constant. Only thresholds of the same kind can link to it.',
+  kind: 'Length (indicator lengths), tolerance % or constant. Only thresholds of the same kind can link to it.',
   value: 'Used in Backtest and Preview.',
-  min: 'The Optimize sweep. Min = Max = fixed: not optimized.',
-  max: 'The Optimize sweep. Min = Max = fixed: not optimized.',
-  step: 'The Optimize sweep step.',
-  bounds: 'Optional hard limits a link expression may not cross.',
+  min: 'Start of the Optimize sweep. Min = Max = fixed: not optimized.',
+  max: 'End of the Optimize sweep.',
+  step: 'Step of the Optimize sweep.',
+  bounds: 'Optional hard limits: a value or a grid point outside them is refused.',
   description: 'Your note. Hover for the full text.',
   used: 'How many thresholds read this axis.',
 });
@@ -322,8 +343,15 @@ export const helpItems = (list, fallback) => {
   return Object.freeze(out);
 };
 
+// Outputs of the normalizers below: setEditorHelp registers them as they are (idempotent), so a
+// caller may pass either the raw meta lists or an already-normalized object (R1 / tester M1).
+const NORMALIZED = new WeakSet();
+const mark = (o) => { NORMALIZED.add(o); return o; };
+const isNormalized = (o) => o != null && typeof o === 'object' && NORMALIZED.has(o);
+
 /** OperandHelpDTO (partial or absent) → the merged operand texts. */
 export const normalizeOperandHelp = (m) => {
+  if (isNormalized(m)) return m;
   const sources = helpItems(m?.sources, SOURCE_TEXTS);
   const groups = helpItems(m?.groups, Object.fromEntries(SOURCE_GROUPS.map((g) => [g.name, { label: g.label, tooltip: g.tooltip }])));
   const barFields = helpItems(m?.barFields, BAR_FIELD_TEXTS);
@@ -332,15 +360,15 @@ export const normalizeOperandHelp = (m) => {
   const ops = helpItems(m?.operators, opsFallback);
   const operators = Object.freeze(Object.fromEntries(Object.entries(ops).map(([k, v]) => [k, { menuLabel: v.label, tooltip: v.tooltip }])));
   const timeframes = helpItems(m?.timeframes, TIMEFRAME_TEXTS);
-  return Object.freeze({ sources, groups, barFields, operators, timeframes, help: helpMap(m?.help, OPERAND_HELP) });
+  return mark(Object.freeze({ sources, groups, barFields, operators, timeframes, help: helpMap(m?.help, OPERAND_HELP) }));
 };
 
 /** ConstructedMetaDTO.signalTypeHelp → `{LongOpen: {label, tooltip}, …}`. */
-export const normalizeSignalTypeHelp = (list) => helpItems(list, SIGNAL_TYPE_TEXTS);
+export const normalizeSignalTypeHelp = (list) => (isNormalized(list) ? list : mark(helpItems(list, SIGNAL_TYPE_TEXTS)));
 /** ConstructedMetaDTO.axisHelp → the Axes-table column tooltips. */
 export const normalizeAxisHelp = (m) => helpMap(m, AXIS_HELP);
 /** ScreenerMetaDTO.metricHelp → `{WIDTH_PCT: {label, tooltip}, …}` (screener semantics-A metrics). */
-export const normalizeMetricHelp = (list) => helpItems(list, CHANNEL_METRIC_TEXTS);
+export const normalizeMetricHelp = (list) => (isNormalized(list) ? list : mark(helpItems(list, SCREENER_METRIC_TEXTS)));
 
 // ---- the registry (shared operand picker: screener and constructor) ----
 //

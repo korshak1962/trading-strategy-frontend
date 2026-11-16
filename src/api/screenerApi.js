@@ -10,7 +10,7 @@
 
 import { apiRequest, readJson, jsonBody, enc } from './httpClient';
 import { hasLength, setIndicatorCatalog } from './indicatorCatalog';
-import { CHANNEL_METRIC_TEXTS, OPERATOR_TEXTS, setEditorHelp } from './editorTexts';
+import { SCREENER_METRIC_TEXTS, OPERATOR_TEXTS, setEditorHelp } from './editorTexts';
 
 const API_BASE_URL = '/api/screener';
 
@@ -20,8 +20,8 @@ const API_BASE_URL = '/api/screener';
 // editor UX Stage A menu texts (meta.metricHelp over the fallbacks of editorTexts.js).
 const withMetricTexts = (list) => list.map((m) => ({
   ...m,
-  menuLabel: CHANNEL_METRIC_TEXTS[m.value]?.label || m.label,
-  tooltip: CHANNEL_METRIC_TEXTS[m.value]?.tooltip || m.hint,
+  menuLabel: SCREENER_METRIC_TEXTS[m.value]?.label || m.label,
+  tooltip: SCREENER_METRIC_TEXTS[m.value]?.tooltip || m.hint,
 }));
 export const METRICS = Object.freeze(withMetricTexts([
   { value: 'WIDTH_PCT', label: 'Width %', unit: '%', hint: 'Upper line above the lower one by this many % of price' },

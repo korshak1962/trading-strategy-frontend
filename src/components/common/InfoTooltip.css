@@ -37,8 +37,9 @@
   width: max-content;
   max-width: 260px;
   padding: 0.5rem 0.6rem;
-  background-color: var(--c-gray-800);
-  color: var(--fg-gray-50);
+  background-color: var(--info-tooltip-bg);
+  color: var(--info-tooltip-fg);
+  border: 1px solid var(--info-tooltip-border);
   font-size: 0.7rem;
   font-weight: 400;
   line-height: 1.4;
@@ -58,7 +59,7 @@
   left: 50%;
   transform: translateX(-50%);
   border: 5px solid transparent;
-  border-bottom-color: var(--c-gray-800);
+  border-bottom-color: var(--info-tooltip-border);
 }
 
 .param-info-icon:hover + .param-tooltip,

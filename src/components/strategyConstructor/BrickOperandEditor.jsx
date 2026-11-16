@@ -29,7 +29,7 @@ import {
   isLevelEvent, isPositionOperand,
 } from '../../api/constructedApi';
 import { levelOutputUnit, unitLabel, UNIT_HINT, operandUnitOf } from '../../api/indicatorCatalog';
-import { BRICKS_HELP, LEVELS_HELP, firstSentence, useEditorHelp } from '../../api/editorTexts';
+import { BRICKS_HELP, LEVELS_HELP, firstSentence, positionRefusedText, useEditorHelp } from '../../api/editorTexts';
 import {
   newLevelCondition, newPlainOperand, newChannelCondition,
 } from './constructedFormat';
@@ -152,7 +152,7 @@ export function AnchorConditionEditor({ condition, onChange, prefix, linkable = 
       )}
       {condition?.type === 'COMPARE' && (
         <CompareConditionRow bare condition={condition} onChange={onChange} evalTf={ctx.evalTf} allowRun runTf={ctx.evalTf}
-          caption="" disabled={ctx.disabled}
+          caption="" disabled={ctx.disabled} sourceKinds={(ctx.bricksMeta || DEFAULT_BRICKS_META).kinds}
           renderOperand={(args) => (
             <BrickOperandEditor {...args} prefix={`${prefix}${args.side}.`} allowBricks={false} linkable={false} ctx={nestedCtx} />
           )} />
@@ -223,6 +223,7 @@ export default function BrickOperandEditor({
     positions: allowPosition ? pm.kinds : null,
     signalType: ctx.signalType ?? null,
     refusedInRules: pm.refusedInRules,
+    refusedText: positionRefusedText(),
     levelsSpec: ctx.levelsSpec,
   };
 

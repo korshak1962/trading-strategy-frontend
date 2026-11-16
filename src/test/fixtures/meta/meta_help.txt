@@ -1,0 +1,666 @@
+== constructed
+{
+  "axisHelp" : {
+    "name" : "The axis name ($X) used in links.",
+    "kind" : "Length (indicator lengths), tolerance % or constant. Only thresholds of the same kind can link to it.",
+    "value" : "Used in Backtest and Preview.",
+    "min" : "Start of the Optimize sweep. Min = Max = fixed: not optimized.",
+    "max" : "End of the Optimize sweep.",
+    "step" : "Step of the Optimize sweep.",
+    "bounds" : "Optional hard limits: a value or a grid point outside them is refused.",
+    "description" : "Your note. Hover for the full text.",
+    "used" : "How many thresholds read this axis."
+  },
+  "bricks" : {
+    "help" : {
+      "groupLabel" : "From the last event",
+      "group" : "A value remembered since a market event last happened. It follows the event, not your trade. DAY / WEEK only. Levels starts at the run window start, so results depend on the From date.",
+      "x" : "Value X: what the function reads (a bar field, an indicator or a Levels line).",
+      "a" : "Event: the market event the function counts from.",
+      "anchorType" : "The kind of event the function counts from: a Levels event, a comparison or a channel condition (no functions inside).",
+      "anchorType.LEVEL_EVENT" : "Levels event",
+      "anchorType.COMPARE" : "Comparison",
+      "anchorType.CHANNEL_METRIC" : "Channel",
+      "lag" : "Skip last bars: ignore the last n bars. 1 = as of the previous bar (the usual ratchet), so today's value cannot exit today. 0 to 10.",
+      "bars" : "Within the last k bars, 1 to 250. Linkable.",
+      "within" : "True if the event happened on this bar or on any of the k − 1 bars before."
+    },
+    "kinds" : [ {
+      "name" : "WITHIN",
+      "label" : "Within the last k bars",
+      "tooltip" : "The event happened on this bar or on the k − 1 bars before."
+    }, {
+      "name" : "BARS_SINCE",
+      "label" : "Bars since event",
+      "tooltip" : "Bars since the event last happened: 0 on the event bar. Never happened = not met."
+    }, {
+      "name" : "AT_LAST",
+      "label" : "Value at last event",
+      "tooltip" : "X on the bar the event last happened. Never happened = not met."
+    }, {
+      "name" : "MAX_SINCE",
+      "label" : "Highest since event",
+      "tooltip" : "Highest X after the event (its bar excluded), skipping the last n bars."
+    }, {
+      "name" : "MIN_SINCE",
+      "label" : "Lowest since event",
+      "tooltip" : "Lowest X after the event (its bar excluded), skipping the last n bars."
+    } ]
+  },
+  "channel" : {
+    "help" : {
+      "tf" : "Timeframe of the channel. Channels run on DAY / WEEK only.",
+      "tf.RUN" : "The timeframe the strategy runs on (DAY or WEEK).",
+      "tf.DAY" : "A DAY channel: the strategy then runs on DAY only.",
+      "tf.WEEK" : "A WEEK channel (weeks built from DAY bars); on a DAY run the channel as of the previous week.",
+      "level" : "Channel depth: 0 = the deepest confirmed channel, 1 its parent, 2 its grandparent.",
+      "level.0" : "Current (0)",
+      "level.1" : "Parent (1)",
+      "level.2" : "Grandparent (2)",
+      "metric" : "What to measure on the channel, as of the previous bar (no look-ahead).",
+      "min" : "Lower bound of the metric; empty = no bound. Linkable.",
+      "max" : "Upper bound of the metric; empty = no bound. Linkable.",
+      "detector" : "Settings of the channel detector for this condition. \"Default settings\" = the detector's defaults. Only changed fields are listed.",
+      "coveragePct" : "Share of the bars that must lie inside the channel (as in the Channel Explorer and the screener detector).",
+      "minBars" : "Minimum length of a channel, in bars.",
+      "minWidthPct" : "Recursion stops splitting a channel once it is this narrow, as a percentage of price.",
+      "minAgeBars" : "Depth 0 = the deepest confirmed channel at least this many bars old (else its parent).",
+      "applyToAll" : "Copy these detector settings into every channel condition of this strategy.",
+      "field.coveragePct" : "Coverage, % of bars inside",
+      "field.minBars" : "Min channel length, bars",
+      "field.minWidthPct" : "Min width, % of price",
+      "field.minAgeBars" : "Min age, bars"
+    },
+    "metrics" : [ {
+      "name" : "POSITION",
+      "label" : "Position in channel",
+      "tooltip" : "Where the close sits in the channel: 0 = on the lower line, 1 = on the upper line; below 0 or above 1 = outside."
+    }, {
+      "name" : "SLOPE_PCT_YEAR",
+      "label" : "Slope, % per year",
+      "tooltip" : "Slope of the channel in % per year (252 DAY / 52 WEEK bars). Positive = rising."
+    }, {
+      "name" : "WIDTH_PCT",
+      "label" : "Width, % of price",
+      "tooltip" : "Width of the channel in % of price."
+    }, {
+      "name" : "WIDTH",
+      "label" : "Width, price",
+      "tooltip" : "Width of the channel in price on the bar: upper line − lower line."
+    }, {
+      "name" : "AGE_BARS",
+      "label" : "Age, bars",
+      "tooltip" : "Bars of the channel's timeframe since the channel started."
+    }, {
+      "name" : "EXISTS",
+      "label" : "Channel exists (1 = yes)",
+      "tooltip" : "1 when there is a channel at this depth, else 0 (between 0 and 0 = no channel)."
+    } ]
+  },
+  "indicators" : [ {
+    "name" : "SMA",
+    "menuLabel" : "Moving average (SMA)",
+    "tooltip" : "Simple moving average of the close over Length bars of its timeframe (stored lengths only)."
+  }, {
+    "name" : "SMA_TILT",
+    "menuLabel" : "SMA slope",
+    "tooltip" : "Slope of the SMA over its last 5 values, in % of the SMA per bar. Positive = rising."
+  }, {
+    "name" : "IBS",
+    "menuLabel" : "Close position in bar (IBS)",
+    "tooltip" : "Where the close sits in the bar's range: 0 = at the low, 1 = at the high."
+  }, {
+    "name" : "ATR",
+    "menuLabel" : "Average true range (ATR)",
+    "tooltip" : "Average bar range (Wilder) over Length bars, in price: volatility."
+  }, {
+    "name" : "ATR_PCT",
+    "menuLabel" : "ATR as % of price",
+    "tooltip" : "ATR in percent of the close: volatility comparable across tickers."
+  }, {
+    "name" : "ER",
+    "menuLabel" : "Efficiency ratio",
+    "tooltip" : "Kaufman efficiency ratio over Length bars: 1 = a straight move, 0 = chop."
+  }, {
+    "name" : "RSI",
+    "menuLabel" : "Relative strength index (RSI)",
+    "tooltip" : "Wilder RSI of the close over Length bars, 0 to 100."
+  } ],
+  "levels" : {
+    "events" : [ {
+      "name" : "BREAKOUT_UP",
+      "inMenu" : true,
+      "label" : "Breakout above a zone",
+      "tooltip" : "The close crossed above a tracked zone's top + Break buffer × ATR. Not confirmed yet."
+    }, {
+      "name" : "CONFIRMED_RETEST",
+      "inMenu" : true,
+      "label" : "Breakout confirmed: retest",
+      "tooltip" : "After a breakout the low returned to the zone (within Touch tolerance × ATR) and price held (same-bar close above the zone, or a later close above the touch bar's high)."
+    }, {
+      "name" : "CONFIRMED_RUNAWAY",
+      "inMenu" : true,
+      "label" : "Breakout confirmed: runaway",
+      "tooltip" : "Price ran Runaway distance × ATR above the zone top without a retest."
+    }, {
+      "name" : "CONFIRMED_BASE",
+      "inMenu" : true,
+      "label" : "Breakout confirmed: base",
+      "tooltip" : "Price held above the zone at least \"Base: min bars above zone\" bars, then closed above the highest high since the breakout."
+    }, {
+      "name" : "CONFIRMED_ANY",
+      "inMenu" : true,
+      "label" : "Breakout confirmed (any way)",
+      "tooltip" : "Retest, runaway or base. The level breakout strategy buys here when flat."
+    }, {
+      "name" : "FAILED",
+      "inMenu" : true,
+      "label" : "Breakout failed",
+      "tooltip" : "Before a confirmation the close fell below the zone bottom − Break buffer × ATR."
+    }, {
+      "name" : "BROKEN_DOWN",
+      "inMenu" : false,
+      "label" : "Confirmed zone broken down (retired)",
+      "tooltip" : "Stored strategies only: a confirmed zone's close fell below its bottom − Break buffer × ATR. Pick another event to change it; it cannot be chosen again."
+    }, {
+      "name" : "SUPPORT_BREAK",
+      "inMenu" : true,
+      "label" : "Support broken",
+      "tooltip" : "The close fell below the nearest support of at least the given strength by more than Break buffer × ATR."
+    }, {
+      "name" : "RESISTANCE_REACHED",
+      "inMenu" : true,
+      "label" : "Resistance reached",
+      "tooltip" : "The close reached the bottom of the nearest resistance of at least the given strength. A take-profit."
+    } ],
+    "fixedParams" : [ {
+      "label" : "Warm-up bars",
+      "name" : "warmupBars",
+      "tooltip" : "Bars read before the run window so that zones exist on the first bar. Fixed.",
+      "value" : 60
+    }, {
+      "label" : "ATR length",
+      "name" : "atrLength",
+      "tooltip" : "ATR period of every \"× ATR\" setting (Wilder, run TF, as of the previous bar). Fixed.",
+      "value" : 14
+    } ],
+    "help" : {
+      "summary" : "Settings of the level tracker for this condition. \"Class defaults\" = the same as the level breakout strategy. Only changed fields are listed. Not optimized unless linked to an axis.",
+      "strength" : "Only zones at least this strong (0 < s ≤ 50). Strength grows with the number and weight of the zone's pivots and touches. Linkable.",
+      "offset" : "0 = this bar, −1 = the bar before, on the run TF.",
+      "output" : "A price line or a distance from the level tracker on this bar. Empty on bars where it does not exist (the condition is then not met, not false).",
+      "event" : "A Levels event happened on at least one zone on this bar. Zones are support / resistance areas built from price pivots. Each strong enough zone is tracked: breakout, then retest / runaway / base, then confirmation or failure.",
+      "applyToAll" : "Copy these settings and their axis links into every Levels condition and value of this strategy.",
+      "rearm" : "Re-arm after stop / support break, and the take-profit strength of the replayed class position.",
+      "showAll" : "Show every setting in its group, including those at the class default.",
+      "group.ZONES" : "Zones",
+      "group.BREAKOUT" : "Breakout",
+      "group.RETEST" : "Retest",
+      "group.WAITING" : "Waiting",
+      "group.RUNAWAY_BASE" : "Runaway / base",
+      "group.STOP_SUPPORT" : "Stop & sticky support",
+      "group.REARM" : "Re-arm"
+    },
+    "outputs" : [ {
+      "name" : "IN_ZONE",
+      "label" : "Inside a zone (1 = yes)",
+      "tooltip" : "1 when the close is inside a zone of at least Min zone strength; no value outside a zone, so test it as \"is at or above 1\"."
+    }, {
+      "name" : "SETUP_STOP",
+      "label" : "Setup stop",
+      "tooltip" : "On a confirmation bar: (retest low or zone bottom) − Stop buffer × ATR. Keep it with \"Value at last event\" or \"Value at entry\"."
+    }, {
+      "name" : "SETUP_ZONE_LINE",
+      "label" : "Setup zone line",
+      "tooltip" : "On a confirmation bar: zone bottom − Break buffer × ATR (the initial sticky support)."
+    }, {
+      "name" : "SUPPORT_LINE",
+      "label" : "Support line",
+      "tooltip" : "The highest qualifying zone below the close, bottom − Break buffer × ATR. The sticky support rises to it."
+    }, {
+      "name" : "DIST_SUPPORT_ATR",
+      "label" : "Distance to support, ATR",
+      "tooltip" : "How far the close is above the nearest strong support, in ATR."
+    }, {
+      "name" : "DIST_RESISTANCE_ATR",
+      "label" : "Distance to resistance, ATR",
+      "tooltip" : "How far the nearest strong resistance is above the close, in ATR."
+    }, {
+      "name" : "OPEN_STOP",
+      "label" : "Stop if bought here",
+      "tooltip" : "The stop a long bought at this close would get. Read it as \"Value at entry\"."
+    }, {
+      "name" : "OPEN_LINE",
+      "label" : "Support line if bought here",
+      "tooltip" : "The initial sticky support of a long bought at this close. Read it as \"Value at entry\"."
+    } ],
+    "params" : [ {
+      "name" : "minStrength",
+      "choices" : null,
+      "group" : "ZONES",
+      "label" : "Min zone strength",
+      "tooltip" : "Minimum zone strength to be tracked at all. Also the zone filter of \"Inside a zone\" and of the distances to support / resistance. Higher = fewer, stronger levels."
+    }, {
+      "name" : "breakBuffer",
+      "choices" : null,
+      "group" : "BREAKOUT",
+      "label" : "Break buffer, ATR",
+      "tooltip" : "How far beyond the zone the close must go to count as a breakout (above the top) or a failure / break (below the bottom), in ATR."
+    }, {
+      "name" : "touchTolerance",
+      "choices" : null,
+      "group" : "RETEST",
+      "label" : "Touch tolerance, ATR",
+      "tooltip" : "A retest counts when the low comes within this many ATR above the zone top."
+    }, {
+      "name" : "maxRetestBars",
+      "choices" : null,
+      "group" : "WAITING",
+      "label" : "Max bars to wait for retest",
+      "tooltip" : "Bars to wait for a retest after a breakout before giving up. Used only when \"Base: min bars above zone\" is 0."
+    }, {
+      "name" : "maxDwellBars",
+      "choices" : null,
+      "group" : "WAITING",
+      "label" : "Max bars in zone after touch",
+      "tooltip" : "After the retest touch, how many bars price may stay in the zone before the setup is dropped (stuck in the zone = weakness)."
+    }, {
+      "name" : "confirmMode",
+      "choices" : [ {
+        "label" : "Same-bar close",
+        "value" : 0.0
+      }, {
+        "label" : "Later close above touch-bar high",
+        "value" : 1.0
+      } ],
+      "group" : "RETEST",
+      "label" : "Retest confirmation",
+      "tooltip" : "Same-bar close: the retest is confirmed when the touch bar closes above the zone top. Later close above touch-bar high: confirmed when a later bar closes above the touch bar's high."
+    }, {
+      "name" : "runawayAtr",
+      "choices" : null,
+      "group" : "RUNAWAY_BASE",
+      "label" : "Runaway distance, ATR (0 = off)",
+      "tooltip" : "Confirm without a retest when the close is this many ATR above the zone top (0 = no runaway entries)."
+    }, {
+      "name" : "baseMinBars",
+      "choices" : null,
+      "group" : "RUNAWAY_BASE",
+      "label" : "Base: min bars above zone (0 = off)",
+      "tooltip" : "Confirm without a retest after price holds above the zone this many bars and closes at a new high (0 = no base entries)."
+    }, {
+      "name" : "maxBaseBars",
+      "choices" : null,
+      "group" : "RUNAWAY_BASE",
+      "label" : "Base: max wait, bars",
+      "tooltip" : "Safety cap: the longest wait for a base, in bars."
+    }, {
+      "name" : "stopBuffer",
+      "choices" : null,
+      "group" : "STOP_SUPPORT",
+      "label" : "Stop buffer, ATR",
+      "tooltip" : "The setup stop sits this many ATR below the zone bottom (or the retest low). Used by \"Setup stop\", \"Stop if bought here\" and the re-arm replay."
+    }, {
+      "name" : "upgradeStrength",
+      "choices" : null,
+      "group" : "STOP_SUPPORT",
+      "label" : "Support upgrade: min strength",
+      "tooltip" : "The minimum zone strength for the support line: the sticky support moves up only to zones at least this strong."
+    }, {
+      "name" : "upgradeMinTouches",
+      "choices" : null,
+      "group" : "STOP_SUPPORT",
+      "label" : "Support upgrade: min touches",
+      "tooltip" : "The minimum touches a zone needs before the sticky support can move up to it."
+    }, {
+      "name" : "rearm",
+      "choices" : null,
+      "group" : "REARM",
+      "label" : "Re-arm after stop / support break",
+      "tooltip" : "On (as the class): the tracker replays the class's own stand-alone long. After its stop or support-break exit the zone is re-armed, so a new breakout of it can be bought again. Off: each zone confirms once. The replay ignores your other rules and other strategies."
+    }, {
+      "name" : "takeProfitStrength",
+      "choices" : null,
+      "group" : "REARM",
+      "label" : "Take-profit strength",
+      "tooltip" : "Re-arm only: the replayed class position takes profit at a resistance of this strength (0 = none). Set it equal to your take-profit rule's strength, best by linking both to one axis."
+    } ]
+  },
+  "operandHelp" : {
+    "barFields" : [ {
+      "label" : "Open",
+      "name" : "OPEN",
+      "tooltip" : "The first price of the bar."
+    }, {
+      "label" : "High",
+      "name" : "HIGH",
+      "tooltip" : "The highest price of the bar."
+    }, {
+      "label" : "Low",
+      "name" : "LOW",
+      "tooltip" : "The lowest price of the bar."
+    }, {
+      "label" : "Close",
+      "name" : "CLOSE",
+      "tooltip" : "The last price of the bar. All fills use the close."
+    }, {
+      "label" : "Volume",
+      "name" : "VOLUME",
+      "tooltip" : "The shares traded in the bar."
+    } ],
+    "groups" : [ {
+      "label" : "Market data",
+      "name" : "MARKET",
+      "tooltip" : "A price-bar field or an indicator."
+    }, {
+      "label" : "Number",
+      "name" : "NUMBER",
+      "tooltip" : "A fixed number (right side only)."
+    }, {
+      "label" : "Levels (DAY / WEEK)",
+      "name" : "LEVELS",
+      "tooltip" : "Lines and distances from the level tracker (DAY / WEEK runs only)."
+    }, {
+      "label" : "From the last event (DAY / WEEK)",
+      "name" : "EVENT_FUNCTIONS",
+      "tooltip" : "A value remembered since a market event last happened. It follows the event, not your trade."
+    }, {
+      "label" : "From my open long (LONG only)",
+      "name" : "POSITION_FUNCTIONS",
+      "tooltip" : "A value from your open long. Without one the condition is false. Not in \"Cover short\" rules."
+    } ],
+    "help" : {
+      "leftValue" : "The value tested on each bar.",
+      "rightValue" : "The value the left value is compared with.",
+      "source" : "Where the value comes from: the price bar, an indicator, a number, the level tracker or a value remembered since an event or since your entry.",
+      "tf" : "Where the value is read. Run TF = the backtest's own timeframe. On HOUR / MIN5 / MONTH only Run TF with Bars back 0. WEEK on a DAY run = the forming week (provisional).",
+      "field" : "Which price of the bar: open, high, low, close or volume.",
+      "n" : "Bars the indicator uses. Linkable.",
+      "const" : "The number to compare with. Linkable.",
+      "offset" : "0 = this bar, −1 = the bar before, on the value's own timeframe.",
+      "op" : "How the left value must relate to the right value.",
+      "tolerancePct" : "Right × (1 + t / 100): +1 with \"is above\" = at least 1 % above; −5 with \"is below\" = more than 5 % below.",
+      "link" : "Tie this number to an axis; Optimize sweeps axes.",
+      "note" : "Your description. Not used in the calculation."
+    },
+    "operators" : [ {
+      "label" : "is above (>)",
+      "name" : "GT",
+      "tooltip" : "The left value is greater than the right value."
+    }, {
+      "label" : "is at or above (≥)",
+      "name" : "GTE",
+      "tooltip" : "The left value is greater than or equal to the right value."
+    }, {
+      "label" : "is below (<)",
+      "name" : "LT",
+      "tooltip" : "The left value is less than the right value."
+    }, {
+      "label" : "is at or below (≤)",
+      "name" : "LTE",
+      "tooltip" : "The left value is less than or equal to the right value."
+    } ],
+    "sources" : [ {
+      "label" : "Price bar",
+      "name" : "PRICE_BAR",
+      "tooltip" : "The bar (candle) itself: open, high, low, close or volume. \"Price broke the previous high\" = Price bar Close, bars back 0, is above Price bar High, bars back −1."
+    }, {
+      "label" : "Number",
+      "name" : "CONST",
+      "tooltip" : "A fixed number. Fits any unit. Linkable."
+    }, {
+      "label" : "Levels",
+      "name" : "LEVEL",
+      "tooltip" : "Lines and distances from the support / resistance level tracker (run TF, DAY / WEEK)."
+    } ],
+    "timeframes" : [ {
+      "label" : "Run TF",
+      "name" : "RUN",
+      "tooltip" : "The backtest's own timeframe."
+    }, {
+      "label" : "Day",
+      "name" : "DAY",
+      "tooltip" : "The DAY bar. On a DAY run the same as Run TF."
+    }, {
+      "label" : "Week",
+      "name" : "WEEK",
+      "tooltip" : "The WEEK bar. On a DAY run the forming week (provisional)."
+    } ]
+  },
+  "position" : {
+    "help" : {
+      "groupLabel" : "From my open long",
+      "group" : "A value from your open long. Without one the condition is false. Not in \"Cover short\" rules.",
+      "x" : "Value X: what to read (a bar field, an indicator, a Levels line or a value from the last event) on the run TF.",
+      "lag" : "Skip last bars: 1 = the line as of the previous bar (the class ratchet). Not optimizable. 0 to 10.",
+      "badge" : "uses my open long",
+      "badgeTooltip" : "This rule reads your open long, so the strategy depends on the position.",
+      "noLong" : "Without an open long the condition is false.",
+      "refused" : "Not available in a \"Cover short\" rule."
+    },
+    "kinds" : [ {
+      "name" : "AT_ENTRY",
+      "label" : "Value at entry",
+      "tooltip" : "X on your long's entry bar (a seeded watch: the seed bar). Close at entry above 0 = \"in a long\"; close below close at entry with tolerance −5 = a 5 % stop."
+    }, {
+      "name" : "MAX_SINCE_ENTRY",
+      "label" : "Highest since entry",
+      "tooltip" : "The highest X since entry (the entry bar excluded), skipping the last n bars: a trailing line."
+    }, {
+      "name" : "MIN_SINCE_ENTRY",
+      "label" : "Lowest since entry",
+      "tooltip" : "The lowest X since entry (the entry bar excluded), skipping the last n bars."
+    } ]
+  },
+  "signalTypeHelp" : [ {
+    "label" : "Buy (open long)",
+    "name" : "LongOpen",
+    "tooltip" : "Open a long on this bar. Does nothing while already long."
+  }, {
+    "label" : "Sell (close long)",
+    "name" : "LongClose",
+    "tooltip" : "Close the long on this bar. While flat it blocks entries of the other strategies on this bar."
+  }, {
+    "label" : "Block long entry",
+    "name" : "LongBlock",
+    "tooltip" : "No long entry on this bar. Never opens or closes; a held long is kept."
+  }, {
+    "label" : "Open short",
+    "name" : "ShortOpen",
+    "tooltip" : "Open a short on this bar. In \"long only\" mode it acts as a long exit."
+  }, {
+    "label" : "Cover short",
+    "name" : "ShortClose",
+    "tooltip" : "Cover the short on this bar. Not allowed with \"From my open long\" values."
+  } ]
+}
+== indicators
+{
+  "indicators" : [ {
+    "name" : "SMA",
+    "menuLabel" : "Moving average (SMA)",
+    "tooltip" : "Simple moving average of the close over Length bars of its timeframe (stored lengths only)."
+  }, {
+    "name" : "SMA_TILT",
+    "menuLabel" : "SMA slope",
+    "tooltip" : "Slope of the SMA over its last 5 values, in % of the SMA per bar. Positive = rising."
+  }, {
+    "name" : "IBS",
+    "menuLabel" : "Close position in bar (IBS)",
+    "tooltip" : "Where the close sits in the bar's range: 0 = at the low, 1 = at the high."
+  }, {
+    "name" : "ATR",
+    "menuLabel" : "Average true range (ATR)",
+    "tooltip" : "Average bar range (Wilder) over Length bars, in price: volatility."
+  }, {
+    "name" : "ATR_PCT",
+    "menuLabel" : "ATR as % of price",
+    "tooltip" : "ATR in percent of the close: volatility comparable across tickers."
+  }, {
+    "name" : "ER",
+    "menuLabel" : "Efficiency ratio",
+    "tooltip" : "Kaufman efficiency ratio over Length bars: 1 = a straight move, 0 = chop."
+  }, {
+    "name" : "RSI",
+    "menuLabel" : "Relative strength index (RSI)",
+    "tooltip" : "Wilder RSI of the close over Length bars, 0 to 100."
+  } ]
+}
+== screener
+{
+  "indicators" : [ {
+    "name" : "SMA",
+    "menuLabel" : "Moving average (SMA)",
+    "tooltip" : "Simple moving average of the close over Length bars of its timeframe (stored lengths only)."
+  }, {
+    "name" : "SMA_TILT",
+    "menuLabel" : "SMA slope",
+    "tooltip" : "Slope of the SMA over its last 5 values, in % of the SMA per bar. Positive = rising."
+  }, {
+    "name" : "IBS",
+    "menuLabel" : "Close position in bar (IBS)",
+    "tooltip" : "Where the close sits in the bar's range: 0 = at the low, 1 = at the high."
+  }, {
+    "name" : "ATR",
+    "menuLabel" : "Average true range (ATR)",
+    "tooltip" : "Average bar range (Wilder) over Length bars, in price: volatility."
+  }, {
+    "name" : "ATR_PCT",
+    "menuLabel" : "ATR as % of price",
+    "tooltip" : "ATR in percent of the close: volatility comparable across tickers."
+  }, {
+    "name" : "ER",
+    "menuLabel" : "Efficiency ratio",
+    "tooltip" : "Kaufman efficiency ratio over Length bars: 1 = a straight move, 0 = chop."
+  }, {
+    "name" : "RSI",
+    "menuLabel" : "Relative strength index (RSI)",
+    "tooltip" : "Wilder RSI of the close over Length bars, 0 to 100."
+  } ],
+  "metricHelp" : [ {
+    "label" : "Width, % of price",
+    "name" : "WIDTH_PCT",
+    "tooltip" : "Width of the channel in % of price."
+  }, {
+    "label" : "Slope, % per year",
+    "name" : "SLOPE_PCT_YEAR",
+    "tooltip" : "Slope of the channel in % per year (252 DAY / 52 WEEK bars). Positive = rising."
+  }, {
+    "label" : "Position in channel",
+    "name" : "POSITION",
+    "tooltip" : "Where the close sits in the channel: 0 = on the lower line, 1 = on the upper line; below 0 or above 1 = outside."
+  }, {
+    "label" : "Age, bars",
+    "name" : "AGE_BARS",
+    "tooltip" : "Bars of the channel's timeframe since the channel started."
+  }, {
+    "label" : "Touches of upper line",
+    "name" : "TOUCHES_UPPER",
+    "tooltip" : "How many times price touched the channel's upper line."
+  }, {
+    "label" : "Touches of lower line",
+    "name" : "TOUCHES_LOWER",
+    "tooltip" : "How many times price touched the channel's lower line."
+  } ],
+  "operandHelp" : {
+    "barFields" : [ {
+      "label" : "Open",
+      "name" : "OPEN",
+      "tooltip" : "The first price of the bar."
+    }, {
+      "label" : "High",
+      "name" : "HIGH",
+      "tooltip" : "The highest price of the bar."
+    }, {
+      "label" : "Low",
+      "name" : "LOW",
+      "tooltip" : "The lowest price of the bar."
+    }, {
+      "label" : "Close",
+      "name" : "CLOSE",
+      "tooltip" : "The last price of the bar. All fills use the close."
+    }, {
+      "label" : "Volume",
+      "name" : "VOLUME",
+      "tooltip" : "The shares traded in the bar."
+    } ],
+    "groups" : [ {
+      "label" : "Market data",
+      "name" : "MARKET",
+      "tooltip" : "A price-bar field or an indicator."
+    }, {
+      "label" : "Number",
+      "name" : "NUMBER",
+      "tooltip" : "A fixed number (right side only)."
+    }, {
+      "label" : "Levels (DAY / WEEK)",
+      "name" : "LEVELS",
+      "tooltip" : "Lines and distances from the level tracker (DAY / WEEK runs only)."
+    }, {
+      "label" : "From the last event (DAY / WEEK)",
+      "name" : "EVENT_FUNCTIONS",
+      "tooltip" : "A value remembered since a market event last happened. It follows the event, not your trade."
+    }, {
+      "label" : "From my open long (LONG only)",
+      "name" : "POSITION_FUNCTIONS",
+      "tooltip" : "A value from your open long. Without one the condition is false. Not in \"Cover short\" rules."
+    } ],
+    "help" : {
+      "leftValue" : "The value tested on each bar.",
+      "rightValue" : "The value the left value is compared with.",
+      "source" : "Where the value comes from: the price bar, an indicator, a number, the level tracker or a value remembered since an event or since your entry.",
+      "tf" : "Where the value is read. Run TF = the backtest's own timeframe. On HOUR / MIN5 / MONTH only Run TF with Bars back 0. WEEK on a DAY run = the forming week (provisional).",
+      "field" : "Which price of the bar: open, high, low, close or volume.",
+      "n" : "Bars the indicator uses. Linkable.",
+      "const" : "The number to compare with. Linkable.",
+      "offset" : "0 = this bar, −1 = the bar before, on the value's own timeframe.",
+      "op" : "How the left value must relate to the right value.",
+      "tolerancePct" : "Right × (1 + t / 100): +1 with \"is above\" = at least 1 % above; −5 with \"is below\" = more than 5 % below.",
+      "link" : "Tie this number to an axis; Optimize sweeps axes.",
+      "note" : "Your description. Not used in the calculation."
+    },
+    "operators" : [ {
+      "label" : "is above (>)",
+      "name" : "GT",
+      "tooltip" : "The left value is greater than the right value."
+    }, {
+      "label" : "is at or above (≥)",
+      "name" : "GTE",
+      "tooltip" : "The left value is greater than or equal to the right value."
+    }, {
+      "label" : "is below (<)",
+      "name" : "LT",
+      "tooltip" : "The left value is less than the right value."
+    }, {
+      "label" : "is at or below (≤)",
+      "name" : "LTE",
+      "tooltip" : "The left value is less than or equal to the right value."
+    } ],
+    "sources" : [ {
+      "label" : "Price bar",
+      "name" : "PRICE_BAR",
+      "tooltip" : "The bar (candle) itself: open, high, low, close or volume. \"Price broke the previous high\" = Price bar Close, bars back 0, is above Price bar High, bars back −1."
+    }, {
+      "label" : "Number",
+      "name" : "CONST",
+      "tooltip" : "A fixed number. Fits any unit. Linkable."
+    }, {
+      "label" : "Levels",
+      "name" : "LEVEL",
+      "tooltip" : "Lines and distances from the support / resistance level tracker (run TF, DAY / WEEK)."
+    } ],
+    "timeframes" : [ {
+      "label" : "Run TF",
+      "name" : "RUN",
+      "tooltip" : "The backtest's own timeframe."
+    }, {
+      "label" : "Day",
+      "name" : "DAY",
+      "tooltip" : "The DAY bar. On a DAY run the same as Run TF."
+    }, {
+      "label" : "Week",
+      "name" : "WEEK",
+      "tooltip" : "The WEEK bar. On a DAY run the forming week (provisional)."
+    } ]
+  }
+}

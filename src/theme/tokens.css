@@ -16,6 +16,11 @@
   --backdrop: rgba(17, 24, 39, 0.45);
   --swatch-border: rgba(0, 0, 0, 0.15);
 
+  /* InfoTooltip bubble (ⓘ): dark bubble on the light page; text 14.0:1 on the bubble */
+  --info-tooltip-bg: #1f2937;
+  --info-tooltip-fg: #f9fafb;
+  --info-tooltip-border: #1f2937;
+
   /* header (dark blue band in Light; the tabs are white-on-band in both themes) */
   --header-bg: #1e40af;
   --header-text: #ffffff;
@@ -269,6 +274,12 @@
   --control-bg: #232b3a;
   --backdrop: rgba(0, 0, 0, 0.6);
   --swatch-border: rgba(255, 255, 255, 0.25);
+
+  /* InfoTooltip: a lighter bubble with a visible edge on the dark surfaces (#0f1420 / #1c2330);
+     text 9.9:1 on the bubble, border #6b7280 3.3:1 on #1c2330 (non-text >= 3:1) */
+  --info-tooltip-bg: #374151;
+  --info-tooltip-fg: #f9fafb;
+  --info-tooltip-border: #6b7280;
 
   --header-bg: #111a33;
   --header-text: #f3f4f6;

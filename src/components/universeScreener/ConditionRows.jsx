@@ -134,12 +134,14 @@ function ValueGroup({ title, tooltip, children, testId }) {
  *                         (a Levels value or a sequence brick); `picker` is the default OperandPicker
  *   bare                - no frame (a condition nested in a brick / WITHIN)
  *   help                - the help line under the row (Stage A; default: the sides' Source tooltips)
+ *   sourceKinds         - the live meta kinds of the staged Sources (bricks, position) for that
+ *                         default help line, the same texts as the Source menu's ⓘ
  * Length ranges, defaults and units come from the indicator descriptors (indicatorCatalog.js).
  * The right side offers only kinds of the left side's unit (or a constant).
  */
 export function CompareConditionRow({
   condition, onChange, evalTf, allowRun = false, renderLink = null, linkedValue = null, caption = null,
-  runTf = null, renderOperand = null, help = null, ...shell
+  runTf = null, renderOperand = null, help = null, sourceKinds = null, ...shell
 }) {
   const editorHelp = useEditorHelp();
   const oh = editorHelp.operand;
@@ -167,7 +169,7 @@ export function CompareConditionRow({
   return (
     <RowShell {...shell} caption={caption ?? conditionCaption(condition, evalTf)} testId="compare-condition"
       heading={{ text: 'Compare', tooltip: RULE_TEXTS.rowCompare, className: 'text-teal-700' }}
-      help={help ?? compareHelpLine([sourceTooltipOf(condition.left), sourceTooltipOf(condition.right)])}>
+      help={help ?? compareHelpLine([sourceTooltipOf(condition.left, sourceKinds), sourceTooltipOf(condition.right, sourceKinds)])}>
       <ValueGroup title="Left value" tooltip={oh.help.leftValue} testId="compare-left">{sideEditor('left')}</ValueGroup>
       <FieldLabel label="Op" tooltip={oh.help.op} align="center">
         <select className={sel} value={condition.op} disabled={shell.disabled} onChange={(e) => set({ op: e.target.value })} aria-label="operator"
