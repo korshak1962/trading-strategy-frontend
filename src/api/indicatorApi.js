@@ -5,7 +5,8 @@
 //   GET  /api/indicators/meta?ticker=&timeframe=         descriptors, caps, run-session rule, stored SMA
 //   GET  /api/indicators/series?ticker=&timeframe=&from=&to=&ind=KIND[:n]...   columnar series
 //   POST /api/indicators/sma-tail {ticker, timeframe, lengths}               SMA tail top-up
-//   GET  /api/levels/{ticker}/as-of?timeFrame=&to=&minStrength=   the level-zone map as of the last closed bar <= to
+//   GET  /api/levels/{ticker}/as-of?timeFrame=&to=&minStrength=[&variant=]   the level-zone map as of the last closed bar <= to
+//   GET  /api/levels/variants                             the detection variants the chart can pick
 // Dates are the exchange's wall clock without a zone (decision 0.18, #100): a bare day is sent as
 // T00:00:00 (from) / T23:59:59 (to), exactly as the channel endpoints get them (channelApi.fmtDt).
 // Errors: apiRequest's shape ({status, code, detail, jobId, body}); 400 / 409 bodies are
@@ -90,12 +91,37 @@ export const topUpSmaTail = async (ticker, timeframe, lengths) => {
 /**
  * GET /api/levels/{ticker}/as-of: the level-zone map as of the last closed bar <= to, computed on
  * the fly (LevelMapAsOfDTO: {asOf, openBarExcluded, close, atrValue, barCount, zoneCount, reason,
- * message, computeMs, zones[] lowest band first}). minStrength is always 0: the strength filter is
- * applied on the client, so changing it never refetches.
+ * message, computeMs, variant, zones[] lowest band first}). minStrength is always 0: the strength
+ * filter is applied on the client, so changing it never refetches.
+ * `variant` (level range zones, stage 2): a detection variant id from /api/levels/variants, sent
+ * only when given (null / '' = the backend's default map, the request stays as it was). An unknown
+ * id is a 400 BAD_PARAM, shown like any other error. Zones of a newer backend carry rawLow / rawHigh
+ * and crossings; an older one sends neither (see utils/levelZones.js levelZoneExtras).
  */
-export const fetchLevelMapAsOf = async (ticker, timeframe, to, { signal } = {}) => {
+export const fetchLevelMapAsOf = async (ticker, timeframe, to, { signal, variant = null } = {}) => {
   const q = new URLSearchParams({ timeFrame: timeframe, to: fmtDt(to, true), minStrength: '0' });
+  if (variant) q.set('variant', variant);
   const res = await apiRequest(`/api/levels/${enc(ticker)}/as-of?${q.toString()}`, { signal }, 'Level zones');
   const map = (await readJson(res)) || {};
   return { ...map, zones: Array.isArray(map.zones) ? map.zones : [] };
+};
+
+/**
+ * The rows of GET /api/levels/variants, cleaned: [{id, label, description, isDefault, legacy}] in
+ * the server's order; rows without an id are dropped, a missing label falls back to the id. Pure.
+ */
+export const normalizeLevelVariants = (raw) => (Array.isArray(raw) ? raw : [])
+  .filter(v => v && typeof v.id === 'string' && v.id)
+  .map(v => ({
+    id: v.id,
+    label: typeof v.label === 'string' && v.label ? v.label : v.id,
+    description: typeof v.description === 'string' ? v.description : '',
+    isDefault: v.isDefault === true,
+    legacy: v.legacy === true,
+  }));
+
+/** GET /api/levels/variants: the chart-selectable level detection variants (normalized). */
+export const fetchLevelVariants = async ({ signal } = {}) => {
+  const res = await apiRequest('/api/levels/variants', { signal }, 'Level variants');
+  return normalizeLevelVariants(await readJson(res));
 };
