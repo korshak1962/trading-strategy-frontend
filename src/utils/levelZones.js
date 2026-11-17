@@ -21,6 +21,8 @@
 //     is strength(z, from - 1); the strength on a later bar of the segment follows pure decay:
 //     F + (strengthAtFrom - F)·exp(-(i - fromIndex) / decayBars), F = flipBonus·flipCount.
 //     Absent on an older backend: NaN (numbers) / NaN ms (dates) - the tooltip shows "–".
+//   - breakouts {up, down, failed, last} (optional, level range zones stage 2): breakout history of
+//     the zone over the 250 bars up to and including `from`; absent -> null (normalizeBreakouts).
 //
 // Each run keeps a reference to its normalized segment (`run.segment`) for the zone tooltip.
 //
@@ -70,6 +72,50 @@ export const hasLevelZones = (chartData) =>
   Array.isArray(chartData?.levelZones) && chartData.levelZones.length > 0;
 
 /**
+ * A segment's `breakouts` {up, down, failed, last} (level range zones stage 2: counts over the 250
+ * bars up to and including the segment's `from`; LevelBreakoutRetest only). The key is absent for a
+ * strategy without breakout history and on an older backend: null, and the tooltip shows nothing.
+ */
+export const normalizeBreakouts = (raw) => {
+  if (!raw || typeof raw !== 'object') return null;
+  const count = (v) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Number(v) : 0);
+  return { up: count(raw.up), down: count(raw.down), failed: count(raw.failed), lastMs: msOf(raw.last) };
+};
+
+const fmtBandPrice = (v) => Number(v).toFixed(2);
+const datePart = (v) => (typeof v === 'string' && v.length >= 10 ? v.substring(0, 10) : null);
+
+/**
+ * The extra lines of an as-of map zone (GET /api/levels/{ticker}/as-of, level range zones stage 2)
+ * for the zone card and the level layer's tooltip:
+ *   crossings: 'crossed 5× (penalised 3), last 2026-09-18' when crossings.count > 0, else null
+ *   rawBand:   'raw band 12.30–12.95' when rawLow / rawHigh differ from low / high, else null
+ * Absent fields (older backend, LEGACY: 0 crossings, raw = trading band) give null for both, so
+ * those zones look exactly as before. Pure.
+ */
+export const levelZoneExtras = (zone) => {
+  const c = zone?.crossings;
+  const n = Number(c?.count);
+  let crossings = null;
+  if (Number.isFinite(n) && n > 0) {
+    const pen = Number(c.penalised);
+    const last = datePart(c.last);
+    crossings = `crossed ${n}×${Number.isFinite(pen) ? ` (penalised ${pen})` : ''}${last ? `, last ${last}` : ''}`;
+  }
+  let rawBand = null;
+  const rl = Number(zone?.rawLow);
+  const rh = Number(zone?.rawHigh);
+  const lo = Number(zone?.low);
+  const hi = Number(zone?.high);
+  const given = zone?.rawLow !== null && zone?.rawLow !== undefined && zone?.rawHigh !== null && zone?.rawHigh !== undefined;
+  if (given && [rl, rh, lo, hi].every(Number.isFinite)
+    && (Math.abs(Math.min(rl, rh) - Math.min(lo, hi)) > 1e-9 || Math.abs(Math.max(rl, rh) - Math.max(lo, hi)) > 1e-9)) {
+    rawBand = `raw band ${fmtBandPrice(Math.min(rl, rh))}–${fmtBandPrice(Math.max(rl, rh))}`;
+  }
+  return { crossings, rawBand };
+};
+
+/**
  * Normalizes the raw DTO list: parsed ms bounds, numeric band, boolean flags. Malformed entries
  * (no from date, non-numeric low/high) are dropped instead of breaking the chart.
  */
@@ -101,6 +147,7 @@ export const normalizeLevelZoneSegments = (rawSegments) => {
       firstTouchMs: msOf(seg.firstTouchDate),
       lastTouchMs: msOf(seg.lastTouchDate),
       strengthAtFrom: num(seg.strengthAtFrom),
+      breakouts: normalizeBreakouts(seg.breakouts),
     });
   });
   return out.sort((a, b) => a.fromMs - b.fromMs);
