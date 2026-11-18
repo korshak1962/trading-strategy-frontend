@@ -19,7 +19,7 @@
 //
 // data: { zones: LevelZoneDTO[], nearestN, allZones, refClose?: number|null, asOf?: string|null,
 //         selectedId, onSelect(zone|null) }
-import { selectNearest } from '../../../../utils/levelZones';
+import { selectNearest, levelZoneExtras } from '../../../../utils/levelZones';
 import { readToken, withAlpha } from '../../../../theme/theme';
 import { toBarTime, findBarFloorIndex } from '../bars';
 
@@ -215,12 +215,18 @@ export function createLevelLayer() {
       const y = ctx.candles.priceToCoordinate(price);
       if (y === null) return [];
       const sel = selectedId();
-      return hitsAt(barIndex, y).map(({ zone }) => ({
-        label: zone.id === sel ? 'Level zone (selected)' : 'Level zone',
-        value: `${zone.low.toFixed(2)}–${zone.high.toFixed(2)}`,
-        color: zone.id === sel ? selBorder : border,
-        note: `strength ${Number(zone.strength).toFixed(2)} · ${zone.touchCount} touches`,
-      }));
+      return hitsAt(barIndex, y).map(({ zone }) => {
+        // Level range zones stage 2: crossings / raw band only when they differ from the default.
+        const { crossings, rawBand } = levelZoneExtras(zone);
+        const note = [`strength ${Number(zone.strength).toFixed(2)}`, `${zone.touchCount} touches`, crossings, rawBand]
+          .filter(Boolean).join(' · ');
+        return {
+          label: zone.id === sel ? 'Level zone (selected)' : 'Level zone',
+          value: `${zone.low.toFixed(2)}–${zone.high.toFixed(2)}`,
+          color: zone.id === sel ? selBorder : border,
+          note,
+        };
+      });
     },
     detach() {
       try { attachedTo?.detachPrimitive(primitive); } catch { /* chart gone */ }

@@ -5,7 +5,8 @@
 // params prefilled with IndicatorParam.defaultValue and checked against its range (E11); a
 // stored-only SMA length is picked from the lengths stored for the ticker / timeframe (Q5), stale
 // ones marked. Channels: the detector panel (RecursiveParamsPanel, as is), the A / B view and the
-// coarser channel timeframes. Levels: minimum strength and N nearest. Volume profile: rows and
+// coarser channel timeframes. Levels: minimum strength, N nearest and the detection variant
+// (GET /api/levels/variants, level range zones stage 2). Volume profile: rows and
 // width (no colour: the theme's candle up / down). Colour: the theme palette (follows a theme
 // switch) or a custom colour.
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -25,6 +26,60 @@ import {
 } from './indicatorSet';
 
 const PALETTE = Array.from({ length: 8 }, (_, i) => paletteColor(i));
+const NO_VARIANTS = Object.freeze({ list: null, error: null });
+
+/** Option text of a variant row: the legacy row is marked as the map strategies and watches trade. */
+const variantOptionText = (v) => {
+  const tags = [];
+  if (v.legacy) tags.push('used by strategies');
+  if (v.isDefault && !v.legacy) tags.push('default');
+  return tags.length ? `${v.label} (${tags.join(', ')})` : v.label;
+};
+
+/**
+ * Levels "Detection variant" select (level range zones, stage 2). `value` is the stored id or null
+ * (= the default row); the select's '' option stands for null, so picking the default row stores
+ * null and the request sends no `variant`. A stored id the list does not hold is kept as an
+ * "(unknown)" option; without the list (old backend, error) only the default and the stored id are
+ * offered, with a quiet note.
+ */
+function LevelVariantField({ value, variants, onChange }) {
+  const list = variants?.list || null;
+  const def = list?.find(v => v.isDefault) || null;
+  const legacy = list?.find(v => v.legacy) || null;
+  const selectValue = value && (!def || value !== def.id) ? value : '';
+  const known = selectValue === '' ? def : list?.find(v => v.id === selectValue) || null;
+  const others = (list || []).filter(v => v !== def);
+  let hint;
+  if (variants?.error) hint = 'Variants could not be loaded; the default map is used.';
+  else if (!list) hint = 'Loading variants…';
+  else hint = known?.description || (selectValue ? 'Not offered by the server; the map request may be refused.' : '');
+  const shownId = selectValue || def?.id || null;
+  const differsFromStrategies = Boolean(legacy && shownId && shownId !== legacy.id);
+  return (
+    <label className="ic-dialog__field">
+      <span className="ic-dialog__label">Detection variant</span>
+      <select
+        value={selectValue}
+        onChange={e => onChange(e.target.value === '' ? null : e.target.value)}
+        data-testid="ic-levels-variant"
+        title={known?.description || undefined}
+      >
+        <option value="" title={def?.description || undefined}>{def ? variantOptionText(def) : 'Default'}</option>
+        {others.map(v => (
+          <option key={v.id} value={v.id} title={v.description || undefined}>{variantOptionText(v)}</option>
+        ))}
+        {selectValue !== '' && !known && <option value={selectValue}>{selectValue} (unknown)</option>}
+      </select>
+      {hint && <span className="ic-dialog__hint" data-testid="ic-levels-variant-hint">{hint}</span>}
+      {differsFromStrategies && (
+        <span className="ic-dialog__hint" data-testid="ic-levels-variant-note">
+          Chart only: strategies and watches still trade the {legacy.label} map.
+        </span>
+      )}
+    </label>
+  );
+}
 
 const toHex = (color) => {
   const c = resolveColor(color);
@@ -44,11 +99,14 @@ const toHex = (color) => {
  * @param {string} props.chartTf - the candle timeframe
  * @param {string|null} [props.levelsAsOf] - the bar the loaded level-zone map is as of, or null
  * @param {Object|null} props.channelConstants - read-only confirmation constants of the last detection
+ * @param {{list: Array<Object>|null, error: string|null}} [props.levelVariants] - GET /api/levels/variants
+ *   (normalized) or its error; list null while loading
  * @param {(patch: {params: Object, color?: string}) => void} props.onSubmit
  * @param {() => void} props.onCancel
  */
 export default function IndicatorParamsDialog({
-  kind, descriptor, item, defaultColor, meta, chartTf, levelsAsOf = null, channelConstants = null, onSubmit, onCancel,
+  kind, descriptor, item, defaultColor, meta, chartTf, levelsAsOf = null, channelConstants = null,
+  levelVariants = NO_VARIANTS, onSubmit, onCancel,
 }) {
   const isChannels = kind === CHANNELS;
   const isLevels = kind === LEVELS;
@@ -283,6 +341,11 @@ export default function IndicatorParamsDialog({
                 bands are the zones as of that date, drawn back to their first touch.
               </span>
             </label>
+            <LevelVariantField
+              value={values.variant}
+              variants={levelVariants}
+              onChange={(variant) => setValues(s => ({ ...s, variant }))}
+            />
           </>
         )}
 

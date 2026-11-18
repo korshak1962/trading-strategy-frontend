@@ -4,7 +4,7 @@
 // helpers, no React. An item is
 //   registry indicator: { id, kind: 'SMA' | 'IBS' | ..., params: { n? }, color, hidden }
 //   channels overlay:   { id, kind: 'CHANNELS', params: { coarserTfs, view, lastActualChannelsOnly, detector }, hidden }
-//   levels overlay:     { id, kind: 'LEVELS', params: { minStrength, nearestN, allZones }, hidden }
+//   levels overlay:     { id, kind: 'LEVELS', params: { minStrength, nearestN, allZones, variant }, hidden }
 //   volume profile:     { id, kind: 'VOLUME_PROFILE', params: { rows, widthPct }, hidden } - no colour
 //                       (the theme's candle up / down), at most one per set
 // `color` is a theme token reference ('var(--chart-series-N)', follows a theme switch) or a hex
@@ -43,7 +43,25 @@ export const DEFAULT_CHANNEL_PARAMS = Object.freeze({
   detector: { ...RECURSIVE_DEFAULT_PARAMS },
 });
 
-export const DEFAULT_LEVEL_PARAMS = Object.freeze({ minStrength: 0, nearestN: 2, allZones: false });
+/**
+ * `variant`: the level detection variant id (GET /api/levels/variants) or null = the backend's
+ * default map. The dialog stores null when the default row is picked, so a default set sends no
+ * `variant` and old saved sets (no field) load as the default.
+ */
+export const DEFAULT_LEVEL_PARAMS = Object.freeze({ minStrength: 0, nearestN: 2, allZones: false, variant: null });
+
+const VARIANT_ID_RE = /^[A-Za-z0-9_]{1,64}$/;
+
+/**
+ * The variant id the Levels request sends: null for no variant / the default row of `variants`
+ * (when the list is known), else the stored id. Pure.
+ */
+export const effectiveLevelVariant = (params, variants) => {
+  const v = params?.variant;
+  if (typeof v !== 'string' || !v) return null;
+  const def = (variants || []).find(r => r.isDefault);
+  return def && def.id === v ? null : v;
+};
 
 export const DEFAULT_VOLUME_PROFILE_PARAMS = Object.freeze({ rows: VP_ROWS_DEFAULT, widthPct: VP_WIDTH_DEFAULT });
 
@@ -89,9 +107,12 @@ export const specOf = (item) => ({
   n: item.params && item.params.n !== undefined && item.params.n !== null ? Number(item.params.n) : null,
 });
 
-/** The Levels chip label: 'Levels (N 2, strength ≥ 0)' / 'Levels (all, strength ≥ 0)'. */
-export const levelsLabel = (params) =>
-  `Levels (${params?.allZones ? 'all' : `N ${params?.nearestN}`}, strength ≥ ${params?.minStrength})`;
+/**
+ * The Levels chip label: 'Levels (N 2, strength ≥ 0)' / 'Levels (all, strength ≥ 0)'; a non-default
+ * variant (`variant`, from effectiveLevelVariant) goes first: 'Levels (PT_A, all, strength ≥ 4)'.
+ */
+export const levelsLabel = (params, variant = null) =>
+  `Levels (${variant ? `${variant}, ` : ''}${params?.allZones ? 'all' : `N ${params?.nearestN}`}, strength ≥ ${params?.minStrength})`;
 
 /** 'SMA(50)', 'IBS', 'Channels', 'Levels', 'Volume profile'. */
 export const itemLabel = (item, descriptor) => {
@@ -170,6 +191,7 @@ export const sanitizeLevelParams = (p) => {
     minStrength: Number.isFinite(s) && s >= 0 ? s : DEFAULT_LEVEL_PARAMS.minStrength,
     nearestN: clampChartNearestN(p?.nearestN ?? DEFAULT_LEVEL_PARAMS.nearestN, DEFAULT_LEVEL_PARAMS.nearestN),
     allZones: p?.allZones === true,
+    variant: typeof p?.variant === 'string' && VARIANT_ID_RE.test(p.variant) ? p.variant : null,
   };
 };
 

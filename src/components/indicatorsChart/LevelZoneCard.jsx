@@ -4,6 +4,7 @@
 // the zone's characteristics as of the map's date (GET /api/levels/{ticker}/as-of, LevelZoneDTO)
 // and its touches, the touch list collapsed when it is long.
 import { formatBarKey } from '../charts/workspace/bars';
+import { levelZoneExtras } from '../../utils/levelZones';
 
 /** Above this many touches the list starts collapsed. */
 const TOUCHES_OPEN_MAX = 6;
@@ -21,6 +22,8 @@ export default function LevelZoneCard({ zone, timeframe, asOf = null, onClose })
   const touches = Array.isArray(zone.touches) ? zone.touches : [];
   const date = (d) => (d ? formatBarKey(d, timeframe) : '–');
   const hasDistance = zone.distanceAtr !== null && zone.distanceAtr !== undefined && Number.isFinite(Number(zone.distanceAtr));
+  // Level range zones stage 2: pass-through crossings and the raw touch band, only when not default.
+  const extras = levelZoneExtras(zone);
   return (
     <div className="ic-zone-card" data-testid="ic-zone-card">
       <div className="ic-zone-card__head">
@@ -41,6 +44,8 @@ export default function LevelZoneCard({ zone, timeframe, asOf = null, onClose })
           ATR <b>{fmt(zone.atrValue)}</b>
           {zone.atrDate && <> as of {date(zone.atrDate)}</>}
         </span>
+        {extras.crossings && <span data-testid="ic-zone-card-crossings">{extras.crossings}</span>}
+        {extras.rawBand && <span data-testid="ic-zone-card-rawband">{extras.rawBand}</span>}
       </div>
       {touches.length > 0 && (
         <details className="ic-zone-card__touches" open={touches.length <= TOUCHES_OPEN_MAX}>

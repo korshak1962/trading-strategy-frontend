@@ -63,8 +63,8 @@ const CumulativeTooltipBody = ({ date, value, closedCount, legLabel }) => (
 const fmtPx = (v) => (Number.isFinite(v) ? v.toFixed(2) : '–');
 const fmtBarDate = (ms) => (Number.isFinite(ms) ? fmtExchangeIntl(ms, TOOLTIP_TS_FORMAT) : '–');
 const fmtBand = (low, high) => (Number.isFinite(low) && Number.isFinite(high) ? `${fmtPx(low)}–${fmtPx(high)}` : '–');
-const Row = ({ label, children }) => (
-  <div>{label}: <span style={{ float: 'right', marginLeft: 12 }}>{children}</span></div>
+const Row = ({ label, children, testId }) => (
+  <div data-testid={testId}>{label}: <span style={{ float: 'right', marginLeft: 12 }}>{children}</span></div>
 );
 
 /** Entry marker of a level trade: trigger, zone band, entry price, initial stop and exit line. */
@@ -174,6 +174,17 @@ const zoneTrackerText = (armed) => {
   return '–';
 };
 
+/**
+ * '250d as of 2023-11-02: up 2 / down 1 / failed 0, last 2023-10-05' - the zone's breakout history
+ * over the 250 bars up to the segment's `from` (level range zones stage 2; only sent by
+ * LevelBreakoutRetest, absent otherwise and then not shown).
+ */
+const zoneBreakoutsText = (zone) => {
+  const b = zone.breakouts;
+  const last = Number.isFinite(b.lastMs) ? `, last ${fmtBarDate(b.lastMs)}` : '';
+  return `250d as of ${fmtBarDate(zone.fromMs)}: up ${b.up} / down ${b.down} / failed ${b.failed}${last}`;
+};
+
 /** One hovered level zone: every characteristic the backend sends plus the derived values. */
 const ZoneSection = ({ zone }) => {
   const kind = zone.strong === true ? 'strong' : zone.strong === false ? 'weak' : null;
@@ -193,6 +204,9 @@ const ZoneSection = ({ zone }) => {
       <Row label="First touch">{fmtBarDate(zone.firstTouchMs)}</Row>
       <Row label="Last touch">{fmtBarDate(zone.lastTouchMs)}</Row>
       <Row label="Breakout tracker">{zoneTrackerText(zone.armed)}</Row>
+      {zone.breakouts && (
+        <Row label="Breakouts" testId="zone-tooltip-breakouts">{zoneBreakoutsText(zone)}</Row>
+      )}
       {zone.trigger === true && (
         <Row label="Breakout line">this zone sets it: {fmtFixed(zone.breakoutLine)}</Row>
       )}

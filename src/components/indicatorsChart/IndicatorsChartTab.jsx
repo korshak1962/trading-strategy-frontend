@@ -11,7 +11,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchPrices } from '../../api/channelApi';
 import { getAvailableTickers } from '../../api/strategyApi';
 import {
-  fetchIndicatorMeta, fetchIndicatorSeries, fetchLevelMapAsOf, specKey, topUpSmaTail,
+  fetchIndicatorMeta, fetchIndicatorSeries, fetchLevelMapAsOf, fetchLevelVariants, specKey, topUpSmaTail,
 } from '../../api/indicatorApi';
 import { describeApiError } from '../../api/httpClient';
 import PriceWorkspaceChart from '../charts/workspace/PriceWorkspaceChart';
@@ -35,7 +35,7 @@ import { useIndicatorSet } from './useIndicatorSet';
 import { useChannelsOverlay } from './useChannelsOverlay';
 import {
   CHANNELS, LEVELS, VOLUME_PROFILE, PRACTICAL_LINE_LIMIT, TF_RANK, TIMEFRAMES, channelTimeframes, detectorApiParams,
-  isBuiltIn, itemLabel, levelsLabel, nextColor, specOf, volumeProfileLabel,
+  effectiveLevelVariant, isBuiltIn, itemLabel, levelsLabel, nextColor, specOf, volumeProfileLabel,
 } from './indicatorSet';
 import '../channelExplorer/ChannelExplorer.css';
 import './IndicatorsChartTab.css';
@@ -179,6 +179,10 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
   // it when the zone is no longer drawn (N / all-zones change).
   const [selectedZoneId, setSelectedZoneId] = useState(null);
   const onSelectZone = useCallback((zone) => setSelectedZoneId(zone ? zone.id : null), []);
+  // GET /api/levels/variants, fetched once when the Levels overlay or its dialog first needs it. An
+  // older backend (no endpoint) or an error leaves the dialog with the default map only.
+  const [levelVariants, setLevelVariants] = useState(() => ({ list: null, error: null }));
+  const variantsRequested = useRef(false);
 
   // ---- dialog / stale tail ----
   const [dialog, setDialog] = useState(null); // {kind, itemId|null}
@@ -187,6 +191,15 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
   const [hierarchyMode, setHierarchyMode] = useState('up');
   const [selectedChannel, setSelectedChannel] = useState(null);
   const scrollCardRef = useRef(false);
+
+  const needVariants = Boolean(levelsItem) || dialog?.kind === LEVELS;
+  useEffect(() => {
+    if (!needVariants || variantsRequested.current) return;
+    variantsRequested.current = true;
+    fetchLevelVariants()
+      .then(list => setLevelVariants({ list, error: null }))
+      .catch(err => setLevelVariants({ list: null, error: describeApiError(err) }));
+  }, [needVariants]);
 
   useEffect(() => {
     getAvailableTickers().then(ts => setTickers([...ts].sort())).catch(() => {});
@@ -335,8 +348,11 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
   // ---- levels ----
   // The map is computed on the server as of `to` over the whole history <= to: neither `from` nor the
   // minimum strength is part of the request (architect levels-as-of §4.2), so changing them refetches nothing.
+  // The detection variant (level range zones, stage 2) is part of the request: a change refetches.
+  // A default selection sends no `variant`, so the default request is the same as before.
   const levelsMin = levelsItem ? levelsItem.params.minStrength : null;
-  const levelsKey = active && levelsItem ? `${active.ticker}|${active.tf}|${active.to}` : null;
+  const levelsVariant = levelsItem ? effectiveLevelVariant(levelsItem.params, levelVariants.list) : null;
+  const levelsKey = active && levelsItem ? `${active.ticker}|${active.tf}|${active.to}|${levelsVariant ?? ''}` : null;
   useEffect(() => {
     // m1: every refetch (or the overlay going away) drops the selection, whatever the new map holds.
     setSelectedZoneId(null);
@@ -344,11 +360,11 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
     const ctrl = new AbortController();
     const key = levelsKey;
     setLevels({ key, map: null, loading: true, error: null });
-    fetchLevelMapAsOf(active.ticker, active.tf, active.to, { signal: ctrl.signal })
+    fetchLevelMapAsOf(active.ticker, active.tf, active.to, { signal: ctrl.signal, variant: levelsVariant })
       .then(map => { if (!ctrl.signal.aborted) setLevels({ key, map, loading: false, error: null }); })
       .catch(err => { if (!ctrl.signal.aborted) setLevels({ key, map: null, loading: false, error: describeApiError(err) }); });
     return () => ctrl.abort();
-    // levelsKey stands for active.ticker / tf / to
+    // levelsKey stands for active.ticker / tf / to and the variant
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [levelsKey]);
 
@@ -562,7 +578,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
           message: overlay.error,
         });
       } else if (item.kind === LEVELS) {
-        out.push({ item, label: levelsLabel(item.params), color: 'var(--ws-level-zone-border)', ...levelsChipState(levels, levelZonesShown, active, item.params.minStrength) });
+        out.push({ item, label: levelsLabel(item.params, effectiveLevelVariant(item.params, levelVariants.list)), color: 'var(--ws-level-zone-border)', ...levelsChipState(levels, levelZonesShown, active, item.params.minStrength) });
       } else if (item.kind === VOLUME_PROFILE) {
         const loadedPrices = active && pricesKey === activeKey && prices.length > 0;
         let message = null;
@@ -580,7 +596,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
       }
     }
     return out;
-  }, [items, itemViews, overlay.loading, overlay.error, levels, levelZonesShown, active, activeKey, pricesKey, prices, volumeState]);
+  }, [items, itemViews, overlay.loading, overlay.error, levels, levelZonesShown, levelVariants.list, active, activeKey, pricesKey, prices, volumeState]);
 
   // ---- stale SMA tail (Q3) ----
   const staleKey = (n) => `${active?.ticker}|${active?.tf}|${n}`;
@@ -868,6 +884,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
           chartTf={loaded ? active.tf : tf}
           levelsAsOf={loaded ? (levels.map?.asOf ?? null) : null}
           channelConstants={overlay.constants}
+          levelVariants={levelVariants}
           onSubmit={submitDialog}
           onCancel={closeDialog}
         />

@@ -551,5 +551,7 @@ export const describeZone = ({ segment, band }, barIndex, { levelChart, closes, 
     roles,
     fromMs: segment ? segment.fromMs : NaN,
     toMs: segment ? segment.toMs : NaN,
+    // {up, down, failed, lastMs} over the 250 bars up to `from`, or null (absent on the wire)
+    breakouts: segment?.breakouts ?? null,
   };
 };
