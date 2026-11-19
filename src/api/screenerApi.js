@@ -9,7 +9,7 @@
 // naming difference to the backend is a one-line change. Errors: see httpClient.js.
 
 import { apiRequest, readJson, jsonBody, enc } from './httpClient';
-import { hasLength, setIndicatorCatalog } from './indicatorCatalog';
+import { hasLength, hasBenchmark, defaultBenchmarkOf, setIndicatorCatalog } from './indicatorCatalog';
 import { SCREENER_METRIC_TEXTS, OPERATOR_TEXTS, setEditorHelp } from './editorTexts';
 
 const API_BASE_URL = '/api/screener';
@@ -63,21 +63,29 @@ const numOrNull = (v) => (v === '' || v == null || !Number.isFinite(Number(v)) ?
 
 /**
  * Editor operand → OperandDTO `{kind, n?, tf, offset}` / `{kind: 'CONST', value}`. `n` is sent for
- * every kind with a length parameter (SMA, SMA_TILT, ATR, ATR_PCT, ER, RSI - the descriptor
- * says), never for a field or IBS (stage 3b F1, minor #91).
+ * every kind with a length parameter (SMA, SMA_TILT, ATR, ATR_PCT, ER, RSI, CORR - the descriptor
+ * says), never for a field or IBS (stage 3b F1, minor #91). `benchmark` only for a kind with the
+ * benchmark choice param (CORR: `{kind: 'CORR', n: 60, benchmark: 'QQQ', tf, offset}`).
  */
 export const toOperand = (o) => {
   if (!o) return null;
   if (o.kind === 'CONST') return { kind: 'CONST', value: numOrNull(o.value) };
   const out = { kind: o.kind, tf: o.tf, offset: Number(o.offset) || 0 };
   if (hasLength(o.kind, o.n)) out.n = numOrNull(o.n);
+  // CORR: the benchmark ticker (a string, never a number); the kind's default when the editor has none
+  if (hasBenchmark(o.kind, o.benchmark)) {
+    const b = (typeof o.benchmark === 'string' && o.benchmark) || defaultBenchmarkOf(o.kind);
+    if (b) out.benchmark = b;
+  }
   return out;
 };
 
 export const fromOperand = (o) => {
   if (!o) return null;
   if (o.kind === 'CONST') return { kind: 'CONST', value: o.value ?? '', n: null, tf: 'DAY', offset: 0 };
-  return { kind: o.kind || 'CLOSE', n: o.n ?? null, tf: o.tf || 'DAY', offset: o.offset ?? 0, value: '' };
+  const out = { kind: o.kind || 'CLOSE', n: o.n ?? null, tf: o.tf || 'DAY', offset: o.offset ?? 0, value: '' };
+  if (typeof o.benchmark === 'string' && o.benchmark) out.benchmark = o.benchmark;
+  return out;
 };
 
 const CHANNEL_SPEC_KEYS = ['coveragePct', 'minBars', 'minWidthPct', 'minAgeBars'];

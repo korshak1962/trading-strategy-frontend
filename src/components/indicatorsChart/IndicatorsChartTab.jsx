@@ -25,6 +25,7 @@ import { toBarTime, formatBarKey } from '../charts/workspace/bars';
 import { channelsRequestKey } from '../../navigation/route';
 import { exchangeToday, exchangeZoneForTicker, addYearsIso } from '../../utils/dates';
 import { formatPct, formatStatus, formatAge, formatExitSide } from '../channelExplorer/format';
+import { benchmarkMarketIssue, benchmarkTickerIssue } from '../../api/indicatorCatalog';
 import AddIndicatorMenu from './AddIndicatorMenu';
 import IndicatorParamsDialog from './IndicatorParamsDialog';
 import IndicatorChips from './IndicatorChips';
@@ -298,10 +299,18 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
   // ---- registry series: fetch the specs the cache does not have ----
   const activeTf = active?.tf || null;
   const registryItems = useMemo(() => items.filter(it => !isBuiltIn(it.kind)), [items]);
+  const activeTicker = active?.ticker || null;
+  // CORR: a benchmark of another market (or a market without one) is a 400 for the whole /series
+  // batch, so such an item is not requested; it shows why instead.
+  const marketIssueOf = useCallback((item) => {
+    const d = descriptorByName.get(item.kind);
+    if (!d || !activeTicker) return null;
+    return benchmarkMarketIssue(d, activeTicker) || benchmarkTickerIssue(d, item.params?.benchmark, activeTicker);
+  }, [descriptorByName, activeTicker]);
   const runnable = useCallback((item) => {
     const d = descriptorByName.get(item.kind);
-    return Boolean(d && activeTf && (d.runTimeframes || []).includes(activeTf));
-  }, [descriptorByName, activeTf]);
+    return Boolean(d && activeTf && (d.runTimeframes || []).includes(activeTf)) && !marketIssueOf(item);
+  }, [descriptorByName, activeTf, marketIssueOf]);
   const wantedSpecs = useMemo(() => registryItems.filter(runnable).map(specOf), [registryItems, runnable]);
   const wantedKey = wantedSpecs.map(specKey).sort().join(',');
 
@@ -462,7 +471,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
         message = `${item.kind} is not in the indicator registry`;
       } else if (activeTf && !runnable(item)) {
         state = 'inactive';
-        message = `not supported on ${activeTf} yet`;
+        message = marketIssueOf(item) || `not supported on ${activeTf} yet`;
       } else if (active && st.key === activeKey) {
         if (st.errors.has(k)) { state = 'error'; message = st.errors.get(k); }
         else if (st.bySpec.has(k)) {
@@ -486,7 +495,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
     return out;
     // seriesVersion: the store (a ref) changed
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [registryItems, descriptorByName, descriptors, activeTf, runnable, active, activeKey, pricesKey, prices, seriesVersion]);
+  }, [registryItems, descriptorByName, descriptors, activeTf, runnable, marketIssueOf, active, activeKey, pricesKey, prices, seriesVersion]);
 
   const layers = useMemo(() => {
     const list = [];
@@ -525,7 +534,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
       };
       const data = {
         label: v.label, color: v.item.color, hidden: v.item.hidden, paneKey: paneKeyOf(v.d), range: paneRangeOf(v.d),
-        unit: v.d.unit, warmup: warmupText(v.d.warmup, v.spec.n), timeframe: activeTf, series,
+        unit: v.d.unit, warmup: warmupText(v.d.warmup, v.spec.n), timeframe: activeTf, kind: v.d.name, series,
       };
       const prev = cache.get(v.item.id);
       const same = prev && prev.ind === v.ind && prev.times === columnTimes && prev.color === data.color
@@ -785,6 +794,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
         <AddIndicatorMenu
           descriptors={descriptors}
           timeframe={loaded ? active.tf : tf}
+          ticker={loaded ? active.ticker : (ticker.trim().toUpperCase() || null)}
           hasChannels={Boolean(channelsItem)}
           hasLevels={Boolean(levelsItem)}
           hasVolumeProfile={Boolean(vpItem)}
@@ -885,6 +895,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
           levelsAsOf={loaded ? (levels.map?.asOf ?? null) : null}
           channelConstants={overlay.constants}
           levelVariants={levelVariants}
+          ticker={loaded ? active.ticker : (ticker.trim().toUpperCase() || null)}
           onSubmit={submitDialog}
           onCancel={closeDialog}
         />

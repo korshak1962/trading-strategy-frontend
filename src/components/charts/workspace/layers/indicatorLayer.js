@@ -15,6 +15,7 @@
 //   hidden,                    // drawn nothing, no tooltip row
 //   paneKey, range,            // pane group; {minValue, maxValue} for a bounded pane, else null
 //   unit, warmup,              // descriptor.unit / descriptor.warmup (value format, reason text)
+//   kind,                      // descriptor.name (a kind-specific reason text: CORR's ZERO_RANGE)
 //   series: {                  // one indicator of GET /api/indicators/series, or null (not loaded / inactive)
 //     times,                   //   bar times (Unix s) of the response's dates
 //     values, reasons,         //   values[i] or null; reasons: {"<index>": REASON} - keys are STRINGS
@@ -43,10 +44,12 @@ export const formatIndicatorValue = (v, unit) => {
 };
 
 /** Why a value is missing, in words (Q7). */
-export const reasonText = (reason, { warmup = null, stale = null, timeframe = null } = {}) => {
+export const reasonText = (reason, { warmup = null, stale = null, timeframe = null, kind = null } = {}) => {
   switch (reason) {
     case 'INSUFFICIENT_HISTORY': return warmup ? `warm-up, needs ${warmup}` : 'warm-up';
-    case 'ZERO_RANGE': return 'zero range (high = low)';
+    // CORR: a window where the ticker's or the benchmark's returns are all equal (variance 0)
+    case 'ZERO_RANGE': return kind === 'CORR' ? 'flat returns (no variance in the window)' : 'zero range (high = low)';
+    case 'BENCHMARK_MISSING': return 'benchmark has no bar on this date';
     case 'INDICATOR_MISSING': return 'not computed';
     case 'WEEK_INCONSISTENT': return 'week bars inconsistent';
     case 'DATA_GAP': return 'data gap';
@@ -197,7 +200,7 @@ export function createIndicatorLayer() {
       const reason = s.reasons ? s.reasons[String(i)] : undefined;
       const provisional = has && (s.provisional || []).some(p => Number(p) === i);
       let note;
-      if (!has) note = reasonText(reason, { warmup: data.warmup, stale: s.stale, timeframe: data.timeframe });
+      if (!has) note = reasonText(reason, { warmup: data.warmup, stale: s.stale, timeframe: data.timeframe, kind: data.kind });
       else if (provisional) note = 'provisional — bar not closed, value will change';
       return [{
         label: data.label,

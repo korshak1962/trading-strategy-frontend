@@ -33,7 +33,7 @@ import {
   validateOperand, opSymbol,
 } from '../universeScreener/conditionFormat';
 import { OPERATORS, TOLERANCE_LIMIT as SCREEN_TOLERANCE_LIMIT, OFFSET_MIN } from '../../api/screenerApi';
-import { lengthParamOf, kindName, runsOn, CONST_KIND, operandUnitOf, unitLabel } from '../../api/indicatorCatalog';
+import { lengthParamOf, kindName, runsOn, CONST_KIND, operandUnitOf, unitLabel, runTfAdviceOf } from '../../api/indicatorCatalog';
 
 // ---- request key ----
 
@@ -1529,7 +1529,7 @@ export const validateDraft = (draft, { allowedTypes = SIGNAL_TYPES, maxRules = M
 export const runTfError = (rules, tf) => {
   if (!CONSTRUCTED_TFS.includes(tf)) return `Unknown run TF ${tf}`;
   const notRunning = kindNotRunningOn(rules, tf);
-  if (notRunning) return `${kindName(notRunning)} is not supported on ${tf} yet: run the strategy on HOUR or a coarser timeframe`;
+  if (notRunning) return `${kindName(notRunning)} is not supported on ${tf} yet: ${runTfAdviceOf(notRunning)}`;
   if (runTfsOf(rules).includes(tf)) return null;
   if (!POSITION_RUN_TFS.includes(tf) && usesPosition(rules)) {
     return `Position operands (AT_ENTRY / MAX_SINCE_ENTRY / MIN_SINCE_ENTRY) run on DAY / WEEK in stage 4c: run this strategy on DAY or WEEK, not ${tf}`;

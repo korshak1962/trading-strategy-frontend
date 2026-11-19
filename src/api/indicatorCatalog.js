@@ -50,6 +50,32 @@ const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const ALL_RUN_TFS = Object.freeze(['MIN5', 'HOUR', 'DAY', 'WEEK', 'MONTH']);
 
 /**
+ * IndicatorDescriptor `choiceParams[{name, description, defaultValue, choices[{value, label, market}]}]`
+ * → the same, cleaned (values are strings, never coerced to a number; a param without a choice is
+ * dropped; a default that is no choice falls back to the first one). [] when absent (every kind but
+ * CORR, and a backend without CORR).
+ */
+export function normalizeChoiceParams(raw) {
+  return (Array.isArray(raw) ? raw : []).filter((p) => p && typeof p.name === 'string' && p.name).map((p) => {
+    const choices = (Array.isArray(p.choices) ? p.choices : [])
+      .filter((c) => c && typeof c.value === 'string' && c.value)
+      .map((c) => ({
+        value: c.value,
+        label: typeof c.label === 'string' && c.label ? c.label : c.value,
+        market: typeof c.market === 'string' && c.market ? c.market : null,
+      }));
+    const dflt = typeof p.defaultValue === 'string' && choices.some((c) => c.value === p.defaultValue)
+      ? p.defaultValue : (choices[0]?.value ?? null);
+    return {
+      name: p.name,
+      description: typeof p.description === 'string' ? p.description : '',
+      defaultValue: dflt,
+      choices,
+    };
+  }).filter((p) => p.choices.length > 0);
+}
+
+/**
  * IndicatorDescriptor `{name, displayName, description, params[{name, integer, min, max,
  * storedOnly, defaultValue, step, description}], source, unit, lo, hi, warmup, timeframes[],
  * runTimeframes[], linearInNextClose}` → the same, defaulted (a stage-3a backend sends no
@@ -82,6 +108,8 @@ export function normalizeIndicator(d) {
     timeframes: Array.isArray(d.timeframes) ? d.timeframes : [],
     runTimeframes: Array.isArray(d.runTimeframes) && d.runTimeframes.length ? d.runTimeframes : [...ALL_RUN_TFS],
     linearInNextClose: d.linearInNextClose === true,
+    // CORR (benchmark correlation): categorical parameters, never in `params` (params[0] = the length)
+    choiceParams: normalizeChoiceParams(d.choiceParams),
     // editor UX Stage A: the Source-menu name and the ⓘ text (new keys; displayName / description
     // stay for captions, titles and the Indicators Chart)
     menuLabel: (typeof d.menuLabel === 'string' && d.menuLabel) || INDICATOR_TEXTS[d.name]?.menuLabel
@@ -172,6 +200,78 @@ export const defaultLengthOf = (kind) => {
   return p ? p.defaultValue ?? p.min : null;
 };
 
+// ---- categorical parameters (CORR's benchmark) ----
+
+/** The name of the benchmark choice parameter (OperandDTO / IndicatorRef field `benchmark`). */
+export const BENCHMARK_PARAM = 'benchmark';
+
+/** Market of a ticker as stored: `_MOEX` suffix → MOEX, else US (backend Benchmarks.marketOf). */
+export const marketOfTicker = (ticker) => (String(ticker || '').toUpperCase().endsWith('_MOEX') ? 'MOEX' : 'US');
+
+/** The benchmark choice param of a descriptor (raw or normalized), or null. */
+export const benchmarkParamOfDescriptor = (d) => {
+  if (!d) return null;
+  return normalizeChoiceParams(d.choiceParams).find((p) => p.name === BENCHMARK_PARAM) || null;
+};
+
+/** Choice params of a kind (`[]` for a field, CONST, an unknown kind and every indicator but CORR). */
+export const choiceParamsOf = (kind) => descriptorOf(kind)?.choiceParams || [];
+
+/** The benchmark choice param of a kind, or null. */
+export const benchmarkParamOf = (kind) => choiceParamsOf(kind).find((p) => p.name === BENCHMARK_PARAM) || null;
+
+/**
+ * Does an operand of `kind` carry a benchmark: true for a kind with the choice param; for a kind
+ * the catalog does not know, true when `benchmark` is a non-empty string (a definition from a newer
+ * server keeps it on a round trip, as `hasLength` keeps `n`).
+ */
+export const hasBenchmark = (kind, benchmark) => {
+  if (!kind || kind === CONST_KIND || isFieldKind(kind)) return false;
+  if (descriptorOf(kind)) return !!benchmarkParamOf(kind);
+  return typeof benchmark === 'string' && benchmark !== '';
+};
+
+/** The default benchmark of a kind (descriptor default, SPY for CORR); null for a kind without one. */
+export const defaultBenchmarkOf = (kind) => benchmarkParamOf(kind)?.defaultValue ?? null;
+
+/**
+ * The benchmark choices of a descriptor for a market (`[{value, label, market}]`); `market` null =
+ * every market. A choice without a market is offered everywhere.
+ */
+export const benchmarkChoicesOf = (d, market = null) => {
+  const p = benchmarkParamOfDescriptor(d);
+  if (!p) return [];
+  return market ? p.choices.filter((c) => !c.market || c.market === market) : p.choices;
+};
+
+/** The benchmark choices of a kind for a market (null = all). */
+export const benchmarksFor = (kind, market = null) => benchmarkChoicesOf(descriptorOf(kind), market);
+
+/**
+ * Why a descriptor with a benchmark cannot be used for `ticker` (no benchmark of its market, MOEX
+ * today), or null. Kinds without a benchmark: null.
+ */
+export const benchmarkMarketIssue = (d, ticker) => {
+  if (!benchmarkParamOfDescriptor(d) || !ticker) return null;
+  const market = marketOfTicker(ticker);
+  if (benchmarkChoicesOf(d, market).length) return null;
+  return `${d.displayName || d.name} needs a benchmark of the ${market} market; there is none yet`;
+};
+
+/**
+ * Why `benchmark` of a descriptor does not fit `ticker`'s market, or null (fits / no benchmark).
+ * The backend answers the same with a 400; the UI refuses it first.
+ */
+export const benchmarkTickerIssue = (d, benchmark, ticker) => {
+  if (!benchmark || !ticker) return null;
+  const p = benchmarkParamOfDescriptor(d);
+  if (!p) return null;
+  const c = p.choices.find((x) => x.value === benchmark);
+  const market = marketOfTicker(ticker);
+  if (!c || !c.market || c.market === market) return null;
+  return `${benchmark} is a ${c.market} benchmark; ${ticker} trades on ${market}`;
+};
+
 /** Picker label of a kind: `close`, `SMA(n)`, `ATR %(n)`, `IBS`, `constant`. */
 export const kindLabel = (kind) => {
   if (kind === CONST_KIND) return 'constant';
@@ -252,6 +352,40 @@ export const runsOn = (kind, runTf) => {
   const d = descriptorOf(kind);
   if (!d || !runTf) return true;
   return d.runTimeframes.includes(runTf);
+};
+
+/** The run TFs of a kind in words, in TF order: 'DAY or WEEK', 'HOUR, DAY, WEEK or MONTH'. */
+export const runTfsTextOf = (kind) => {
+  const d = descriptorOf(kind);
+  const tfs = ALL_RUN_TFS.filter((tf) => !d || d.runTimeframes.includes(tf));
+  if (tfs.length <= 1) return tfs[0] || '';
+  return `${tfs.slice(0, -1).join(', ')} or ${tfs[tfs.length - 1]}`;
+};
+
+/** The advice of a kind that does not run on a TF: 'run the strategy on DAY or WEEK'. */
+export const runTfAdviceOf = (kind) => `run the strategy on ${runTfsTextOf(kind)}`;
+
+const fmtBound = (v) => String(v).replace('-', '−');
+
+/** The indicator descriptor an operand's value comes from (through a brick / position X), or null. */
+const valueDescriptorOf = (o) => {
+  if (!o || !o.kind) return null;
+  if (ANCHORED_KINDS.includes(o.kind) || POSITION_KINDS.includes(o.kind)) return valueDescriptorOf(o.x);
+  return descriptorOf(o.kind);
+};
+
+/**
+ * The unit tooltip of an operand: UNIT_HINT, with an indicator's own bounds for a ratio
+ * (CORR: 'a ratio (−1..1)', IBS / ER: 'a ratio (0..1)').
+ */
+export const unitHintOf = (o) => {
+  const unit = operandUnitOf(o);
+  if (!unit) return '';
+  const d = valueDescriptorOf(o);
+  if (unit === 'RATIO' && d && isNum(d.lo) && isNum(d.hi)) {
+    return `a ratio (${fmtBound(d.lo)}..${fmtBound(d.hi)}): compared with another ratio or a number`;
+  }
+  return UNIT_HINT[unit] || unitLabel(unit);
 };
 
 /** "ATR is not supported on MIN5 yet" (null when it runs there). */

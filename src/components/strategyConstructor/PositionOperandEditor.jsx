@@ -14,7 +14,7 @@ import OperandPicker from '../universeScreener/OperandPicker';
 import FieldLabel from '../common/FieldLabel';
 import InfoTooltip from '../common/InfoTooltip';
 import { DEFAULT_POSITION_META, POSITION_WINDOW_KINDS } from '../../api/constructedApi';
-import { unitLabel, UNIT_HINT, operandUnitOf } from '../../api/indicatorCatalog';
+import { unitLabel, unitHintOf, operandUnitOf } from '../../api/indicatorCatalog';
 import { POSITION_HELP } from '../../api/editorTexts';
 import { newPlainOperand } from './constructedFormat';
 
@@ -55,7 +55,7 @@ export default function PositionOperandEditor({ value, onChange, prefix, linkabl
         <InfoTooltip text={`${kindMeta?.tooltip || ''} ${help.group || ''}`.trim()} code={value.kind} editor align="left"
           testId={`info-${tid}-position`} />
         <span className="ml-2 font-normal text-purple-700">— {pm.side || 'LONG'} only</span>
-        {unit && <span className="ml-2 text-[11px] font-normal text-gray-500" title={`Unit: ${UNIT_HINT[unit] || unitLabel(unit)}`}>{unitLabel(unit)}</span>}
+        {unit && <span className="ml-2 text-[11px] font-normal text-gray-500" title={`Unit: ${unitHintOf(value)}`}>{unitLabel(unit)}</span>}
       </span>
       <div className="flex flex-col gap-0.5">
         <span className="text-xs font-semibold text-gray-600 border-b border-gray-200">

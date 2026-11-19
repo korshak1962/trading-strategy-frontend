@@ -22,14 +22,22 @@
 // "RUN" (= the TF the strategy runs on); `linkSlot(field)` renders a link control next to the
 // length ('n') or the constant ('const'), and `linkedValue(field)` (a number) replaces that input
 // with the value the link gives. `sourceCtx` (stage 4b / 4c-1 sources in the menu) - see SourcePicker.
+//
+// CORR: a kind with the benchmark choice param (descriptor `choiceParams`) gets a "Benchmark" select
+// next to the length: a categorical value (a ticker string, never a number, never an optimizer
+// axis - no link slot). The screener offers its universe's market (US); a constructed strategy has
+// no ticker until it runs, so it offers every benchmark (the market in the option's tooltip; the run refuses a
+// benchmark of another market with a 400). A stored benchmark the meta does not list stays selected
+// as "(unknown)".
 import { OFFSET_MIN, OFFSET_MAX } from '../../api/screenerApi';
 import {
   useIndicatorCatalog, lengthParamOf, hasLength, kindName, FIELD_KINDS,
-  operandUnitOf, unitLabel, UNIT_HINT, runTfNotSupportedText, operandTfsOf, CONST_KIND,
+  operandUnitOf, unitLabel, unitHintOf, runTfNotSupportedText, runTfAdviceOf, operandTfsOf, CONST_KIND,
+  benchmarkParamOf,
 } from '../../api/indicatorCatalog';
 import { useEditorHelp } from '../../api/editorTexts';
 import FieldLabel from '../common/FieldLabel';
-import { isProvisionalOperand, fmtNum } from './conditionFormat';
+import { isProvisionalOperand, fmtNum, SCREENER_MARKET } from './conditionFormat';
 import SourcePicker, { TimeframeField } from './SourcePicker';
 import { baseTfsOf, plainDisabledReason, PRICE_BAR, sourceOf, transition } from '../strategyConstructor/operandSource';
 
@@ -51,6 +59,11 @@ export default function OperandPicker({
   const nLinked = linked('n');
   const p = lengthParamOf(value.kind);
   const withLength = hasLength(value.kind, value.n);
+  const bp = benchmarkParamOf(value.kind);
+  const benchMarket = allowRun ? null : SCREENER_MARKET;
+  const benchChoices = bp ? bp.choices.filter((c) => !benchMarket || !c.market || c.market === benchMarket) : [];
+  const benchValue = bp ? (value.benchmark || bp.defaultValue || '') : '';
+  const benchKnown = benchChoices.some((c) => c.value === benchValue);
   const unit = operandUnitOf(value);
   const notRunHere = runTfNotSupportedText(value.kind, runTf);
   const { source, field } = sourceOf(value);
@@ -138,6 +151,20 @@ export default function OperandPicker({
           </span>
         </FieldLabel>
       )}
+      {bp && (
+        <FieldLabel label="Benchmark" tooltip={help.help.benchmark || bp.description || 'The ETF the returns are correlated with'}
+          testId={tid('info-benchmark')}>
+          <select className={sel} value={benchValue} disabled={disabled} aria-label={`${side} ${kindName(value.kind)} benchmark`}
+            data-testid={tid('benchmark')}
+            title={benchChoices.find((c) => c.value === benchValue)?.label || bp.description || undefined}
+            onChange={(e) => set({ benchmark: e.target.value })}>
+            {benchChoices.map((c) => (
+              <option key={c.value} value={c.value} title={c.market ? `${c.market} market` : undefined}>{c.label}</option>
+            ))}
+            {!benchKnown && benchValue && <option value={benchValue}>{benchValue} (unknown)</option>}
+          </select>
+        </FieldLabel>
+      )}
       <FieldLabel label="Bars back" tooltip={help.help.offset} testId={tid('info-offset')}>
         <input
           type="number"
@@ -154,7 +181,7 @@ export default function OperandPicker({
       {(unit || provisional || notRunHere) && (
         <span className="inline-flex flex-wrap items-center gap-1 pb-1">
           {unit && (
-            <span className="text-[11px] text-gray-500" title={`Unit: ${UNIT_HINT[unit] || unitLabel(unit)}`} data-testid={tid('unit')}>
+            <span className="text-[11px] text-gray-500" title={`Unit: ${unitHintOf(value)}`} data-testid={tid('unit')}>
               {unitLabel(unit)}
             </span>
           )}
@@ -168,7 +195,7 @@ export default function OperandPicker({
           )}
           {notRunHere && (
             <span className="text-[11px] text-amber-700" data-testid={tid('not-supported')}
-              title="Run the strategy on HOUR or a coarser timeframe, or pick another operand">
+              title={`${runTfAdviceOf(value.kind).replace(/^r/, 'R')}, or pick another operand`}>
               {notRunHere}
             </span>
           )}
