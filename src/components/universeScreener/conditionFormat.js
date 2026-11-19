@@ -9,7 +9,15 @@ import {
 } from '../../api/screenerApi';
 import {
   getIndicatorCatalog, hasLength, lengthParamOf, kindName, operandUnitOf, unitLabel, operandTfsOf, CONST_KIND,
+  hasBenchmark, benchmarkParamOf, defaultBenchmarkOf,
 } from '../../api/indicatorCatalog';
+
+/**
+ * Market of the screener's universe (S&P 500 + ETF, the backend's `universe.market`): the benchmark
+ * choices of a filter's CORR operand are this market's. A constructed strategy has no ticker until
+ * it runs, so its editor offers every benchmark and the run checks the market (400).
+ */
+export const SCREENER_MARKET = 'US';
 
 const isFiniteNum = (v) => v !== '' && v != null && Number.isFinite(Number(v));
 const MINUS = '−';
@@ -25,7 +33,7 @@ export const fmtNum = (v, dp = 4) => {
 };
 
 /**
- * `close[−1]`, `SMA(50)[0]`, `ATR_PCT(14)[0]`, `IBS[0]`; the `WEEK` prefix is added by the caller.
+ * `close[−1]`, `SMA(50)[0]`, `ATR_PCT(14)[0]`, `IBS[0]`, `CORR(60, QQQ)[0]`; the `WEEK` prefix is added by the caller.
  * Indicators are written with their kind code, as the backend's Operand.label() writes them (so a
  * caption reads like the server's messages); bar fields in lower case.
  */
@@ -33,6 +41,10 @@ const operandBody = (o) => {
   const off = Number(o.offset) || 0;
   const idx = off === 0 ? '[0]' : `[${MINUS}${Math.abs(off)}]`;
   const kind = String(o.kind || '?');
+  if (hasBenchmark(o.kind, o.benchmark)) { // CORR(60, QQQ)[0], as the backend's IndicatorRef.label
+    const n = hasLength(o.kind, o.n) ? `${isFiniteNum(o.n) ? Number(o.n) : '?'}, ` : '';
+    return `${kind}(${n}${o.benchmark || defaultBenchmarkOf(o.kind) || '?'})${idx}`;
+  }
   if (hasLength(o.kind, o.n)) return `${kind}(${isFiniteNum(o.n) ? Number(o.n) : '?'})${idx}`;
   if (getIndicatorCatalog().byName.has(kind)) return `${kind}${idx}`;
   return `${kind.toLowerCase()}${idx}`;
@@ -153,6 +165,16 @@ export const validateOperand = (o, side, allowRun) => {
       errs.push(`${kindName(o.kind)} length must be ${p.integer ? 'a whole number ' : ''}${p.min ?? '…'}..${p.max ?? '…'}`);
     }
   }
+  const bp = benchmarkParamOf(o.kind);
+  if (bp) {
+    // CORR: one of the descriptor's benchmarks; a screener filter: of the universe's market
+    const c = bp.choices.find((x) => x.value === o.benchmark);
+    const known = bp.choices.map((x) => x.value).join(', ');
+    if (o.benchmark && !c) errs.push(`unknown benchmark '${o.benchmark}' for ${kindName(o.kind)}; known: ${known}`);
+    else if (c && !allowRun && c.market && c.market !== SCREENER_MARKET) {
+      errs.push(`${o.benchmark} is a ${c.market} benchmark; the screener's universe trades on ${SCREENER_MARKET}`);
+    }
+  }
   return errs;
 };
 
@@ -252,7 +274,8 @@ export const REASON_TEXT = Object.freeze({
   DATA_GAP: 'data gap (missing bar vs the SPY calendar)',
   INDICATOR_MISSING: 'indicator value missing (not computed yet or no stored row)',
   WEEK_INCONSISTENT: 'stored WEEK differs from the DAY aggregate',
-  ZERO_RANGE: 'zero range (high = low, or flat closes): the formula divides by 0',
+  ZERO_RANGE: 'zero range (high = low, flat closes, or flat returns for a correlation): the formula divides by 0',
+  BENCHMARK_MISSING: 'benchmark bar missing (the benchmark has no bar on that date)',
   INSUFFICIENT_HISTORY: 'not enough history',
   NO_CURRENT_CHANNEL: 'no current (confirmed, visible) channel',
   NO_PARENT_LEVEL_1: 'no visible parent (level 1)',

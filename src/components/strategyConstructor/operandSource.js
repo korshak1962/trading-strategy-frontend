@@ -14,7 +14,7 @@
 //
 // Loading an operand only renders sourceOf(); no transition runs, nothing is written.
 import {
-  FIELD_KINDS, CONST_KIND, LEVEL_KIND, BRICK_OPERAND_KINDS, POSITION_KINDS, descriptorOf, defaultLengthOf,
+  FIELD_KINDS, CONST_KIND, LEVEL_KIND, BRICK_OPERAND_KINDS, POSITION_KINDS, descriptorOf, defaultLengthOf, defaultBenchmarkOf,
   operandTfsOf, operandUnitOf, unitLabel, kindName, runTfNotSupportedText, getIndicatorCatalog,
 } from '../../api/indicatorCatalog';
 import { SCREEN_TFS } from '../../api/screenerApi';
@@ -53,18 +53,24 @@ export const isStagedSource = (source) => STAGED_SOURCES.includes(source);
 export const baseTfsOf = (allowRun) => (allowRun ? [RUN_TF, ...SCREEN_TFS] : [...SCREEN_TFS]);
 
 /**
- * Legacy OperandPicker.changeKind, verbatim: a new kind takes its own default length and an allowed
- * TF; CONST keeps the rest of the operand. Applied to `value` as `{...value, ...patch}`.
+ * Legacy OperandPicker.changeKind: a new kind takes its own default length and an allowed TF; CONST
+ * keeps the rest of the operand. CORR: a new kind with a benchmark takes its default benchmark, a
+ * kind without one drops `benchmark` (the operand JSON of every other kind stays as before). Applied to `value` as `{...value, ...patch}`.
  */
 export const legacyChangeKind = (value, kind, allowRun) => {
   if (kind === CONST_KIND) return { ...value, kind };
   const okTfs = operandTfsOf(kind, baseTfsOf(allowRun));
-  return {
-    ...value,
+  const { benchmark: _dropped, ...rest } = value || {};
+  const out = {
+    ...rest,
     kind,
     n: defaultLengthOf(kind),
     tf: okTfs.includes(value.tf) ? value.tf : okTfs[0],
   };
+  // CORR: a new kind with a benchmark takes its default (SPY); any other kind carries none
+  const benchmark = defaultBenchmarkOf(kind);
+  if (benchmark) out.benchmark = benchmark;
+  return out;
 };
 
 /**

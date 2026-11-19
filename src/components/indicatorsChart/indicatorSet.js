@@ -2,7 +2,9 @@
 //
 // The set of indicators shown on the Indicators Chart (TASK B2 / B4, architect §6.2): pure
 // helpers, no React. An item is
-//   registry indicator: { id, kind: 'SMA' | 'IBS' | ..., params: { n? }, color, hidden }
+//   registry indicator: { id, kind: 'SMA' | 'IBS' | ..., params: { n?, benchmark? }, color, hidden }
+//                       (`benchmark`: CORR's categorical param, a ticker string from the descriptor's
+//                       choiceParams - never a number; entries saved before CORR simply have none)
 //   channels overlay:   { id, kind: 'CHANNELS', params: { coarserTfs, view, lastActualChannelsOnly, detector }, hidden }
 //   levels overlay:     { id, kind: 'LEVELS', params: { minStrength, nearestN, allZones, variant }, hidden }
 //   volume profile:     { id, kind: 'VOLUME_PROFILE', params: { rows, widthPct }, hidden } - no colour
@@ -16,6 +18,7 @@ import { paletteColor } from '../charts/workspace/workspaceTheme';
 import { RECURSIVE_DEFAULT_PARAMS } from '../channelExplorer/RecursiveParamsPanel';
 import { CHANNEL_VIEW } from '../../api/channelApi';
 import { clampChartNearestN } from '../../utils/levelZones';
+import { normalizeChoiceParams } from '../../api/indicatorCatalog';
 import {
   VP_ROWS_MIN, VP_ROWS_MAX, VP_ROWS_DEFAULT, VP_WIDTH_MIN, VP_WIDTH_MAX, VP_WIDTH_DEFAULT,
 } from '../../utils/volumeProfile';
@@ -101,11 +104,19 @@ export const channelTimeframes = (item, chartTf) => {
   return [chartTf, ...TIMEFRAMES.filter((tf) => extra.includes(tf))];
 };
 
-/** The registry spec {kind, n} of an item (n null for a parameterless kind). */
-export const specOf = (item) => ({
-  kind: item.kind,
-  n: item.params && item.params.n !== undefined && item.params.n !== null ? Number(item.params.n) : null,
-});
+/**
+ * The registry spec {kind, n, benchmark?} of an item (n null for a parameterless kind; `benchmark`
+ * only on an item that has one - CORR - so every other spec stays {kind, n}).
+ */
+export const specOf = (item) => {
+  const spec = {
+    kind: item.kind,
+    n: item.params && item.params.n !== undefined && item.params.n !== null ? Number(item.params.n) : null,
+  };
+  const b = item.params?.benchmark;
+  if (typeof b === 'string' && b) spec.benchmark = b;
+  return spec;
+};
 
 /**
  * The Levels chip label: 'Levels (N 2, strength ≥ 0)' / 'Levels (all, strength ≥ 0)'; a non-default
@@ -114,14 +125,15 @@ export const specOf = (item) => ({
 export const levelsLabel = (params, variant = null) =>
   `Levels (${variant ? `${variant}, ` : ''}${params?.allZones ? 'all' : `N ${params?.nearestN}`}, strength ≥ ${params?.minStrength})`;
 
-/** 'SMA(50)', 'IBS', 'Channels', 'Levels', 'Volume profile'. */
+/** 'SMA(50)', 'IBS', 'Corr(60, QQQ)', 'Channels', 'Levels', 'Volume profile'. */
 export const itemLabel = (item, descriptor) => {
   if (item.kind === CHANNELS) return 'Channels';
   if (item.kind === LEVELS) return 'Levels';
   if (item.kind === VOLUME_PROFILE) return 'Volume profile';
   const name = descriptor?.displayName || item.kind;
-  const n = specOf(item).n;
-  return n === null ? name : `${name}(${n})`;
+  const { n, benchmark } = specOf(item);
+  const args = [n, benchmark].filter((a) => a !== null && a !== undefined);
+  return args.length ? `${name}(${args.join(', ')})` : name;
 };
 
 /** The first palette colour not used by another item (wraps after the palette size). */
@@ -134,9 +146,18 @@ export const nextColor = (items) => {
   return paletteColor((items || []).length);
 };
 
-/** Default params of a registry descriptor: {name: defaultValue}. */
-export const defaultParams = (descriptor) => Object.fromEntries(
-  (descriptor?.params || []).map((p) => [p.name, p.defaultValue]),
+/** Default params of a registry descriptor: {name: defaultValue}, the choice params' defaults included. */
+export const defaultParams = (descriptor) => Object.fromEntries([
+  ...(descriptor?.params || []).map((p) => [p.name, p.defaultValue]),
+  ...normalizeChoiceParams(descriptor?.choiceParams).map((p) => [p.name, p.defaultValue]),
+]);
+
+/** Shape of a stored choice value (a benchmark ticker), for a set restored before the registry is known. */
+const CHOICE_VALUE_RE = /^[A-Za-z0-9_.]{1,32}$/;
+
+/** A choice param's value: the given one when it is a choice, else the default. */
+export const choiceValueOf = (param, raw) => (
+  typeof raw === 'string' && param.choices.some((c) => c.value === raw) ? raw : param.defaultValue
 );
 
 /**
@@ -256,6 +277,7 @@ export const sanitizeItems = (rawItems, descriptors) => {
       // Registry not known yet: keep the entry as it is; checked again once /meta answers.
       const params = {};
       Object.entries(raw.params || {}).forEach(([k, v]) => {
+        if (typeof v === 'string' && CHOICE_VALUE_RE.test(v) && !Number.isFinite(Number(v))) { params[k] = v; return; }
         const n = Number(v);
         if (Number.isFinite(n)) params[k] = n;
       });
@@ -270,6 +292,7 @@ export const sanitizeItems = (rawItems, descriptors) => {
       const v = raw.params?.[p.name];
       params[p.name] = paramError(p, v) === null ? Number(v) : p.defaultValue;
     }
+    for (const p of normalizeChoiceParams(d.choiceParams)) params[p.name] = choiceValueOf(p, raw.params?.[p.name]);
     const color = typeof raw.color === 'string' && raw.color ? raw.color : nextColor(items);
     items.push({ id, kind: d.name, params, color, hidden });
   }

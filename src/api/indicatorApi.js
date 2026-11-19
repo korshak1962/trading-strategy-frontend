@@ -3,7 +3,7 @@
 // The Indicators Chart endpoints (screener architect.md "Indicators Chart" §3 / §4), relative URLs
 // through the Vite '/api' proxy like every other api module:
 //   GET  /api/indicators/meta?ticker=&timeframe=         descriptors, caps, run-session rule, stored SMA
-//   GET  /api/indicators/series?ticker=&timeframe=&from=&to=&ind=KIND[:n]...   columnar series
+//   GET  /api/indicators/series?ticker=&timeframe=&from=&to=&ind=KIND[:n[:B]]...   columnar series
 //   POST /api/indicators/sma-tail {ticker, timeframe, lengths}               SMA tail top-up
 //   GET  /api/levels/{ticker}/as-of?timeFrame=&to=&minStrength=[&variant=]   the level-zone map as of the last closed bar <= to
 //   GET  /api/levels/variants                             the detection variants the chart can pick
@@ -20,8 +20,16 @@ const BASE = '/api/indicators';
 /** Caps the backend applies when /meta did not send them (architect §3.5). */
 export const DEFAULT_CAPS = Object.freeze({ maxSpecs: 20, maxPoints: 600000 });
 
-/** The `ind` parameter of a spec: 'SMA:200', 'IBS'. */
-export const specParam = (spec) => (spec.n === null || spec.n === undefined ? spec.kind : `${spec.kind}:${spec.n}`);
+/**
+ * The `ind` parameter of a spec: 'SMA:200', 'IBS', 'CORR:60:QQQ' (`KIND[:n[:B]]`, the benchmark only
+ * on a spec that carries one; it always goes with its length).
+ */
+export const specParam = (spec) => {
+  const hasN = spec.n !== null && spec.n !== undefined;
+  const b = typeof spec.benchmark === 'string' && spec.benchmark ? spec.benchmark : null;
+  if (!hasN) return spec.kind;
+  return b ? `${spec.kind}:${spec.n}:${b}` : `${spec.kind}:${spec.n}`;
+};
 
 /** Identity of a spec: equal keys = one series on the wire. */
 export const specKey = (spec) => specParam(spec).toUpperCase();

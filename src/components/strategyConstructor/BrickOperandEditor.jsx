@@ -28,7 +28,7 @@ import {
   DEFAULT_LEVELS_META, DEFAULT_BRICKS_META, DEFAULT_POSITION_META, LEVEL_KIND, ANCHORED_KINDS, isStagedOperand, isBrickOperand,
   isLevelEvent, isPositionOperand,
 } from '../../api/constructedApi';
-import { levelOutputUnit, unitLabel, UNIT_HINT, operandUnitOf } from '../../api/indicatorCatalog';
+import { levelOutputUnit, unitLabel, UNIT_HINT, unitHintOf, operandUnitOf } from '../../api/indicatorCatalog';
 import { BRICKS_HELP, LEVELS_HELP, firstSentence, positionRefusedText, useEditorHelp } from '../../api/editorTexts';
 import {
   newLevelCondition, newPlainOperand, newChannelCondition,
@@ -257,7 +257,7 @@ export default function BrickOperandEditor({
             {kindMeta?.label || value.kind}
             <InfoTooltip text={`${kindMeta?.tooltip || ''} ${bh.group || ''}`.trim()} code={value.kind} editor align="left"
               testId={`info-${tid}-brick`} />
-            {unit && <span className="ml-2 text-[11px] font-normal text-gray-500" title={`Unit: ${UNIT_HINT[unit] || unitLabel(unit)}`}>{unitLabel(unit)}</span>}
+            {unit && <span className="ml-2 text-[11px] font-normal text-gray-500" title={`Unit: ${unitHintOf(value)}`}>{unitLabel(unit)}</span>}
           </span>
           {ANCHORED_KINDS.includes(value.kind) && (
             <BlockSection title="Value X" tooltip={bh.x} testId={`${tid}-brick-x`}>

@@ -8,7 +8,8 @@
 // coarser channel timeframes. Levels: minimum strength, N nearest and the detection variant
 // (GET /api/levels/variants, level range zones stage 2). Volume profile: rows and
 // width (no colour: the theme's candle up / down). Colour: the theme palette (follows a theme
-// switch) or a custom colour.
+// switch) or a custom colour. A descriptor's choice params (CORR's benchmark) are a <select> of the
+// choices of the ticker's market (all when no ticker is loaded); their value stays a string.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import RecursiveParamsPanel, { RECURSIVE_DEFAULT_PARAMS } from '../channelExplorer/RecursiveParamsPanel';
 import { CHANNEL_VIEW } from '../../api/channelApi';
@@ -24,6 +25,7 @@ import {
   TIMEFRAMES, TF_RANK, defaultParams, paramError, sanitizeChannelParams, sanitizeLevelParams,
   sanitizeVolumeProfileParams, volumeProfileParamErrors,
 } from './indicatorSet';
+import { normalizeChoiceParams, benchmarkTickerIssue, marketOfTicker } from '../../api/indicatorCatalog';
 
 const PALETTE = Array.from({ length: 8 }, (_, i) => paletteColor(i));
 const NO_VARIANTS = Object.freeze({ list: null, error: null });
@@ -101,12 +103,13 @@ const toHex = (color) => {
  * @param {Object|null} props.channelConstants - read-only confirmation constants of the last detection
  * @param {{list: Array<Object>|null, error: string|null}} [props.levelVariants] - GET /api/levels/variants
  *   (normalized) or its error; list null while loading
+ * @param {string|null} [props.ticker] - the ticker of the chart (filters a benchmark's choices by its market)
  * @param {(patch: {params: Object, color?: string}) => void} props.onSubmit
  * @param {() => void} props.onCancel
  */
 export default function IndicatorParamsDialog({
   kind, descriptor, item, defaultColor, meta, chartTf, levelsAsOf = null, channelConstants = null,
-  levelVariants = NO_VARIANTS, onSubmit, onCancel,
+  levelVariants = NO_VARIANTS, ticker = null, onSubmit, onCancel,
 }) {
   const isChannels = kind === CHANNELS;
   const isLevels = kind === LEVELS;
@@ -124,6 +127,9 @@ export default function IndicatorParamsDialog({
   });
   const [color, setColor] = useState(item?.color || defaultColor);
   const firstFieldRef = useRef(null);
+  const choiceParams = useMemo(() => (isBuiltInKind ? [] : normalizeChoiceParams(descriptor?.choiceParams)), [isBuiltInKind, descriptor]);
+  const choiceNames = useMemo(() => new Set(choiceParams.map(p => p.name)), [choiceParams]);
+  const choiceMarket = ticker ? marketOfTicker(ticker) : null;
 
   useEffect(() => { firstFieldRef.current?.focus(); }, []);
   useEffect(() => {
@@ -146,8 +152,16 @@ export default function IndicatorParamsDialog({
         out[p.name] = `${descriptor.displayName}(${values[p.name]}) is not stored for ${meta.ticker} ${meta.timeframe}. Stored: ${storedText || 'none'}`;
       }
     }
+    for (const p of choiceParams) {
+      const v = values[p.name];
+      if (!p.choices.some(c => c.value === v)) out[p.name] = `Pick a ${p.name} from the list`;
+      else {
+        const issue = benchmarkTickerIssue(descriptor, v, ticker);
+        if (issue) out[p.name] = issue;
+      }
+    }
     return out;
-  }, [isChannels, isLevels, isVolumeProfile, descriptor, values, stored, storedText, meta]);
+  }, [isChannels, isLevels, isVolumeProfile, descriptor, values, stored, storedText, meta, choiceParams, ticker]);
   const valid = Object.keys(errors).length === 0;
 
   const title = isChannels ? 'Channels' : isLevels ? 'Levels' : isVolumeProfile ? 'Volume profile' : (descriptor?.displayName || kind);
@@ -158,7 +172,8 @@ export default function IndicatorParamsDialog({
     if (isChannels) { onSubmit({ params: sanitizeChannelParams(values) }); return; }
     if (isLevels) { onSubmit({ params: sanitizeLevelParams(values) }); return; }
     if (isVolumeProfile) { onSubmit({ params: sanitizeVolumeProfileParams(values) }); return; }
-    const params = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, Number(v)]));
+    // numeric params as numbers; a choice param (CORR's benchmark) stays the ticker string
+    const params = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, choiceNames.has(k) ? v : Number(v)]));
     onSubmit({ params, color });
   };
 
@@ -212,6 +227,31 @@ export default function IndicatorParamsDialog({
                 {errors[p.name] && <span className="ic-dialog__error" data-testid="ic-param-error">{errors[p.name]}</span>}
               </label>
             ))}
+            {choiceParams.map(p => {
+              const shown = p.choices.filter(c => !choiceMarket || !c.market || c.market === choiceMarket);
+              const cur = values[p.name];
+              const known = p.choices.find(c => c.value === cur) || null;
+              return (
+                <label key={p.name} className="ic-dialog__field">
+                  <span className="ic-dialog__label">{p.description || p.name}</span>
+                  <select
+                    value={cur ?? ''}
+                    onChange={e => setValues(v => ({ ...v, [p.name]: e.target.value }))}
+                    data-testid={`ic-param-${p.name}`}
+                    title={known?.label || undefined}
+                  >
+                    {shown.map(c => <option key={c.value} value={c.value} title={c.label}>{c.label}</option>)}
+                    {cur && !shown.some(c => c.value === cur) && (
+                      <option value={cur}>{known ? `${known.label} (${known.market})` : `${cur} (unknown)`}</option>
+                    )}
+                  </select>
+                  <span className="ic-dialog__hint">
+                    {choiceMarket ? `${choiceMarket} market: ${shown.map(c => c.value).join(', ') || 'none yet'}` : p.choices.map(c => c.value).join(', ')}
+                  </span>
+                  {errors[p.name] && <span className="ic-dialog__error" data-testid="ic-param-error">{errors[p.name]}</span>}
+                </label>
+              );
+            })}
             {descriptor?.warmup && <div className="ic-dialog__hint">Warm-up: {descriptor.warmup}.</div>}
             <div className="ic-dialog__field">
               <span className="ic-dialog__label">Colour</span>

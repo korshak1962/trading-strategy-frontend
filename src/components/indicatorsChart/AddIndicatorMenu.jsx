@@ -2,20 +2,25 @@
 //
 // "Add indicator" (TASK B2): every registry descriptor from GET /api/indicators/meta (no list of
 // kinds in the frontend) plus the built-in Channels, Levels and Volume profile overlays. A kind that does not run
-// on the chart's timeframe is listed disabled with the reason.
+// on the chart's timeframe is listed disabled with the reason; so is a kind that needs a benchmark
+// when the ticker's market has none (CORR on a MOEX ticker: the benchmarks come from the meta).
 import { useEffect, useRef, useState } from 'react';
 import { CHANNELS, LEVELS, VOLUME_PROFILE } from './indicatorSet';
+import { benchmarkMarketIssue } from '../../api/indicatorCatalog';
 
 /**
  * @param {Object} props
  * @param {Array} props.descriptors
  * @param {string} props.timeframe
+ * @param {string|null} [props.ticker] - the chart's ticker (a kind with a benchmark needs one of its market)
  * @param {boolean} props.hasChannels
  * @param {boolean} props.hasLevels
  * @param {boolean} [props.hasVolumeProfile]
  * @param {(kind: string) => void} props.onPick
  */
-export default function AddIndicatorMenu({ descriptors, timeframe, hasChannels, hasLevels, hasVolumeProfile = false, onPick }) {
+export default function AddIndicatorMenu({
+  descriptors, timeframe, ticker = null, hasChannels, hasLevels, hasVolumeProfile = false, onPick,
+}) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
 
@@ -51,19 +56,24 @@ export default function AddIndicatorMenu({ descriptors, timeframe, hasChannels, 
         <div className="ic-add__menu" role="menu" data-testid="ic-add-menu">
           {(descriptors || []).map(d => {
             const supported = !timeframe || (d.runTimeframes || []).includes(timeframe);
+            const marketIssue = supported ? benchmarkMarketIssue(d, ticker) : null;
+            const ok = supported && !marketIssue;
+            let why = null;
+            if (!supported) why = `not supported on ${timeframe} yet`;
+            else if (marketIssue) why = 'no benchmark for this market';
             return (
               <button
                 key={d.name}
                 type="button"
                 role="menuitem"
                 className="ic-add__item"
-                disabled={!supported}
+                disabled={!ok}
                 onClick={() => pick(d.name)}
-                title={supported ? d.description : `${d.displayName} is not supported on ${timeframe} yet`}
+                title={ok ? d.description : (marketIssue || `${d.displayName} is not supported on ${timeframe} yet`)}
                 data-testid={`ic-add-${d.name}`}
               >
                 <span>{d.displayName}</span>
-                <span className="ic-add__unit">{supported ? d.unit.toLowerCase().replace('_', ' ') : `not supported on ${timeframe} yet`}</span>
+                <span className="ic-add__unit">{ok ? String(d.unit || '').toLowerCase().replace('_', ' ') : why}</span>
               </button>
             );
           })}
