@@ -17,6 +17,9 @@
 // MIN_SINCE_ENTRY (LONG only) - captions, new operands, the client checks (X a market operand, no
 // offset, lag on the windows only, not inside a brick / WITHIN, never in a ShortClose rule), the run
 // TFs (DAY / WEEK; a fixed-TF X pins it), the LongOpen / LongBlock warning and `usesPosition`.
+// R5 v2 F1 (screener architect_r5_migration_v2.md §6): STICKY_SINCE_ENTRY(levels), form LEVELS - the
+// caption `STICKY_SINCE_ENTRY[@Ln]` (the backend's label), a new one takes the strategy's Levels
+// spec, the client checks (no X / lag / output / offset, tf RUN, `levels` in range).
 
 import {
   SIGNAL_TYPES, STATE_RULE_FIRE_RATE, MIN_TRADES_PER_THRESHOLD, MAX_RULES, MAX_CONDITIONS, CONSTRUCTED_TFS, RUN_TF,
@@ -26,7 +29,7 @@ import {
   linkSuffixKind, getAtPath, updateAtPath, levelsOccurrences, isStagedCondition, isLevelEvent, isWithin, eventNeedsStrength,
   LEVEL_FIELDS, LEVELS_KEYS, LEVELS_DEFAULTS, LEVELS_PARAMS, LEVELS_RUN_TFS, DEFAULT_LEVELS_META, DEFAULT_BRICKS_META,
   LEVEL_KIND, ANCHORED_KINDS, isStagedOperand, isBrickOperand, rearmOf, LEVELS_REARM_DEFAULT,
-  POSITION_KINDS, POSITION_WINDOW_KINDS, isPositionOperand, DEFAULT_POSITION_META, POSITION_RUN_TFS,
+  POSITION_KINDS, POSITION_WINDOW_KINDS, isPositionOperand, isPositionLevelsOperand, DEFAULT_POSITION_META, POSITION_RUN_TFS,
 } from '../../api/constructedApi';
 import {
   conditionCaption, validateCondition, newCompareCondition, reasonText, fmtNum, unitMismatchHint, operandCaption,
@@ -693,6 +696,8 @@ export const anyOperandCaption = (o, evalTf, opts = {}) => {
   if (o.kind === 'BARS_SINCE') return `BARS_SINCE(${anyConditionCaption(o.a, evalTf, arg)})`;
   // stage 4c-1: `AT_ENTRY(OPEN_STOP)`, `MAX_SINCE_ENTRY(SUPPORT_LINE, lag 1)` (the backend's PositionOperand label)
   if (o.kind === 'AT_ENTRY') return `AT_ENTRY(${anyOperandCaption(o.x, evalTf, arg)})`;
+  // R5 v2 F1: `STICKY_SINCE_ENTRY@L1` (the backend's StickySinceEntry.label: the spec only as a tag)
+  if (isPositionLevelsOperand(o)) return `STICKY_SINCE_ENTRY${tagText(o.levels, opts)}`;
   if (POSITION_WINDOW_KINDS.includes(o.kind)) {
     return `${o.kind}(${anyOperandCaption(o.x, evalTf, arg)}, lag ${finite(o.lag) ? Number(o.lag) : 0})`;
   }
@@ -846,8 +851,15 @@ export const newBrickOperand = (kind, spec = LEVELS_DEFAULTS, prev = null) => {
 /**
  * A new position operand of `kind` (stage 4c-1); keeps X of `prev` when it is a position operand too.
  * Defaults: X = RUN close[0]; a window's lag 1 (the class ratchet: the entry bar is not in the window).
+ * R5 v2 F1: STICKY_SINCE_ENTRY has no X / lag, only `levels`: the previous operand's spec (its own, or
+ * its LEVEL X's), else `spec` (the strategy's Levels template).
  */
-export const newPositionOperand = (kind, prev = null) => {
+export const newPositionOperand = (kind, prev = null, spec = LEVELS_DEFAULTS) => {
+  if (isPositionLevelsOperand({ kind })) {
+    const from = isPositionLevelsOperand(prev) ? prev.levels
+      : (isPositionOperand(prev) && prev.x?.kind === LEVEL_KIND ? prev.x.levels : spec);
+    return { kind, tf: RUN_TF, offset: 0, n: null, value: '', lag: '', levels: { ...levelsSpecOf(from) } };
+  }
   const out = { kind, tf: RUN_TF, offset: 0, n: null, value: '', x: isPositionOperand(prev) && prev.x ? prev.x : newPlainOperand() };
   out.lag = POSITION_WINDOW_KINDS.includes(kind) ? (isPositionOperand(prev) && finite(prev.lag) ? prev.lag : 1) : '';
   return out;
@@ -1373,6 +1385,14 @@ export const validateStagedCondition = (c, ctx = {}) => {
   const checkPosition = (o, path) => {
     if (o.tf != null && o.tf !== '' && o.tf !== RUN_TF) errs.push(`${at(`${path}.tf`)}: position operands read the run timeframe (tf RUN)`);
     if ((Number(o.offset) || 0) !== 0) errs.push(`${at(`${path}.offset`)}: position operands have no offset (use lag on MAX_SINCE_ENTRY / MIN_SINCE_ENTRY)`);
+    if (isPositionLevelsOperand(o)) { // R5 v2 F1 (FilterValidator.stickySinceEntry)
+      if (o.x) errs.push(`${at(`${path}.x`)}: STICKY_SINCE_ENTRY has no value operand: it reads the Levels sticky support of the trade`);
+      if (finite(o.lag) && Number(o.lag) !== 0) errs.push(`${at(`${path}.lag`)}: STICKY_SINCE_ENTRY has no lag (its value on a bar is the line after the previous bar)`);
+      if (o.output) errs.push(`${at(`${path}.output`)}: STICKY_SINCE_ENTRY has no output (it is the sticky support line itself)`);
+      if (!o.levels) errs.push(`${at(`${path}.levels`)} is required for STICKY_SINCE_ENTRY`);
+      else checkSpec(o.levels, `${path}.`);
+      return;
+    }
     if (POSITION_WINDOW_KINDS.includes(o.kind)) {
       const lag = Number(o.lag);
       if (!(finite(o.lag) && Number.isInteger(lag) && lag >= 0 && lag <= pm.lagMax)) errs.push(`${at(`${path}.lag`)} must be an integer in [0, ${pm.lagMax}]`);
@@ -1532,7 +1552,7 @@ export const runTfError = (rules, tf) => {
   if (notRunning) return `${kindName(notRunning)} is not supported on ${tf} yet: ${runTfAdviceOf(notRunning)}`;
   if (runTfsOf(rules).includes(tf)) return null;
   if (!POSITION_RUN_TFS.includes(tf) && usesPosition(rules)) {
-    return `Position operands (AT_ENTRY / MAX_SINCE_ENTRY / MIN_SINCE_ENTRY) run on DAY / WEEK in stage 4c: run this strategy on DAY or WEEK, not ${tf}`;
+    return `Position operands (AT_ENTRY / MAX_SINCE_ENTRY / MIN_SINCE_ENTRY / STICKY_SINCE_ENTRY) run on DAY / WEEK in stage 4c: run this strategy on DAY or WEEK, not ${tf}`;
   }
   if (usesPosition(rules) && runTfsOf(rules).length === 1) {
     return `A position operand reads X on the run timeframe: its X is a ${runTfsOf(rules)[0]} operand, so run on ${runTfsOf(rules)[0]} (or use RUN inside AT_ENTRY / *_SINCE_ENTRY)`;
@@ -1588,7 +1608,7 @@ export const constructedErrorHint = (message) => {
       + 'use LongClose for an exit from the long.';
   }
   if (/position operands run on DAY|operands inside AT_ENTRY/i.test(m)) {
-    return 'AT_ENTRY / MAX_SINCE_ENTRY / MIN_SINCE_ENTRY run on DAY or WEEK, and their X reads the run timeframe (use RUN operands inside).';
+    return 'AT_ENTRY / MAX_SINCE_ENTRY / MIN_SINCE_ENTRY / STICKY_SINCE_ENTRY run on DAY or WEEK, and their X reads the run timeframe (use RUN operands inside).';
   }
   if (/no position operands inside|exist only in constructed strategy rules/i.test(m)) {
     return 'A position operand stands only on a side of a rule\u2019s comparison: not inside a brick, not in WITHIN\u2019s event, not in a screener filter.';

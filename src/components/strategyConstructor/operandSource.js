@@ -82,7 +82,7 @@ export const legacyChangeForm = (value, f, { levelsSpec, otherUnit = null, posit
   if (f === form) return value;
   if (f === 'VALUE') return newPlainOperand();
   if (f === LEVEL_KIND) return newLevelOperand(levelsSpec, otherUnit === 'ATR_MULTIPLE' ? 'DIST_SUPPORT_ATR' : 'SUPPORT_LINE');
-  if (positionKinds.includes(f)) return newPositionOperand(f, value);
+  if (positionKinds.includes(f)) return newPositionOperand(f, value, levelsSpec); // STICKY_SINCE_ENTRY: the Levels template
   return newBrickOperand(f, levelsSpec, BRICK_OPERAND_KINDS.includes(value?.kind) ? value : null);
 };
 

@@ -125,6 +125,22 @@
     "name" : "RSI",
     "menuLabel" : "Relative strength index (RSI)",
     "tooltip" : "Wilder RSI of the close over Length bars, 0 to 100."
+  }, {
+    "name" : "CORR",
+    "choiceParams" : [ {
+      "name" : "benchmark",
+      "choices" : [ {
+        "label" : "S&P 500 (SPY)",
+        "market" : "US",
+        "value" : "SPY"
+      }, {
+        "label" : "Nasdaq-100 (QQQ)",
+        "market" : "US",
+        "value" : "QQQ"
+      } ]
+    } ],
+    "menuLabel" : "Correlation with a benchmark",
+    "tooltip" : "Pearson correlation of daily (weekly) returns with SPY or QQQ over Length bars: 1 = moves with the market, 0 = its own way, below 0 = against it."
   } ],
   "levels" : {
     "events" : [ {
@@ -433,6 +449,7 @@
       "group" : "A value from your open long. Without one the condition is false. Not in \"Cover short\" rules.",
       "x" : "Value X: what to read (a bar field, an indicator, a Levels line or a value from the last event) on the run TF.",
       "lag" : "Skip last bars: 1 = the line as of the previous bar (the class ratchet). Not optimizable. 0 to 10.",
+      "levels" : "Sticky support since entry has no X and no lag: it reads its own Levels settings (the same as a Levels line) and follows the trade's sticky support zone, as the LevelBreakoutRetest class does.",
       "badge" : "uses my open long",
       "badgeTooltip" : "This rule reads your open long, so the strategy depends on the position.",
       "noLong" : "Without an open long the condition is false.",
@@ -450,6 +467,10 @@
       "name" : "MIN_SINCE_ENTRY",
       "label" : "Lowest since entry",
       "tooltip" : "The lowest X since entry (the entry bar excluded), skipping the last n bars."
+    }, {
+      "name" : "STICKY_SINCE_ENTRY",
+      "label" : "Sticky support since entry",
+      "tooltip" : "Exit line of the class's sticky support, from your entry; never moves down."
     } ]
   },
   "signalTypeHelp" : [ {
@@ -504,6 +525,22 @@
     "name" : "RSI",
     "menuLabel" : "Relative strength index (RSI)",
     "tooltip" : "Wilder RSI of the close over Length bars, 0 to 100."
+  }, {
+    "name" : "CORR",
+    "choiceParams" : [ {
+      "name" : "benchmark",
+      "choices" : [ {
+        "label" : "S&P 500 (SPY)",
+        "market" : "US",
+        "value" : "SPY"
+      }, {
+        "label" : "Nasdaq-100 (QQQ)",
+        "market" : "US",
+        "value" : "QQQ"
+      } ]
+    } ],
+    "menuLabel" : "Correlation with a benchmark",
+    "tooltip" : "Pearson correlation of daily (weekly) returns with SPY or QQQ over Length bars: 1 = moves with the market, 0 = its own way, below 0 = against it."
   } ]
 }
 == screener
@@ -536,6 +573,22 @@
     "name" : "RSI",
     "menuLabel" : "Relative strength index (RSI)",
     "tooltip" : "Wilder RSI of the close over Length bars, 0 to 100."
+  }, {
+    "name" : "CORR",
+    "choiceParams" : [ {
+      "name" : "benchmark",
+      "choices" : [ {
+        "label" : "S&P 500 (SPY)",
+        "market" : "US",
+        "value" : "SPY"
+      }, {
+        "label" : "Nasdaq-100 (QQQ)",
+        "market" : "US",
+        "value" : "QQQ"
+      } ]
+    } ],
+    "menuLabel" : "Correlation with a benchmark",
+    "tooltip" : "Pearson correlation of daily (weekly) returns with SPY or QQQ over Length bars: 1 = moves with the market, 0 = its own way, below 0 = against it."
   } ],
   "metricHelp" : [ {
     "label" : "Width, % of price",

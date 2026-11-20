@@ -38,13 +38,18 @@
 // a bar field, an indicator, LEVEL or a brick. Links inside X: `P.x.n`, `P.x.levels.*` (and a brick X's
 // `P.x.x.n`, `P.x.x.levels.*`, `P.x.a.levels.*`); `lag` is never an axis. `meta.position`, the Levels
 // outputs OPEN_STOP / OPEN_LINE, `positionDependent` on the DTOs (summary, version, preview).
+//
+// R5 v2 F1 (screener logs/agents/architect_r5_migration_v2.md §6, backend_dev_r5_v2.md "/meta for the
+// frontend"): the position operand of form LEVELS `{kind: STICKY_SINCE_ENTRY, tf: 'RUN', offset: 0,
+// levels}` - the class's sticky-support exit line of the open long; no X, no lag, no output, its own
+// Levels spec. Links on it: `P.levels.<field>` (as a LEVEL side), never `P.x.*`.
 
 import { apiRequest, readJson, jsonBody, enc } from './httpClient';
 import { toConditionDTO, fromConditionDTO, toOperand, fromOperand } from './screenerApi';
 import {
   DEFAULT_INDICATORS, normalizeIndicator, hasLength, setIndicatorCatalog, setLevelOutputUnits,
   LEVEL_KIND, ANCHORED_KINDS, BRICK_OPERAND_KINDS, isStagedOperand, isBrickOperand,
-  POSITION_KINDS, POSITION_WINDOW_KINDS, isPositionOperand,
+  POSITION_KINDS, POSITION_WINDOW_KINDS, POSITION_LEVELS_KINDS, isPositionOperand, isPositionLevelsOperand,
 } from './indicatorCatalog';
 import {
   LEVEL_EVENT_TEXTS, LEVEL_OUTPUT_TEXTS, LEVELS_PARAM_TEXTS, LEVELS_FIXED_TEXTS, LEVELS_HELP, LEVELS_GROUPS,
@@ -54,7 +59,7 @@ import {
 
 export {
   LEVEL_KIND, ANCHORED_KINDS, BRICK_OPERAND_KINDS, isStagedOperand, isBrickOperand,
-  POSITION_KINDS, POSITION_WINDOW_KINDS, isPositionOperand,
+  POSITION_KINDS, POSITION_WINDOW_KINDS, POSITION_LEVELS_KINDS, isPositionOperand, isPositionLevelsOperand,
 };
 
 export { DEFAULT_INDICATORS };
@@ -289,12 +294,14 @@ export const POSITION_KIND_META = Object.freeze(withTexts(POSITION_TEXTS, [
   { name: 'AT_ENTRY', form: 'AT_ENTRY', hint: 'X on the entry bar of the open long (seeded: the seed bar); "in position" = AT_ENTRY(close) > 0; a % stop = close < AT_ENTRY(close) with tolerance -5' },
   { name: 'MAX_SINCE_ENTRY', form: 'WINDOW', hint: 'The maximum of X over (entry, t - lag], bars without a value skipped; lag 1 = the class ratchet (the entry bar is not in the window)' },
   { name: 'MIN_SINCE_ENTRY', form: 'WINDOW', hint: 'The minimum of X over (entry, t - lag]' },
+  // R5 v2 F1: form LEVELS - no X / lag, its own `levels`
+  { name: 'STICKY_SINCE_ENTRY', form: 'LEVELS', hint: "The class's sticky-support exit line of the open long: the entry zone, followed through merges, raised to a higher zone fully below the close, re-priced every bar (max(line, zone low - BreakBuffer x ATR)); the value on bar t is the line after bar t-1. Only `levels`, no X / lag." },
 ]));
 export const POSITION_RUN_TFS = Object.freeze(['DAY', 'WEEK']);
 export const POSITION_REFUSED_IN = Object.freeze(['ShortClose']);
 export const POSITION_HINT = 'Position operands read the merged position at the start of the bar and have a value only in a LONG '
   + '(FLAT / SHORT: the condition FAILs, NOT_LONG). X is a market operand of the run timeframe: a bar field, an indicator, '
-  + 'LEVEL or a brick. Not in the screener, not inside a brick / WITHIN; a version with one is position dependent.';
+  + 'LEVEL or a brick; STICKY_SINCE_ENTRY has no X (form LEVELS: its own levels). Not in the screener, not inside a brick / WITHIN; a version with one is position dependent.';
 export const DEFAULT_POSITION_META = Object.freeze({
   kinds: POSITION_KIND_META, lagMax: LAG_MAX, runTimeframes: POSITION_RUN_TFS, side: 'LONG',
   refusedInRules: POSITION_REFUSED_IN, hint: POSITION_HINT, help: helpMap(null, POSITION_HELP),
@@ -621,6 +628,7 @@ export const levelsOccurrences = (condition) => {
       walkOp(o.x, `${prefix}x.`, linkable);
       walkCond(o.a, `${prefix}a.`, linkable && isLevelEvent(o.a));
     } else if (o.kind === 'BARS_SINCE') walkCond(o.a, `${prefix}a.`, linkable && isLevelEvent(o.a));
+    else if (POSITION_LEVELS_KINDS.includes(o.kind)) out.push({ prefix, linkable }); // R5 v2 F1: its own levels
     else if (POSITION_KINDS.includes(o.kind)) walkOp(o.x, `${prefix}x.`, linkable); // stage 4c-1
   };
   walkCond(condition, '', true);
@@ -790,6 +798,9 @@ const toAnyOperandDTO = (o) => {
   if (o.kind === 'BARS_SINCE') {
     return { kind: o.kind, tf: o.tf || RUN_TF, offset: Number(o.offset) || 0, a: toAnyConditionDTO(o.a) };
   }
+  if (POSITION_LEVELS_KINDS.includes(o.kind)) { // R5 v2 F1: no X / lag / output, its own levels
+    return { kind: o.kind, tf: o.tf || RUN_TF, offset: Number(o.offset) || 0, levels: toLevelsDTO(o.levels) };
+  }
   if (POSITION_KINDS.includes(o.kind)) { // stage 4c-1: no anchor, `lag` only on the windows
     const out = { kind: o.kind, tf: o.tf || RUN_TF, offset: Number(o.offset) || 0, x: toAnyOperandDTO(o.x) };
     if (POSITION_WINDOW_KINDS.includes(o.kind)) out.lag = numOr(o.lag, 0);
@@ -824,6 +835,7 @@ const fromAnyOperandDTO = (o) => {
   if (!isStagedKind(o.kind)) return fromOperand(o);
   const base = { kind: o.kind, n: null, tf: o.tf || RUN_TF, offset: o.offset ?? 0, value: '' };
   if (o.kind === LEVEL_KIND) return { ...base, output: o.output || 'SUPPORT_LINE', levels: fromLevelsDTO(o.levels) };
+  if (POSITION_LEVELS_KINDS.includes(o.kind)) return { ...base, levels: fromLevelsDTO(o.levels), lag: '' }; // R5 v2 F1
   if (POSITION_KINDS.includes(o.kind)) {
     return { ...base, x: fromAnyOperandDTO(o.x), lag: POSITION_WINDOW_KINDS.includes(o.kind) ? (o.lag ?? 0) : '' };
   }

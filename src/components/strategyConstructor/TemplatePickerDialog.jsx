@@ -122,7 +122,7 @@ export default function TemplatePickerDialog({ onCreated, onClose }) {
               Rules
               {usesPosition(template.rules) && (
                 <PositionDependentBadge testId="template-pd-badge" long
-                  title="These rules read the trade (AT_ENTRY / MAX_SINCE_ENTRY, LONG only): the strategy is position dependent. Unticking an option that adds them (entryAnchor) gives a stateless variant." />
+                  title="These rules read the trade (AT_ENTRY / STICKY_SINCE_ENTRY, LONG only): the strategy is position dependent. Unticking an option that adds them (entryAnchor) gives a stateless variant." />
               )}
             </div>
             <ul className="text-xs font-mono space-y-1 mb-2" data-testid="template-rules">

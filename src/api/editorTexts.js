@@ -53,6 +53,7 @@ export const INDICATOR_TEXTS = Object.freeze({
   ATR_PCT: { menuLabel: 'ATR as % of price', tooltip: 'ATR in percent of the close: volatility comparable across tickers.' },
   ER: { menuLabel: 'Efficiency ratio', tooltip: 'Kaufman efficiency ratio over Length bars: 1 = a straight move, 0 = chop.' },
   IBS: { menuLabel: 'Close position in bar (IBS)', tooltip: 'Where the close sits in the bar\'s range: 0 = at the low, 1 = at the high.' },
+  CORR: { menuLabel: 'Correlation with a benchmark', tooltip: 'Pearson correlation of daily (weekly) returns with SPY or QQQ over Length bars: 1 = moves with the market, 0 = its own way, below 0 = against it.' }, // fallback synced with meta_help.txt (R5 S17)
 });
 
 /** Comparison operators: `menuLabel` beside the caption symbol `label` (unchanged). */
@@ -203,6 +204,8 @@ export const POSITION_TEXTS = Object.freeze({
     tooltip: 'X on your long\'s entry bar (a seeded watch: the seed bar). Close at entry above 0 = "in a long"; close below close at entry with tolerance −5 = a 5 % stop.' },
   MAX_SINCE_ENTRY: { label: 'Highest since entry', tooltip: 'The highest X since entry (the entry bar excluded), skipping the last n bars: a trailing line.' },
   MIN_SINCE_ENTRY: { label: 'Lowest since entry', tooltip: 'The lowest X since entry (the entry bar excluded), skipping the last n bars.' },
+  // R5 v2 F1
+  STICKY_SINCE_ENTRY: { label: 'Sticky support since entry', tooltip: "Exit line of the class's sticky support, from your entry; never moves down." },
 });
 
 export const POSITION_HELP = Object.freeze({
@@ -210,6 +213,7 @@ export const POSITION_HELP = Object.freeze({
   group: 'A value from your open long. Without one the condition is false. Not in "Cover short" rules.',
   x: 'Value X: what to read (a bar field, an indicator, a Levels line or a value from the last event) on the run TF.',
   lag: 'Skip last bars: 1 = the line as of the previous bar (the class ratchet). Not optimizable. 0 to 10.',
+  levels: "Sticky support since entry has no X and no lag: it reads its own Levels settings (the same as a Levels line) and follows the trade's sticky support zone, as the LevelBreakoutRetest class does.",
   badge: 'uses my open long',
   badgeTooltip: 'This rule reads your open long, so the strategy depends on the position.',
   noLong: 'Without an open long the condition is false.',
