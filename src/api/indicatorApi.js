@@ -3,7 +3,7 @@
 // The Indicators Chart endpoints (screener architect.md "Indicators Chart" §3 / §4), relative URLs
 // through the Vite '/api' proxy like every other api module:
 //   GET  /api/indicators/meta?ticker=&timeframe=         descriptors, caps, run-session rule, stored SMA
-//   GET  /api/indicators/series?ticker=&timeframe=&from=&to=&ind=KIND[:n[:B]]...   columnar series
+//   GET  /api/indicators/series?ticker=&timeframe=&from=&to=&ind=KIND[:n[:CHOICE]]...   columnar series
 //   POST /api/indicators/sma-tail {ticker, timeframe, lengths}               SMA tail top-up
 //   GET  /api/levels/{ticker}/as-of?timeFrame=&to=&minStrength=[&variant=]   the level-zone map as of the last closed bar <= to
 //   GET  /api/levels/variants                             the detection variants the chart can pick
@@ -21,14 +21,17 @@ const BASE = '/api/indicators';
 export const DEFAULT_CAPS = Object.freeze({ maxSpecs: 20, maxPoints: 600000 });
 
 /**
- * The `ind` parameter of a spec: 'SMA:200', 'IBS', 'CORR:60:QQQ' (`KIND[:n[:B]]`, the benchmark only
- * on a spec that carries one; it always goes with its length).
+ * The `ind` parameter of a spec: 'SMA:200', 'IBS', 'CORR:60:QQQ', 'KAIRI:20:ATR' (`KIND[:n[:CHOICE]]`:
+ * the third segment is the kind's choice param - CORR's benchmark or KAIRI's mode - only on a spec
+ * that carries one; it always goes with its length). KAIRI's default form is not in the spec
+ * (indicatorSet.specOf), so it stays 'KAIRI:20'.
  */
 export const specParam = (spec) => {
   const hasN = spec.n !== null && spec.n !== undefined;
-  const b = typeof spec.benchmark === 'string' && spec.benchmark ? spec.benchmark : null;
+  const str = (v) => (typeof v === 'string' && v ? v : null);
+  const choice = str(spec.benchmark) ?? str(spec.mode);
   if (!hasN) return spec.kind;
-  return b ? `${spec.kind}:${spec.n}:${b}` : `${spec.kind}:${spec.n}`;
+  return choice ? `${spec.kind}:${spec.n}:${choice}` : `${spec.kind}:${spec.n}`;
 };
 
 /** Identity of a spec: equal keys = one series on the wire. */

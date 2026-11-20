@@ -54,6 +54,7 @@ export const INDICATOR_TEXTS = Object.freeze({
   ER: { menuLabel: 'Efficiency ratio', tooltip: 'Kaufman efficiency ratio over Length bars: 1 = a straight move, 0 = chop.' },
   IBS: { menuLabel: 'Close position in bar (IBS)', tooltip: 'Where the close sits in the bar\'s range: 0 = at the low, 1 = at the high.' },
   CORR: { menuLabel: 'Correlation with a benchmark', tooltip: 'Pearson correlation of daily (weekly) returns with SPY or QQQ over Length bars: 1 = moves with the market, 0 = its own way, below 0 = against it.' }, // fallback synced with meta_help.txt (R5 S17)
+  KAIRI: { menuLabel: 'Kairi — distance from MA', tooltip: 'Kairi Relative Index: how far the close is from its simple moving average of Length bars. % (default): (close − SMA) / SMA × 100; Ratio: close / SMA; ATR: (close − SMA) / ATR(14).' }, // architect KAIRI v1 §3.1; re-sync with the backend's meta_help.txt
 });
 
 /** Comparison operators: `menuLabel` beside the caption symbol `label` (unchanged). */

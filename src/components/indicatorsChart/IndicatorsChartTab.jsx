@@ -25,7 +25,7 @@ import { toBarTime, formatBarKey } from '../charts/workspace/bars';
 import { channelsRequestKey } from '../../navigation/route';
 import { exchangeToday, exchangeZoneForTicker, addYearsIso } from '../../utils/dates';
 import { formatPct, formatStatus, formatAge, formatExitSide } from '../channelExplorer/format';
-import { benchmarkMarketIssue, benchmarkTickerIssue } from '../../api/indicatorCatalog';
+import { benchmarkMarketIssue, benchmarkTickerIssue, effectiveDescriptor } from '../../api/indicatorCatalog';
 import AddIndicatorMenu from './AddIndicatorMenu';
 import IndicatorParamsDialog from './IndicatorParamsDialog';
 import IndicatorChips from './IndicatorChips';
@@ -311,7 +311,10 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
     const d = descriptorByName.get(item.kind);
     return Boolean(d && activeTf && (d.runTimeframes || []).includes(activeTf)) && !marketIssueOf(item);
   }, [descriptorByName, activeTf, marketIssueOf]);
-  const wantedSpecs = useMemo(() => registryItems.filter(runnable).map(specOf), [registryItems, runnable]);
+  const wantedSpecs = useMemo(
+    () => registryItems.filter(runnable).map(it => specOf(it, descriptorByName.get(it.kind))),
+    [registryItems, runnable, descriptorByName],
+  );
   const wantedKey = wantedSpecs.map(specKey).sort().join(',');
 
   useEffect(() => {
@@ -458,7 +461,7 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
     for (const item of registryItems) {
       const d = descriptorByName.get(item.kind) || null;
       const label = itemLabel(item, d);
-      const spec = specOf(item);
+      const spec = specOf(item, d);
       const k = specKey(spec);
       let state = 'ok';
       let message = null;
@@ -490,7 +493,8 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
           state = 'loading';
         }
       }
-      out.push({ item, d, label, spec, state, message, ind, topUpLength });
+      // KAIRI: the form picks the unit, the pane (paneKind) and the neutral line of the series
+      out.push({ item, d: effectiveDescriptor(d, item.params), label, spec, state, message, ind, topUpLength });
     }
     return out;
     // seriesVersion: the store (a ref) changed
@@ -534,7 +538,8 @@ function IndicatorsChartTab({ request = null, onRequestChange = null }) {
       };
       const data = {
         label: v.label, color: v.item.color, hidden: v.item.hidden, paneKey: paneKeyOf(v.d), range: paneRangeOf(v.d),
-        unit: v.d.unit, warmup: warmupText(v.d.warmup, v.spec.n), timeframe: activeTf, kind: v.d.name, series,
+        unit: v.d.unit, warmup: warmupText(v.d.warmup, v.spec.n), timeframe: activeTf, kind: v.d.name,
+        neutral: Number.isFinite(v.d.neutral) ? v.d.neutral : null, series,
       };
       const prev = cache.get(v.item.id);
       const same = prev && prev.ind === v.ind && prev.times === columnTimes && prev.color === data.color

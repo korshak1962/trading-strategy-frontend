@@ -2,9 +2,10 @@
 //
 // The set of indicators shown on the Indicators Chart (TASK B2 / B4, architect §6.2): pure
 // helpers, no React. An item is
-//   registry indicator: { id, kind: 'SMA' | 'IBS' | ..., params: { n?, benchmark? }, color, hidden }
+//   registry indicator: { id, kind: 'SMA' | 'IBS' | ..., params: { n?, benchmark?, mode? }, color, hidden }
 //                       (`benchmark`: CORR's categorical param, a ticker string from the descriptor's
-//                       choiceParams - never a number; entries saved before CORR simply have none)
+//                       choiceParams - never a number; entries saved before CORR simply have none;
+//                       `mode`: KAIRI's form PCT / RATIO / ATR, likewise a choice param)
 //   channels overlay:   { id, kind: 'CHANNELS', params: { coarserTfs, view, lastActualChannelsOnly, detector }, hidden }
 //   levels overlay:     { id, kind: 'LEVELS', params: { minStrength, nearestN, allZones, variant }, hidden }
 //   volume profile:     { id, kind: 'VOLUME_PROFILE', params: { rows, widthPct }, hidden } - no colour
@@ -104,17 +105,33 @@ export const channelTimeframes = (item, chartTf) => {
   return [chartTf, ...TIMEFRAMES.filter((tf) => extra.includes(tf))];
 };
 
+/** The choice param fields a spec can carry (CORR's benchmark, KAIRI's mode), in `ind` order. */
+const SPEC_CHOICE_FIELDS = Object.freeze(['benchmark', 'mode']);
+
 /**
- * The registry spec {kind, n, benchmark?} of an item (n null for a parameterless kind; `benchmark`
- * only on an item that has one - CORR - so every other spec stays {kind, n}).
+ * The registry spec {kind, n, benchmark?, mode?} of an item (n null for a parameterless kind; a
+ * choice param only on an item that has one - CORR's benchmark, KAIRI's mode - so every other spec
+ * stays {kind, n}). With the item's `descriptor`, a choice param marked `defaultOmitted` (KAIRI's
+ * mode) is left out at its default: 'KAIRI:20', not 'KAIRI:20:PCT' (the backend echoes the spec
+ * without it). Without a descriptor the item's strings are taken as they are.
  */
-export const specOf = (item) => {
+export const specOf = (item, descriptor = null) => {
   const spec = {
     kind: item.kind,
     n: item.params && item.params.n !== undefined && item.params.n !== null ? Number(item.params.n) : null,
   };
-  const b = item.params?.benchmark;
-  if (typeof b === 'string' && b) spec.benchmark = b;
+  const choiceParams = descriptor ? normalizeChoiceParams(descriptor.choiceParams) : null;
+  for (const field of SPEC_CHOICE_FIELDS) {
+    const raw = item.params?.[field];
+    if (choiceParams) {
+      const p = choiceParams.find((x) => x.name === field);
+      if (!p) continue;
+      const v = choiceValueOf(p, raw);
+      if (v && !(p.defaultOmitted && v === p.defaultValue)) spec[field] = v;
+    } else if (typeof raw === 'string' && raw) {
+      spec[field] = raw;
+    }
+  }
   return spec;
 };
 
@@ -125,14 +142,14 @@ export const specOf = (item) => {
 export const levelsLabel = (params, variant = null) =>
   `Levels (${variant ? `${variant}, ` : ''}${params?.allZones ? 'all' : `N ${params?.nearestN}`}, strength ≥ ${params?.minStrength})`;
 
-/** 'SMA(50)', 'IBS', 'Corr(60, QQQ)', 'Channels', 'Levels', 'Volume profile'. */
+/** 'SMA(50)', 'IBS', 'Corr(60, QQQ)', 'Kairi(20)', 'Kairi(20, ATR)', 'Channels', 'Levels', 'Volume profile'. */
 export const itemLabel = (item, descriptor) => {
   if (item.kind === CHANNELS) return 'Channels';
   if (item.kind === LEVELS) return 'Levels';
   if (item.kind === VOLUME_PROFILE) return 'Volume profile';
   const name = descriptor?.displayName || item.kind;
-  const { n, benchmark } = specOf(item);
-  const args = [n, benchmark].filter((a) => a !== null && a !== undefined);
+  const { n, benchmark, mode } = specOf(item, descriptor);
+  const args = [n, benchmark, mode].filter((a) => a !== null && a !== undefined);
   return args.length ? `${name}(${args.join(', ')})` : name;
 };
 
@@ -152,7 +169,7 @@ export const defaultParams = (descriptor) => Object.fromEntries([
   ...normalizeChoiceParams(descriptor?.choiceParams).map((p) => [p.name, p.defaultValue]),
 ]);
 
-/** Shape of a stored choice value (a benchmark ticker), for a set restored before the registry is known. */
+/** Shape of a stored choice value (a benchmark ticker, a KAIRI form), for a set restored before the registry is known. */
 const CHOICE_VALUE_RE = /^[A-Za-z0-9_.]{1,32}$/;
 
 /** A choice param's value: the given one when it is a choice, else the default. */

@@ -43,17 +43,20 @@ export const UNIT_HINT = Object.freeze({
   PERCENT: 'a percentage: compared with another % value or a number',
   RATIO: 'a ratio (0..1): compared with another ratio or a number',
   BARS: 'a number of bars',
-  ATR_MULTIPLE: 'a distance in ATR multiples (Levels DIST_*): compared only with another DIST_* or a number',
+  ATR_MULTIPLE: 'a distance in ATR multiples (Levels DIST_* or KAIRI in ATR form): compared only with another ATR-multiple value or a number',
 });
 
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const ALL_RUN_TFS = Object.freeze(['MIN5', 'HOUR', 'DAY', 'WEEK', 'MONTH']);
 
 /**
- * IndicatorDescriptor `choiceParams[{name, description, defaultValue, choices[{value, label, market}]}]`
- * → the same, cleaned (values are strings, never coerced to a number; a param without a choice is
- * dropped; a default that is no choice falls back to the first one). [] when absent (every kind but
- * CORR, and a backend without CORR).
+ * IndicatorDescriptor `choiceParams[{name, description, defaultValue, defaultOmitted?, choices[{value,
+ * label, market?, unit?, lo?, hi?, neutral?}]}]` → the same, cleaned (values are strings, never coerced
+ * to a number; a param without a choice is dropped; a default that is no choice falls back to the
+ * first one). [] when absent (every kind but CORR / KAIRI, and an older backend).
+ * KAIRI's `mode`: `defaultOmitted` (the default form PCT is left out of the operand JSON) and a
+ * unit / lo / hi / neutral per choice (the form sets the value's unit, its chart pane and the
+ * neutral line 0 / 1 / 0). CORR's choices carry none of these (null).
  */
 export function normalizeChoiceParams(raw) {
   return (Array.isArray(raw) ? raw : []).filter((p) => p && typeof p.name === 'string' && p.name).map((p) => {
@@ -63,6 +66,10 @@ export function normalizeChoiceParams(raw) {
         value: c.value,
         label: typeof c.label === 'string' && c.label ? c.label : c.value,
         market: typeof c.market === 'string' && c.market ? c.market : null,
+        unit: typeof c.unit === 'string' && c.unit ? c.unit : null,
+        lo: isNum(c.lo) ? c.lo : null,
+        hi: isNum(c.hi) ? c.hi : null,
+        neutral: isNum(c.neutral) ? c.neutral : null,
       }));
     const dflt = typeof p.defaultValue === 'string' && choices.some((c) => c.value === p.defaultValue)
       ? p.defaultValue : (choices[0]?.value ?? null);
@@ -70,6 +77,7 @@ export function normalizeChoiceParams(raw) {
       name: p.name,
       description: typeof p.description === 'string' ? p.description : '',
       defaultValue: dflt,
+      defaultOmitted: p.defaultOmitted === true,
       choices,
     };
   }).filter((p) => p.choices.length > 0);
@@ -108,7 +116,7 @@ export function normalizeIndicator(d) {
     timeframes: Array.isArray(d.timeframes) ? d.timeframes : [],
     runTimeframes: Array.isArray(d.runTimeframes) && d.runTimeframes.length ? d.runTimeframes : [...ALL_RUN_TFS],
     linearInNextClose: d.linearInNextClose === true,
-    // CORR (benchmark correlation): categorical parameters, never in `params` (params[0] = the length)
+    // CORR's benchmark, KAIRI's mode: categorical parameters, never in `params` (params[0] = the length)
     choiceParams: normalizeChoiceParams(d.choiceParams),
     // editor UX Stage A: the Source-menu name and the ⓘ text (new keys; displayName / description
     // stay for captions, titles and the Indicators Chart)
@@ -272,6 +280,76 @@ export const benchmarkTickerIssue = (d, benchmark, ticker) => {
   return `${benchmark} is a ${c.market} benchmark; ${ticker} trades on ${market}`;
 };
 
+// ---- KAIRI's form (`mode`) and choice params in general ----
+
+/** The name of KAIRI's form choice parameter (OperandDTO / IndicatorRef field `mode`). */
+export const MODE_PARAM = 'mode';
+
+/** Operand fields that carry a choice param's value (one per choice param name the backend knows). */
+export const CHOICE_FIELDS = Object.freeze([BENCHMARK_PARAM, MODE_PARAM]);
+
+/** The `mode` choice param of a kind (KAIRI), or null. */
+export const modeParamOf = (kind) => choiceParamsOf(kind).find((p) => p.name === MODE_PARAM) || null;
+
+/** The default form of a kind (KAIRI: PCT); null for a kind without one. */
+export const defaultModeOf = (kind) => modeParamOf(kind)?.defaultValue ?? null;
+
+/**
+ * The value of choice param `p` an operand / a chart item's params carry (`o[p.name]`): the given
+ * string when it is one of the choices, else the param's default.
+ */
+export const choiceValueOfOperand = (o, p) => {
+  const v = o ? o[p.name] : undefined;
+  return typeof v === 'string' && p.choices.some((c) => c.value === v) ? v : p.defaultValue;
+};
+
+/**
+ * The descriptor as the picked form makes it: `values` (an operand or a chart item's params) picks
+ * a choice of each choice param; a choice with its own unit (KAIRI's forms) replaces the
+ * descriptor's unit / lo / hi and adds `neutral`; a non-default one also gets `paneKind`
+ * ('KAIRI:RATIO', 'KAIRI:ATR': a chart pane of its own). A descriptor without such a choice (CORR,
+ * every other kind) is returned as is (the same object). null for null.
+ */
+export const effectiveDescriptor = (d, values) => {
+  if (!d) return null;
+  let out = d;
+  for (const p of normalizeChoiceParams(d.choiceParams)) {
+    const value = choiceValueOfOperand(values, p);
+    const c = p.choices.find((x) => x.value === value);
+    if (!c || !c.unit) continue;
+    out = {
+      ...out,
+      unit: c.unit,
+      lo: c.lo,
+      hi: c.hi,
+      neutral: c.neutral,
+      ...(value !== p.defaultValue ? { paneKind: `${d.name}:${value}` } : {}),
+    };
+  }
+  return out;
+};
+
+/** Every unit an operand of `kind` can have: the descriptor's and its forms' (KAIRI: PERCENT, RATIO, ATR_MULTIPLE). */
+export const unitsOfKind = (kind) => {
+  if (isFieldKind(kind)) return [FIELD_UNIT[kind]];
+  const d = descriptorOf(kind);
+  if (!d) return [];
+  const units = d.unit ? [d.unit] : [];
+  (d.choiceParams || []).forEach((p) => p.choices.forEach((c) => { if (c.unit && !units.includes(c.unit)) units.push(c.unit); }));
+  return units;
+};
+
+/**
+ * The non-default form of `kind` whose unit is `unit` (KAIRI: ATR for ATR_MULTIPLE, RATIO for
+ * RATIO), or null (no such form, or the default form has that unit).
+ */
+export const modeForUnit = (kind, unit) => {
+  const p = modeParamOf(kind);
+  if (!p || !unit) return null;
+  const c = p.choices.find((x) => x.unit === unit);
+  return c && c.value !== p.defaultValue ? c.value : null;
+};
+
 /** Picker label of a kind: `close`, `SMA(n)`, `ATR %(n)`, `IBS`, `constant`. */
 export const kindLabel = (kind) => {
   if (kind === CONST_KIND) return 'constant';
@@ -351,7 +429,8 @@ export const operandUnitOf = (o) => {
   if (o.kind === 'BARS_SINCE') return 'BARS';
   if (POSITION_LEVELS_KINDS.includes(o.kind)) return 'PRICE'; // R5 v2 F1: a price line
   if (ANCHORED_KINDS.includes(o.kind) || POSITION_KINDS.includes(o.kind)) return operandUnitOf(o.x);
-  return descriptorOf(o.kind)?.unit || null;
+  // KAIRI: the unit of the operand's form (`mode`; absent = the default form)
+  return effectiveDescriptor(descriptorOf(o.kind), o)?.unit || null;
 };
 
 export const unitLabel = (u) => (u ? UNIT_LABEL[u] || String(u).toLowerCase() : '');
@@ -380,7 +459,7 @@ const fmtBound = (v) => String(v).replace('-', '−');
 const valueDescriptorOf = (o) => {
   if (!o || !o.kind) return null;
   if (ANCHORED_KINDS.includes(o.kind) || POSITION_KINDS.includes(o.kind)) return valueDescriptorOf(o.x);
-  return descriptorOf(o.kind);
+  return effectiveDescriptor(descriptorOf(o.kind), o);
 };
 
 /**
@@ -393,6 +472,10 @@ export const unitHintOf = (o) => {
   const d = valueDescriptorOf(o);
   if (unit === 'RATIO' && d && isNum(d.lo) && isNum(d.hi)) {
     return `a ratio (${fmtBound(d.lo)}..${fmtBound(d.hi)}): compared with another ratio or a number`;
+  }
+  // KAIRI close / SMA: no upper bound, 1 = on the SMA
+  if (unit === 'RATIO' && d && isNum(d.neutral)) {
+    return `a ratio (${fmtBound(d.neutral)} = on the average): compared with another ratio or a number`;
   }
   return UNIT_HINT[unit] || unitLabel(unit);
 };

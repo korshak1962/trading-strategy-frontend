@@ -141,6 +141,31 @@
     } ],
     "menuLabel" : "Correlation with a benchmark",
     "tooltip" : "Pearson correlation of daily (weekly) returns with SPY or QQQ over Length bars: 1 = moves with the market, 0 = its own way, below 0 = against it."
+  }, {
+    "name" : "KAIRI",
+    "choiceParams" : [ {
+      "name" : "mode",
+      "choices" : [ {
+        "label" : "% of SMA",
+        "lo" : -100.0,
+        "neutral" : 0.0,
+        "unit" : "PERCENT",
+        "value" : "PCT"
+      }, {
+        "label" : "close / SMA",
+        "lo" : 0.0,
+        "neutral" : 1.0,
+        "unit" : "RATIO",
+        "value" : "RATIO"
+      }, {
+        "label" : "ATR(14) multiples",
+        "neutral" : 0.0,
+        "unit" : "ATR_MULTIPLE",
+        "value" : "ATR"
+      } ]
+    } ],
+    "menuLabel" : "Kairi — distance from MA",
+    "tooltip" : "Kairi Relative Index: how far the close is from its simple moving average of Length bars. % (default): (close − SMA) / SMA × 100; Ratio: close / SMA; ATR: (close − SMA) / ATR(14)."
   } ],
   "levels" : {
     "events" : [ {
@@ -541,6 +566,31 @@
     } ],
     "menuLabel" : "Correlation with a benchmark",
     "tooltip" : "Pearson correlation of daily (weekly) returns with SPY or QQQ over Length bars: 1 = moves with the market, 0 = its own way, below 0 = against it."
+  }, {
+    "name" : "KAIRI",
+    "choiceParams" : [ {
+      "name" : "mode",
+      "choices" : [ {
+        "label" : "% of SMA",
+        "lo" : -100.0,
+        "neutral" : 0.0,
+        "unit" : "PERCENT",
+        "value" : "PCT"
+      }, {
+        "label" : "close / SMA",
+        "lo" : 0.0,
+        "neutral" : 1.0,
+        "unit" : "RATIO",
+        "value" : "RATIO"
+      }, {
+        "label" : "ATR(14) multiples",
+        "neutral" : 0.0,
+        "unit" : "ATR_MULTIPLE",
+        "value" : "ATR"
+      } ]
+    } ],
+    "menuLabel" : "Kairi — distance from MA",
+    "tooltip" : "Kairi Relative Index: how far the close is from its simple moving average of Length bars. % (default): (close − SMA) / SMA × 100; Ratio: close / SMA; ATR: (close − SMA) / ATR(14)."
   } ]
 }
 == screener
@@ -589,6 +639,31 @@
     } ],
     "menuLabel" : "Correlation with a benchmark",
     "tooltip" : "Pearson correlation of daily (weekly) returns with SPY or QQQ over Length bars: 1 = moves with the market, 0 = its own way, below 0 = against it."
+  }, {
+    "name" : "KAIRI",
+    "choiceParams" : [ {
+      "name" : "mode",
+      "choices" : [ {
+        "label" : "% of SMA",
+        "lo" : -100.0,
+        "neutral" : 0.0,
+        "unit" : "PERCENT",
+        "value" : "PCT"
+      }, {
+        "label" : "close / SMA",
+        "lo" : 0.0,
+        "neutral" : 1.0,
+        "unit" : "RATIO",
+        "value" : "RATIO"
+      }, {
+        "label" : "ATR(14) multiples",
+        "neutral" : 0.0,
+        "unit" : "ATR_MULTIPLE",
+        "value" : "ATR"
+      } ]
+    } ],
+    "menuLabel" : "Kairi — distance from MA",
+    "tooltip" : "Kairi Relative Index: how far the close is from its simple moving average of Length bars. % (default): (close − SMA) / SMA × 100; Ratio: close / SMA; ATR: (close − SMA) / ATR(14)."
   } ],
   "metricHelp" : [ {
     "label" : "Width, % of price",

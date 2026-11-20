@@ -8,8 +8,9 @@
 // coarser channel timeframes. Levels: minimum strength, N nearest and the detection variant
 // (GET /api/levels/variants, level range zones stage 2). Volume profile: rows and
 // width (no colour: the theme's candle up / down). Colour: the theme palette (follows a theme
-// switch) or a custom colour. A descriptor's choice params (CORR's benchmark) are a <select> of the
-// choices of the ticker's market (all when no ticker is loaded); their value stays a string.
+// switch) or a custom colour. A descriptor's choice params (CORR's benchmark, KAIRI's form) are a
+// <select> of the choices of the ticker's market (all when no ticker is loaded; a choice without a
+// market - KAIRI's forms - is offered everywhere); their value stays a string.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import RecursiveParamsPanel, { RECURSIVE_DEFAULT_PARAMS } from '../channelExplorer/RecursiveParamsPanel';
 import { CHANNEL_VIEW } from '../../api/channelApi';
@@ -25,7 +26,7 @@ import {
   TIMEFRAMES, TF_RANK, defaultParams, paramError, sanitizeChannelParams, sanitizeLevelParams,
   sanitizeVolumeProfileParams, volumeProfileParamErrors,
 } from './indicatorSet';
-import { normalizeChoiceParams, benchmarkTickerIssue, marketOfTicker } from '../../api/indicatorCatalog';
+import { normalizeChoiceParams, benchmarkTickerIssue, marketOfTicker, unitLabel } from '../../api/indicatorCatalog';
 
 const PALETTE = Array.from({ length: 8 }, (_, i) => paletteColor(i));
 const NO_VARIANTS = Object.freeze({ list: null, error: null });
@@ -229,6 +230,7 @@ export default function IndicatorParamsDialog({
             ))}
             {choiceParams.map(p => {
               const shown = p.choices.filter(c => !choiceMarket || !c.market || c.market === choiceMarket);
+              const byMarket = p.choices.some(c => c.market);
               const cur = values[p.name];
               const known = p.choices.find(c => c.value === cur) || null;
               return (
@@ -246,7 +248,8 @@ export default function IndicatorParamsDialog({
                     )}
                   </select>
                   <span className="ic-dialog__hint">
-                    {choiceMarket ? `${choiceMarket} market: ${shown.map(c => c.value).join(', ') || 'none yet'}` : p.choices.map(c => c.value).join(', ')}
+                    {!byMarket ? (known?.unit ? `Unit: ${unitLabel(known.unit)}` : p.choices.map(c => c.value).join(', '))
+                      : choiceMarket ? `${choiceMarket} market: ${shown.map(c => c.value).join(', ') || 'none yet'}` : p.choices.map(c => c.value).join(', ')}
                   </span>
                   {errors[p.name] && <span className="ic-dialog__error" data-testid="ic-param-error">{errors[p.name]}</span>}
                 </label>

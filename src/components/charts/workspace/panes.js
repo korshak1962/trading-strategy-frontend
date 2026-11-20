@@ -5,7 +5,10 @@
 // without a list of kinds in the frontend.
 //   unit PRICE                     -> 'price' (on the candles, pane 0)
 //   both lo and hi set (bounded)   -> '<unit>:<lo>:<hi>' (IBS and ER share RATIO:0:1, RSI PERCENT:0:100)
-//   otherwise (unbounded)          -> 'kind:<name>' (one pane per kind: SMA_TILT, ATR, ATR_PCT)
+//   otherwise (unbounded)          -> 'kind:<name>' (one pane per kind: SMA_TILT, ATR, ATR_PCT), or
+//                                     'kind:<paneKind>' for a form of its own (indicatorCatalog
+//                                     effectiveDescriptor: KAIRI's RATIO / ATR forms -> 'kind:KAIRI:RATIO',
+//                                     'kind:KAIRI:ATR'; the default form PCT stays 'kind:KAIRI')
 
 export const PRICE_PANE_KEY = 'price';
 
@@ -16,7 +19,7 @@ export const paneKeyOf = (d) => {
   if (!d) return PRICE_PANE_KEY;
   if (d.unit === 'PRICE') return PRICE_PANE_KEY;
   if (isNum(d.lo) && isNum(d.hi)) return `${d.unit}:${d.lo}:${d.hi}`;
-  return `kind:${d.name}`;
+  return `kind:${d.paneKind || d.name}`;
 };
 
 /** The fixed value range of a bounded pane ({minValue, maxValue}), else null (auto-fit). */

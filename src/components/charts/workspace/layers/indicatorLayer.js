@@ -15,7 +15,9 @@
 //   hidden,                    // drawn nothing, no tooltip row
 //   paneKey, range,            // pane group; {minValue, maxValue} for a bounded pane, else null
 //   unit, warmup,              // descriptor.unit / descriptor.warmup (value format, reason text)
-//   kind,                      // descriptor.name (a kind-specific reason text: CORR's ZERO_RANGE)
+//   kind,                      // descriptor.name (a kind-specific reason text: CORR's / KAIRI's ZERO_RANGE)
+//   neutral,                   // a dashed neutral line at this value, or null (KAIRI only: 0 / 1 / 0 by form;
+//                              //   the pane's auto-fit keeps it in view)
 //   series: {                  // one indicator of GET /api/indicators/series, or null (not loaded / inactive)
 //     times,                   //   bar times (Unix s) of the response's dates
 //     values, reasons,         //   values[i] or null; reasons: {"<index>": REASON} - keys are STRINGS
@@ -31,7 +33,11 @@ import { formatBarKey } from '../bars';
 const LINE_DASHED = 2;
 const TRANSPARENT = 'rgba(0, 0, 0, 0)';
 
-const PRECISION = { PRICE: 2, PRICE_RANGE: 2, PERCENT: 2, RATIO: 3 };
+const PRECISION = { PRICE: 2, PRICE_RANGE: 2, PERCENT: 2, RATIO: 3, ATR_MULTIPLE: 2 };
+
+/** The neutral line's colour: the theme's muted direction-flat grey (follows a theme switch). */
+const NEUTRAL_COLOR = 'var(--tv-direction-flat)';
+const NEUTRAL_FALLBACK = '#787b86';
 
 /** A value in its unit: 728.14, 0.009, 1.23%. */
 export const formatIndicatorValue = (v, unit) => {
@@ -48,7 +54,10 @@ export const reasonText = (reason, { warmup = null, stale = null, timeframe = nu
   switch (reason) {
     case 'INSUFFICIENT_HISTORY': return warmup ? `warm-up, needs ${warmup}` : 'warm-up';
     // CORR: a window where the ticker's or the benchmark's returns are all equal (variance 0)
-    case 'ZERO_RANGE': return kind === 'CORR' ? 'flat returns (no variance in the window)' : 'zero range (high = low)';
+    case 'ZERO_RANGE':
+      if (kind === 'CORR') return 'flat returns (no variance in the window)';
+      if (kind === 'KAIRI') return 'SMA or ATR is zero';
+      return 'zero range (high = low)';
     case 'BENCHMARK_MISSING': return 'benchmark has no bar on this date';
     case 'INDICATOR_MISSING': return 'not computed';
     case 'WEEK_INCONSISTENT': return 'week bars inconsistent';
@@ -111,8 +120,12 @@ export function createIndicatorLayer() {
   let provSeries = null;
   let seriesPane = null;
   let indexByCandle = null; // candle index -> response index
+  let neutralLine = null; // the price line of data.neutral on mainSeries
+  let neutralValue = null;
 
   const colorOf = () => resolveColor(data?.color) || '#888888';
+  const neutralColor = () => resolveColor(NEUTRAL_COLOR) || NEUTRAL_FALLBACK;
+  const neutralOf = () => (typeof data?.neutral === 'number' && Number.isFinite(data.neutral) ? data.neutral : null);
 
   const removeSeries = () => {
     if (mainSeries) ctx?.removePaneSeries(mainSeries);
@@ -120,6 +133,38 @@ export function createIndicatorLayer() {
     mainSeries = null;
     provSeries = null;
     seriesPane = null;
+    neutralLine = null; // went with its series
+    neutralValue = null;
+  };
+
+  /** The dashed neutral line (no axis label) at data.neutral on the main series; removed when there is none. */
+  const syncNeutral = () => {
+    if (!mainSeries) return;
+    const want = neutralOf();
+    if (neutralLine && neutralValue !== want) {
+      mainSeries.removePriceLine(neutralLine);
+      neutralLine = null;
+      neutralValue = null;
+    }
+    if (want !== null && !neutralLine) {
+      neutralLine = mainSeries.createPriceLine({
+        price: want, color: neutralColor(), lineWidth: 1, lineStyle: LINE_DASHED, axisLabelVisible: false, title: '',
+      });
+      neutralValue = want;
+    }
+  };
+
+  /** Auto-fit of an unbounded pane that keeps the neutral line in view. */
+  const withNeutral = (neutral) => (base) => {
+    const r = base();
+    if (!r || !r.priceRange) return r;
+    return {
+      ...r,
+      priceRange: {
+        minValue: Math.min(r.priceRange.minValue, neutral),
+        maxValue: Math.max(r.priceRange.maxValue, neutral),
+      },
+    };
   };
 
   const seriesOptions = (provisional) => {
@@ -140,7 +185,8 @@ export function createIndicatorLayer() {
       // A3: overlays never move the price axis; a bounded pane shows exactly lo..hi.
       autoscaleInfoProvider: inPrice
         ? ctx.overlayAutoscale
-        : range ? () => ({ priceRange: { ...range } }) : undefined,
+        : range ? () => ({ priceRange: { ...range } })
+          : (!provisional && neutralOf() !== null ? withNeutral(neutralOf()) : undefined),
     };
   };
 
@@ -163,6 +209,7 @@ export function createIndicatorLayer() {
       mainSeries.applyOptions(seriesOptions(false));
     }
     mainSeries.setData(main);
+    syncNeutral();
     if (prov.length > 1 || (prov.length === 1 && main.every(p => p.value === undefined))) {
       if (!provSeries) provSeries = ctx.addPaneSeries(data.paneKey, LineSeries, seriesOptions(true));
       else provSeries.applyOptions(seriesOptions(true));
@@ -188,6 +235,7 @@ export function createIndicatorLayer() {
       if (!data) return;
       mainSeries?.applyOptions({ color: colorOf() });
       provSeries?.applyOptions({ color: colorOf() });
+      neutralLine?.applyOptions({ color: neutralColor() });
     },
     tooltipRows(barIndex) {
       if (!data || data.hidden || !data.series || !indexByCandle) return [];

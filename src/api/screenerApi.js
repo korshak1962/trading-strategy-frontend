@@ -9,7 +9,9 @@
 // naming difference to the backend is a one-line change. Errors: see httpClient.js.
 
 import { apiRequest, readJson, jsonBody, enc } from './httpClient';
-import { hasLength, hasBenchmark, defaultBenchmarkOf, setIndicatorCatalog } from './indicatorCatalog';
+import {
+  hasLength, hasBenchmark, defaultBenchmarkOf, setIndicatorCatalog, modeParamOf, descriptorOf, isFieldKind, MODE_PARAM,
+} from './indicatorCatalog';
 import { SCREENER_METRIC_TEXTS, OPERATOR_TEXTS, setEditorHelp } from './editorTexts';
 
 const API_BASE_URL = '/api/screener';
@@ -65,7 +67,10 @@ const numOrNull = (v) => (v === '' || v == null || !Number.isFinite(Number(v)) ?
  * Editor operand → OperandDTO `{kind, n?, tf, offset}` / `{kind: 'CONST', value}`. `n` is sent for
  * every kind with a length parameter (SMA, SMA_TILT, ATR, ATR_PCT, ER, RSI, CORR - the descriptor
  * says), never for a field or IBS (stage 3b F1, minor #91). `benchmark` only for a kind with the
- * benchmark choice param (CORR: `{kind: 'CORR', n: 60, benchmark: 'QQQ', tf, offset}`).
+ * benchmark choice param (CORR: `{kind: 'CORR', n: 60, benchmark: 'QQQ', tf, offset}`). `mode` (KAIRI's
+ * form) only when it is not the default: the default form PCT is left out (`defaultOmitted`), so
+ * `{kind: 'KAIRI', n: 20, tf, offset}` = PCT and `{..., mode: 'ATR'}`; a kind the catalog does not
+ * know keeps a string `mode` as it came (a round trip of a newer server's operand).
  */
 export const toOperand = (o) => {
   if (!o) return null;
@@ -77,6 +82,15 @@ export const toOperand = (o) => {
     const b = (typeof o.benchmark === 'string' && o.benchmark) || defaultBenchmarkOf(o.kind);
     if (b) out.benchmark = b;
   }
+  // KAIRI: the form; an unknown one is sent as is (the server answers 400 with the known forms)
+  const mp = modeParamOf(o.kind);
+  const mode = typeof o.mode === 'string' && o.mode ? o.mode : null;
+  if (mp) {
+    const m = mode || mp.defaultValue;
+    if (m && !(mp.defaultOmitted && m === mp.defaultValue)) out[MODE_PARAM] = m;
+  } else if (mode && !descriptorOf(o.kind) && !isFieldKind(o.kind)) {
+    out[MODE_PARAM] = mode;
+  }
   return out;
 };
 
@@ -85,6 +99,7 @@ export const fromOperand = (o) => {
   if (o.kind === 'CONST') return { kind: 'CONST', value: o.value ?? '', n: null, tf: 'DAY', offset: 0 };
   const out = { kind: o.kind || 'CLOSE', n: o.n ?? null, tf: o.tf || 'DAY', offset: o.offset ?? 0, value: '' };
   if (typeof o.benchmark === 'string' && o.benchmark) out.benchmark = o.benchmark;
+  if (typeof o.mode === 'string' && o.mode) out.mode = o.mode; // KAIRI: absent = the default form
   return out;
 };
 
