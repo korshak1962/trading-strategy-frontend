@@ -300,10 +300,18 @@ export const isBrickOperand = (o) => !!o && BRICK_OPERAND_KINDS.includes(o.kind)
  * entry bar of the open long; MAX_SINCE_ENTRY / MIN_SINCE_ENTRY(X, lag) = the extreme of X over
  * (entry, t − lag]. X is a market operand of the run TF (a bar field, an indicator, LEVEL or a brick).
  */
-export const POSITION_KINDS = Object.freeze(['AT_ENTRY', 'MAX_SINCE_ENTRY', 'MIN_SINCE_ENTRY']);
+export const POSITION_KINDS = Object.freeze(['AT_ENTRY', 'MAX_SINCE_ENTRY', 'MIN_SINCE_ENTRY', 'STICKY_SINCE_ENTRY']);
 /** The position kinds with a window (and a lag). */
 export const POSITION_WINDOW_KINDS = Object.freeze(['MAX_SINCE_ENTRY', 'MIN_SINCE_ENTRY']);
+/**
+ * R5 v2 F1: the position kinds of form LEVELS - no X, no lag, their own Levels spec (`levels`).
+ * STICKY_SINCE_ENTRY(levels) = the LevelBreakoutRetest class's sticky-support exit line of the open
+ * long (the value on bar t is the line after bar t − 1; never moves down). Unit PRICE.
+ */
+export const POSITION_LEVELS_KINDS = Object.freeze(['STICKY_SINCE_ENTRY']);
 export const isPositionOperand = (o) => !!o && POSITION_KINDS.includes(o.kind);
+/** A position operand of form LEVELS (STICKY_SINCE_ENTRY): its own `levels`, no X. */
+export const isPositionLevelsOperand = (o) => !!o && POSITION_LEVELS_KINDS.includes(o.kind);
 /** LEVEL, a brick or a position operand: an operand the screener's OperandPicker cannot edit. */
 export const isStagedOperand = (o) => !!o
   && (o.kind === LEVEL_KIND || BRICK_OPERAND_KINDS.includes(o.kind) || POSITION_KINDS.includes(o.kind));
@@ -334,13 +342,14 @@ export const levelOutputUnit = (output) => levelOutputUnits[output] || null;
 /**
  * Value unit (backend ValueUnit) of an operand; null for a constant (fits any unit) or an unknown
  * kind. Stage 4b: LEVEL → its output's unit, BARS_SINCE → BARS, AT_LAST / MAX_SINCE / MIN_SINCE → X's;
- * stage 4c-1: AT_ENTRY / MAX_SINCE_ENTRY / MIN_SINCE_ENTRY → X's.
+ * stage 4c-1: AT_ENTRY / MAX_SINCE_ENTRY / MIN_SINCE_ENTRY → X's; R5 v2: STICKY_SINCE_ENTRY → PRICE.
  */
 export const operandUnitOf = (o) => {
   if (!o || !o.kind || o.kind === CONST_KIND) return null;
   if (isFieldKind(o.kind)) return FIELD_UNIT[o.kind];
   if (o.kind === LEVEL_KIND) return levelOutputUnit(o.output);
   if (o.kind === 'BARS_SINCE') return 'BARS';
+  if (POSITION_LEVELS_KINDS.includes(o.kind)) return 'PRICE'; // R5 v2 F1: a price line
   if (ANCHORED_KINDS.includes(o.kind) || POSITION_KINDS.includes(o.kind)) return operandUnitOf(o.x);
   return descriptorOf(o.kind)?.unit || null;
 };

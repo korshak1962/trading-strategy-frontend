@@ -5,7 +5,7 @@
 // position (PositionalConstructedStrategy). The flag is derived from the definition, never stored.
 // Colours from the theme tokens (light and dark).
 
-const DEFAULT_TITLE = 'Position-dependent: a rule reads the trade (AT_ENTRY / MAX_SINCE_ENTRY / MIN_SINCE_ENTRY, LONG only), '
+const DEFAULT_TITLE = 'Position-dependent: a rule reads the trade (AT_ENTRY / MAX_SINCE_ENTRY / MIN_SINCE_ENTRY / STICKY_SINCE_ENTRY, LONG only), '
   + 'so the strategy runs bar by bar on the merged position. In a case the position is shared with the other strategies.';
 
 /**

@@ -10,19 +10,25 @@
 // `lag` is never an axis. In FLAT / SHORT the condition FAILs (NOT_LONG).
 // Editor UX Stage A: a nested block "Highest since entry ⓘ — LONG only" with the "Value X" section
 // and "Skip last bars"; the purple frame stays.
+// R5 v2 F1 (screener architect_r5_migration_v2.md §6): STICKY_SINCE_ENTRY(levels), form LEVELS - the
+// class's sticky-support exit line of the open long. No X and no lag: the block shows its own Levels
+// settings (the shared LevelsSpecEditor, links `P.levels.<field>`) instead of "Value X".
 import OperandPicker from '../universeScreener/OperandPicker';
 import FieldLabel from '../common/FieldLabel';
 import InfoTooltip from '../common/InfoTooltip';
-import { DEFAULT_POSITION_META, POSITION_WINDOW_KINDS } from '../../api/constructedApi';
+import {
+  DEFAULT_LEVELS_META, DEFAULT_POSITION_META, POSITION_WINDOW_KINDS, isPositionLevelsOperand,
+} from '../../api/constructedApi';
 import { unitLabel, unitHintOf, operandUnitOf } from '../../api/indicatorCatalog';
 import { POSITION_HELP } from '../../api/editorTexts';
 import { newPlainOperand } from './constructedFormat';
+import LevelsSpecEditor from './LevelsSpecEditor';
 
 const pathId = (p) => p.replace(/\.$/, '').replace(/\./g, '-');
 
 /**
  * @param {Object} props
- * @param {Object} props.value the position operand `{kind, x, lag}`
+ * @param {Object} props.value the position operand `{kind, x, lag}` (STICKY_SINCE_ENTRY: `{kind, levels}`)
  * @param {(o: Object) => void} props.onChange
  * @param {string} props.prefix path prefix of the side (`left.`, `right.`)
  * @param {boolean} props.linkable thresholds inside X can carry links
@@ -35,6 +41,7 @@ export default function PositionOperandEditor({ value, onChange, prefix, linkabl
   const help = pm.help || POSITION_HELP;
   const kindMeta = pm.kinds.find((k) => k.name === value.kind) || null;
   const isWindow = POSITION_WINDOW_KINDS.includes(value.kind);
+  const isLevelsForm = isPositionLevelsOperand(value);
   const xPrefix = `${prefix}x.`;
   const tid = `side-${pathId(prefix)}`;
   const x = value.x || newPlainOperand();
@@ -57,6 +64,31 @@ export default function PositionOperandEditor({ value, onChange, prefix, linkabl
         <span className="ml-2 font-normal text-purple-700">— {pm.side || 'LONG'} only</span>
         {unit && <span className="ml-2 text-[11px] font-normal text-gray-500" title={`Unit: ${unitHintOf(value)}`}>{unitLabel(unit)}</span>}
       </span>
+      {isLevelsForm && (
+        <div className="flex flex-col gap-0.5" data-testid={`position-levels-${pathId(prefix)}`}>
+          <span className="text-xs font-semibold text-gray-600 border-b border-gray-200">
+            Levels settings
+            <InfoTooltip text={help.levels || kindMeta?.hint || ''} editor align="left" testId={`info-${tid}-position-levels`} />
+          </span>
+          <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
+            <LevelsSpecEditor
+              spec={value.levels}
+              onChange={(levels) => onChange({ ...value, levels })}
+              prefix={prefix}
+              levelsMeta={ctx.levelsMeta || DEFAULT_LEVELS_META}
+              renderLink={linkable ? ctx.renderLink : null}
+              linkedValue={linkable ? ctx.linkedValue : null}
+              linkInfo={linkable ? ctx.linkInfo : null}
+              onApplyToAll={ctx.onApplyLevels ? () => ctx.onApplyLevels(prefix) : null}
+              disabled={ctx.disabled}
+              sameAsPrevious={ctx.levelsSameAsPrevious ? ctx.levelsSameAsPrevious(prefix) : false}
+              setLabel={ctx.levelsSetLabel ? ctx.levelsSetLabel(prefix) : null}
+              errorOpen={ctx.levelsErrorOpen ? ctx.levelsErrorOpen(prefix) : false}
+            />
+          </div>
+        </div>
+      )}
+      {!isLevelsForm && (
       <div className="flex flex-col gap-0.5">
         <span className="text-xs font-semibold text-gray-600 border-b border-gray-200">
           Value X
@@ -76,6 +108,7 @@ export default function PositionOperandEditor({ value, onChange, prefix, linkabl
           )}
         </div>
       </div>
+      )}
       <span className="text-[11px] text-purple-800" data-testid={`${tid}-position-hint`}>{help.noLong}</span>
     </div>
   );
