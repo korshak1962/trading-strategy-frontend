@@ -147,12 +147,20 @@
       "name" : "mode",
       "choices" : [ {
         "label" : "% of SMA",
+        "lo" : -100.0,
+        "neutral" : 0.0,
+        "unit" : "PERCENT",
         "value" : "PCT"
       }, {
         "label" : "close / SMA",
+        "lo" : 0.0,
+        "neutral" : 1.0,
+        "unit" : "RATIO",
         "value" : "RATIO"
       }, {
         "label" : "ATR(14) multiples",
+        "neutral" : 0.0,
+        "unit" : "ATR_MULTIPLE",
         "value" : "ATR"
       } ]
     } ],
@@ -564,12 +572,20 @@
       "name" : "mode",
       "choices" : [ {
         "label" : "% of SMA",
+        "lo" : -100.0,
+        "neutral" : 0.0,
+        "unit" : "PERCENT",
         "value" : "PCT"
       }, {
         "label" : "close / SMA",
+        "lo" : 0.0,
+        "neutral" : 1.0,
+        "unit" : "RATIO",
         "value" : "RATIO"
       }, {
         "label" : "ATR(14) multiples",
+        "neutral" : 0.0,
+        "unit" : "ATR_MULTIPLE",
         "value" : "ATR"
       } ]
     } ],
@@ -629,12 +645,20 @@
       "name" : "mode",
       "choices" : [ {
         "label" : "% of SMA",
+        "lo" : -100.0,
+        "neutral" : 0.0,
+        "unit" : "PERCENT",
         "value" : "PCT"
       }, {
         "label" : "close / SMA",
+        "lo" : 0.0,
+        "neutral" : 1.0,
+        "unit" : "RATIO",
         "value" : "RATIO"
       }, {
         "label" : "ATR(14) multiples",
+        "neutral" : 0.0,
+        "unit" : "ATR_MULTIPLE",
         "value" : "ATR"
       } ]
     } ],

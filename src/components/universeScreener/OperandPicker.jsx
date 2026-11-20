@@ -186,7 +186,7 @@ export default function OperandPicker({
               const clash = side === 'right' && c.value !== modeValue && unitsClash(c.unit, otherUnit);
               return (
                 <option key={c.value} value={c.value} disabled={clash}
-                  title={clash ? `${c.label} is a ${unitLabel(c.unit)} value; the left side is a ${unitLabel(otherUnit)} value`
+                  title={clash ? `${c.label}: unit ${unitLabel(c.unit)}; the left side's unit is ${unitLabel(otherUnit)}`
                     : (c.unit ? `Unit: ${unitLabel(c.unit)}` : undefined)}>
                   {c.label}
                 </option>
