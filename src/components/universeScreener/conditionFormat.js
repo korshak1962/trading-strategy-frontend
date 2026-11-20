@@ -9,7 +9,7 @@ import {
 } from '../../api/screenerApi';
 import {
   getIndicatorCatalog, hasLength, lengthParamOf, kindName, operandUnitOf, unitLabel, operandTfsOf, CONST_KIND,
-  hasBenchmark, benchmarkParamOf, defaultBenchmarkOf,
+  hasBenchmark, benchmarkParamOf, defaultBenchmarkOf, modeParamOf, descriptorOf, isFieldKind,
 } from '../../api/indicatorCatalog';
 
 /**
@@ -33,7 +33,19 @@ export const fmtNum = (v, dp = 4) => {
 };
 
 /**
- * `close[−1]`, `SMA(50)[0]`, `ATR_PCT(14)[0]`, `IBS[0]`, `CORR(60, QQQ)[0]`; the `WEEK` prefix is added by the caller.
+ * The form shown in a caption: a non-default `mode` (KAIRI's ATR / RATIO; the default form is not
+ * written, as the backend's label), or a kind the catalog does not know with a `mode`; else null.
+ */
+const modeOfCaption = (o) => {
+  const m = typeof o.mode === 'string' && o.mode ? o.mode : null;
+  const mp = modeParamOf(o.kind);
+  if (mp) return m && m !== mp.defaultValue ? m : null;
+  return m && !descriptorOf(o.kind) && !isFieldKind(o.kind) ? m : null;
+};
+
+/**
+ * `close[−1]`, `SMA(50)[0]`, `ATR_PCT(14)[0]`, `IBS[0]`, `CORR(60, QQQ)[0]`, `KAIRI(20)[0]` (the default
+ * form), `KAIRI(20, ATR)[0]`; the `WEEK` prefix is added by the caller.
  * Indicators are written with their kind code, as the backend's Operand.label() writes them (so a
  * caption reads like the server's messages); bar fields in lower case.
  */
@@ -44,6 +56,11 @@ const operandBody = (o) => {
   if (hasBenchmark(o.kind, o.benchmark)) { // CORR(60, QQQ)[0], as the backend's IndicatorRef.label
     const n = hasLength(o.kind, o.n) ? `${isFiniteNum(o.n) ? Number(o.n) : '?'}, ` : '';
     return `${kind}(${n}${o.benchmark || defaultBenchmarkOf(o.kind) || '?'})${idx}`;
+  }
+  const mode = modeOfCaption(o);
+  if (mode) { // KAIRI(20, ATR)[0], as the backend's IndicatorRef.label (the default form: KAIRI(20)[0])
+    const n = hasLength(o.kind, o.n) ? `${isFiniteNum(o.n) ? Number(o.n) : '?'}, ` : '';
+    return `${kind}(${n}${mode})${idx}`;
   }
   if (hasLength(o.kind, o.n)) return `${kind}(${isFiniteNum(o.n) ? Number(o.n) : '?'})${idx}`;
   if (getIndicatorCatalog().byName.has(kind)) return `${kind}${idx}`;
@@ -175,6 +192,11 @@ export const validateOperand = (o, side, allowRun) => {
       errs.push(`${o.benchmark} is a ${c.market} benchmark; the screener's universe trades on ${SCREENER_MARKET}`);
     }
   }
+  const mp = modeParamOf(o.kind);
+  if (mp && o.mode && !mp.choices.some((x) => x.value === o.mode)) {
+    // KAIRI: one of the descriptor's forms (absent = the default)
+    errs.push(`unknown form '${o.mode}' for ${kindName(o.kind)}; known: ${mp.choices.map((x) => x.value).join(', ')}`);
+  }
   return errs;
 };
 
@@ -274,7 +296,7 @@ export const REASON_TEXT = Object.freeze({
   DATA_GAP: 'data gap (missing bar vs the SPY calendar)',
   INDICATOR_MISSING: 'indicator value missing (not computed yet or no stored row)',
   WEEK_INCONSISTENT: 'stored WEEK differs from the DAY aggregate',
-  ZERO_RANGE: 'zero range (high = low, flat closes, or flat returns for a correlation): the formula divides by 0',
+  ZERO_RANGE: 'zero range (high = low, flat closes, flat returns for a correlation, or SMA or ATR is zero for Kairi): the formula divides by 0',
   BENCHMARK_MISSING: 'benchmark bar missing (the benchmark has no bar on that date)',
   INSUFFICIENT_HISTORY: 'not enough history',
   NO_CURRENT_CHANNEL: 'no current (confirmed, visible) channel',

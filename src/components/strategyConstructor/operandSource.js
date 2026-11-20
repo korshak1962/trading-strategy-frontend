@@ -15,7 +15,7 @@
 // Loading an operand only renders sourceOf(); no transition runs, nothing is written.
 import {
   FIELD_KINDS, CONST_KIND, LEVEL_KIND, BRICK_OPERAND_KINDS, POSITION_KINDS, descriptorOf, defaultLengthOf, defaultBenchmarkOf,
-  operandTfsOf, operandUnitOf, unitLabel, kindName, runTfNotSupportedText, getIndicatorCatalog,
+  operandTfsOf, operandUnitOf, unitLabel, kindName, runTfNotSupportedText, getIndicatorCatalog, unitsOfKind, modeForUnit,
 } from '../../api/indicatorCatalog';
 import { SCREEN_TFS } from '../../api/screenerApi';
 import { unitsClash, RUN_TF } from '../universeScreener/conditionFormat';
@@ -55,12 +55,15 @@ export const baseTfsOf = (allowRun) => (allowRun ? [RUN_TF, ...SCREEN_TFS] : [..
 /**
  * Legacy OperandPicker.changeKind: a new kind takes its own default length and an allowed TF; CONST
  * keeps the rest of the operand. CORR: a new kind with a benchmark takes its default benchmark, a
- * kind without one drops `benchmark` (the operand JSON of every other kind stays as before). Applied to `value` as `{...value, ...patch}`.
+ * kind without one drops `benchmark` (the operand JSON of every other kind stays as before). KAIRI:
+ * `mode` is dropped too; a kind with forms takes the form whose unit is `otherUnit` (the left side's
+ * unit, on the right side: KAIRI against a DIST_* line gets ATR), else the default form (no `mode`).
+ * Applied to `value` as `{...value, ...patch}`.
  */
-export const legacyChangeKind = (value, kind, allowRun) => {
+export const legacyChangeKind = (value, kind, allowRun, otherUnit = null) => {
   if (kind === CONST_KIND) return { ...value, kind };
   const okTfs = operandTfsOf(kind, baseTfsOf(allowRun));
-  const { benchmark: _dropped, ...rest } = value || {};
+  const { benchmark: _dropped, mode: _droppedMode, ...rest } = value || {};
   const out = {
     ...rest,
     kind,
@@ -70,6 +73,8 @@ export const legacyChangeKind = (value, kind, allowRun) => {
   // CORR: a new kind with a benchmark takes its default (SPY); any other kind carries none
   const benchmark = defaultBenchmarkOf(kind);
   if (benchmark) out.benchmark = benchmark;
+  const mode = modeForUnit(kind, otherUnit);
+  if (mode) out.mode = mode;
   return out;
 };
 
@@ -101,20 +106,23 @@ export const transition = (operand, source, field = null, ctx = {}) => {
   if (isStagedSource(operand?.kind)) {
     // staged → plain: the legacy "value" form gives RUN close[0]; picking close there was a no-op
     const plain = newPlainOperand();
-    return kind === plain.kind ? plain : legacyChangeKind(plain, kind, ctx.allowRun);
+    return kind === plain.kind ? plain : legacyChangeKind(plain, kind, ctx.allowRun, ctx.otherUnit);
   }
   if (kind === operand?.kind) return operand;
-  return legacyChangeKind(operand, kind, ctx.allowRun);
+  return legacyChangeKind(operand, kind, ctx.allowRun, ctx.otherUnit);
 };
 
 // ---- the menu ----
 
-/** Why a plain kind is disabled (legacy OperandPicker.disabledReason, verbatim); null = selectable. */
+/**
+ * Why a plain kind is disabled (legacy OperandPicker.disabledReason); null = selectable. A kind with
+ * forms (KAIRI) fits when any of its forms has the left side's unit (`unitsOfKind`).
+ */
 export const plainDisabledReason = (kind, runTf, otherUnit) => {
   const notRun = runTfNotSupportedText(kind, runTf);
   if (notRun) return notRun;
   const u = operandUnitOf({ kind });
-  if (unitsClash(u, otherUnit)) {
+  if (unitsClash(u, otherUnit) && !unitsOfKind(kind).includes(otherUnit)) {
     return `${kindName(kind)} is a ${unitLabel(u)} value; the left side is a ${unitLabel(otherUnit)} value: `
       + (u === 'PRICE_RANGE' || otherUnit === 'PRICE_RANGE'
         ? 'ATR compares only with ATR or a number'

@@ -29,15 +29,21 @@
 // no ticker until it runs, so it offers every benchmark (the market in the option's tooltip; the run refuses a
 // benchmark of another market with a 400). A stored benchmark the meta does not list stays selected
 // as "(unknown)".
+//
+// KAIRI: a kind with the `mode` choice param gets a "Form" select next to the length, the same markup
+// as "Benchmark" (no market filter, no link slot: a form is never an optimizer axis). The options are
+// the descriptor's choices ("% of SMA" / "close / SMA" / "ATR(14) multiples"); the form sets the
+// operand's unit (shown next to it). The default form is written as the choice's value in the editor
+// and left out of the JSON by screenerApi.toOperand (`defaultOmitted`).
 import { OFFSET_MIN, OFFSET_MAX } from '../../api/screenerApi';
 import {
   useIndicatorCatalog, lengthParamOf, hasLength, kindName, FIELD_KINDS,
   operandUnitOf, unitLabel, unitHintOf, runTfNotSupportedText, runTfAdviceOf, operandTfsOf, CONST_KIND,
-  benchmarkParamOf,
+  benchmarkParamOf, modeParamOf,
 } from '../../api/indicatorCatalog';
 import { useEditorHelp } from '../../api/editorTexts';
 import FieldLabel from '../common/FieldLabel';
-import { isProvisionalOperand, fmtNum, SCREENER_MARKET } from './conditionFormat';
+import { isProvisionalOperand, fmtNum, SCREENER_MARKET, unitsClash } from './conditionFormat';
 import SourcePicker, { TimeframeField } from './SourcePicker';
 import { baseTfsOf, plainDisabledReason, PRICE_BAR, sourceOf, transition } from '../strategyConstructor/operandSource';
 
@@ -64,6 +70,9 @@ export default function OperandPicker({
   const benchChoices = bp ? bp.choices.filter((c) => !benchMarket || !c.market || c.market === benchMarket) : [];
   const benchValue = bp ? (value.benchmark || bp.defaultValue || '') : '';
   const benchKnown = benchChoices.some((c) => c.value === benchValue);
+  const mp = modeParamOf(value.kind);
+  const modeValue = mp ? (value.mode || mp.defaultValue || '') : '';
+  const modeKnown = mp ? mp.choices.some((c) => c.value === modeValue) : false;
   const unit = operandUnitOf(value);
   const notRunHere = runTfNotSupportedText(value.kind, runTf);
   const { source, field } = sourceOf(value);
@@ -162,6 +171,28 @@ export default function OperandPicker({
               <option key={c.value} value={c.value} title={c.market ? `${c.market} market` : undefined}>{c.label}</option>
             ))}
             {!benchKnown && benchValue && <option value={benchValue}>{benchValue} (unknown)</option>}
+          </select>
+        </FieldLabel>
+      )}
+      {mp && (
+        <FieldLabel label="Form" tooltip={help.help.mode || mp.description || 'How the distance is measured'}
+          testId={tid('info-mode')}>
+          <select className={sel} value={modeValue} disabled={disabled} aria-label={`${side} ${kindName(value.kind)} form`}
+            data-testid={tid('mode')}
+            title={mp.choices.find((c) => c.value === modeValue)?.label || mp.description || undefined}
+            onChange={(e) => set({ mode: e.target.value })}>
+            {mp.choices.map((c) => {
+              // the right side: a form of another unit than the left side's cannot be compared
+              const clash = side === 'right' && c.value !== modeValue && unitsClash(c.unit, otherUnit);
+              return (
+                <option key={c.value} value={c.value} disabled={clash}
+                  title={clash ? `${c.label} is a ${unitLabel(c.unit)} value; the left side is a ${unitLabel(otherUnit)} value`
+                    : (c.unit ? `Unit: ${unitLabel(c.unit)}` : undefined)}>
+                  {c.label}
+                </option>
+              );
+            })}
+            {!modeKnown && modeValue && <option value={modeValue}>{modeValue} (unknown)</option>}
           </select>
         </FieldLabel>
       )}
