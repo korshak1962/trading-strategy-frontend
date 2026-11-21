@@ -41,7 +41,7 @@
 //
 // R5 v2 F1 (screener logs/agents/architect_r5_migration_v2.md §6, backend_dev_r5_v2.md "/meta for the
 // frontend"): the position operand of form LEVELS `{kind: STICKY_SINCE_ENTRY, tf: 'RUN', offset: 0,
-// levels}` - the class's sticky-support exit line of the open long; no X, no lag, no output, its own
+// levels}` - the Levels sticky-support exit line of the open long; no X, no lag, no output, its own
 // Levels spec. Links on it: `P.levels.<field>` (as a LEVEL side), never `P.x.*`.
 
 import { apiRequest, readJson, jsonBody, enc } from './httpClient';
@@ -292,10 +292,10 @@ export const DEFAULT_BRICKS_META = Object.freeze({
 /** Fallback of meta.position.kinds (backend ConstructedStrategyServiceImpl.positionMeta). */
 export const POSITION_KIND_META = Object.freeze(withTexts(POSITION_TEXTS, [
   { name: 'AT_ENTRY', form: 'AT_ENTRY', hint: 'X on the entry bar of the open long (seeded: the seed bar); "in position" = AT_ENTRY(close) > 0; a % stop = close < AT_ENTRY(close) with tolerance -5' },
-  { name: 'MAX_SINCE_ENTRY', form: 'WINDOW', hint: 'The maximum of X over (entry, t - lag], bars without a value skipped; lag 1 = the class ratchet (the entry bar is not in the window)' },
+  { name: 'MAX_SINCE_ENTRY', form: 'WINDOW', hint: 'The maximum of X over (entry, t - lag], bars without a value skipped; lag 1 = a ratchet as of the previous bar (the entry bar is not in the window)' },
   { name: 'MIN_SINCE_ENTRY', form: 'WINDOW', hint: 'The minimum of X over (entry, t - lag]' },
   // R5 v2 F1: form LEVELS - no X / lag, its own `levels`
-  { name: 'STICKY_SINCE_ENTRY', form: 'LEVELS', hint: "The class's sticky-support exit line of the open long: the entry zone, followed through merges, raised to a higher zone fully below the close, re-priced every bar (max(line, zone low - BreakBuffer x ATR)); the value on bar t is the line after bar t-1. Only `levels`, no X / lag." },
+  { name: 'STICKY_SINCE_ENTRY', form: 'LEVELS', hint: "The Levels sticky-support exit line of the open long: the entry zone, followed through merges, raised to a higher zone fully below the close, re-priced every bar (max(line, zone low - BreakBuffer x ATR)); the value on bar t is the line after bar t-1. Only `levels`, no X / lag." },
 ]));
 export const POSITION_RUN_TFS = Object.freeze(['DAY', 'WEEK']);
 export const POSITION_REFUSED_IN = Object.freeze(['ShortClose']);

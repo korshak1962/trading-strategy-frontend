@@ -158,7 +158,7 @@ export const LEVELS_FIXED_TEXTS = Object.freeze({
 });
 
 export const LEVELS_HELP = Object.freeze({
-  summary: 'Settings of the level tracker for this condition. "Class defaults" = the same as the level breakout strategy. Only changed fields are listed. Not optimized unless linked to an axis.',
+  summary: 'Settings of the level tracker for this condition. "Default settings" = the same as the Level breakout (bricks) template. Only changed fields are listed. Not optimized unless linked to an axis.',
   strength: 'Only zones at least this strong (0 < s ≤ 50). Strength grows with the number and weight of the zone\'s pivots and touches. Linkable.',
   offset: '0 = this bar, −1 = the bar before, on the run TF.',
   output: 'A price line or a distance from the level tracker on this bar. Empty on bars where it does not exist (the condition is then not met, not false).',

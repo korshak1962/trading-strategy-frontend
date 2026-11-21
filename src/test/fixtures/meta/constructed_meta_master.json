@@ -661,7 +661,7 @@
    },
    {
     "form": "WINDOW",
-    "hint": "The maximum of X over (entry, t - lag], bars without a value skipped; lag 1 = the class's ratchet (the entry bar is not in the window)",
+    "hint": "The maximum of X over (entry, t - lag], bars without a value skipped; lag 1 = a ratchet as of the previous bar (the entry bar is not in the window)",
     "name": "MAX_SINCE_ENTRY"
    },
    {
