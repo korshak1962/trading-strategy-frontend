@@ -474,7 +474,7 @@
       "group" : "A value from your open long. Without one the condition is false. Not in \"Cover short\" rules.",
       "x" : "Value X: what to read (a bar field, an indicator, a Levels line or a value from the last event) on the run TF.",
       "lag" : "Skip last bars: 1 = the line as of the previous bar (the class ratchet). Not optimizable. 0 to 10.",
-      "levels" : "Sticky support since entry has no X and no lag: it reads its own Levels settings (the same as a Levels line) and follows the trade's sticky support zone, as the LevelBreakoutRetest class does.",
+      "levels" : "Sticky support since entry has no X and no lag: it reads its own Levels settings (the same as a Levels line) and follows the trade's sticky support zone.",
       "badge" : "uses my open long",
       "badgeTooltip" : "This rule reads your open long, so the strategy depends on the position.",
       "noLong" : "Without an open long the condition is false.",

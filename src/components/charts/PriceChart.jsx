@@ -15,12 +15,6 @@ import {
   drawPositionShading,
   drawPreWindowShading,
   drawStabilityBand,
-  drawSupportSegments,
-  drawSetupWindows,
-  drawWindowEndGlyphs,
-  drawUpgradeMarkers,
-  drawEventMarkers,
-  drawMarkerLabels,
   drawNextBarTriggers,
   slotWidthPx,
   barSlotMs,
@@ -28,7 +22,6 @@ import {
 } from '../../utils/ChartDrawingUtils';
 import { parseExchangeTs, exchangeToday } from '../../utils/dates';
 import { useTheme } from '../../theme/useTheme';
-import { matchTradeAnnotation, markerLabel, MARKER_LABEL_LIMIT } from '../../utils/levelChart';
 
 const EMPTY_RUNS = [];
 
@@ -49,19 +42,12 @@ const EMPTY_RUNS = [];
  * @param {Map} [props.signalTradeIndex] - signalKey -> tradeIndex, from deriveSignalTradeIndex.
  * @param {Array<{name, color}>} [props.priceSeries] - visible price-axis indicator series
  *   (from the shared IndicatorPicker); values come from data.priceIndicators[name].
- * @param {Array} [props.levelZoneRuns] - level zone bands to draw (LevelBreakoutRetest), already
- *   selected and merged by utils/levelZones.js buildLevelZoneRuns; empty for other strategies.
+ * @param {Array} [props.levelZoneRuns] - level zone bands to draw (a result with `levelZones[]`),
+ *   already selected and merged by utils/levelZones.js buildLevelZoneRuns; empty otherwise.
  * @param {{min: number, max: number}|null} [props.priceRange] - manual price-axis range (vertical
  *   zoom, see ReporterStyleChart); null = auto-fit to the visible candles.
- * @param {Object|null} [props.levelChart] - LevelBreakoutRetest buy / sell annotations, normalized
- *   by utils/levelChart.js normalizeLevelChart; null for other strategies (nothing extra drawn).
- * @param {boolean} [props.showLevelLines] - the "Show indicators" master switch: draws the setup
- *   windows' band and lines. Markers, window-end glyphs, "↑", the support zone and the position
- *   shading do not depend on it.
- * @param {boolean} [props.showEvents] - the "Events" toggle, off by default: event markers, and
- *   the setup windows that ended while the position was long (ALREADY_LONG, §4.1).
  * @param {Array<{startMs, endMs, fill}>|null} [props.positionSpans] - Signals mode: the merged
- *   position to shade (signalPanes.js normalizePositionSpans); null = the level chart's own shading.
+ *   position to shade (signalPanes.js normalizePositionSpans); null = no position shading.
  * @param {{endMs: number}|null} [props.preWindowSpan] - warm-up before tradeStart to shade
  *   (ChartDataUtils.preWindowSpan); null = no warm-up.
  * @param {Object|null} [props.nextBarTriggers] - next-bar trigger lines to draw: a
@@ -79,7 +65,7 @@ const EMPTY_RUNS = [];
 const PriceChart = ({
   data, width, height, dateRange, visibleRange = null, highlightTradeIndex = null, signalTradeIndex = null,
   priceSeries = [], levelZoneRuns = EMPTY_RUNS, priceRange = null,
-  levelChart = null, showLevelLines = true, showEvents = false, positionSpans = null, preWindowSpan = null,
+  positionSpans = null, preWindowSpan = null,
   nextBarTriggers = null, extraSlots = 0, stabilityBand = null, channelTree = null
 }) => {
   const canvasRef = useRef(null);
@@ -197,36 +183,18 @@ const PriceChart = ({
     ctx.rect(0, 0, width, manualRange ? Math.max(0, height - DATE_AXIS_BAND) : height);
     ctx.clip();
 
-    // Setup windows that ended while the position was long (ALREADY_LONG) only with "Events" on
-    // (§4.1 clutter rule) - band, lines and end glyph alike
-    const drawnWindows = !levelChart ? []
-      : (showEvents ? levelChart.windows : levelChart.windows.filter(win => !win.endsWhileLong));
-
     // Warm-up before the trading window: the bottom layer, under the position shading
     drawPreWindowShading(ctx, preWindowSpan, chartDateRange, width, height, { label: true });
     // Stability band of the selected chain node (Fit / Check halves), right above the warm-up
     drawStabilityBand(ctx, stabilityBand, chartDateRange, width, height);
 
-    // Position shading first, then level zone bands, the sticky support zone and the setup
-    // windows - all under the candles, so the candles stay readable over them
-    // Signals mode passes the merged position (positionSpans) - it replaces the level strategy's
-    // own shading, which follows the same merged position since Stage 1 (no double shading)
+    // Position shading (Signals mode: the merged position), then the level zone bands - under the
+    // candles, so the candles stay readable over them
     if (positionSpans) {
       drawPositionShading(ctx, positionSpans, chartDateRange, minMaxPrice, width, height);
-    } else if (levelChart) {
-      drawPositionShading(ctx, levelChart.positionSpans, chartDateRange, minMaxPrice, width, height);
     }
     drawLevelZones(ctx, levelZoneRuns, chartDateRange, minMaxPrice, width, height);
-    if (levelChart) {
-      drawSupportSegments(ctx, levelChart.supportSegments, chartDateRange, minMaxPrice, width, height);
-      if (showLevelLines) {
-        drawSetupWindows(
-          ctx, drawnWindows, levelChart.slotLeft, levelChart.slotRight,
-          chartDateRange, minMaxPrice, width, height
-        );
-      }
-    }
-    
+
     // Draw price candlesticks with the calculated width
     drawPriceCandlesticks(ctx, visiblePrices, chartDateRange, minMaxPrice, width, height, candleWidth);
 
@@ -240,14 +208,6 @@ const PriceChart = ({
     // Draw channel lines (if any) behind signal markers, in front of candlesticks
     drawChannels(ctx, channels, chartDateRange, minMaxPrice, width, height, highlightTradeIndex);
 
-    // Level annotations over the candles, under the trade markers: window-end glyphs, "↑" on the
-    // exit line, and (when toggled on) event markers
-    if (levelChart) {
-      drawWindowEndGlyphs(ctx, drawnWindows, levelChart.barTimes, chartDateRange, minMaxPrice, width, height);
-      drawUpgradeMarkers(ctx, levelChart.upgrades, chartDateRange, minMaxPrice, width, height);
-      if (showEvents) drawEventMarkers(ctx, levelChart.events, chartDateRange, minMaxPrice, width, height);
-    }
-
     // Draw signals that are within the date range
     if (signals.length > 0) {
       const visibleSignals = signals.filter(signal => {
@@ -260,18 +220,6 @@ const PriceChart = ({
           ctx, visibleSignals, chartDateRange, minMaxPrice, width, height,
           highlightTradeIndex, signalTradeIndex
         );
-
-        // Text labels ("Retest" / "Runaway" / "Base" / "Stop" / "Support" / "TP") only while few markers
-        // are in view, and only on markers matching a level trade by (date, type)
-        if (levelChart && visibleSignals.length <= MARKER_LABEL_LIMIT) {
-          const labelled = [];
-          visibleSignals.forEach(signal => {
-            const match = matchTradeAnnotation(levelChart, signal);
-            const label = markerLabel(match);
-            if (label) labelled.push({ signal, label, role: match.role });
-          });
-          drawMarkerLabels(ctx, labelled, chartDateRange, minMaxPrice, width, height);
-        }
       }
     }
 
@@ -304,7 +252,7 @@ const PriceChart = ({
       }
     };
   }, [data, width, height, dateRange, visibleRange, highlightTradeIndex, signalTradeIndex, priceSeries, levelZoneRuns, priceRange,
-    levelChart, showLevelLines, showEvents, positionSpans, preWindowSpan, nextBarTriggers, extraSlots, stabilityBand, channelTree,
+    positionSpans, preWindowSpan, nextBarTriggers, extraSlots, stabilityBand, channelTree,
     theme]);
 
   return (

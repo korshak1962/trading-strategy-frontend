@@ -21,6 +21,7 @@ import {
   getAvailableStrategies, getAvailableTickers, submitStrategies, formatStrategyConfig,
   startOptimization, fetchOptimizationJob, fetchCurrentOptimizationJob, fetchOptimizationResult,
   stopOptimization, fetchSignalCharts, startScreening, fetchScreeningResult, getProfileByKey, deleteProfile,
+  getCase,
 } from './api/strategyApi';
 import SignalChartsView from './components/signals/SignalChartsView';
 import { adaptSignalCharts } from './components/signals/signalPanes';
@@ -42,7 +43,7 @@ import { isMinimalIndicatorsError } from './components/universeScreener/prepareF
 import { useScreenerLatest } from './hooks/useScreenerLatest';
 import { useWatchNotifications } from './hooks/useWatchNotifications';
 import { getWatchBacktestConfig, markNotificationRead } from './api/watchApi';
-import { describeError, fmtDay, fmtPrice, modeLabel } from './components/watch/format';
+import { describeError, fmtDay, fmtPrice, modeLabel, watchLinkNotice } from './components/watch/format';
 import {
   calendarDayKey, exchangeTodayLocalDate, exchangeZoneForTicker, localDateFromIso, toLocalIsoDate, fmtBarTimestamp,
 } from './utils/dates';
@@ -185,6 +186,9 @@ const App = () => {
   const [watchContext, setWatchContext] = useState(null);
   const [watchLinkError, setWatchLinkError] = useState(null);
   const [watchLinkBusy, setWatchLinkBusy] = useState(false);
+  // Deep link to a signal of a removed strategy (watch/format.js watchLinkNotice): its message and
+  // the case to open instead; null = none.
+  const [watchLinkRemoved, setWatchLinkRemoved] = useState(null);
   // Deep link auto-run: set together with the form; the effect below submits once the form state
   // has rendered, through the same handleSubmit as a manual run.
   const pendingAutoRun = useRef(false);
@@ -1047,6 +1051,7 @@ const App = () => {
   // once and focuses the signal's bar.
   const openWatchInBacktest = async (watchId, signalId = null) => {
     setWatchLinkError(null);
+    setWatchLinkRemoved(null);
     if (loading || optActive) {
       setWatchLinkError('A run is in progress in the Strategy Backtester — wait for it to finish, then open the watch again.');
       return;
@@ -1054,6 +1059,12 @@ const App = () => {
     setWatchLinkBusy(true);
     try {
       const dto = await getWatchBacktestConfig(watchId, signalId);
+      // A signal of a removed strategy: no config, no chart - show why and offer its case instead
+      const removed = watchLinkNotice(dto);
+      if (removed) {
+        setWatchLinkRemoved(removed);
+        return;
+      }
       const cfg = dto?.config || {};
       navigate({ tab: 'backtest' });
       setMode('backtest');
@@ -1075,6 +1086,29 @@ const App = () => {
       setWatchLinkError(err.status === 404 && !err.code
         ? 'The watch or its signal no longer exists (or the backend has no watch API).'
         : `Could not open the watch in Backtest: ${describeError(err)}`);
+    } finally {
+      setWatchLinkBusy(false);
+    }
+  };
+
+  // "Open case #<id>" of a removed-strategy deep link: loads the case into the Backtest form like the
+  // Saved cases panel does (nothing runs by itself).
+  const openRemovedLinkCase = async () => {
+    const notice = watchLinkRemoved;
+    if (!notice || notice.caseId === null) return;
+    setWatchLinkError(null);
+    if (loading || optActive) {
+      setWatchLinkError('A run is in progress in the Strategy Backtester — wait for it to finish, then open the case again.');
+      return;
+    }
+    setWatchLinkBusy(true);
+    try {
+      const dto = await getCase(notice.caseId);
+      navigate({ tab: 'backtest' });
+      handleLoadCase(dto);
+      setWatchLinkRemoved(null);
+    } catch (err) {
+      setWatchLinkError(err.status === 404 ? notice.missingText : `Could not open the case: ${err.message}`);
     } finally {
       setWatchLinkBusy(false);
     }
@@ -1330,6 +1364,28 @@ const App = () => {
           <main className="flex-grow w-full px-4 py-8">
             {watchLinkError && (
               <div className="form-error mb-4" role="alert" data-testid="watch-link-error">{watchLinkError}</div>
+            )}
+            {watchLinkRemoved && !watchLinkError && (
+              <div
+                className="mb-4 p-3 rounded bg-gray-50 border border-gray-300 text-gray-800 text-sm"
+                role="status"
+                data-testid="watch-link-error"
+                data-kind="removed"
+              >
+                <div>{watchLinkRemoved.message}</div>
+                {watchLinkRemoved.openLabel && (
+                  <button
+                    type="button"
+                    className="mt-2 px-3 py-1 rounded border border-gray-300 bg-white text-gray-800 hover:bg-gray-100 disabled:opacity-50"
+                    onClick={openRemovedLinkCase}
+                    disabled={watchLinkBusy}
+                    title={watchLinkRemoved.caseName ? `Load the case "${watchLinkRemoved.caseName}" into the Backtest form` : 'Load the case into the Backtest form'}
+                    data-testid="watch-link-open-case"
+                  >
+                    {watchLinkRemoved.openLabel}
+                  </button>
+                )}
+              </div>
             )}
             {watchLinkBusy && <p className="mb-4 text-sm text-gray-500">Opening the watch in Backtest…</p>}
             <WatchlistPanel

@@ -11,19 +11,12 @@ import RangeSlider, { RANGE_SLIDER_HEIGHT, RANGE_SLIDER_DATES_HEIGHT } from './c
 import VoteStrip from './charts/VoteStrip';
 import {
   findMinMaxPriceRange, deriveSignalTradeIndex, signalKey, plotDateRange, DATE_AXIS_BAND,
-  timeToX, xToTime, timeToZoomCoord, zoomCoordToTime,
-  windowGlyphPoint, WINDOW_GLYPH_R
+  timeToX, xToTime, timeToZoomCoord, zoomCoordToTime
 } from '../utils/ChartDrawingUtils';
 import { pointsForSeries, seriesLabel } from '../utils/indicatorSeries';
-import {
-  LEVEL_ZONE_DESCRIPTIONS, LEVEL_CHART_DESCRIPTIONS, NEXT_BAR_DESCRIPTIONS
-} from '../utils/indicatorDescriptions';
+import { LEVEL_ZONE_DESCRIPTIONS, NEXT_BAR_DESCRIPTIONS } from '../utils/indicatorDescriptions';
 import './nextTriggers/nextBarCard.css';
 import { triggerPlacement } from './nextTriggers/nextTriggersAdapter';
-import { isSetupPreview } from './nextTriggers/nextTriggersFormat';
-import {
-  normalizeLevelChart, statusLine, matchTradeAnnotation, byZoneLowThenId, describeZone
-} from '../utils/levelChart';
 import IndicatorPicker from './IndicatorPicker';
 import {
   extractTradesFromSignals, cumulativeClosedPnLByBar, barIndexAtOrAfter, preWindowSpan, initialWindowRange,
@@ -33,7 +26,7 @@ import { parseExchangeTs, fmtExchangeIntl } from '../utils/dates';
 import { useElementSize } from '../hooks/useElementSize';
 import {
   buildLevelZoneRuns, hasLevelZones, clampNearestN, LEVEL_ZONES_MAX_N, LEVEL_ZONES_DEFAULT_SETTINGS,
-  normalizeLevelZoneSegments
+  describeZone
 } from '../utils/levelZones';
 
 // Pane canvases, top to bottom - used to tell which pane the cursor is over.
@@ -79,10 +72,8 @@ const MIN_FIT_PANE_BUDGET_PX = 400;
 // Level zone display settings (N nearest, weak zones, all strong zones), remembered per browser.
 const LEVEL_ZONES_STORAGE_KEY = 'reporterChart.levelZones.v1';
 const NO_RUNS = [];
-// Setup-window hit test (tooltip): extra px around the retest band / runaway line, and the radius
-// around a window-end glyph.
-const WINDOW_HIT_SLOP_PX = 4;
-const GLYPH_HIT_PX = WINDOW_GLYPH_R + 4;
+// Zone hit test (tooltip): extra px around a zone band, so a thin band can still be hovered.
+const ZONE_HIT_SLOP_PX = 4;
 // A signal marker is only ~7px (its drawn triangle half-size); nobody clicks that precisely by
 // eye, so the hit target needs to be considerably more forgiving than the marker itself.
 const SIGNAL_HIT_RADIUS_PX = 22;
@@ -186,7 +177,7 @@ const FOCUS_BARS_AFTER = 5;
  * @param {Array<{startMs, endMs, type}>|null} [props.votes] - Signals mode vote strip under the
  *   price pane (signalPanes.js normalizeVotes); null = no strip
  * @param {Array<{startMs, endMs, fill}>|null} [props.positionSpans] - Signals mode merged position
- *   shading (signalPanes.js normalizePositionSpans); null = the level chart's own shading
+ *   shading (signalPanes.js normalizePositionSpans); null = no position shading
  * @param {boolean} [props.longOnly] - Signals mode: labels the ShortOpen vote as a long exit
  * @param {import('react').ReactNode} [props.priceTitle] - title left of the price legend
  * @param {boolean} [props.showInstructions=true] - the zoom / pan help text in the controls row
@@ -273,7 +264,7 @@ const ReporterStyleChart = ({
     selectedIds: new Set(visibleSeries.map(series => series.id)),
   }, [indicatorSelection, visibleSeries]);
 
-  // Level zones (LevelBreakoutRetest only - other strategies send none and get no controls).
+  // Level zones (only results that send levelZones[] - the others get no controls).
   // Selection per bar is done here, once per result/setting change, not on every redraw.
   const showLevelZoneControls = hasLevelZones(data);
   const [levelZoneSettings, setLevelZoneSettings] = useState(loadLevelZoneSettings);
@@ -298,30 +289,8 @@ const ReporterStyleChart = ({
     if (!hasLevelZones(data)) return NO_RUNS;
     return buildLevelZoneRuns(data.prices, data.levelZones, levelZoneSettings);
   }, [data, levelZoneSettings]);
-  // Every zone segment (drawn or not), for the zone tooltip of the sticky support band and of a
-  // setup window's own zone, which need not be among the drawn runs.
-  const levelZoneSegments = useMemo(
-    () => (hasLevelZones(data) ? normalizeLevelZoneSegments(data.levelZones) : []),
-    [data]
-  );
-
-  // LevelBreakoutRetest buy / sell annotations (data.levelChart; null for other strategies and
-  // older backends - then nothing below changes the chart). Normalized once per result.
-  const levelChart = useMemo(() => normalizeLevelChart(data?.levelChart, data?.prices), [data]);
-  // "Events" toggle, off by default; not persisted. Shows the event markers and the setup windows
-  // that ended while the position was long (§4.1).
-  const [showEvents, setShowEvents] = useState(false);
-  const hasEvents = Boolean(levelChart && levelChart.events.length > 0);
-  // Series values by bar time, for the tooltip's indicator rows and status line.
+  // Series values by bar time, for the tooltip's indicator rows and the zone tooltip.
   const seriesValueIndex = useMemo(() => buildSeriesValueIndex(data), [data]);
-  const seriesValueAt = useCallback((name, barIndex) => {
-    const ms = levelChart?.barTimes[barIndex];
-    const value = seriesValueIndex.get(`price:${name}`)?.get(ms);
-    return value === undefined ? NaN : value;
-  }, [levelChart, seriesValueIndex]);
-  // "Show indicators" also hides the setup windows' band and lines (§4.1); markers, glyphs, "↑",
-  // the support zone and the position shading stay.
-  const showLevelLines = Boolean(legendSelection.showIndicators);
 
   // Price-only fullscreen: just the price pane, its range slider and a floating exit button (✕)
   // filling the viewport - no controls row, legend, zone panel or reason note (screener
@@ -624,9 +593,8 @@ const ReporterStyleChart = ({
     () => (placement ? { ...nextTriggers, placement, showInfo: showTriggerInfo } : null),
     [nextTriggers, placement, showTriggerInfo]
   );
-  // the "setup info" toggle only when it changes something: a setup preview is drawn without it
-  const hasTriggerInfo = Boolean(nextTriggers?.estimate?.lines.some(l => l.informational && l.price !== null
-    && !(nextTriggers.preview && isSetupPreview(l))));
+  // the "info lines" toggle only when the estimate has informational lines with a price
+  const hasTriggerInfo = Boolean(nextTriggers?.estimate?.lines.some(l => l.informational && l.price !== null));
 
   const plotRange = useMemo(
     () => plotDateRange(dateRange, sliderRows.map(row => row.ms), triggerSlots),
@@ -812,47 +780,6 @@ const ReporterStyleChart = ({
     return { signal: closest, signals: coincident, dist: closestDist, canvas };
   }, [data, dateRange, plotRange, priceYRange, currentPriceScale]);
 
-  // The setup window under the cursor on bar `barIndex` of the price pane: a window-end glyph
-  // (always drawn) first, then - only while "Show indicators" draws them - a retest band or the
-  // runaway / base-high line of a window waiting on that bar. Lowest zone first (zone.low, then id). Windows
-  // that ended while long are hit only while "Events" draws them. Null when nothing is hit.
-  const findSetupWindowAt = useCallback((barIndex, clientY) => {
-    if (!levelChart || barIndex < 0) return null;
-    const canvas = containerRef.current?.querySelector('.price-chart-canvas');
-    const minMax = currentPriceScale();
-    if (!canvas || !minMax || !(minMax.max > minMax.min)) return null;
-    const rect = canvas.getBoundingClientRect();
-    const py = clientY - rect.top;
-    if (py < 0 || py > rect.height || rect.height <= 0) return null;
-    const yOf = (price) => rect.height - ((price - minMax.min) / (minMax.max - minMax.min)) * rect.height;
-
-    const drawn = (win) => showEvents || !win.endsWhileLong;
-    const ending = (levelChart.windowsEndingAt.get(barIndex) || []).filter(drawn);
-    const glyphHit = ending.find(candidate => {
-      const at = windowGlyphPoint(candidate, levelChart.barTimes);
-      return at && Math.abs(yOf(at.price) - py) <= GLYPH_HIT_PX;
-    });
-    if (glyphHit) return glyphHit;
-    if (!showLevelLines) return null;
-
-    const waiting = (levelChart.windowPointsByBar.get(barIndex) || [])
-      .filter(({ window: candidate }) => drawn(candidate))
-      .sort((a, b) => byZoneLowThenId(a.window, b.window));
-    const hit = waiting.find(({ window: candidate, point }) => {
-      const bottom = Number.isFinite(point.confirmLine) ? point.confirmLine : candidate.zoneHigh;
-      const levels = [point.touchLine, bottom].filter(Number.isFinite);
-      if (point.phase === 'AWAIT' && Number.isFinite(point.runawayLine)
-        && Math.abs(yOf(point.runawayLine) - py) <= WINDOW_HIT_SLOP_PX) return true;
-      if (point.phase === 'AWAIT' && Number.isFinite(point.baseLine)
-        && Math.abs(yOf(point.baseLine) - py) <= WINDOW_HIT_SLOP_PX) return true;
-      if (levels.length === 0) return false;
-      const yTop = yOf(Math.max(...levels)) - WINDOW_HIT_SLOP_PX;
-      const yBottom = yOf(Math.min(...levels)) + WINDOW_HIT_SLOP_PX;
-      return py >= yTop && py <= yBottom;
-    });
-    return hit ? hit.window : null;
-  }, [levelChart, currentPriceScale, showLevelLines, showEvents]);
-
   // Bar time (ms) -> bar index, and the closes, for the zone tooltip.
   const barIndexByMs = useMemo(() => {
     const map = new Map();
@@ -861,22 +788,12 @@ const ReporterStyleChart = ({
   }, [sliderRows]);
   const barCloses = useMemo(() => sliderRows.map(row => Number(row.close)), [sliderRows]);
 
-  // The zone segment of `zoneId` covering bar `barIndex` (drawn or not), or null.
-  const zoneSegmentAt = useCallback((zoneId, barIndex) => {
-    const ms = sliderRows[barIndex]?.ms;
-    if (ms === undefined || zoneId === null || zoneId === undefined) return null;
-    return levelZoneSegments.find(seg => String(seg.zoneId) === String(zoneId)
-      && seg.fromMs <= ms && ms <= seg.toMs) || null;
-  }, [levelZoneSegments, sliderRows]);
-
   // The level zones under the cursor on bar `barIndex` of the price pane (§F2): the DRAWN zone runs
-  // covering the bar whose band contains the cursor price (± WINDOW_HIT_SLOP_PX for thin bands) -
-  // zones hidden by N nearest / weak / all-strong are not hit - plus the sticky support band of the
-  // open position (a zone with a role; it need not be among the drawn runs). Same y mapping as the
-  // marker and window hit tests. Lowest `low` first. [] when nothing is hit.
+  // covering the bar whose band contains the cursor price (± ZONE_HIT_SLOP_PX for thin bands) -
+  // zones hidden by N nearest / weak / all-strong are not hit. Same y mapping as the marker hit
+  // test. Lowest `low` first. [] when nothing is hit.
   const findZonesAt = useCallback((barIndex, clientY) => {
-    const supportSegments = levelChart?.supportSegments || [];
-    if (barIndex < 0 || (levelZoneRuns.length === 0 && supportSegments.length === 0)) return [];
+    if (barIndex < 0 || levelZoneRuns.length === 0) return [];
     const canvas = containerRef.current?.querySelector('.price-chart-canvas');
     const minMax = currentPriceScale();
     if (!canvas || !minMax || !(minMax.max > minMax.min)) return [];
@@ -886,7 +803,7 @@ const ReporterStyleChart = ({
     // Vertically zoomed: everything is clipped above the date-axis band (PriceChart)
     if (priceYRange && py > rect.height - DATE_AXIS_BAND) return [];
     const yOf = (price) => rect.height - ((price - minMax.min) / (minMax.max - minMax.min)) * rect.height;
-    const hitsBand = (low, high) => py >= yOf(high) - WINDOW_HIT_SLOP_PX && py <= yOf(low) + WINDOW_HIT_SLOP_PX;
+    const hitsBand = (low, high) => py >= yOf(high) - ZONE_HIT_SLOP_PX && py <= yOf(low) + ZONE_HIT_SLOP_PX;
 
     const hits = [];
     levelZoneRuns.forEach(run => {
@@ -894,29 +811,21 @@ const ReporterStyleChart = ({
         hits.push({ segment: run.segment || null, band: { zoneId: run.zoneId, low: run.low, high: run.high } });
       }
     });
-    supportSegments.forEach(seg => {
-      if (seg.fromIndex > barIndex || barIndex > seg.toIndex || !hitsBand(seg.low, seg.high)) return;
-      if (hits.some(hit => String(hit.band.zoneId) === String(seg.zoneId))) return; // already drawn as a zone
-      hits.push({
-        segment: zoneSegmentAt(seg.zoneId, barIndex),
-        band: { zoneId: seg.zoneId, low: seg.low, high: seg.high },
-      });
-    });
     return hits.sort((a, b) => a.band.low - b.band.low);
-  }, [levelChart, levelZoneRuns, currentPriceScale, priceYRange, zoneSegmentAt]);
+  }, [levelZoneRuns, currentPriceScale, priceYRange]);
 
-  // Tooltip rows for hovered zones (levelChart.js describeZone).
+  // Tooltip rows for hovered zones (levelZones.js describeZone). The breakout line is read from the
+  // result's 'resistanceTrigger' price series when it sends one (NaN otherwise).
   const describeZones = useCallback((hits, barIndex) => {
     if (!hits || hits.length === 0) return [];
     const breakoutLine = seriesValueIndex.get('price:resistanceTrigger')?.get(sliderRows[barIndex]?.ms);
     const context = {
-      levelChart,
       closes: barCloses,
       barIndexByMs,
       breakoutLine: typeof breakoutLine === 'number' ? breakoutLine : NaN,
     };
     return hits.map(hit => describeZone(hit, barIndex, context));
-  }, [levelChart, barCloses, barIndexByMs, seriesValueIndex, sliderRows]);
+  }, [barCloses, barIndexByMs, seriesValueIndex, sliderRows]);
 
   // Function to update tooltip data based on mouse position.
   // mouseX is plot-relative (drives the date); tooltipPos is container-relative (placement - the
@@ -998,36 +907,6 @@ const ReporterStyleChart = ({
         return;
       }
 
-      // Level strategy, price pane: a matched entry / exit marker under the cursor, else a setup
-      // window (its end glyph, or its retest band / runaway line while those are drawn).
-      if (levelChart && pane === 'price') {
-        const nearest = findNearestSignal(clientX, clientY);
-        if (nearest && nearest.dist <= SIGNAL_HIT_RADIUS_PX) {
-          const hit = nearest.signals
-            .map(signal => ({ signal, match: matchTradeAnnotation(levelChart, signal) }))
-            .find(entry => entry.match);
-          if (hit) {
-            setTooltipData({
-              kind: hit.match.role, // 'entry' | 'exit'
-              trade: hit.match.trade,
-              signal: hit.signal,
-              ...placement
-            });
-            return;
-          }
-        }
-        const setupWindow = findSetupWindowAt(closestIndex, clientY);
-        if (setupWindow) {
-          // Followed by the zone block of the window's own zone (§F2)
-          const zones = describeZones([{
-            segment: zoneSegmentAt(setupWindow.zoneId, closestIndex),
-            band: { zoneId: setupWindow.zoneId, low: setupWindow.zoneLow, high: setupWindow.zoneHigh },
-          }], closestIndex);
-          setTooltipData({ kind: 'setupWindow', window: setupWindow, zones, ...zonePlacement(zones) });
-          return;
-        }
-      }
-
       // Level zones under the cursor (price pane): appended to the bar tooltip
       const zones = pane === 'price' ? describeZones(findZonesAt(closestIndex, clientY), closestIndex) : [];
 
@@ -1057,15 +936,13 @@ const ReporterStyleChart = ({
         price: closestPrice,
         signals,
         indicators: indicatorValues,
-        status: levelChart ? statusLine(levelChart, closestIndex, seriesValueAt) : null,
         zones,
         ...zonePlacement(zones)
       });
     }
   }, [
     data, dateRange, plotRange, visibleSeries, getPlotRect, trades, cumulativePoints, legSuffix,
-    levelChart, seriesValueIndex, seriesValueAt, findNearestSignal, findSetupWindowAt,
-    findZonesAt, describeZones, zoneSegmentAt, votes, longOnly
+    seriesValueIndex, findZonesAt, describeZones, votes, longOnly
   ]);
 
   // The signals at the clicked point (nearest first), or null when the click missed every signal.
@@ -1574,9 +1451,8 @@ const ReporterStyleChart = ({
         </button>
       </div>
 
-      {(showLevelZoneControls || hasEvents) && (
+      {showLevelZoneControls && (
         <div className="level-zones-controls" data-testid="level-zones-controls">
-          {showLevelZoneControls && (<>
           <span className="level-zones-controls__title">Level zones</span>
           <label className="level-zones-controls__item" title="Zones drawn per bar: the one containing the previous close, plus this many nearest above and below">
             N nearest
@@ -1608,18 +1484,6 @@ const ReporterStyleChart = ({
             />
             All strong zones
           </label>
-          </>)}
-          {hasEvents && (
-            <label className="level-zones-controls__item" title={LEVEL_CHART_DESCRIPTIONS.events}>
-              <input
-                type="checkbox"
-                checked={showEvents}
-                onChange={(e) => setShowEvents(e.target.checked)}
-                data-testid="level-events-toggle"
-              />
-              Events
-            </label>
-          )}
         </div>
       )}
 
@@ -1662,11 +1526,6 @@ const ReporterStyleChart = ({
               <span className="price-legend__zone" title={NEXT_BAR_DESCRIPTIONS.lines}>
                 <span className="nbt-legend-swatch" /> next-bar triggers
               </span>
-              {nextBarTriggers.preview && (
-                <span className="price-legend__zone" title={NEXT_BAR_DESCRIPTIONS.preview} data-testid="next-bar-preview-legend">
-                  <span className="nbt-legend-swatch nbt-legend-swatch--preview" /> setup preview
-                </span>
-              )}
               {hasTriggerInfo && (
                 <label className="price-legend__zone" title={NEXT_BAR_DESCRIPTIONS.info}>
                   <input
@@ -1675,22 +1534,9 @@ const ReporterStyleChart = ({
                     onChange={(e) => setShowTriggerInfo(e.target.checked)}
                     data-testid="next-bar-info-toggle"
                   />
-                  setup info
+                  info lines
                 </label>
               )}
-            </span>
-          )}
-          {levelChart && (
-            <span className="price-legend__zones" data-testid="level-chart-legend">
-              <span className="price-legend__zone" title={LEVEL_CHART_DESCRIPTIONS.retestBand}>
-                <span className="level-chart-swatch level-chart-swatch--retest" /> retest band
-              </span>
-              <span className="price-legend__zone" title={LEVEL_CHART_DESCRIPTIONS.supportZone}>
-                <span className="level-chart-swatch level-chart-swatch--support" /> support zone
-              </span>
-              <span className="price-legend__zone" title={LEVEL_CHART_DESCRIPTIONS.position}>
-                <span className="level-chart-swatch level-chart-swatch--position" /> in position
-              </span>
             </span>
           )}
           {showLevelZoneControls && (
@@ -1724,9 +1570,6 @@ const ReporterStyleChart = ({
           priceSeries={priceSeries}
           levelZoneRuns={levelZoneRuns}
           priceRange={priceYRange}
-          levelChart={levelChart}
-          showLevelLines={showLevelLines}
-          showEvents={showEvents}
           positionSpans={positionSpans}
           preWindowSpan={warmupSpan}
           nextBarTriggers={nextBarTriggers}

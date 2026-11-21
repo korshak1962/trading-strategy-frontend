@@ -1,6 +1,6 @@
 {
  "bricks": {
-  "hint": "The stop and the sticky support follow the last level confirmation, not your trade: honest alone or with LongBlock partners; for the entries of other strategies wait for stage 4c. Levels runs over the bars of the run window (as the LevelBreakoutRetest class), so its events depend on the window start. With re-arm the indicator replays the solo class's position (no regime), not your strategy's position.",
+  "hint": "The stop and the sticky support follow the last level confirmation, not your trade: honest alone or with LongBlock partners; for the entries of other strategies wait for stage 4c. Levels runs over the bars of the run window and re-arms the exited zone after a virtual stop / support break, so its events depend on the window start. With re-arm the indicator replays the solo class's position (no regime), not your strategy's position.",
   "kMax": 250,
   "kinds": [
    {

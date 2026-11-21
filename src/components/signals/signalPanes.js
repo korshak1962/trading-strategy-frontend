@@ -19,7 +19,7 @@
 //                     "do not enter": strip only, never a marker) |
 //                     null,
 //                    priceIndicators: {name: [{date, value}]}, indicators: {...},
-//                    channels: [...], levelZones: [...], levelChart: {...} | null }],
+//                    channels: [...], levelZones: [...] }],
 //     merged: { signals: [{date, price, type, comment, sources: [key]}] } | null,
 //     nextTriggers: NextTriggersDTO | null }  (read by nextTriggers/nextTriggersAdapter.js, the
 //     one reader of that sub-contract; absent on an older backend -> null, nothing drawn)
@@ -105,7 +105,6 @@ const adaptStrategy = (raw, index, longOnly, displayNameOf = null) => {
     indicators: asMap(raw?.indicators),
     channels: asArray(raw?.channels),
     levelZones: asArray(raw?.levelZones),
-    levelChart: raw?.levelChart ?? null,
   };
 };
 
@@ -156,7 +155,6 @@ export const toPaneData = (charts, strategy) => ({
   indicators: strategy.indicators,
   channels: strategy.channels,
   levelZones: strategy.levelZones,
-  levelChart: strategy.levelChart,
   includesShortSignals: !charts.longOnly,
 });
 
@@ -168,12 +166,11 @@ export const mergedPaneData = (charts) => ({
   indicators: {},
   channels: [],
   levelZones: [],
-  levelChart: null,
   includesShortSignals: !charts.longOnly,
 });
 
 // ---------------------------------------------------------------------------------------------
-// Time spans -> bar-slot edges (ms), the same x geometry as the LevelBreakoutRetest shading.
+// Time spans -> bar-slot edges (ms), the same x geometry as the level zone bands.
 // ---------------------------------------------------------------------------------------------
 
 /** Bar times (ms) and slot edges of the shared prices, computed once per response. */

@@ -1,6 +1,5 @@
 // src/utils/ChartDrawingUtils.js
 import { parseExchangeTs } from './dates';
-import { SERIES_STYLE } from './indicatorSeries';
 // Colours come from the theme tokens (src/theme/tokens.css, --chart-*), read at draw time: the
 // panes redraw on a theme switch (useTheme().theme in their effect dependencies).
 import { chartColor, resolveColor, withAlpha } from '../theme/theme';
@@ -571,7 +570,7 @@ export const findMinMaxPriceRange = (prices) => {
    * @param {Object<string, Array<{date: string, value: number}>>} priceIndicators - the DTO map
    * @param {Array<{name: string, color: string, stepped?: boolean, dashed?: boolean}>} series - the
    *   visible price-kind series; `stepped` ones (indicatorSeries.js SERIES_STYLE) draw as a step-after
-   *   line, `dashed` ones (projectedExit) with a [5, 4] dash and a thinner 1.25px stroke
+   *   line, `dashed` ones with a [5, 4] dash and a thinner 1.25px stroke
    * @param {[Date, Date]} dateRange
    * @param {{min: number, max: number}} minMax - the candle-derived price range
    * @param {number} width
@@ -944,11 +943,11 @@ export const findMinMaxPriceRange = (prices) => {
     ctx.restore();
   };
 
-  // Level zone bands (LevelBreakoutRetest, see utils/levelZones.js). Strong zones get a medium
-  // fill, weak ones a pale fill with no border; the zone the resistanceTrigger line comes from
-  // (segment flag `trigger`, its tracker is ARMED) gets a dashed line along its upper edge - the
-  // edge the trigger sits a buffer above. The edge is fuchsia and dashed so it does not read as
-  // the (solid, green) resistanceTrigger line drawn just above it: fuchsia is not in
+  // Level zone bands (a result's levelZones[], see utils/levelZones.js). Strong zones get a medium
+  // fill, weak ones a pale fill with no border; the zone the breakout line comes from (segment
+  // flag `trigger`, its tracker is ARMED) gets a dashed line along its upper edge - the edge the
+  // trigger sits a buffer above. The edge is fuchsia and dashed so it does not read as a solid
+  // green breakout line drawn just above it: fuchsia is not in
   // the indicator palette (utils/indicatorSeries.js), nor a candle / signal colour.
   // The swatches in ReporterStyleChart.css read the same tokens.
   export const LEVEL_ZONE_STYLE = Object.freeze({
@@ -1169,45 +1168,8 @@ export const findMinMaxPriceRange = (prices) => {
     ctx.restore();
   };
 
-  // ---------------------------------------------------------------------------------------------
-  // LevelBreakoutRetest buy / sell annotations (chartData.levelChart, normalized by
-  // utils/levelChart.js). Same x/y mapping as every other price-pane layer. Layer order is set by
-  // PriceChart: shading -> level zones -> support segments -> setup windows -> candles ->
-  // overlays -> window-end glyphs / "↑" / events -> signals -> marker labels.
-  // The legend swatches in ReporterStyleChart.css read the same --chart-level-* tokens.
-  // ---------------------------------------------------------------------------------------------
-  export const LEVEL_CHART_STYLE = Object.freeze({
-    get positionFill() { return chartColor('level-position'); },
-    get supportFill() { return chartColor('level-support-fill'); },
-    get supportEdge() { return chartColor('level-support-edge'); },
-    get retestBand() { return chartColor('level-retest'); },
-    // orange, dashed (no longer the Breakout line's colour - that is green)
-    get runawayLine() { return chartColor('level-runaway'); },
-    runawayDash: [5, 4],
-    // blue, short dashes: rev 2.9 "Base high" (base entry on a close above it)
-    get baseLine() { return chartColor('level-base'); },
-    baseDash: [2, 3],
-    get failLine() { return chartColor('level-fail'); },
-    get glyphTraded() { return chartColor('glyph-traded'); },
-    get glyphNotTraded() { return chartColor('glyph-not-traded'); },
-    get glyphFailed() { return chartColor('glyph-failed'); },
-    get glyphMissed() { return chartColor('glyph-missed'); },
-    get glyphDropped() { return chartColor('glyph-missed'); },
-    // outline of a filled glyph / body of a hollow one: the pane surface (white in Light)
-    get glyphOutline() { return chartColor('glyph-outline'); },
-    get upgrade() { return chartColor('level-upgrade'); },
-    get labelBacking() { return chartColor('level-label-bg'); },
-  });
-
-  const eventStyle = (token, label) => Object.freeze({ get color() { return chartColor(token); }, label });
-  const EVENT_STYLE = Object.freeze({
-    BROKEN_UP: eventStyle('event-broken-up', 'BU'),
-    FAILED: eventStyle('event-failed', 'F'),
-    MISSED_TIMEOUT: eventStyle('event-missed', 'MT'),
-    MISSED_DWELL: eventStyle('event-missed', 'MD'),
-    BROKEN_DOWN: eventStyle('event-broken-down', 'BD'),
-  });
-  const UNKNOWN_EVENT_STYLE = eventStyle('event-missed', '?');
+  // Position shading fill when a span carries none (Signals mode passes a per-side `fill`).
+  const POSITION_FILL_TOKEN = 'level-position';
 
   /** x/y mapping for the price pane, or null when the range is unusable. */
   const priceMapper = (dateRange, minMax, width, height) => {
@@ -1227,8 +1189,8 @@ export const findMinMaxPriceRange = (prices) => {
 
   /**
    * Very light background from each trade's entry bar to its exit bar (open trade: last bar).
-   * @param {Array<{startMs, endMs, fill?}>} spans - levelChart.positionSpans, or the Signals mode's
-   *   merged spans (signalPanes.js normalizePositionSpans, with a per-side `fill`)
+   * @param {Array<{startMs, endMs, fill?}>} spans - the Signals mode's merged spans
+   *   (signalPanes.js normalizePositionSpans, with a per-side `fill`)
    */
   export const drawPositionShading = (ctx, spans, dateRange, minMax, width, height) => {
     const map = priceMapper(dateRange, minMax, width, height);
@@ -1239,7 +1201,7 @@ export const findMinMaxPriceRange = (prices) => {
       const x0 = Math.max(0, map.xOf(span.startMs));
       const x1 = Math.min(width, map.xOf(span.endMs));
       // `fill`: the Signals mode's merged spans colour long / short apart
-      ctx.fillStyle = resolveColor(span.fill) || LEVEL_CHART_STYLE.positionFill;
+      ctx.fillStyle = resolveColor(span.fill) || chartColor(POSITION_FILL_TOKEN);
       if (x1 > x0) ctx.fillRect(x0, 0, x1 - x0, height);
     });
     ctx.restore();
@@ -1375,270 +1337,6 @@ export const findMinMaxPriceRange = (prices) => {
   };
 
   /**
-   * The sticky support zone the Support line hangs from, one band per segment, with its low edge
-   * (the line hangs a buffer below it) drawn as a thin line.
-   * @param {Array<{startMs, endMs, low, high}>} segments - levelChart.supportSegments
-   */
-  export const drawSupportSegments = (ctx, segments, dateRange, minMax, width, height) => {
-    const map = priceMapper(dateRange, minMax, width, height);
-    if (!map || !segments || segments.length === 0) return;
-    ctx.save();
-    segments.forEach(seg => {
-      if (seg.endMs < map.startMs || seg.startMs > map.endMs) return;
-      const x0 = Math.max(0, map.xOf(seg.startMs));
-      const x1 = Math.min(width, map.xOf(seg.endMs));
-      if (x1 <= x0) return;
-      const yTop = map.yOf(seg.high);
-      const yBottom = map.yOf(seg.low);
-      ctx.fillStyle = LEVEL_CHART_STYLE.supportFill;
-      ctx.fillRect(x0, yTop, x1 - x0, Math.max(1, yBottom - yTop));
-      ctx.strokeStyle = LEVEL_CHART_STYLE.supportEdge;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(x0, yBottom);
-      ctx.lineTo(x1, yBottom);
-      ctx.stroke();
-    });
-    ctx.restore();
-  };
-
-  /**
-   * Setup windows (buy logic): per waiting bar, the retest band from the confirm line (or the zone
-   * top while ConfirmMode 1 has no confirm line yet) up to the touch line; the dashed orange
-   * runaway line only in the AWAIT phase (design n5: runaway is not checked once touched); the
-   * dashed blue "Base high" line (rev 2.9 point.baseLine), also only in AWAIT and only where the
-   * backend sent a value (NaN before BaseMinBars, with Base off, on an older backend); the
-   * faint fail line. Lines are drawn per bar slot and joined by a vertical step between adjacent
-   * bars, so they read as stepped lines.
-   * @param {Array} windows - levelChart.windows
-   * @param {number[]} slotLeft - levelChart.slotLeft (ms)
-   * @param {number[]} slotRight - levelChart.slotRight (ms)
-   */
-  export const drawSetupWindows = (ctx, windows, slotLeft, slotRight, dateRange, minMax, width, height) => {
-    const map = priceMapper(dateRange, minMax, width, height);
-    if (!map || !windows || windows.length === 0) return;
-
-    const strokeSteps = (points, valueOf, style, dash) => {
-      ctx.strokeStyle = style;
-      ctx.setLineDash(dash || []);
-      ctx.beginPath();
-      let prev = null; // {barIndex, y}
-      points.forEach(point => {
-        const value = valueOf(point);
-        if (!Number.isFinite(value)) { prev = null; return; }
-        const x0 = map.xOf(slotLeft[point.barIndex]);
-        const x1 = map.xOf(slotRight[point.barIndex]);
-        const y = map.yOf(value);
-        if (prev && prev.barIndex === point.barIndex - 1) {
-          ctx.lineTo(x0, prev.y);
-          ctx.lineTo(x0, y);
-        } else {
-          ctx.moveTo(x0, y);
-        }
-        ctx.lineTo(x1, y);
-        prev = { barIndex: point.barIndex, y };
-      });
-      ctx.stroke();
-    };
-
-    ctx.save();
-    windows.forEach(win => {
-      const points = win.points;
-      if (points.length === 0) return;
-      const firstMs = slotLeft[points[0].barIndex];
-      const lastMs = slotRight[points[points.length - 1].barIndex];
-      if (lastMs < map.startMs || firstMs > map.endMs) return;
-
-      // Retest band
-      ctx.fillStyle = LEVEL_CHART_STYLE.retestBand;
-      points.forEach(point => {
-        const top = point.touchLine;
-        const bottom = Number.isFinite(point.confirmLine) ? point.confirmLine : win.zoneHigh;
-        if (!Number.isFinite(top) || !Number.isFinite(bottom)) return;
-        const x0 = Math.max(0, map.xOf(slotLeft[point.barIndex]));
-        const x1 = Math.min(width, map.xOf(slotRight[point.barIndex]));
-        if (x1 <= x0) return;
-        const yTop = map.yOf(Math.max(top, bottom));
-        const yBottom = map.yOf(Math.min(top, bottom));
-        ctx.fillRect(x0, yTop, x1 - x0, Math.max(1, yBottom - yTop));
-      });
-
-      ctx.lineWidth = 1;
-      strokeSteps(points, point => point.failLine, LEVEL_CHART_STYLE.failLine);
-      ctx.lineWidth = 1.5;
-      strokeSteps(
-        points,
-        point => (point.phase === 'AWAIT' ? point.runawayLine : NaN),
-        LEVEL_CHART_STYLE.runawayLine,
-        LEVEL_CHART_STYLE.runawayDash
-      );
-      strokeSteps(
-        points,
-        point => (point.phase === 'AWAIT' ? point.baseLine : NaN),
-        LEVEL_CHART_STYLE.baseLine,
-        LEVEL_CHART_STYLE.baseDash
-      );
-    });
-    ctx.setLineDash([]);
-    ctx.restore();
-  };
-
-  /** Radius of a window-end glyph, px. */
-  export const WINDOW_GLYPH_R = 4;
-
-  /** Where a window-end glyph sits: the end bar, on the zone's top edge. Null for OPEN windows. */
-  export const windowGlyphPoint = (win, barTimes) => {
-    if (!win || win.endIndex === -1 || !Number.isFinite(win.zoneHigh)) return null;
-    return { ms: barTimes[win.endIndex], price: win.zoneHigh };
-  };
-
-  /**
-   * Glyph at the bar each setup window ended, on the zone's top edge. The shape carries the
-   * outcome: filled circle = confirmed (green traded, amber not traded), × = FAILED, hollow
-   * circle = MISSED_*, short dash = DROPPED. OPEN windows have no end and no glyph.
-   */
-  export const drawWindowEndGlyphs = (ctx, windows, barTimes, dateRange, minMax, width, height) => {
-    const map = priceMapper(dateRange, minMax, width, height);
-    if (!map || !windows || windows.length === 0) return;
-    const r = WINDOW_GLYPH_R;
-    ctx.save();
-    windows.forEach(win => {
-      const at = windowGlyphPoint(win, barTimes);
-      if (!at || at.ms < map.startMs || at.ms > map.endMs) return;
-      const x = map.xOf(at.ms);
-      const y = map.yOf(at.price);
-      const outcome = win.outcome || '';
-      ctx.beginPath();
-      if (outcome.startsWith('CONFIRMED')) {
-        ctx.lineWidth = 1.5;
-        ctx.fillStyle = win.traded ? LEVEL_CHART_STYLE.glyphTraded : LEVEL_CHART_STYLE.glyphNotTraded;
-        ctx.strokeStyle = LEVEL_CHART_STYLE.glyphOutline;
-        ctx.arc(x, y, r, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      } else if (outcome === 'FAILED') {
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = LEVEL_CHART_STYLE.glyphFailed;
-        ctx.moveTo(x - r, y - r); ctx.lineTo(x + r, y + r);
-        ctx.moveTo(x + r, y - r); ctx.lineTo(x - r, y + r);
-        ctx.stroke();
-      } else if (outcome.startsWith('MISSED')) {
-        ctx.lineWidth = 1.5;
-        ctx.fillStyle = LEVEL_CHART_STYLE.glyphOutline;
-        ctx.strokeStyle = LEVEL_CHART_STYLE.glyphMissed;
-        ctx.arc(x, y, r, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      } else if (outcome === 'DROPPED') {
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = LEVEL_CHART_STYLE.glyphDropped;
-        ctx.moveTo(x - r, y); ctx.lineTo(x + r, y);
-        ctx.stroke();
-      }
-    });
-    ctx.restore();
-  };
-
-  /** Horizontal gap, px, between the stepped Exit line's vertical riser and the "↑" glyph. */
-  const UPGRADE_GLYPH_DX = 4;
-
-  /**
-   * Small "↑" on each ratchet (support upgrade) bar, just under the new exit level and to the
-   * RIGHT of the bar's x: the stepped Exit line rises exactly at that x, so a glyph centred there
-   * would sit on the riser and disappear (review F1).
-   */
-  export const drawUpgradeMarkers = (ctx, upgrades, dateRange, minMax, width, height) => {
-    const map = priceMapper(dateRange, minMax, width, height);
-    if (!map || !upgrades || upgrades.length === 0) return;
-    ctx.save();
-    ctx.font = 'bold 12px Arial';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillStyle = LEVEL_CHART_STYLE.upgrade;
-    upgrades.forEach(upgrade => {
-      if (upgrade.ms < map.startMs || upgrade.ms > map.endMs) return;
-      ctx.fillText('↑', map.xOf(upgrade.ms) + UPGRADE_GLYPH_DX, map.yOf(upgrade.newExitLine) + 1);
-    });
-    ctx.restore();
-  };
-
-  /** Event markers (off by default): a small diamond at the bar's close with a short code above it. */
-  export const drawEventMarkers = (ctx, events, dateRange, minMax, width, height) => {
-    const map = priceMapper(dateRange, minMax, width, height);
-    if (!map || !events || events.length === 0) return;
-    ctx.save();
-    ctx.font = '9px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.lineWidth = 1;
-    const s = 3.5;
-    events.forEach(event => {
-      if (event.ms < map.startMs || event.ms > map.endMs) return;
-      const style = EVENT_STYLE[event.type] || UNKNOWN_EVENT_STYLE;
-      const x = map.xOf(event.ms);
-      const y = map.yOf(event.price);
-      ctx.fillStyle = style.color;
-      ctx.strokeStyle = LEVEL_CHART_STYLE.glyphOutline;
-      ctx.beginPath();
-      ctx.moveTo(x, y - s); ctx.lineTo(x + s, y); ctx.lineTo(x, y + s); ctx.lineTo(x - s, y);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillText(style.label, x, y - s - 1);
-    });
-    ctx.restore();
-  };
-
-  /** Height of a marker label's backing box, px; also the one vertical offset step (§4.4). */
-  const MARKER_LABEL_BOX_H = 12;
-
-  const boxesOverlap = (a, b) =>
-    a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
-
-  /**
-   * Text labels on the entry / exit markers that matched a level trade (§4.4-4.5): entry labels
-   * under the up-triangle, exit labels above the down-triangle, on a light backing. The caller
-   * applies the MARKER_LABEL_LIMIT rule and passes only the matched markers.
-   *
-   * Collisions (§4.4): each label's box is tested against the labels already drawn in this frame.
-   * On overlap it tries once more one step further from its marker (down for entry labels, up for
-   * exit labels); if that still overlaps, the label is skipped. Tooltips are unaffected.
-   * @param {Array<{signal, label: string, role: 'entry'|'exit'}>} labelled
-   */
-  export const drawMarkerLabels = (ctx, labelled, dateRange, minMax, width, height) => {
-    const map = priceMapper(dateRange, minMax, width, height);
-    if (!map || !labelled || labelled.length === 0) return;
-    ctx.save();
-    ctx.font = '10px Arial';
-    ctx.textAlign = 'center';
-    const placed = [];
-    labelled.forEach(({ signal, label, role }) => {
-      if (!label) return;
-      const x = map.xOf(parseExchangeTs(signal.date).getTime());
-      const y = map.yOf(signal.price);
-      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-      const below = role === 'entry';
-      const w = ctx.measureText(label).width;
-      // Box of the label for a given vertical offset step (0 = default, 1 = one step further away)
-      const boxAt = (step) => {
-        const shift = step * MARKER_LABEL_BOX_H;
-        const textY = below ? y + 10 + shift : y - 10 - shift; // clear of the 7px triangle
-        const y0 = below ? textY - 1 : textY - 11;
-        return { textY, x0: x - w / 2 - 2, x1: x + w / 2 + 2, y0, y1: y0 + MARKER_LABEL_BOX_H };
-      };
-      const box = [boxAt(0), boxAt(1)].find(candidate => !placed.some(other => boxesOverlap(candidate, other)));
-      if (!box) return; // still colliding after one step: skip this label
-      placed.push(box);
-      ctx.textBaseline = below ? 'top' : 'bottom';
-      ctx.fillStyle = LEVEL_CHART_STYLE.labelBacking;
-      ctx.fillRect(box.x0, box.y0, box.x1 - box.x0, MARKER_LABEL_BOX_H);
-      ctx.fillStyle = chartColor(below ? 'marker-entry-text' : 'marker-exit-text');
-      ctx.fillText(label, x, box.textY);
-    });
-    ctx.restore();
-  };
-
-  /**
    * Signals mode vote strip (screener TASK_position_dependable_and_signals_tab.md §2.3): one coloured
    * segment per collapsed run of a stateless strategy's vote, over the whole strip canvas. Same x
    * mapping (the plot range) as the price pane above it.
@@ -1688,29 +1386,14 @@ export const findMinMaxPriceRange = (prices) => {
     labelGap: 12,
     // first label row: below the "trade start" text (drawPreWindowShading, y 4..15), never cut at the top
     labelTop: 20,
-    // Setup preview (FLAT, no armed setup): 1 px dotted, the breakout one in the Breakout line's
-    // green (it continues that line into the next slot), the runaway one in the setup window's
-    // runaway orange - never the 2 px dashed look of a next-bar BUY
-    get SETUP_ARMS() { return resolveColor(SERIES_STYLE.resistanceTrigger.color); },
-    get RUNAWAY_AFTER_BREAKOUT() { return chartColor('level-runaway'); },
-    previewDash: [1, 3],
   });
-
-  const NEXT_BAR_PREVIEW_REASONS = ['SETUP_ARMS', 'RUNAWAY_AFTER_BREAKOUT'];
-  const isPreviewLine = (l) => Boolean(l.informational) && NEXT_BAR_PREVIEW_REASONS.includes(l.reason);
 
   const NEXT_BAR_OPS = Object.freeze({ ABOVE: '>', BELOW: '<', AT_OR_ABOVE: '≥', AT_OR_BELOW: '≤' });
 
   const nextBarLabelText = (line) => {
     const price = `${line.category === 'APPROX' ? '≈' : ''}${line.price.toFixed(Math.abs(line.price) < 1 ? 4 : 2)}`;
     const op = NEXT_BAR_OPS[line.direction] || '';
-    if (line.informational) {
-      if (line.reason === 'SETUP_ARMS') return `breakout > ${price}`;
-      if (line.reason === 'RUNAWAY_AFTER_BREAKOUT') return `runaway ${price.startsWith('≈') ? `≈ ${price.substring(1)}` : price} (bar after breakout)`;
-      if (line.reason === 'IF_BOUGHT_STOP') return `if bought: stop ${price}`;
-      if (line.reason === 'SETUP_FAILS') return `fails ${op} ${price}`;
-      return price;
-    }
+    if (line.informational) return price;
     if (line.side === 'VETO') return `veto ${op} ${price}`;
     if (line.category === 'NECESSARY') return `${op} ${price} possible`;
     const on = line.on === 'LOW' ? 'low ' : line.on === 'HIGH' ? 'high ' : '';
@@ -1721,13 +1404,12 @@ export const findMinMaxPriceRange = (prices) => {
   /**
    * @param {Object} triggers - nextTriggersAdapter.js chartTriggers() result, plus
    *   {slotStartMs, slotEndMs, showInfo}: the bar slot to draw in and whether informational lines
-   *   (setup arms, if-bought stop, setup fails) are drawn. With `preview` (FLAT, nothing actionable)
-   *   the setup-preview lines (breakout, runaway after breakout) are drawn even when showInfo is off.
+   *   are drawn.
    */
   export const drawNextBarTriggers = (ctx, triggers, dateRange, minMax, width, height) => {
     const map = priceMapper(dateRange, minMax, width, height);
     if (!map || !triggers || !triggers.estimate) return;
-    const { estimate, slotStartMs, slotEndMs, showInfo = false, actual = null, preview = false } = triggers;
+    const { estimate, slotStartMs, slotEndMs, showInfo = false, actual = null } = triggers;
     if (!Number.isFinite(slotStartMs) || !Number.isFinite(slotEndMs)) return;
     if (slotEndMs < map.startMs || slotStartMs > map.endMs) return;
     const x0 = Math.max(0, map.xOf(slotStartMs));
@@ -1737,7 +1419,7 @@ export const findMinMaxPriceRange = (prices) => {
     const clampY = (y) => Math.min(plotBottom - 2, Math.max(2, y));
 
     const lines = estimate.lines.filter(l => l.price !== null && Number.isFinite(l.price)
-      && (showInfo || !l.informational || (preview && isPreviewLine(l))) && l.reason !== 'SETUP_EXPIRES');
+      && (showInfo || !l.informational));
     if (lines.length === 0) return;
 
     ctx.save();
@@ -1768,15 +1450,12 @@ export const findMinMaxPriceRange = (prices) => {
     lines.forEach(l => {
       const rawY = map.yOf(l.price);
       const y = clampY(rawY);
-      const previewLine = isPreviewLine(l);
-      const color = previewLine ? NEXT_BAR_STYLE[l.reason]
-        : l.informational ? NEXT_BAR_STYLE.INFO
+      const color = l.informational ? NEXT_BAR_STYLE.INFO
           : l.category === 'NECESSARY' ? NEXT_BAR_STYLE.NECESSARY
             : NEXT_BAR_STYLE[l.side] || NEXT_BAR_STYLE.INFO;
       ctx.strokeStyle = color;
       ctx.lineWidth = l.informational ? 1 : 2;
-      ctx.setLineDash(previewLine ? NEXT_BAR_STYLE.previewDash
-        : l.category === 'CONDITIONAL' || l.and ? NEXT_BAR_STYLE.conditionalDash
+      ctx.setLineDash(l.category === 'CONDITIONAL' || l.and ? NEXT_BAR_STYLE.conditionalDash
           : l.on === 'CLOSE' ? NEXT_BAR_STYLE.closeDash : []);
       ctx.beginPath();
       ctx.moveTo(x0, Math.round(y) + 0.5);

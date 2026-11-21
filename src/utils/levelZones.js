@@ -1,7 +1,8 @@
 // src/utils/levelZones.js
 //
-// Pure selection of the level zones drawn on the price chart for the LevelBreakoutRetest
-// strategy (screener logs/agents/architect.md, option B, §3.2). No React, no canvas.
+// Pure selection of the level zones drawn on the price chart of a strategy result that sends
+// `levelZones[]` (screener logs/agents/architect.md, option B, §3.2; the LevelBreakoutRetest class
+// that first sent them is removed, the contract stays). No React, no canvas.
 //
 // Transport (ChartDataDTO.levelZones, optional - other strategies send [] or nothing):
 //   [{ zoneId, from, to, low, high, strong, armed, trigger,
@@ -73,7 +74,7 @@ export const hasLevelZones = (chartData) =>
 
 /**
  * A segment's `breakouts` {up, down, failed, last} (level range zones stage 2: counts over the 250
- * bars up to and including the segment's `from`; LevelBreakoutRetest only). The key is absent for a
+ * bars up to and including the segment's `from`). The key is absent for a
  * strategy without breakout history and on an older backend: null, and the tooltip shows nothing.
  */
 export const normalizeBreakouts = (raw) => {
@@ -266,4 +267,110 @@ export const buildLevelZoneRuns = (prices, rawSegments, options = {}) => {
     });
   }
   return runs;
+};
+
+// ---------------------------------------------------------------------------------------------
+// Zone tooltip (screener TASK_level_lines_always_zone_hover_fullscreen.md §B3 / §F2). Moved here
+// from the former utils/levelChart.js when the LevelBreakoutRetest class and its buy / sell
+// annotations were removed (screener architect_lbr_removal_v1.md §7): the zone bands and their
+// tooltip stay for strategies that send `levelZones[]`.
+// ---------------------------------------------------------------------------------------------
+
+/** Zones on one bar, lowest first: zone.low, then id (objects with `zoneLow` / `zoneId`). */
+export const byZoneLowThenId = (a, b) =>
+  (a.zoneLow - b.zoneLow) || (Number(a.zoneId) - Number(b.zoneId)) || 0;
+
+/**
+ * Strength of a zone segment on bar `barIndex`. Within a segment the strength follows pure decay
+ * from strengthAtFrom: F + (strengthAtFrom − F)·exp(−(barIndex − fromIndex) / decayBars),
+ * F = flipBonus·flipCount.
+ * @returns {{value: number, exact: boolean}} exact = false: the value is strengthAtFrom ("at segment
+ *   start") because fromIndex / decayBars / flipBonus could not be resolved; NaN when not sent.
+ */
+export const zoneStrengthAt = (segment, barIndex, fromIndex, params) => {
+  const start = segment ? segment.strengthAtFrom : NaN;
+  if (!Number.isFinite(start)) return { value: NaN, exact: false };
+  const decay = params ? params.decayBars : NaN;
+  const flips = segment.flipCount;
+  const floor = flips === 0 ? 0 : (Number.isFinite(flips) && Number.isFinite(params?.flipBonus) ? params.flipBonus * flips : NaN);
+  if (!Number.isInteger(fromIndex) || fromIndex < 0 || barIndex < fromIndex
+    || !Number.isFinite(decay) || decay <= 0 || !Number.isFinite(floor)) {
+    return { value: start, exact: false };
+  }
+  return { value: floor + (start - floor) * Math.exp(-(barIndex - fromIndex) / decay), exact: true };
+};
+
+/**
+ * Everything the zone tooltip shows for one hovered zone on bar `barIndex`. Pure; every missing
+ * input gives NaN / null and the tooltip shows "–" for it.
+ *
+ * @param {{segment: Object|null, band: {zoneId, low: number, high: number}}} hit - the normalized
+ *   levelZones segment (normalizeLevelZoneSegments, may be null) and the band that was hit
+ * @param {number} barIndex - index into prices
+ * @param {Object} context
+ * @param {Array<number>} context.closes - close per price bar
+ * @param {Map<number, number>} context.barIndexByMs - bar time (ms) -> bar index
+ * @param {number} context.breakoutLine - the breakout line on this bar (NaN when empty)
+ * @param {Object} [context.params] - optional strategy parameters {decayBars, flipBonus, minStrength,
+ *   minTouches, breakBuffer}; absent: strength at segment start, no gate / minimum / fail line
+ * @param {Array<number>} [context.atr] - optional ATR(t-1) per price bar; absent: no ATR distances
+ * @returns {Object}
+ */
+export const describeZone = ({ segment, band }, barIndex, { closes, barIndexByMs, breakoutLine, params = null, atr = null }) => {
+  const source = segment || band || {};
+  const low = Number(source.low);
+  const high = Number(source.high);
+  const zoneId = source.zoneId ?? band?.zoneId;
+  const p = params || {};
+  const atrValue = Array.isArray(atr) && atr.length === (closes ? closes.length : -1) ? Number(atr[barIndex]) : NaN;
+  const atrOk = Number.isFinite(atrValue) && atrValue > 0;
+
+  // Position against close(t-1) - the same ref the zone selection (buildLevelZoneRuns) uses
+  const ref = barIndex > 0 && closes ? Number(closes[barIndex - 1]) : NaN;
+  let position = null;
+  if (Number.isFinite(ref) && ref > 0 && Number.isFinite(low) && Number.isFinite(high)) {
+    if (low <= ref && ref <= high) position = { side: 'contains' };
+    else {
+      const edge = low > ref ? low : high;
+      position = {
+        side: low > ref ? 'above' : 'below',
+        atr: atrOk ? (edge - ref) / atrValue : NaN,
+        pct: (edge - ref) / ref,
+      };
+    }
+  }
+
+  const fromIndex = segment && barIndexByMs ? barIndexByMs.get(segment.fromMs) : undefined;
+  const strength = zoneStrengthAt(segment, barIndex, fromIndex, p);
+  const num = (v) => (v === null || v === undefined || v === '' ? NaN : Number(v));
+  const breakBuffer = num(p.breakBuffer);
+
+  const width = high - low;
+  return {
+    zoneId,
+    hasSegment: Boolean(segment),
+    strong: segment ? segment.strong : null,
+    armed: segment ? segment.armed : null,
+    trigger: segment ? segment.trigger : null,
+    low,
+    high,
+    width,
+    widthAtr: atrOk && Number.isFinite(width) ? width / atrValue : NaN,
+    center: segment ? segment.center : NaN,
+    position,
+    strength: strength.value,
+    strengthExact: strength.exact,
+    strengthGate: num(p.minStrength),
+    touchCount: segment ? segment.touchCount : NaN,
+    minTouches: num(p.minTouches),
+    flipCount: segment ? segment.flipCount : NaN,
+    firstTouchMs: segment ? segment.firstTouchMs : NaN,
+    lastTouchMs: segment ? segment.lastTouchMs : NaN,
+    breakoutLine: segment && segment.trigger ? breakoutLine : NaN,
+    failLine: atrOk && Number.isFinite(breakBuffer) && Number.isFinite(low) ? low - breakBuffer * atrValue : NaN,
+    fromMs: segment ? segment.fromMs : NaN,
+    toMs: segment ? segment.toMs : NaN,
+    // {up, down, failed, lastMs} over the 250 bars up to `from`, or null (absent on the wire)
+    breakouts: segment?.breakouts ?? null,
+  };
 };

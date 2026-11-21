@@ -169,9 +169,9 @@ export const LEVELS_KEYS = Object.freeze([...LEVEL_FIELDS, 'warmupBars', 'atrLen
 export const LEVELS_REARM_DEFAULT = true;
 /** Fields the Levels pass reads only with `rearm` (the virtual position of the class). */
 export const LEVELS_REARM_FIELDS = Object.freeze(['stopBuffer', 'upgradeStrength', 'upgradeMinTouches', 'takeProfitStrength']);
-export const LEVELS_REARM_HINT = 'Re-arm after stop / support break (class behaviour): Levels replays the LevelBreakoutRetest '
-  + 'class\'s own solo position (entry on each confirmation while flat, exit on its stop / support break / take-profit) and '
-  + 're-arms the zone after a stop or a support break, as the class does. The replay follows the solo class, not your '
+export const LEVELS_REARM_HINT = 'Re-arm after stop / support break (class behaviour): Levels replays its own solo '
+  + 'position (entry on each confirmation while flat, exit on its stop / support break / take-profit) and '
+  + 're-arms the zone after a stop or a support break. The replay follows that solo position, not your '
   + 'strategy\'s trades (stage 4c). Off = a zone confirms once, as before.';
 /** The bool `rearm` of a spec (a bool, 'true' / 'false' or 1 / 0), else the fallback. */
 export const rearmOf = (spec, fallback = LEVELS_REARM_DEFAULT) => {
@@ -282,7 +282,7 @@ export const BRICK_KINDS = Object.freeze(withTexts(BRICK_TEXTS, [
 ]));
 export const BRICKS_HINT = 'The stop and the sticky support follow the last level confirmation, not your trade: honest alone or '
   + 'with LongBlock partners; for the entries of other strategies wait for stage 4c. Levels runs over the bars of the run window '
-  + '(as the LevelBreakoutRetest class), so its events depend on the window start.';
+  + 'and re-arms the exited zone after a virtual stop / support break, so its events depend on the window start.';
 export const DEFAULT_BRICKS_META = Object.freeze({
   kinds: BRICK_KINDS, kMax: WITHIN_BARS_MAX, lagMax: LAG_MAX, hint: BRICKS_HINT, help: helpMap(null, BRICKS_HELP),
 });

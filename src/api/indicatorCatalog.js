@@ -383,7 +383,7 @@ export const POSITION_KINDS = Object.freeze(['AT_ENTRY', 'MAX_SINCE_ENTRY', 'MIN
 export const POSITION_WINDOW_KINDS = Object.freeze(['MAX_SINCE_ENTRY', 'MIN_SINCE_ENTRY']);
 /**
  * R5 v2 F1: the position kinds of form LEVELS - no X, no lag, their own Levels spec (`levels`).
- * STICKY_SINCE_ENTRY(levels) = the LevelBreakoutRetest class's sticky-support exit line of the open
+ * STICKY_SINCE_ENTRY(levels) = the sticky-support exit line (frozen semantics of the removed class) of the open
  * long (the value on bar t is the line after bar t − 1; never moves down). Unit PRICE.
  */
 export const POSITION_LEVELS_KINDS = Object.freeze(['STICKY_SINCE_ENTRY']);
