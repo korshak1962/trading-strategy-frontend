@@ -17,14 +17,27 @@
 // client validation; the static "channel LongBlock without an EXISTS = 0 rule" warning shows under
 // the rules (the preview repeats the backend's copy); an axis removed from a channel bound leaves
 // its value in min / max.
+// Preview = Backtest, row click (screener architect_constructor_preview_backtest_v1.md §3.3,
+// designer_constructor_preview_v1.md §2): a row click opens the editor and the list is hidden while
+// it is open; the editor is left with Close ✕ / Close / "← Strategies" / Escape, a dirty draft asks
+// in the in-app "Unsaved changes" dialog (no window.confirm; editorLeave.js). Escape goes through
+// the escape stack (innermost first: that dialog, the template / import dialogs, an open link
+// editor, then the editor; the first Escape in a text field only blurs it).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ConstructedStrategyList from './ConstructedStrategyList';
 import RuleEditor from './RuleEditor';
 import ImportFromFilterDialog from './ImportFromFilterDialog';
 import ConstructedPreview from './ConstructedPreview';
+import { previewSettingsOf, previewStaleReason } from './previewFormat';
 import AxesEditor from './AxesEditor';
 import TemplatePickerDialog from './TemplatePickerDialog';
 import PositionDependentBadge from './PositionDependentBadge';
+import UnsavedChangesDialog from './UnsavedChangesDialog';
+import { useEscapeLayer } from '../../hooks/useEscapeLayer';
+import { ESCAPE_LEVEL } from '../../utils/escapeStack';
+import {
+  afterSaveAndClose, editorEscapeAction, isTextField, leaveDirty, requestLeave, resolveLeave,
+} from './editorLeave';
 import {
   DEFAULT_META, getConstructedMeta, listConstructed, getConstructed, createConstructed, updateConstructed,
   deleteConstructed, previewConstructed, toConstructedRequest, toDefinitionRequest, normalizeMeta, referenceCount,
@@ -47,7 +60,8 @@ const fmtWhen = (v) => (v ? fmtExchangeIntl(v, {
 
 const defaultPreviewForm = () => {
   const today = exchangeToday();
-  return { ticker: 'SPY', timeFrame: 'DAY', startDay: addYearsIso(today, -5), endDay: today };
+  // longOnly: the Backtest form's default (off)
+  return { ticker: 'SPY', timeFrame: 'DAY', startDay: addYearsIso(today, -5), endDay: today, longOnly: false };
 };
 
 /** A server error with the stage-3a hint under it. */
@@ -111,6 +125,12 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
   const [previewError, setPreviewError] = useState(null);
   const previewSeq = useRef(0);
   const loadSeq = useRef(0);
+  const [leaveOpen, setLeaveOpen] = useState(false);       // the "Unsaved changes" dialog
+  const [focusTarget, setFocusTarget] = useState(null);    // list row (id) / 'new' to focus after Close
+  const [lastClosedId, setLastClosedId] = useState(null);  // keeps its bg-blue-50 in the list
+  const [editorSession, setEditorSession] = useState(0);   // a new open → the preview's tabs reset
+  const editorRef = useRef(null);
+  const clearFocusTarget = useCallback(() => setFocusTarget(null), []);
 
   useEffect(() => {
     let alive = true;
@@ -139,6 +159,8 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
     setPreview(null);
     setPreviewError(null);
     setPreviewSig(null);
+    setLeaveOpen(false);
+    setEditorSession((n) => n + 1);
     previewSeq.current += 1;
   };
 
@@ -194,10 +216,12 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
   const levelsTemplate = useMemo(() => lastLevelsTemplate(draft?.rules, meta.levels?.defaults), [draft, meta]);
   const evalTf = previewForm.timeFrame;
 
-  const confirmDiscard = () => !dirty || window.confirm('Discard the unsaved changes of this strategy?');
+  // Leave question: a new draft nobody typed into is clean (designer §2.4 p. 4)
+  const askOnLeave = leaveDirty({ draft, saved, dirty });
 
+  // The list is hidden while the editor is open, so New / From template / another row are only
+  // reachable with no draft open: nothing to discard there.
   const handleNew = () => {
-    if (!confirmDiscard()) return;
     loadSeq.current += 1;
     setSaved(null);
     setDraft(newDraft());
@@ -209,18 +233,62 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
   const handleEdit = (id) => {
     if (id === draft?.id) return;
     if ((items || []).some((s) => s.id === id && s.unreadable)) return; // stage 3b-0: Delete only
-    if (!confirmDiscard()) return;
     onRouteChange(id);
   };
 
-  const handleClose = () => {
-    if (!confirmDiscard()) return;
+  /** Closes the editor now (no question); focus returns to the row of `focusId` (or "+ New strategy"). */
+  const closeEditor = (focusId = draft?.id ?? null) => {
     loadSeq.current += 1;
     setDraft(null);
     setSaved(null);
     resetEditorState();
+    setLastClosedId(focusId);
+    setFocusTarget(focusId ?? 'new');
     if (routeId != null) onRouteChange(null);
   };
+
+  /** Close ✕ / Close / ← Strategies / Escape: close a clean draft, ask about a dirty one. */
+  const requestClose = () => {
+    const step = requestLeave({ dirty: askOnLeave, saving });
+    if (step === 'close') closeEditor();
+    else if (step === 'confirm') setLeaveOpen(true);
+  };
+
+  const handleLeaveChoice = async (choice) => {
+    setLeaveOpen(false);
+    const next = resolveLeave(choice);
+    if (next === 'close') closeEditor();
+    else if (next === 'save') {
+      const dto = await handleSave({ thenClose: true });
+      if (afterSaveAndClose(!!dto) === 'close') closeEditor(dto.id ?? null);
+    }
+  };
+
+  // Escape on the editor (the innermost layer below the dialogs): only while the tab is visible
+  useEscapeLayer(() => {
+    const active = document.activeElement;
+    const action = editorEscapeAction({
+      fullscreen: !!document.fullscreenElement,
+      priceOnly: !!document.querySelector('.reporter-chart-container--price-only'),
+      modalOpen: !!document.querySelector('[aria-modal="true"]'),
+      focusInTextField: isTextField(active),
+      dirty: askOnLeave,
+      saving,
+    });
+    if (action === 'pass') return false;
+    if (action === 'blur') {
+      active?.blur?.();
+      editorRef.current?.focus({ preventScroll: true });
+    } else if (action === 'close') closeEditor();
+    else if (action === 'confirm') setLeaveOpen(true);
+    return true;
+  }, { enabled: !!draft && routeId !== undefined, level: ESCAPE_LEVEL.EDITOR });
+
+  // A newly opened editor scrolls into view (the list above it is gone)
+  const editorOpen = !!draft;
+  useEffect(() => {
+    if (editorOpen) editorRef.current?.scrollIntoView?.({ block: 'start' });
+  }, [editorOpen, editorSession]);
 
   // ---- rules ----
   const setRule = (i, rule) => setDraft((d) => ({ ...d, rules: d.rules.map((r, j) => (j === i ? rule : r)) }));
@@ -328,11 +396,12 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
   };
 
   // ---- save ----
-  const handleSave = async () => {
+  /** Save; resolves the saved DTO, or null (validation error / server error shown in the editor). */
+  const handleSave = async ({ thenClose = false } = {}) => {
     setShowErrors(true);
     setSaveError(null);
     setSaveMessage(null);
-    if (!validation.ok) return;
+    if (!validation.ok) return null;
     setSaving(true);
     try {
       const req = toConstructedRequest(draft, saved);
@@ -346,11 +415,14 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
       else setSaveMessage(`Saved as v${dto.version}. The backtester, cases and watches keep the version they use.`);
       refreshList();
       onStrategiesChanged?.();
-      if (isNew && dto.id != null) onRouteChange(dto.id, { replace: routeId == null });
+      // Save and close of a new strategy: the editor closes right away, the URL stays on the list
+      if (isNew && dto.id != null && !thenClose) onRouteChange(dto.id, { replace: routeId == null });
+      return dto;
     } catch (err) {
       setSaveError(err.status === 409 && (!err.code || err.code === 'NAME_EXISTS')
         ? `A strategy named "${draft.name.trim()}" already exists — choose another name.`
         : describeApiError(err));
+      return null;
     } finally {
       setSaving(false);
     }
@@ -414,9 +486,10 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
         timeFrame: previewForm.timeFrame,
         startDay: previewForm.startDay,
         endDay: previewForm.endDay,
+        longOnly: !!previewForm.longOnly,
       });
       if (seq !== previewSeq.current) return;
-      setPreview(p);
+      setPreview({ ...p, longOnlyRequested: !!previewForm.longOnly, ranWith: previewSettingsOf(previewForm) });
       setPreviewSig(sig);
     } catch (err) {
       if (seq !== previewSeq.current) return;
@@ -470,40 +543,63 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
         </div>
       )}
 
-      <ConstructedStrategyList
-        items={items}
-        selectedId={draft?.id ?? null}
-        busyId={busyId}
-        onNew={handleNew}
-        onFromTemplate={() => { if (confirmDiscard()) setTemplateOpen(true); }}
-        onEdit={handleEdit}
-        onDelete={(s) => handleDelete(s)}
-        onRefresh={refreshList}
-      />
+      {!draft && (
+        <ConstructedStrategyList
+          items={items}
+          selectedId={lastClosedId}
+          busyId={busyId}
+          onNew={handleNew}
+          onFromTemplate={() => setTemplateOpen(true)}
+          onEdit={handleEdit}
+          onDelete={(s) => handleDelete(s)}
+          onRefresh={refreshList}
+          focusTarget={focusTarget}
+          onFocusDone={clearFocusTarget}
+        />
+      )}
 
       {loadError && <div className="form-error" role="alert">{loadError}</div>}
 
       {draft && (
-        <div className="bg-white p-6 rounded-lg shadow" data-testid="constructed-editor">
-          <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-            <h2 className="text-xl font-bold">
-              {draft.id != null ? `Edit strategy (v${saved?.version ?? draft.version})` : 'New strategy'}
-              {saved?.templateId && (
-                <span className="ml-2 px-1.5 rounded bg-indigo-100 text-indigo-800 text-xs font-medium align-middle"
-                  title={`Created from the template «${saved.templateId}»`} data-testid="constructed-template-badge">template</span>
-              )}
-              {draftIsPd && <PositionDependentBadge testId="constructed-pd-badge" long />}
-              {dirtyRules && draft.id != null && (
-                <span className="ml-2 text-sm font-normal text-amber-700">definition changed: saving creates v{(saved?.version ?? 0) + 1}</span>
-              )}
-            </h2>
-            <div className="text-sm text-gray-600" data-testid="constructed-run-tfs">
-              Runs on <b>{runTfs.join(' or ')}</b>
-              <span className="ml-1 text-xs text-gray-500">
-                {runTfsHint(runTfs, draft.rules)} · request key{' '}
-                <code>{saved?.key || 'assigned on save'}</code>
-              </span>
+        <div ref={editorRef} tabIndex={-1} className="bg-white p-6 rounded-lg shadow focus:outline-none" data-testid="constructed-editor">
+          {/* Close ✕ stays top right: the title and "Runs on" wrap inside the left block, never Close */}
+          <div className="flex items-start gap-3 mb-4">
+            <div className="flex-1 min-w-0 flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+              <div className="min-w-0">
+                <h2 className="text-xl font-bold">
+                  <button type="button" onClick={requestClose} disabled={saving}
+                    className="mr-1 text-base font-normal text-gray-500 hover:text-gray-800 hover:underline disabled:hover:no-underline"
+                    title="Back to the list of strategies (Esc)" data-testid="constructed-breadcrumb">← Strategies /</button>
+                  <span data-testid="constructed-editor-title">{draft.id != null ? (saved?.name || draft.name || `#${draft.id}`) : 'New strategy'}</span>
+                  {draft.id != null && (
+                    <span className="ml-1 text-base font-normal text-gray-500">v{saved?.version ?? draft.version}</span>
+                  )}
+                  {saved?.templateId && (
+                    <span className="ml-2 px-1.5 rounded bg-indigo-100 text-indigo-800 text-xs font-medium align-middle"
+                      title={`Created from the template «${saved.templateId}»`} data-testid="constructed-template-badge">template</span>
+                  )}
+                  {draftIsPd && <PositionDependentBadge testId="constructed-pd-badge" long />}
+                  {askOnLeave && (
+                    <span className="ml-2 text-sm font-normal text-amber-700" data-testid="constructed-unsaved">● Unsaved changes</span>
+                  )}
+                </h2>
+                {dirtyRules && draft.id != null && (
+                  <div className="text-sm text-amber-700">definition changed: saving creates v{(saved?.version ?? 0) + 1}</div>
+                )}
+              </div>
+              <div className="text-sm text-gray-600" data-testid="constructed-run-tfs">
+                Runs on <b>{runTfs.join(' or ')}</b>
+                <span className="ml-1 text-xs text-gray-500">
+                  {runTfsHint(runTfs, draft.rules)} · request key{' '}
+                  <code>{saved?.key || 'assigned on save'}</code>
+                </span>
+              </div>
             </div>
+            <button type="button" onClick={requestClose} disabled={saving}
+              className="ml-auto shrink-0 py-1 px-3 border rounded text-gray-700 hover:bg-gray-100 text-sm whitespace-nowrap disabled:text-gray-400"
+              title="Close (Esc)" aria-label="Close the editor" aria-keyshortcuts="Escape" data-testid="constructed-close-top">
+              Close ✕
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
@@ -654,11 +750,12 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
           {saveMessage && <div className="mt-4 text-sm text-green-700" role="status" data-testid="constructed-save-message">{saveMessage}</div>}
 
           <div className="mt-6 flex flex-wrap items-end gap-3 border-t pt-4">
-            <button type="button" onClick={handleSave} disabled={saving || (!dirty && draft.id != null)}
+            <button type="button" onClick={() => handleSave()} disabled={saving || (!dirty && draft.id != null)}
               className="py-2 px-4 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400" data-testid="constructed-save">
               {saving ? 'Saving…' : 'Save'}
             </button>
-            <button type="button" onClick={handleClose} disabled={saving} className="py-2 px-4 border rounded text-gray-700 hover:bg-gray-100">
+            <button type="button" onClick={requestClose} disabled={saving} title="Close (Esc)"
+              className="py-2 px-4 border rounded text-gray-700 hover:bg-gray-100" data-testid="constructed-close">
               Close
             </button>
           </div>
@@ -667,18 +764,29 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
 
       {draft && (
         <ConstructedPreview
+          key={editorSession}
+          strategyName={draft.name || saved?.name || ''}
           form={previewForm}
           onFormChange={(patch) => setPreviewForm((f) => ({ ...f, ...patch }))}
           onRun={handlePreview}
           busy={previewBusy}
           error={previewError}
           preview={preview}
-          stale={!!preview && previewSig !== draftSig}
+          stale={preview ? previewStaleReason({ previewSig, draftSig, ranWith: preview.ranWith, form: previewForm }) : null}
           tickers={tickers}
           timeframes={previewTfs.length ? previewTfs : [...CONSTRUCTED_TFS]}
           runTfs={runTfs}
           errorHint={constructedErrorHint(previewError)}
           stateRuleFireRate={meta.stateRuleFireRate}
+        />
+      )}
+
+      {leaveOpen && draft && (
+        <UnsavedChangesDialog
+          name={draft.id != null ? (saved?.name || draft.name || `#${draft.id}`) : (draft.name.trim() || 'New strategy')}
+          nextVersion={dirtyRules && draft.id != null ? (saved?.version ?? 0) + 1 : null}
+          canSave={!!validation?.ok}
+          onChoice={handleLeaveChoice}
         />
       )}
 

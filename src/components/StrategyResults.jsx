@@ -18,6 +18,8 @@ import '../ResultsTabs.css';
 // busy, totalCombinations} for the Channels tab (ChannelStabilityView).
 // constructed: {config, availableStrategies, refreshKey} - the Summary card of constructed
 // strategies (thresholds in sweep / trades, attempt counter); shown only when the config has one.
+// extraTabs: [{id, label, render, testId?, title?}] - tabs appended after the built-in ones (the
+// constructor preview's "Rules"); default none, Backtest / Optimize unchanged. `label` may be a node.
 // Strategy column of Best Parameters (minor #11): a constructed strategy's params carry only the
 // class ConstructedStrategy - the run's config tells which constructed strategy has that param.
 const bestParamStrategy = (p, constructed) => {
@@ -35,7 +37,9 @@ const constructedKeyOfRow = (p, constructed) => (p.strategy
   || (p.strategyClass === CONSTRUCTED_CLASS
     ? constructedKeyOfParam(p.paramName, constructed?.config?.strategyNameToParams) : null));
 
-const StrategyResults = ({ results, mode, fileContext, stability = null, constructed = null }) => {
+const NO_EXTRA_TABS = [];
+
+const StrategyResults = ({ results, mode, fileContext, stability = null, constructed = null, extraTabs = NO_EXTRA_TABS }) => {
   const [activeTab, setActiveTab] = useState(mode === 'optimize' ? 'best-params' : 'summary');
   const hasParams = results.paramsDTO && results.paramsDTO.length > 0;
   // Best Parameters: a channel condition's bounds min before max, labelled with their metric
@@ -126,6 +130,12 @@ const StrategyResults = ({ results, mode, fileContext, stability = null, constru
               Channels
             </button>
           )}
+          {extraTabs.map((t) => (
+            <button key={t.id} className={tabClass(t.id)} onClick={() => setActiveTab(t.id)} title={t.title}
+              data-testid={t.testId}>
+              {t.label}
+            </button>
+          ))}
         </nav>
       </div>
 
@@ -327,6 +337,9 @@ const StrategyResults = ({ results, mode, fileContext, stability = null, constru
           seededEntry={results.seededEntry ?? null}
         />
       )}
+
+      {/* Extra tabs of the caller (the constructor preview's Rules) */}
+      {extraTabs.map((t) => (activeTab === t.id ? <div key={t.id}>{t.render()}</div> : null))}
     </div>
   );
 };

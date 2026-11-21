@@ -1016,7 +1016,11 @@ const countMap = (v) => (v && typeof v === 'object' && !Array.isArray(v)
 /**
  * PreviewDTO `{ticker, timeFrame, bars, prices[], signals[], rules[]: {ruleId, signalType, label,
  * fired, failed, notEvaluated, notEvaluatedByReason{}, firedDates[], stateRule, warnings[]},
- * sweepThresholds, warnings[]}` → the same, every field defaulted.
+ * sweepThresholds, warnings[], backtest?}` → the same, every field defaulted.
+ * `backtest` (screener architect_constructor_preview_backtest_v1.md §2.4): the Backtest's
+ * StrategyResultDTO of this strategy alone on the preview window, sent without
+ * `chartDataDTO.prices` (the bars are the envelope's `prices`): they are re-attached here, in one
+ * place. An older backend sends no `backtest` → null (the preview renders its signals-only view).
  */
 export const normalizePreview = (p) => {
   if (!p) return null;
@@ -1053,6 +1057,22 @@ export const normalizePreview = (p) => {
     levelsLegend: (Array.isArray(p.levelsLegend) ? p.levelsLegend : []).filter((x) => typeof x === 'string' && x),
     // stage 4c-1: the previewed version reads the trade (its `warnings` carry the POSITION_SOLO note)
     positionDependent: p.positionDependent === true,
+    backtest: normalizePreviewBacktest(p.backtest, prices),
+  };
+};
+
+/** PreviewDTO.backtest → the StrategyResultDTO the Backtest views take (prices re-attached), or null. */
+export const normalizePreviewBacktest = (bt, prices) => {
+  if (!bt || typeof bt !== 'object') return null;
+  const chart = bt.chartDataDTO && typeof bt.chartDataDTO === 'object' ? bt.chartDataDTO : {};
+  return {
+    ...bt,
+    warnings: (Array.isArray(bt.warnings) ? bt.warnings : []).filter((w) => typeof w === 'string' && w),
+    chartDataDTO: {
+      ...chart,
+      prices: Array.isArray(chart.prices) && chart.prices.length ? chart.prices : (prices || []),
+      signals: Array.isArray(chart.signals) ? chart.signals : [],
+    },
   };
 };
 
@@ -1161,11 +1181,13 @@ export const deleteConstructed = async (id, confirm = false) => {
 /**
  * POST /preview → normalized PreviewDTO; 400 (validation / no SMA / wrong TF).
  * @param {{definition?: Object, key?: string, ticker: string, timeFrame: string,
- *   startDay: string, endDay: string}} req `definition` = `{rules: RuleDTO[]}` (an unsaved or
- *   edited draft) or `key` = `Constructed:<id>@<v>` (the saved version as is)
+ *   startDay: string, endDay: string, longOnly?: boolean}} req `definition` = `{rules: RuleDTO[]}` (an unsaved or
+ *   edited draft) or `key` = `Constructed:<id>@<v>` (the saved version as is); `longOnly` as the
+ *   Backtest's checkbox (sent only when true: absent = false, the Backtest default)
  */
-export const previewConstructed = async ({ definition = null, key = null, ticker, timeFrame, startDay, endDay }) => {
+export const previewConstructed = async ({ definition = null, key = null, ticker, timeFrame, startDay, endDay, longOnly = false }) => {
   const body = { ticker, timeFrame, startDate: previewStart(startDay), endDate: previewEnd(endDay) };
+  if (longOnly) body.longOnly = true;
   if (definition) body.definition = definition;
   else if (key) body.key = key;
   const res = await apiRequest(`${API_BASE_URL}/preview`, { method: 'POST', ...jsonBody(body) }, 'Preview failed');
