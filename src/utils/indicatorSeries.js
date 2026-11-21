@@ -30,37 +30,19 @@ export const seriesId = (kind, name) => `${kind}:${name}`;
 export const DETAILS_GROUP = 'details';
 export const SERIES_GROUP_LABELS = Object.freeze({ [DETAILS_GROUP]: 'Details' });
 
-// Per-name display style (screener TASK_level_chart_ux.md §4.0). Backend keys stay unchanged; this
-// only sets the legend label, the colour, step rendering, default visibility and the group.
-// Names not listed here keep today's look: their own name as label, the positional palette
+// Per-name display style (screener TASK_level_chart_ux.md §4.0). Backend keys stay unchanged; an
+// entry only sets the legend label, the colour, step rendering, default visibility and the group.
+// Names not listed here keep the default look: their own name as label, the positional palette
 // colour, a straight polyline, visible by default, no group.
-// Colours (screener TASK_level_lines_always_zone_hover_fullscreen.md §F4):
-//   - effectiveExit: the one sell line of LevelBreakoutRetest, red, stepped (it moves in steps).
-//   - projectedExit: "Exit line (flat)", the same red, dashed and thinner: where the exit line
-//     would hang while flat. Together with effectiveExit there is a red line on every bar.
-//   - resistanceTrigger: the breakout line, green, on every bar (long or flat).
-//   - stopLevel (blue) / supportExitLine (purple): the two inputs of effectiveExit, hidden under
-//     "Details". The support line is purple so it does not read as a second (green) breakout line.
-// `dashed: true`: drawn with a dash pattern and a thinner stroke (drawPriceOverlays) and shown with a
-// dashed swatch on the picker / legend chips.
+// `stepped: true`: drawn as a step-after line. `dashed: true`: drawn with a dash pattern and a
+// thinner stroke (drawPriceOverlays) and shown with a dashed swatch on the picker / legend chips.
+// `defaultHidden` / `group`: hidden by default, toggled together under the group's label.
 // `redundantWith: <name>`: the series is dropped from the list (picker, legend, drawing) for a
 // result in which it equals that series on every bar where both have a value - it would only be
-// drawn exactly on top of it. With SupportTracking = 1 the Support line usually IS the Exit line
-// (Exit line = max(Initial stop, Support line) and the stop is rarely above it); it stays offered
-// whenever it differs somewhere, or when the two never overlap (e.g. SupportTracking = 0).
-export const SERIES_STYLE = Object.freeze({
-  effectiveExit: { label: 'Exit line', color: 'var(--chart-series-exit)', stepped: true },
-  projectedExit: { label: 'Exit line (flat)', color: 'var(--chart-series-exit)', stepped: true, dashed: true },
-  resistanceTrigger: { label: 'Breakout line', color: 'var(--chart-series-breakout)' },
-  stopLevel: {
-    label: 'Initial stop', color: 'var(--chart-series-stop)', stepped: true, defaultHidden: true, group: DETAILS_GROUP,
-    redundantWith: 'effectiveExit',
-  },
-  supportExitLine: {
-    label: 'Support line', color: 'var(--chart-series-support)', stepped: true, defaultHidden: true, group: DETAILS_GROUP,
-    redundantWith: 'effectiveExit',
-  },
-});
+// drawn exactly on top of it.
+// The LevelBreakoutRetest lines (Exit line, Exit line (flat), Breakout line, Initial stop, Support
+// line) had the only entries; the class is removed (screener architect_lbr_removal_v1.md §7).
+export const SERIES_STYLE = Object.freeze({});
 
 const isValue = (v) => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
 

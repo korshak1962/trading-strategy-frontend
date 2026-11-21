@@ -99,7 +99,11 @@ export const evaluateAll = async () => {
 
 /**
  * GET /api/watches/{id}/backtest-config?signalId= → WatchBacktestConfigDTO
- * `{config, watchId, watchName, mode, focusBarDate, linkedAt}`; 404 (watch, or signal not of it).
+ * `{config, watchId, watchName, mode, focusBarDate, linkedAt, removed?}`; 404 (watch, or signal not of it).
+ * `removed {strategyClass, message, caseId, caseName}` (absent for an ordinary link): the signal was
+ * announced by a removed strategy (a frozen row before the watch's switch to the template) - `config`
+ * is then null, the chart is not available and the link opens the named case instead
+ * (watch/format.js watchLinkNotice).
  */
 export const getWatchBacktestConfig = async (watchId, signalId = null) => {
   const qs = signalId != null ? `?${new URLSearchParams({ signalId: String(signalId) })}` : '';

@@ -78,7 +78,6 @@ export default function ConstructedPreview({
       indicators: {},
       channels: [],
       levelZones: [],
-      levelChart: null,
       includesShortSignals: true,
     };
   }, [preview, prices, selectedRule]);

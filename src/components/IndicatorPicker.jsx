@@ -4,7 +4,7 @@ import { getIndicatorTooltip } from '../utils/indicatorDescriptions';
 import { seriesLabel, truncateLabel, SERIES_GROUP_LABELS } from '../utils/indicatorSeries';
 
 const GROUP_TITLES = Object.freeze({
-  details: 'Details: the inputs of the drawn lines (LevelBreakoutRetest: the initial stop and the sticky support line the Exit line is built from). Hidden by default; this box turns the whole group on or off.',
+  details: 'Details: the inputs of the drawn lines. Hidden by default; this box turns the whole group on or off.',
 });
 
 /**

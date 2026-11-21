@@ -139,7 +139,6 @@ export const CODE_TEXT = {
   RECONCILE: 'The case was adjusted to the current strategies.',
   SHORT_WARMUP: 'Short warm-up before the trading window.',
   CCB_NOT_EXIT_SOURCE: 'CausalChannelBreakout does not take part in exiting the seeded position.',
-  LBR_NO_SUPPORT_ZONE: 'LevelBreakoutRetest found no support zone for the seeded position: it exits only on take-profit.',
   ENTRY_PRICE_OUTSIDE_BAR: 'The entry price is outside the bar\'s low..high — a typo?',
   EXITED_BEFORE_LINK: 'The strategy would already have sold since your entry: the watch is FLAT and waits for a new entry.',
   ENTERED_ON_LINK_DAY: 'The model entered on today\'s bar; you will be told about the exit.',
@@ -149,6 +148,36 @@ export const CODE_TEXT = {
   DATA_OUTDATED: 'The ticker\'s data is outdated; the WATCH download will update it.',
   NO_RAW_HISTORY: 'The ticker has no hourly history: the forward-only WATCH download will skip it. Download the history once.',
   NO_BARS_IN_WINDOW: 'No bars in the trading window yet — waiting for data.',
+};
+
+/**
+ * Watch deep link of a signal announced by a removed strategy (GET /api/watches/{id}/backtest-config,
+ * screener architect_lbr_removal_v1.md D7 / §7): the DTO carries `config: null` and
+ * `removed {strategyClass, message, caseId, caseName}`. The form is not filled and nothing runs; the
+ * Watchlist shows the message and, when the DTO names a case, an "Open case #<id>" button.
+ * Pure.
+ * @param {Object|null|undefined} dto - WatchBacktestConfigDTO
+ * @returns {{message: string, strategyClass: string|null, caseId: number|null, caseName: string|null,
+ *   openLabel: string|null, missingText: string|null}|null} null for an ordinary link (no `removed`)
+ */
+export const watchLinkNotice = (dto) => {
+  const r = dto?.removed;
+  if (!r || typeof r !== 'object' || Array.isArray(r)) return null;
+  const strategyClass = typeof r.strategyClass === 'string' && r.strategyClass ? r.strategyClass : null;
+  const rawId = typeof r.caseId === 'string' && r.caseId.trim() !== '' ? Number(r.caseId) : r.caseId;
+  const caseId = Number.isInteger(rawId) && rawId > 0 ? rawId : null;
+  const caseName = typeof r.caseName === 'string' && r.caseName ? r.caseName : null;
+  const message = typeof r.message === 'string' && r.message.trim()
+    ? r.message
+    : `This signal was announced by the removed strategy ${strategyClass || '(unknown)'}; its chart is not available.`;
+  return {
+    message,
+    strategyClass,
+    caseId,
+    caseName,
+    openLabel: caseId !== null ? `Open case #${caseId}` : null,
+    missingText: caseId !== null ? `Case #${caseId} no longer exists` : null,
+  };
 };
 
 /** "Readable text — backend message" for a `{code, message}` (warning or thrown error). */

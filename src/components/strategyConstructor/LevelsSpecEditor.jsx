@@ -11,8 +11,8 @@
 // TakeProfitStrength (linkable) next to it; StopBuffer / Upgrade* / TakeProfitStrength are read by
 // the pass only with re-arm. No regime SMA here: the regime filter is a separate rule condition.
 // Editor UX Stage A (architect §3.2, §5.5; designer §2): rebuilt on the shared ParamBlock - the
-// collapsed summary ("Levels: class defaults · re-arm", changed fields in plain words, a swept axis's
-// range, "same as above", "Levels set 2"), the re-arm box, "Changed from class defaults", "Show all
+// collapsed summary ("Levels: default settings · re-arm", changed fields in plain words, a swept axis's
+// range, "same as above", "Levels set 2"), the re-arm box, "Changed from defaults", "Show all
 // 15 fields" in groups, the FIXED line. Labels = meta `label` (`plainLabel`); confirmMode = a select
 // over `choices` writing the same numbers 0 / 1. The code-style levelsFieldLabel stays for captions.
 import { fmtNum } from '../universeScreener/conditionFormat';
@@ -29,7 +29,7 @@ const linkedBox = 'px-1.5 py-1 border rounded text-sm bg-indigo-50 border-indigo
 /** "(0, 50]" / "integer [1, 500]" of a meta.levels param. */
 const rangeText = (p) => `${p.integer ? 'integer ' : ''}${p.minInclusive ? '[' : '('}${fmtNum(p.min)}, ${fmtNum(p.max)}]`;
 
-/** In the Levels pass: the meta flag, or (with re-arm) a field the replayed class position reads. */
+/** In the Levels pass: the meta flag, or (with re-arm) a field the virtual position reads. */
 const inPassOf = (p, rearm) => p.inPass || (rearm && LEVELS_REARM_FIELDS.includes(p.name));
 
 /**
@@ -136,7 +136,7 @@ export default function LevelsSpecEditor({
       )}
       <span className="text-[11px] text-gray-500">
         {rearm
-          ? "Replays the class's own solo position; set the take-profit strength equal to your take-profit rule's (link both to one axis)."
+          ? "Replays its own solo virtual position; set the take-profit strength equal to your take-profit rule's (link both to one axis)."
           : 'Off: a zone confirms once (no replayed position); the take-profit strength is ignored.'}
       </span>
     </div>
@@ -150,8 +150,8 @@ export default function LevelsSpecEditor({
       title="Levels"
       setLabel={setLabel}
       tooltip={help.summary}
-      defaultsText="class defaults"
-      changedTitle="Changed from class defaults"
+      defaultsText="default settings"
+      changedTitle="Changed from defaults"
       tail={tail}
       fields={fields}
       groups={groups}

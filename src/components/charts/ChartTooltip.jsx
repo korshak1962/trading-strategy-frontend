@@ -2,9 +2,6 @@
 import { useLayoutEffect, useRef } from 'react';
 import { formatDate, formatSigned, formatSignedPercent } from '../../utils/formatters';
 import { fmtExchangeIntl } from '../../utils/dates';
-import {
-  OUTCOME_TEXT, NOT_TRADED_TEXT, ENTRY_TRIGGER_TEXT, EXIT_REASON_LONG_TEXT, isConfirmedOutcome, barsHeld
-} from '../../utils/levelChart';
 import { voteText, VOTE_COLORS, blockedByText } from '../signals/signalPanes';
 import { truncateLabel } from '../../utils/indicatorSeries';
 
@@ -59,7 +56,7 @@ const CumulativeTooltipBody = ({ date, value, closedCount, legLabel }) => (
   </>
 );
 
-// --- LevelBreakoutRetest annotations (utils/levelChart.js) ---
+// --- Shared row helpers ---
 const fmtPx = (v) => (Number.isFinite(v) ? v.toFixed(2) : '–');
 const fmtBarDate = (ms) => (Number.isFinite(ms) ? fmtExchangeIntl(ms, TOOLTIP_TS_FORMAT) : '–');
 const fmtBand = (low, high) => (Number.isFinite(low) && Number.isFinite(high) ? `${fmtPx(low)}–${fmtPx(high)}` : '–');
@@ -67,80 +64,7 @@ const Row = ({ label, children, testId }) => (
   <div data-testid={testId}>{label}: <span style={{ float: 'right', marginLeft: 12 }}>{children}</span></div>
 );
 
-/** Entry marker of a level trade: trigger, zone band, entry price, initial stop and exit line. */
-const EntryTooltipBody = ({ trade }) => (
-  <>
-    <div style={{ fontWeight: 'bold', marginBottom: '5px', color: 'var(--chart-long-open-text)' }}>
-      Entry: {ENTRY_TRIGGER_TEXT[trade.entryTrigger] || trade.entryTrigger || 'long'}
-    </div>
-    <div className="chart-tooltip-muted">{fmtBarDate(trade.entryMs)}</div>
-    {trade.entryTrigger === 'ADOPTED' && (
-      <div className="chart-tooltip-muted">Opened by another strategy; taken over by LevelBreakoutRetest</div>
-    )}
-    <Row label="Zone">
-      {trade.entryTrigger === 'ADOPTED' && !(Number.isFinite(trade.entryZoneLow) && Number.isFinite(trade.entryZoneHigh))
-        ? 'none below price'
-        : fmtBand(trade.entryZoneLow, trade.entryZoneHigh)}
-    </Row>
-    <Row label="Entry price">{fmtPx(trade.entryPrice)}</Row>
-    <Row label="Initial stop">{fmtPx(trade.initialStop)}</Row>
-    <Row label="Initial exit line">{fmtPx(trade.initialExitLine)}</Row>
-  </>
-);
-
-/** Exit marker of a level trade: reason, price, P&L %, bars held, support upgrades, MFE %. */
-const ExitTooltipBody = ({ trade }) => {
-  const pnlPct = Number.isFinite(trade.exitPrice) && trade.entryPrice > 0
-    ? (trade.exitPrice - trade.entryPrice) / trade.entryPrice : NaN;
-  // mfeClose is already a fraction: max(close over the trade) / entryPrice - 1 (TradeAnnotationVO)
-  const mfePct = trade.mfeClose;
-  const held = barsHeld(trade);
-  return (
-    <>
-      <div style={{ fontWeight: 'bold', marginBottom: '5px', color: 'var(--chart-long-close-text)' }}>
-        Exit: {EXIT_REASON_LONG_TEXT[trade.exitReason] || trade.exitReason || 'close'}
-      </div>
-      <div className="chart-tooltip-muted">{fmtBarDate(trade.exitMs)}</div>
-      <Row label="Exit price">{fmtPx(trade.exitPrice)}</Row>
-      <Row label="P&L">
-        {Number.isFinite(pnlPct)
-          ? <span className={pnlClass(pnlPct)} style={{ fontWeight: 'bold' }}>{formatSignedPercent(pnlPct)}</span>
-          : '–'}
-      </Row>
-      <Row label="Bars held">{Number.isFinite(held) ? held : '–'}</Row>
-      <Row label="Support upgrades">{Number.isFinite(trade.supportUpgrades) ? trade.supportUpgrades : '–'}</Row>
-      <Row label="MFE">{Number.isFinite(mfePct) ? formatSignedPercent(mfePct) : '–'}</Row>
-    </>
-  );
-};
-
-/** Setup window: zone, breakout date, outcome, and why a confirm did not trade. */
-const SetupWindowTooltipBody = ({ setupWindow }) => {
-  const confirmed = isConfirmedOutcome(setupWindow.outcome);
-  return (
-    <>
-      <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Setup window</div>
-      <Row label="Zone">{fmtBand(setupWindow.zoneLow, setupWindow.zoneHigh)}</Row>
-      <Row label="Breakout">{fmtBarDate(setupWindow.breakoutMs)}</Row>
-      {Number.isFinite(setupWindow.touchMs) && <Row label="Retest touch">{fmtBarDate(setupWindow.touchMs)}</Row>}
-      <Row label="Ended">{Number.isFinite(setupWindow.endMs) ? fmtBarDate(setupWindow.endMs) : 'open'}</Row>
-      <div style={{ marginTop: '4px' }}>
-        Outcome: <strong>{OUTCOME_TEXT[setupWindow.outcome] || setupWindow.outcome}</strong>
-      </div>
-      {confirmed && (
-        setupWindow.traded
-          ? <div className="chart-tooltip-positive">Traded: this confirm opened the position</div>
-          : (
-            <div className="chart-tooltip-negative">
-              Not traded: {NOT_TRADED_TEXT[setupWindow.notTradedReason] || setupWindow.notTradedReason || 'reason unknown'}
-            </div>
-          )
-      )}
-    </>
-  );
-};
-
-// --- Level zone details (utils/levelChart.js describeZone), screener
+// --- Level zone details (utils/levelZones.js describeZone), screener
 // TASK_level_lines_always_zone_hover_fullscreen.md §F2 ---
 // At most this many zone blocks per tooltip; the rest are counted ("+N more zones").
 const ZONE_TOOLTIP_MAX = 2;
@@ -176,8 +100,8 @@ const zoneTrackerText = (armed) => {
 
 /**
  * '250d as of 2023-11-02: up 2 / down 1 / failed 0, last 2023-10-05' - the zone's breakout history
- * over the 250 bars up to the segment's `from` (level range zones stage 2; only sent by
- * LevelBreakoutRetest, absent otherwise and then not shown).
+ * over the 250 bars up to the segment's `from` (level range zones stage 2; absent when the
+ * strategy keeps none, and then not shown).
  */
 const zoneBreakoutsText = (zone) => {
   const b = zone.breakouts;
@@ -211,12 +135,6 @@ const ZoneSection = ({ zone }) => {
         <Row label="Breakout line">this zone sets it: {fmtFixed(zone.breakoutLine)}</Row>
       )}
       <Row label="Fail / support line">{fmtPx(zone.failLine)}</Row>
-      {zone.roles.length > 0 && (
-        <div>
-          Role:
-          {zone.roles.map(role => <div key={role} className="chart-tooltip-zone__role">{role}</div>)}
-        </div>
-      )}
       <Row label="State valid">
         {Number.isFinite(zone.fromMs)
           ? `${fmtBarDate(zone.fromMs)} – ${Number.isFinite(zone.toMs) ? fmtBarDate(zone.toMs) : 'last bar'}`
@@ -260,23 +178,19 @@ const TOOLTIP_OFFSET_PX = 15;
 
 /**
  * ChartTooltip component for displaying data on hover. The body depends on the pane under the
- * cursor (`tooltipData.kind`): 'trade' -> trade PnL, 'cumulative' -> cumulative PnL, 'entry' /
- * 'exit' -> a LevelBreakoutRetest trade marker, 'setupWindow' -> a LevelBreakoutRetest setup
- * window, anything else -> the bar's OHLCV + the level status line (if any) + indicators + signals.
+ * cursor (`tooltipData.kind`): 'trade' -> trade PnL, 'cumulative' -> cumulative PnL, 'vote' ->
+ * a Signals mode vote, anything else -> the bar's OHLCV + hovered level zones + indicators + signals.
  * @param {Object} props - Component props
  * @param {Object} props.tooltipData - Data to display in tooltip
- * @param {string} [props.tooltipData.kind] - 'price' (default) | 'trade' | 'cumulative' | 'entry' |
- *   'exit' | 'setupWindow'
- * @param {{text: string, note: string|null}|null} [props.tooltipData.status] - level strategy status
- *   line for the bar ('price' kind; utils/levelChart.js statusLine)
+ * @param {string} [props.tooltipData.kind] - 'price' (default) | 'trade' | 'cumulative' | 'vote'
  * @param {Object} props.tooltipData.price - Price data ('price' kind)
  * @param {Array} props.tooltipData.signals - Signals at this point ('price' kind)
  * @param {Array<{name: string, value: number, color: string}>} props.tooltipData.indicators -
  *   visible indicator values at this point, in picker order ('price' kind)
  * @param {Object} props.tooltipData.position - {x, y} cursor position relative to the container
  * @param {boolean} [props.tooltipData.flip] - place the tooltip left of the cursor (right edge)
- * @param {Array<Object>} [props.tooltipData.zones] - hovered level zones (levelChart.js describeZone),
- *   appended as zone blocks ('price' and 'setupWindow' kinds)
+ * @param {Array<Object>} [props.tooltipData.zones] - hovered level zones (levelZones.js describeZone),
+ *   appended as zone blocks ('price' kind)
  * Near the bottom edge (of the chart container or the viewport, whichever is higher) the tooltip
  * opens above the cursor instead, so it never runs off-screen (matters most in fullscreen).
  * @returns {JSX.Element|null}
@@ -350,18 +264,7 @@ const ChartTooltip = ({ tooltipData }) => {
     );
   }
 
-  if (kind === 'entry' || kind === 'exit' || kind === 'setupWindow') {
-    return (
-      <div ref={tooltipRef} className={className} style={style}>
-        {kind === 'entry' && <EntryTooltipBody trade={tooltipData.trade} />}
-        {kind === 'exit' && <ExitTooltipBody trade={tooltipData.trade} />}
-        {kind === 'setupWindow' && <SetupWindowTooltipBody setupWindow={tooltipData.window} />}
-        {kind === 'setupWindow' && <ZoneSections zones={zones} />}
-      </div>
-    );
-  }
-
-  const { price, signals, indicators, status } = tooltipData;
+  const { price, signals, indicators } = tooltipData;
   return (
     <div ref={tooltipRef} className={className} style={style}>
       <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
@@ -373,15 +276,7 @@ const ChartTooltip = ({ tooltipData }) => {
       <div>Close: <span style={{ float: 'right' }}>{price.close.toFixed(2)}</span></div>
       <div>Volume: <span style={{ float: 'right' }}>{price.volume.toLocaleString()}</span></div>
 
-      {/* Level strategy status for this bar (flat / waiting / in position) */}
-      {status && (
-        <div className="chart-tooltip-status" style={{ marginTop: '5px', paddingTop: '5px', borderTop: '1px solid var(--chart-divider)', maxWidth: 260 }}>
-          {status.text}
-          {status.note && <div className="chart-tooltip-muted" style={{ fontSize: '0.8em' }}>{status.note}</div>}
-        </div>
-      )}
-
-      {/* Hovered level zones (under the status line, before the indicators) */}
+      {/* Hovered level zones (before the indicators) */}
       <ZoneSections zones={zones} />
 
       {/* Visible indicator values, each with the same colour dot as its line / picker chip */}

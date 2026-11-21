@@ -8,7 +8,7 @@ import { buildSeriesList, visibleSeriesOf, defaultSelectedIds } from '../utils/i
  * Owns the master "Show indicators" toggle plus a Set of selected series ids. Every time a new
  * chartDataDTO arrives (new backtest / optimize result) the selection resets to the defaults:
  * every series on except those styled `defaultHidden` (utils/indicatorSeries.js SERIES_STYLE, e.g.
- * the LevelBreakoutRetest "Details" series). The user's toggles then hold until the next result;
+ * a "Details" group). The user's toggles then hold until the next result;
  * entering/leaving fullscreen does not touch them and nothing is persisted.
  *
  * `visibleSeries` is memoised so charts wrapped in memo / effects keyed on it do not re-run on

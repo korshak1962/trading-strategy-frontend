@@ -11,7 +11,7 @@
 // Editor UX Stage A: a nested block "Highest since entry ⓘ — LONG only" with the "Value X" section
 // and "Skip last bars"; the purple frame stays.
 // R5 v2 F1 (screener architect_r5_migration_v2.md §6): STICKY_SINCE_ENTRY(levels), form LEVELS - the
-// class's sticky-support exit line of the open long. No X and no lag: the block shows its own Levels
+// Levels sticky-support exit line of the open long. No X and no lag: the block shows its own Levels
 // settings (the shared LevelsSpecEditor, links `P.levels.<field>`) instead of "Value X".
 import OperandPicker from '../universeScreener/OperandPicker';
 import FieldLabel from '../common/FieldLabel';

@@ -850,7 +850,7 @@ export const newBrickOperand = (kind, spec = LEVELS_DEFAULTS, prev = null) => {
 
 /**
  * A new position operand of `kind` (stage 4c-1); keeps X of `prev` when it is a position operand too.
- * Defaults: X = RUN close[0]; a window's lag 1 (the class ratchet: the entry bar is not in the window).
+ * Defaults: X = RUN close[0]; a window's lag 1 (a ratchet: the entry bar is not in the window).
  * R5 v2 F1: STICKY_SINCE_ENTRY has no X / lag, only `levels`: the previous operand's spec (its own, or
  * its LEVEL X's), else `spec` (the strategy's Levels template).
  */

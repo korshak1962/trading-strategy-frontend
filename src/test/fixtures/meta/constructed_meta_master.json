@@ -1,6 +1,6 @@
 {
  "bricks": {
-  "hint": "The stop and the sticky support follow the last level confirmation, not your trade: honest alone or with LongBlock partners; for the entries of other strategies wait for stage 4c. Levels runs over the bars of the run window (as the LevelBreakoutRetest class), so its events depend on the window start. With re-arm the indicator replays the solo class's position (no regime), not your strategy's position.",
+  "hint": "The stop and the sticky support follow the last level confirmation, not your trade: honest alone or with LongBlock partners; for the entries of other strategies wait for stage 4c. Levels runs over the bars of the run window and re-arms the exited zone after a virtual stop / support break, so its events depend on the window start. With re-arm the indicator replays its own solo virtual position (no regime), not your strategy's position.",
   "kMax": 250,
   "kinds": [
    {
@@ -616,7 +616,7 @@
    },
    {
     "defaultValue": 1,
-    "hint": "Re-arm after stop / support break (class behaviour): replays the class's own solo position (no regime) and re-arms the zone it exited; 1 = on (default)",
+    "hint": "Re-arm after stop / support break (the Levels re-arm behaviour): replays its own solo virtual position (no regime) and re-arms the zone it exited; 1 = on (default)",
     "inPass": true,
     "integer": true,
     "max": 1,
@@ -661,7 +661,7 @@
    },
    {
     "form": "WINDOW",
-    "hint": "The maximum of X over (entry, t - lag], bars without a value skipped; lag 1 = the class's ratchet (the entry bar is not in the window)",
+    "hint": "The maximum of X over (entry, t - lag], bars without a value skipped; lag 1 = a ratchet as of the previous bar (the entry bar is not in the window)",
     "name": "MAX_SINCE_ENTRY"
    },
    {

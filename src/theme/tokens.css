@@ -118,27 +118,8 @@
   --chart-cum-neg-fill: rgba(255, 0, 0, 0.15);
   --chart-cum-line: #2196f3;
 
-  /* LevelBreakoutRetest annotations */
+  /* position shading (Signals mode merged position, fallback fill) */
   --chart-level-position: rgba(16, 185, 129, 0.07);
-  --chart-level-support-fill: rgba(44, 160, 44, 0.2);
-  --chart-level-support-edge: rgba(21, 128, 61, 0.75);
-  --chart-level-retest: rgba(34, 197, 94, 0.16);
-  --chart-level-runaway: #ff7f0e;
-  --chart-level-base: #2563eb;
-  --chart-level-fail: rgba(220, 38, 38, 0.4);
-  --chart-glyph-traded: #16a34a;
-  --chart-glyph-not-traded: #d97706;
-  --chart-glyph-failed: #dc2626;
-  --chart-glyph-missed: #6b7280;
-  --chart-glyph-outline: #ffffff;
-  --chart-level-upgrade: #15803d;
-  --chart-level-label-bg: rgba(255, 255, 255, 0.85);
-  --chart-event-broken-up: #ea580c;
-  --chart-event-failed: #dc2626;
-  --chart-event-missed: #6b7280;
-  --chart-event-broken-down: #7c3aed;
-  --chart-marker-entry-text: #166534;
-  --chart-marker-exit-text: #991b1b;
 
   /* warm-up before the trading window */
   --chart-prewindow-fill: rgba(107, 114, 128, 0.12);
@@ -188,10 +169,6 @@
   --chart-series-6: #e377c2;
   --chart-series-7: #17becf;
   --chart-series-8: #bcbd22;
-  --chart-series-exit: #d62728;
-  --chart-series-breakout: #16a34a;
-  --chart-series-stop: #1f77b4;
-  --chart-series-support: #9467bd;
   --chart-indicator-default: purple;
 
   /* range slider (recharts Brush) */
@@ -350,24 +327,6 @@
   --chart-cum-line: #64b5f6;
 
   --chart-level-position: rgba(16, 185, 129, 0.1);
-  --chart-level-support-fill: rgba(74, 222, 128, 0.18);
-  --chart-level-support-edge: rgba(74, 222, 128, 0.75);
-  --chart-level-retest: rgba(34, 197, 94, 0.2);
-  --chart-level-base: #60a5fa;
-  --chart-level-fail: rgba(248, 113, 113, 0.5);
-  --chart-glyph-traded: #22c55e;
-  --chart-glyph-not-traded: #f59e0b;
-  --chart-glyph-failed: #f87171;
-  --chart-glyph-missed: #9aa3b0;
-  --chart-glyph-outline: #171d29;
-  --chart-level-upgrade: #4ade80;
-  --chart-level-label-bg: rgba(23, 29, 41, 0.85);
-  --chart-event-broken-up: #fb923c;
-  --chart-event-failed: #f87171;
-  --chart-event-missed: #9aa3b0;
-  --chart-event-broken-down: #a78bfa;
-  --chart-marker-entry-text: #86efac;
-  --chart-marker-exit-text: #fca5a5;
 
   --chart-prewindow-fill: rgba(154, 163, 176, 0.12);
   --chart-prewindow-line: rgba(154, 163, 176, 0.8);
@@ -408,10 +367,6 @@
   --chart-series-3: #3fbf3f;
   --chart-series-4: #b394dd;
   --chart-series-5: #c48b7f;
-  --chart-series-exit: #f05454;
-  --chart-series-breakout: #22c55e;
-  --chart-series-stop: #4d9be0;
-  --chart-series-support: #b394dd;
   --chart-indicator-default: #c084fc;
 
   --chart-slider-line: #9d99f0;

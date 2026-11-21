@@ -28,9 +28,9 @@ describe('changed / summary', () => {
 
   it('summary text forms', () => {
     const fields = [f({ key: 'a', label: 'Min zone strength', defaultValue: 3, value: 2 }), f({ key: 'b' })];
-    expect(blockSummary({ fields, defaultsText: 'class defaults', tail: ['re-arm'] })).toBe('Min zone strength 2 · re-arm');
-    expect(blockSummary({ fields: [f({})], defaultsText: 'class defaults', tail: ['re-arm', 'take-profit 4'] }))
-      .toBe('class defaults · re-arm · take-profit 4');
+    expect(blockSummary({ fields, defaultsText: 'default settings', tail: ['re-arm'] })).toBe('Min zone strength 2 · re-arm');
+    expect(blockSummary({ fields: [f({})], defaultsText: 'default settings', tail: ['re-arm', 'take-profit 4'] }))
+      .toBe('default settings · re-arm · take-profit 4');
     expect(blockSummary({ fields, defaultsText: 'x', sameAsPrevious: true })).toBe('same as above');
     expect(blockSummary({ fields: [f({})], defaultsText: 'default settings' })).toBe('default settings');
     const age = f({ label: 'Min age, bars', summaryLabel: 'Min age', unitSuffix: ' bars', defaultValue: 0, value: 30 });

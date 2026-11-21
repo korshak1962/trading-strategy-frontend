@@ -41,7 +41,7 @@
 //
 // R5 v2 F1 (screener logs/agents/architect_r5_migration_v2.md §6, backend_dev_r5_v2.md "/meta for the
 // frontend"): the position operand of form LEVELS `{kind: STICKY_SINCE_ENTRY, tf: 'RUN', offset: 0,
-// levels}` - the class's sticky-support exit line of the open long; no X, no lag, no output, its own
+// levels}` - the Levels sticky-support exit line of the open long; no X, no lag, no output, its own
 // Levels spec. Links on it: `P.levels.<field>` (as a LEVEL side), never `P.x.*`.
 
 import { apiRequest, readJson, jsonBody, enc } from './httpClient';
@@ -165,13 +165,13 @@ export const LEVEL_FIELDS = Object.freeze(['minStrength', 'breakBuffer', 'touchT
 export const LEVELS_FIXED = Object.freeze({ warmupBars: 60, atrLength: 14 });
 /** Every numeric field of the canonical LevelsSpec (15; plus the bool `rearm`). */
 export const LEVELS_KEYS = Object.freeze([...LEVEL_FIELDS, 'warmupBars', 'atrLength']);
-/** Re-arm after the class's own (solo, virtual) stop / support break: a structural switch, never an axis. */
+/** Re-arm after the Levels pass's own (solo, virtual) stop / support break: a structural switch, never an axis. */
 export const LEVELS_REARM_DEFAULT = true;
-/** Fields the Levels pass reads only with `rearm` (the virtual position of the class). */
+/** Fields the Levels pass reads only with `rearm` (its virtual position). */
 export const LEVELS_REARM_FIELDS = Object.freeze(['stopBuffer', 'upgradeStrength', 'upgradeMinTouches', 'takeProfitStrength']);
-export const LEVELS_REARM_HINT = 'Re-arm after stop / support break (class behaviour): Levels replays the LevelBreakoutRetest '
-  + 'class\'s own solo position (entry on each confirmation while flat, exit on its stop / support break / take-profit) and '
-  + 're-arms the zone after a stop or a support break, as the class does. The replay follows the solo class, not your '
+export const LEVELS_REARM_HINT = 'Re-arm after stop / support break (the Levels re-arm behaviour): Levels replays its own solo '
+  + 'virtual position (entry on each confirmation while flat, exit on its stop / support break / take-profit) and '
+  + 're-arms the zone after a stop or a support break. The replay follows that solo position, not your '
   + 'strategy\'s trades (stage 4c). Off = a zone confirms once, as before.';
 /** The bool `rearm` of a spec (a bool, 'true' / 'false' or 1 / 0), else the fallback. */
 export const rearmOf = (spec, fallback = LEVELS_REARM_DEFAULT) => {
@@ -226,7 +226,7 @@ export const LEVELS_PARAMS = Object.freeze(withParamTexts([
   lp('stopBuffer', 0.5, 0, 5, true, false, 'SETUP_STOP below the zone (or the retest low), ATR multiples', false),
   lp('upgradeStrength', 3, 0, 50, false, false, 'Strength a zone needs to become SUPPORT_LINE', false),
   lp('upgradeMinTouches', 2, 1, 20, true, true, 'Touches a zone needs to become SUPPORT_LINE', false),
-  lp('takeProfitStrength', 0, 0, 50, true, false, 'Re-arm only: take-profit of the replayed class position, '
+  lp('takeProfitStrength', 0, 0, 50, true, false, 'Re-arm only: take-profit of the virtual position, '
     + 'RESISTANCE_REACHED of this strength (0 = none). Keep it equal to your take-profit rule\'s strength', false),
 ]));
 export const LEVELS_DEFAULTS = Object.freeze({
@@ -282,7 +282,7 @@ export const BRICK_KINDS = Object.freeze(withTexts(BRICK_TEXTS, [
 ]));
 export const BRICKS_HINT = 'The stop and the sticky support follow the last level confirmation, not your trade: honest alone or '
   + 'with LongBlock partners; for the entries of other strategies wait for stage 4c. Levels runs over the bars of the run window '
-  + '(as the LevelBreakoutRetest class), so its events depend on the window start.';
+  + 'and re-arms the exited zone after a virtual stop / support break, so its events depend on the window start.';
 export const DEFAULT_BRICKS_META = Object.freeze({
   kinds: BRICK_KINDS, kMax: WITHIN_BARS_MAX, lagMax: LAG_MAX, hint: BRICKS_HINT, help: helpMap(null, BRICKS_HELP),
 });
@@ -292,10 +292,10 @@ export const DEFAULT_BRICKS_META = Object.freeze({
 /** Fallback of meta.position.kinds (backend ConstructedStrategyServiceImpl.positionMeta). */
 export const POSITION_KIND_META = Object.freeze(withTexts(POSITION_TEXTS, [
   { name: 'AT_ENTRY', form: 'AT_ENTRY', hint: 'X on the entry bar of the open long (seeded: the seed bar); "in position" = AT_ENTRY(close) > 0; a % stop = close < AT_ENTRY(close) with tolerance -5' },
-  { name: 'MAX_SINCE_ENTRY', form: 'WINDOW', hint: 'The maximum of X over (entry, t - lag], bars without a value skipped; lag 1 = the class ratchet (the entry bar is not in the window)' },
+  { name: 'MAX_SINCE_ENTRY', form: 'WINDOW', hint: 'The maximum of X over (entry, t - lag], bars without a value skipped; lag 1 = a ratchet as of the previous bar (the entry bar is not in the window)' },
   { name: 'MIN_SINCE_ENTRY', form: 'WINDOW', hint: 'The minimum of X over (entry, t - lag]' },
   // R5 v2 F1: form LEVELS - no X / lag, its own `levels`
-  { name: 'STICKY_SINCE_ENTRY', form: 'LEVELS', hint: "The class's sticky-support exit line of the open long: the entry zone, followed through merges, raised to a higher zone fully below the close, re-priced every bar (max(line, zone low - BreakBuffer x ATR)); the value on bar t is the line after bar t-1. Only `levels`, no X / lag." },
+  { name: 'STICKY_SINCE_ENTRY', form: 'LEVELS', hint: "The Levels sticky-support exit line of the open long: the entry zone, followed through merges, raised to a higher zone fully below the close, re-priced every bar (max(line, zone low - BreakBuffer x ATR)); the value on bar t is the line after bar t-1. Only `levels`, no X / lag." },
 ]));
 export const POSITION_RUN_TFS = Object.freeze(['DAY', 'WEEK']);
 export const POSITION_REFUSED_IN = Object.freeze(['ShortClose']);
