@@ -5091,7 +5091,7 @@
   "alpha:39@1": {
    "constructedRequest": {
     "name": "Level breakout (bricks)",
-    "note": "LevelBreakoutRetest rebuilt from bricks - a new strategy, not the class. Stop and sticky support follow the last level confirmation; re-arm replays the class's own (solo) position to re-arm a zone after a stop - with other entry strategies the re-arm still follows the solo class, wait for 4c.",
+    "note": "Level breakout rebuilt from bricks. Stop and sticky support follow the last level confirmation; re-arm replays the solo virtual position of Levels to re-arm a zone after a stop - with other entry strategies the re-arm still follows that solo position, wait for 4c.",
     "rules": [
      {
       "id": 1,
