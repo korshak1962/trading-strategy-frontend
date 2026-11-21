@@ -7,6 +7,8 @@
 import { useState } from 'react';
 import { MAX_LINK_TERMS } from '../../api/constructedApi';
 import { AXIS_KIND_LABEL, linkText, suffixKind } from './constructedFormat';
+import { useEscapeLayer } from '../../hooks/useEscapeLayer';
+import { ESCAPE_LEVEL } from '../../utils/escapeStack';
 
 const sel = 'p-0.5 border rounded text-xs bg-white';
 const chip = 'px-1.5 py-0.5 rounded border text-xs font-mono';
@@ -26,6 +28,8 @@ export default function LinkPicker({ suffix, terms, axes, onChange, onCreateAxis
   const kind = suffixKind(suffix);
   const candidates = (axes || []).filter((a) => a.kind === kind);
   const linked = Array.isArray(terms) && terms.length > 0;
+  // Escape on an open link editor = "done" (before the editor's own Escape)
+  useEscapeLayer(() => { setOpen(false); }, { enabled: open && linked, level: ESCAPE_LEVEL.POPOVER });
 
   const setTerm = (i, patch) => onChange(terms.map((t, j) => (j === i ? { ...t, ...patch } : t)));
   const removeTerm = (i) => {

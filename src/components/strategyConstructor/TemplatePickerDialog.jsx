@@ -19,6 +19,8 @@ import {
 import PositionDependentBadge from './PositionDependentBadge';
 import { fmtNum } from '../universeScreener/conditionFormat';
 import '../watch/watch.css';
+import { useEscapeLayer } from '../../hooks/useEscapeLayer';
+import { ESCAPE_LEVEL } from '../../utils/escapeStack';
 
 const sel = 'p-2 border rounded text-sm bg-white';
 
@@ -93,6 +95,9 @@ export default function TemplatePickerDialog({ onCreated, onClose }) {
       setBusy(false);
     }
   };
+
+  // Escape closes this dialog only (escape stack: the editor behind it keeps the key)
+  useEscapeLayer(() => { onClose(); }, { level: ESCAPE_LEVEL.DIALOG });
 
   return (
     <div className="watch-modal-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
