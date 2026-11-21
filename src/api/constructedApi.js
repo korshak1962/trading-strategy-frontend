@@ -165,12 +165,12 @@ export const LEVEL_FIELDS = Object.freeze(['minStrength', 'breakBuffer', 'touchT
 export const LEVELS_FIXED = Object.freeze({ warmupBars: 60, atrLength: 14 });
 /** Every numeric field of the canonical LevelsSpec (15; plus the bool `rearm`). */
 export const LEVELS_KEYS = Object.freeze([...LEVEL_FIELDS, 'warmupBars', 'atrLength']);
-/** Re-arm after the class's own (solo, virtual) stop / support break: a structural switch, never an axis. */
+/** Re-arm after the Levels pass's own (solo, virtual) stop / support break: a structural switch, never an axis. */
 export const LEVELS_REARM_DEFAULT = true;
-/** Fields the Levels pass reads only with `rearm` (the virtual position of the class). */
+/** Fields the Levels pass reads only with `rearm` (its virtual position). */
 export const LEVELS_REARM_FIELDS = Object.freeze(['stopBuffer', 'upgradeStrength', 'upgradeMinTouches', 'takeProfitStrength']);
-export const LEVELS_REARM_HINT = 'Re-arm after stop / support break (class behaviour): Levels replays its own solo '
-  + 'position (entry on each confirmation while flat, exit on its stop / support break / take-profit) and '
+export const LEVELS_REARM_HINT = 'Re-arm after stop / support break (the Levels re-arm behaviour): Levels replays its own solo '
+  + 'virtual position (entry on each confirmation while flat, exit on its stop / support break / take-profit) and '
   + 're-arms the zone after a stop or a support break. The replay follows that solo position, not your '
   + 'strategy\'s trades (stage 4c). Off = a zone confirms once, as before.';
 /** The bool `rearm` of a spec (a bool, 'true' / 'false' or 1 / 0), else the fallback. */
@@ -226,7 +226,7 @@ export const LEVELS_PARAMS = Object.freeze(withParamTexts([
   lp('stopBuffer', 0.5, 0, 5, true, false, 'SETUP_STOP below the zone (or the retest low), ATR multiples', false),
   lp('upgradeStrength', 3, 0, 50, false, false, 'Strength a zone needs to become SUPPORT_LINE', false),
   lp('upgradeMinTouches', 2, 1, 20, true, true, 'Touches a zone needs to become SUPPORT_LINE', false),
-  lp('takeProfitStrength', 0, 0, 50, true, false, 'Re-arm only: take-profit of the replayed class position, '
+  lp('takeProfitStrength', 0, 0, 50, true, false, 'Re-arm only: take-profit of the virtual position, '
     + 'RESISTANCE_REACHED of this strength (0 = none). Keep it equal to your take-profit rule\'s strength', false),
 ]));
 export const LEVELS_DEFAULTS = Object.freeze({

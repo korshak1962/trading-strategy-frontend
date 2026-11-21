@@ -232,8 +232,8 @@
       "output" : "A price line or a distance from the level tracker on this bar. Empty on bars where it does not exist (the condition is then not met, not false).",
       "event" : "A Levels event happened on at least one zone on this bar. Zones are support / resistance areas built from price pivots. Each strong enough zone is tracked: breakout, then retest / runaway / base, then confirmation or failure.",
       "applyToAll" : "Copy these settings and their axis links into every Levels condition and value of this strategy.",
-      "rearm" : "Re-arm after stop / support break, and the take-profit strength of the replayed class position.",
-      "showAll" : "Show every setting in its group, including those at the class default.",
+      "rearm" : "Re-arm after stop / support break, and the take-profit strength of the virtual position.",
+      "showAll" : "Show every setting in its group, including those at the default.",
       "group.ZONES" : "Zones",
       "group.BREAKOUT" : "Breakout",
       "group.RETEST" : "Retest",
@@ -358,13 +358,13 @@
       "choices" : null,
       "group" : "REARM",
       "label" : "Re-arm after stop / support break",
-      "tooltip" : "On (as the class): the tracker replays the class's own stand-alone long. After its stop or support-break exit the zone is re-armed, so a new breakout of it can be bought again. Off: each zone confirms once. The replay ignores your other rules and other strategies."
+      "tooltip" : "On (default): the tracker replays its own stand-alone virtual long. After its stop or support-break exit the zone is re-armed, so a new breakout of it can be bought again. Off: each zone confirms once. The replay ignores your other rules and other strategies."
     }, {
       "name" : "takeProfitStrength",
       "choices" : null,
       "group" : "REARM",
       "label" : "Take-profit strength",
-      "tooltip" : "Re-arm only: the replayed class position takes profit at a resistance of this strength (0 = none). Set it equal to your take-profit rule's strength, best by linking both to one axis."
+      "tooltip" : "Re-arm only: the virtual position takes profit at a resistance of this strength (0 = none). Set it equal to your take-profit rule's strength, best by linking both to one axis."
     } ]
   },
   "operandHelp" : {
@@ -473,7 +473,7 @@
       "groupLabel" : "From my open long",
       "group" : "A value from your open long. Without one the condition is false. Not in \"Cover short\" rules.",
       "x" : "Value X: what to read (a bar field, an indicator, a Levels line or a value from the last event) on the run TF.",
-      "lag" : "Skip last bars: 1 = the line as of the previous bar (the class ratchet). Not optimizable. 0 to 10.",
+      "lag" : "Skip last bars: 1 = the line as of the previous bar (a ratchet). Not optimizable. 0 to 10.",
       "levels" : "Sticky support since entry has no X and no lag: it reads its own Levels settings (the same as a Levels line) and follows the trade's sticky support zone.",
       "badge" : "uses my open long",
       "badgeTooltip" : "This rule reads your open long, so the strategy depends on the position.",
@@ -495,7 +495,7 @@
     }, {
       "name" : "STICKY_SINCE_ENTRY",
       "label" : "Sticky support since entry",
-      "tooltip" : "Exit line of the class's sticky support, from your entry; never moves down."
+      "tooltip" : "Exit line of the Levels sticky support, from your entry; never moves down."
     } ]
   },
   "signalTypeHelp" : [ {

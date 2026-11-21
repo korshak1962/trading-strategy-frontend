@@ -1,7 +1,7 @@
 // src/components/common/ParamBlock.jsx
 //
 // Editor UX Stage A (screener logs/agents/architect.md §5.5, designer §2 / §4.6): a collapsible
-// parameter block - "Levels: class defaults · re-arm" / "Channel detector: Min age 30 bars" when
+// parameter block - "Levels: default settings · re-arm" / "Channel detector: Min age 30 bars" when
 // collapsed; expanded: an optional top slot (the re-arm box), "Changed from defaults" (the changed
 // fields, editable, with "(default x) ↺"), "Show all N fields" (grouped), the FIXED line and an
 // "Apply to all" button. An invalid field (client range check, or `errorOpen` from a server error
@@ -18,7 +18,7 @@ import { fmtNum } from '../universeScreener/conditionFormat';
  * @param {string} props.title "Levels" / "Channel detector"
  * @param {string|null} [props.setLabel] replaces the title ("Levels set 2")
  * @param {string} props.tooltip the ⓘ of the summary
- * @param {string} props.defaultsText "class defaults" / "default settings"
+ * @param {string} props.defaultsText "default settings"
  * @param {string[]} [props.tail] summary parts after the fields (" · re-arm")
  * @param {Array} props.fields `{key, label, tooltip, group, value, defaultValue, min, max, minInclusive, maxExclusive,
  *   integer, linkedValue, link, render(), reset?()}`
@@ -30,7 +30,7 @@ import { fmtNum } from '../universeScreener/conditionFormat';
  * @param {(() => void)|null} [props.onApplyToAll]
  * @param {string} [props.applyLabel]
  * @param {string} [props.applyTooltip]
- * @param {string} [props.changedTitle] "Changed from class defaults"
+ * @param {string} [props.changedTitle] "Changed from defaults"
  * @param {JSX.Element} [props.footer] a note under the block
  * @param {boolean} props.disabled
  * @param {string} [props.legacyTestId] the block's former test id (kept on the wrapper)

@@ -1,6 +1,6 @@
 {
  "bricks": {
-  "hint": "The stop and the sticky support follow the last level confirmation, not your trade: honest alone or with LongBlock partners; for the entries of other strategies wait for stage 4c. Levels runs over the bars of the run window and re-arms the exited zone after a virtual stop / support break, so its events depend on the window start. With re-arm the indicator replays the solo class's position (no regime), not your strategy's position.",
+  "hint": "The stop and the sticky support follow the last level confirmation, not your trade: honest alone or with LongBlock partners; for the entries of other strategies wait for stage 4c. Levels runs over the bars of the run window and re-arms the exited zone after a virtual stop / support break, so its events depend on the window start. With re-arm the indicator replays its own solo virtual position (no regime), not your strategy's position.",
   "kMax": 250,
   "kinds": [
    {
@@ -616,7 +616,7 @@
    },
    {
     "defaultValue": 1,
-    "hint": "Re-arm after stop / support break (class behaviour): replays the class's own solo position (no regime) and re-arms the zone it exited; 1 = on (default)",
+    "hint": "Re-arm after stop / support break (the Levels re-arm behaviour): replays its own solo virtual position (no regime) and re-arms the zone it exited; 1 = on (default)",
     "inPass": true,
     "integer": true,
     "max": 1,

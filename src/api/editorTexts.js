@@ -149,7 +149,7 @@ export const LEVELS_PARAM_TEXTS = Object.freeze({
   upgradeMinTouches: { label: 'Support upgrade: min touches', group: 'STOP_SUPPORT',
     tooltip: 'The minimum touches a zone needs before the sticky support can move up to it.' },
   takeProfitStrength: { label: 'Take-profit strength', group: 'REARM',
-    tooltip: 'Re-arm only: the replayed class position takes profit at a resistance of this strength (0 = none). Set it equal to your take-profit rule\'s strength, best by linking both to one axis.' },
+    tooltip: 'Re-arm only: the virtual position takes profit at a resistance of this strength (0 = none). Set it equal to your take-profit rule\'s strength, best by linking both to one axis.' },
 });
 
 export const LEVELS_FIXED_TEXTS = Object.freeze({
@@ -164,9 +164,9 @@ export const LEVELS_HELP = Object.freeze({
   output: 'A price line or a distance from the level tracker on this bar. Empty on bars where it does not exist (the condition is then not met, not false).',
   event: 'A Levels event happened on at least one zone on this bar. Zones are support / resistance areas built from price pivots. Each strong enough zone is tracked: breakout, then retest / runaway / base, then confirmation or failure.',
   applyToAll: 'Copy these settings and their axis links into every Levels condition and value of this strategy.',
-  rearm: 'Re-arm after stop / support break, and the take-profit strength of the replayed class position.',
+  rearm: 'Re-arm after stop / support break, and the take-profit strength of the virtual position.',
   rearmLabel: 'Re-arm after stop / support break',
-  showAll: 'Show every setting in its group, including those at the class default.',
+  showAll: 'Show every setting in its group, including those at the default.',
   'group.ZONES': 'Zones',
   'group.BREAKOUT': 'Breakout',
   'group.RETEST': 'Retest',
@@ -206,14 +206,14 @@ export const POSITION_TEXTS = Object.freeze({
   MAX_SINCE_ENTRY: { label: 'Highest since entry', tooltip: 'The highest X since entry (the entry bar excluded), skipping the last n bars: a trailing line.' },
   MIN_SINCE_ENTRY: { label: 'Lowest since entry', tooltip: 'The lowest X since entry (the entry bar excluded), skipping the last n bars.' },
   // R5 v2 F1
-  STICKY_SINCE_ENTRY: { label: 'Sticky support since entry', tooltip: "Exit line of the class's sticky support, from your entry; never moves down." },
+  STICKY_SINCE_ENTRY: { label: 'Sticky support since entry', tooltip: 'Exit line of the Levels sticky support, from your entry; never moves down.' },
 });
 
 export const POSITION_HELP = Object.freeze({
   groupLabel: 'From my open long',
   group: 'A value from your open long. Without one the condition is false. Not in "Cover short" rules.',
   x: 'Value X: what to read (a bar field, an indicator, a Levels line or a value from the last event) on the run TF.',
-  lag: 'Skip last bars: 1 = the line as of the previous bar (the class ratchet). Not optimizable. 0 to 10.',
+  lag: 'Skip last bars: 1 = the line as of the previous bar (a ratchet). Not optimizable. 0 to 10.',
   levels: "Sticky support since entry has no X and no lag: it reads its own Levels settings (the same as a Levels line) and follows the trade's sticky support zone.",
   badge: 'uses my open long',
   badgeTooltip: 'This rule reads your open long, so the strategy depends on the position.',
