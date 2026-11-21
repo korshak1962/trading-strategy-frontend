@@ -28,6 +28,7 @@ import ConstructedStrategyList from './ConstructedStrategyList';
 import RuleEditor from './RuleEditor';
 import ImportFromFilterDialog from './ImportFromFilterDialog';
 import ConstructedPreview from './ConstructedPreview';
+import { previewSettingsOf, previewStaleReason } from './previewFormat';
 import AxesEditor from './AxesEditor';
 import TemplatePickerDialog from './TemplatePickerDialog';
 import PositionDependentBadge from './PositionDependentBadge';
@@ -488,7 +489,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
         longOnly: !!previewForm.longOnly,
       });
       if (seq !== previewSeq.current) return;
-      setPreview({ ...p, longOnlyRequested: !!previewForm.longOnly });
+      setPreview({ ...p, longOnlyRequested: !!previewForm.longOnly, ranWith: previewSettingsOf(previewForm) });
       setPreviewSig(sig);
     } catch (err) {
       if (seq !== previewSeq.current) return;
@@ -561,30 +562,31 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
 
       {draft && (
         <div ref={editorRef} tabIndex={-1} className="bg-white p-6 rounded-lg shadow focus:outline-none" data-testid="constructed-editor">
-          <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-            <div>
-              <h2 className="text-xl font-bold">
-                <button type="button" onClick={requestClose} disabled={saving}
-                  className="mr-1 text-base font-normal text-gray-500 hover:text-gray-800 hover:underline disabled:hover:no-underline"
-                  title="Back to the list of strategies (Esc)" data-testid="constructed-breadcrumb">← Strategies /</button>
-                <span data-testid="constructed-editor-title">{draft.id != null ? (saved?.name || draft.name || `#${draft.id}`) : 'New strategy'}</span>
-                {draft.id != null && (
-                  <span className="ml-1 text-base font-normal text-gray-500">v{saved?.version ?? draft.version}</span>
+          {/* Close ✕ stays top right: the title and "Runs on" wrap inside the left block, never Close */}
+          <div className="flex items-start gap-3 mb-4">
+            <div className="flex-1 min-w-0 flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+              <div className="min-w-0">
+                <h2 className="text-xl font-bold">
+                  <button type="button" onClick={requestClose} disabled={saving}
+                    className="mr-1 text-base font-normal text-gray-500 hover:text-gray-800 hover:underline disabled:hover:no-underline"
+                    title="Back to the list of strategies (Esc)" data-testid="constructed-breadcrumb">← Strategies /</button>
+                  <span data-testid="constructed-editor-title">{draft.id != null ? (saved?.name || draft.name || `#${draft.id}`) : 'New strategy'}</span>
+                  {draft.id != null && (
+                    <span className="ml-1 text-base font-normal text-gray-500">v{saved?.version ?? draft.version}</span>
+                  )}
+                  {saved?.templateId && (
+                    <span className="ml-2 px-1.5 rounded bg-indigo-100 text-indigo-800 text-xs font-medium align-middle"
+                      title={`Created from the template «${saved.templateId}»`} data-testid="constructed-template-badge">template</span>
+                  )}
+                  {draftIsPd && <PositionDependentBadge testId="constructed-pd-badge" long />}
+                  {askOnLeave && (
+                    <span className="ml-2 text-sm font-normal text-amber-700" data-testid="constructed-unsaved">● Unsaved changes</span>
+                  )}
+                </h2>
+                {dirtyRules && draft.id != null && (
+                  <div className="text-sm text-amber-700">definition changed: saving creates v{(saved?.version ?? 0) + 1}</div>
                 )}
-                {saved?.templateId && (
-                  <span className="ml-2 px-1.5 rounded bg-indigo-100 text-indigo-800 text-xs font-medium align-middle"
-                    title={`Created from the template «${saved.templateId}»`} data-testid="constructed-template-badge">template</span>
-                )}
-                {draftIsPd && <PositionDependentBadge testId="constructed-pd-badge" long />}
-                {askOnLeave && (
-                  <span className="ml-2 text-sm font-normal text-amber-700" data-testid="constructed-unsaved">● Unsaved changes</span>
-                )}
-              </h2>
-              {dirtyRules && draft.id != null && (
-                <div className="text-sm text-amber-700">definition changed: saving creates v{(saved?.version ?? 0) + 1}</div>
-              )}
-            </div>
-            <div className="flex items-start gap-3">
+              </div>
               <div className="text-sm text-gray-600" data-testid="constructed-run-tfs">
                 Runs on <b>{runTfs.join(' or ')}</b>
                 <span className="ml-1 text-xs text-gray-500">
@@ -592,12 +594,12 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
                   <code>{saved?.key || 'assigned on save'}</code>
                 </span>
               </div>
-              <button type="button" onClick={requestClose} disabled={saving}
-                className="py-1 px-3 border rounded text-gray-700 hover:bg-gray-100 text-sm whitespace-nowrap disabled:text-gray-400"
-                title="Close (Esc)" aria-label="Close the editor" aria-keyshortcuts="Escape" data-testid="constructed-close-top">
-                Close ✕
-              </button>
             </div>
+            <button type="button" onClick={requestClose} disabled={saving}
+              className="ml-auto shrink-0 py-1 px-3 border rounded text-gray-700 hover:bg-gray-100 text-sm whitespace-nowrap disabled:text-gray-400"
+              title="Close (Esc)" aria-label="Close the editor" aria-keyshortcuts="Escape" data-testid="constructed-close-top">
+              Close ✕
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
@@ -770,7 +772,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
           busy={previewBusy}
           error={previewError}
           preview={preview}
-          stale={!!preview && (previewSig !== draftSig || preview.longOnlyRequested !== !!previewForm.longOnly)}
+          stale={preview ? previewStaleReason({ previewSig, draftSig, ranWith: preview.ranWith, form: previewForm }) : null}
           tickers={tickers}
           timeframes={previewTfs.length ? previewTfs : [...CONSTRUCTED_TFS]}
           runTfs={runTfs}

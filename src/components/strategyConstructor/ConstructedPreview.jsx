@@ -21,7 +21,10 @@ import { useFullscreen } from '../../hooks/useFullscreen';
 import { useElementSize } from '../../hooks/useElementSize';
 import { parseExchangeTs } from '../../utils/dates';
 import { ofBars, reasonsText, stateRuleWarning, deadEntryRuleWarning, SIGNAL_TYPE_CLASS } from './constructedFormat';
-import { mergedPreviewWarnings, noTradesMessage, previewTradeCount, rulesWithWarnings } from './previewFormat';
+import {
+  mergedPreviewWarnings, noTradesMessage, previewStaleText, previewTradeCount, relabelUnsavedDraft, rulesWithWarnings,
+  unsavedDraftLabel,
+} from './previewFormat';
 import PositionDependentBadge from './PositionDependentBadge';
 import '../../ChartFullscreen.css';
 
@@ -112,19 +115,23 @@ function RulesTable({ preview, warningsOf, stateRuleFireRate }) {
  * @param {boolean} props.busy
  * @param {string|null} props.error
  * @param {Object|null} props.preview normalizePreview() result (+ `longOnlyRequested`)
- * @param {boolean} props.stale the draft or Long only changed after this preview
+ * @param {'rules'|'settings'|'both'|null} props.stale what changed after this preview (previewStaleReason)
  * @param {string[]} props.tickers
  * @param {string[]} props.timeframes run TFs (meta)
  * @param {number} props.stateRuleFireRate
  * @param {string[]} [props.runTfs] the TFs this strategy can run on (stage 3a: RUN-only → any TF)
  * @param {string|null} [props.errorHint] a plain-language hint under the error (stage-3a 400s)
- * @param {string} [props.strategyName] the name in the Trades export
+ * @param {string} [props.strategyName] the name in the Trades export; an unsaved draft's run shows it as
+ *   "<name> (unsaved)" in place of the backend's key `Constructed:preview`
  */
 export default function ConstructedPreview({
-  form, onFormChange, onRun, busy, error, preview, stale, tickers, timeframes, stateRuleFireRate, runTfs = null, errorHint = null,
+  form, onFormChange, onRun, busy, error, preview: rawPreview, stale, tickers, timeframes, stateRuleFireRate, runTfs = null, errorHint = null,
   strategyName = '',
 }) {
   const [ruleFilter, setRuleFilter] = useState('all');
+  // an unsaved draft runs under the backend key `Constructed:preview`: show the draft's name instead
+  const draftLabel = unsavedDraftLabel(strategyName);
+  const preview = useMemo(() => relabelUnsavedDraft(rawPreview, draftLabel), [rawPreview, draftLabel]);
 
   const prices = useMemo(() => preview?.prices || [], [preview]);
   const geometry = useMemo(() => barGeometry(prices), [prices]);
@@ -286,7 +293,7 @@ export default function ConstructedPreview({
         <div className={busy ? 'opacity-60' : ''} aria-busy={busy || undefined}>
           {stale && (
             <div className="mb-3 p-2 rounded bg-gray-50 border text-sm text-gray-600" role="status" data-testid="preview-stale">
-              The rules changed after this preview — run it again.
+              {previewStaleText(stale)}
             </div>
           )}
           {busy ? (
