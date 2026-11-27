@@ -59,11 +59,18 @@ const adaptBlockedBy = (raw, displayNameOf) => (Array.isArray(raw) && raw.length
   })
   : undefined);
 
+/** `{key: label}` with string labels only ({} when absent: an older backend). */
+const labelMap = (raw) => (raw && typeof raw === 'object' && !Array.isArray(raw)
+  ? Object.fromEntries(Object.entries(raw).filter(([, v]) => typeof v === 'string' && v))
+  : {});
+
 const adaptSignal = (s, displayNameOf = null) => ({
   date: s.date,
   price: Number(s.price),
   type: s.type,
   comment: s.comment ?? null,
+  // Stage B (B1 twin): the plain-English comment of a constructed strategy's signal; absent otherwise
+  ...(typeof s.displayComment === 'string' && s.displayComment ? { displayComment: s.displayComment } : {}),
   // true / false on a strategy pane's signals; undefined on the merged pane (always a trade)
   executed: typeof s.executed === 'boolean' ? s.executed : undefined,
   // 'OUTSIDE_WINDOW' on a strategy pane's warm-up signal (drawn muted); absent otherwise
@@ -102,6 +109,8 @@ const adaptStrategy = (raw, index, longOnly, displayNameOf = null) => {
     // veto bars come as votes (§2.3): a strip is drawn whenever the array is there
     votes: adaptVotes(raw?.votes),
     priceIndicators: asMap(raw?.priceIndicators),
+    // Stage B (B1 twin): {key → plain label} of the price lines (`R2 AT_ENTRY(OPEN_STOP)` → `R2 entry's stop`)
+    priceIndicatorLabels: labelMap(raw?.priceIndicatorLabels),
     indicators: asMap(raw?.indicators),
     channels: asArray(raw?.channels),
     levelZones: asArray(raw?.levelZones),
@@ -152,6 +161,7 @@ export const toPaneData = (charts, strategy) => ({
   prices: charts.prices,
   signals: strategy.signals,
   priceIndicators: strategy.priceIndicators,
+  priceIndicatorLabels: strategy.priceIndicatorLabels || {},
   indicators: strategy.indicators,
   channels: strategy.channels,
   levelZones: strategy.levelZones,

@@ -133,21 +133,76 @@
   }
   
   .comment-cell {
-    max-width: 320px;
-    min-width: 140px;
+    max-width: 360px;
+    min-width: 200px;
     white-space: normal;
     word-break: break-word;
+    cursor: pointer;
   }
 
   /* Clamp on an inner block, not on the <td>: -webkit-box on a table cell breaks the table
-     layout. Full text stays in the cell's title tooltip. */
+     layout. Full text in the title tooltip and in the expand row (Stage B, m7a). */
   .comment-clamp {
-    max-width: 320px;
+    max-width: 360px;
     display: -webkit-box;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+
+  .reason-head {
+    font-weight: 600;
+  }
+
+  .reason-also {
+    margin-top: 0.125rem;
+    font-size: 0.75rem;
+    color: var(--fg-gray-500);
+  }
+
+  .reason-toggle {
+    margin-right: 0.25rem;
+    padding: 0 0.25rem;
+    border-radius: 0.25rem;
+    color: var(--fg-gray-600);
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .reason-toggle:hover {
+    color: var(--fg-gray-700);
+    background-color: var(--c-gray-100);
+  }
+
+  .reason-toggle:focus-visible {
+    outline: 2px solid var(--fg-blue-600);
+    outline-offset: 1px;
+  }
+
+  .trades-table tbody tr.trade-reason-detail,
+  .trades-table tbody tr.trade-reason-detail:hover {
+    background-color: var(--c-gray-50);
+  }
+
+  .trade-reason-list {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.25rem 1rem;
+    margin: 0;
+    white-space: normal;
+    word-break: break-word;
+    user-select: text;
+  }
+
+  .trade-reason-list dt {
+    font-weight: 600;
+    color: var(--fg-gray-600);
+  }
+
+  .trade-reason-list dd {
+    margin: 0;
+    color: var(--fg-gray-700);
   }
   
   .no-trades-message {

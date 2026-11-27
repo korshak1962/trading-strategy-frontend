@@ -7,14 +7,17 @@
 // Editor UX Stage A (screener logs/agents/architect.md §3.2, §5.1): a row heading with an ⓘ
 // ("COMPARE", "CHANNEL", …), headings above every control, the compare grid "Left value · Op ·
 // Right value · Tolerance %" (controls aligned at the bottom, the right group wraps as a whole), and a
-// help line. The code caption under the row is unchanged (Stage B replaces it).
+// help line. Stage B (B2): a row given `codeCaption` shows `caption` as a plain-English sentence with
+// the code caption in its ⓘ; without it the caption is shown as before (mono).
 import { METRICS, OPERATORS, SCREEN_TFS, LEVELS } from '../../api/screenerApi';
 import { useEditorHelp, firstSentence, CHANNEL_HELP, RULE_TEXTS } from '../../api/editorTexts';
 import { sourceTooltipOf, compareHelpLine } from '../strategyConstructor/operandSource';
 import InfoTooltip from '../common/InfoTooltip';
+import DisplayCaption from '../common/DisplayCaption';
 import FieldLabel from '../common/FieldLabel';
 import OperandPicker from './OperandPicker';
 import { conditionCaption, fmtNum, operandUnit } from './conditionFormat';
+import { screenerConditionText } from '../../utils/displayLabels';
 
 const sel = 'p-1 border rounded text-sm bg-white';
 const LEVEL_LABEL = { 0: '0 · current', 1: '1 · parent', 2: '2 · grandparent' };
@@ -35,7 +38,9 @@ export function RowHeading({ text, tooltip, className = 'text-gray-600', testId 
  * WITHIN) renders the controls only - no number, move / remove, caption or errors.
  * `heading` (Stage A): `{text, tooltip, className}` shown above the controls.
  */
-export function RowShell({ index, caption, errors, onRemove, onMove, count, disabled, children, testId, bare = false, heading = null, help = null }) {
+export function RowShell({
+  index, caption, codeCaption = null, errors, onRemove, onMove, count, disabled, children, testId, bare = false, heading = null, help = null,
+}) {
   if (bare) {
     return <span className="inline-flex flex-wrap items-end gap-x-2 gap-y-1" data-testid={testId}>{children}</span>;
   }
@@ -58,7 +63,12 @@ export function RowShell({ index, caption, errors, onRemove, onMove, count, disa
         </div>
       </div>
       {help && <div className="mt-1 ml-7 text-[11px] text-gray-500" data-testid="condition-help">{help}</div>}
-      <div className="mt-1 ml-7 text-xs font-mono text-gray-700" data-testid="condition-caption">{caption}</div>
+      {codeCaption != null ? (
+        <DisplayCaption className="mt-1 ml-7 text-sm text-gray-700" text={caption} code={codeCaption}
+          testId="condition-caption" codeTestId="condition-caption-code" />
+      ) : (
+        <div className="mt-1 ml-7 text-xs font-mono text-gray-700" data-testid="condition-caption">{caption}</div>
+      )}
       {hasErrors && (
         <ul className="mt-1 ml-7 text-xs text-red-600 list-disc list-inside">
           {errors.map((e) => <li key={e}>{e}</li>)}
@@ -75,7 +85,7 @@ export function MetricConditionRow({ condition, onChange, evalTf, ...shell }) {
   const mh = (m) => editorHelp.metrics[m.value] || {};
   const tfHelp = editorHelp.operand.timeframes;
   return (
-    <RowShell {...shell} caption={conditionCaption(condition, evalTf)} testId="metric-condition"
+    <RowShell {...shell} caption={screenerConditionText(condition)} codeCaption={conditionCaption(condition, evalTf)} testId="metric-condition"
       heading={{ text: 'Channel', tooltip: CHANNEL_HELP.source, className: 'text-indigo-700' }}
       help={firstSentence(mh(metric || {}).tooltip || metric?.hint)}>
       <FieldLabel label="Timeframe" tooltip={CHANNEL_HELP.tf}>
@@ -165,9 +175,14 @@ export function CompareConditionRow({
     });
   };
   const tolLinked = linkedValue ? linkedValue('tolerancePct') : null;
+  // Stage B: a screener row (no `caption`) shows the plain sentence (every operand worded) with the
+  // code caption in the ⓘ; a constructor row passes its own caption + codeCaption
   const op = oh.operators[condition.op];
   return (
-    <RowShell {...shell} caption={caption ?? conditionCaption(condition, evalTf)} testId="compare-condition"
+    <RowShell {...shell}
+      caption={caption ?? screenerConditionText(condition)}
+      codeCaption={caption != null ? (shell.codeCaption ?? null) : conditionCaption(condition, evalTf)}
+      testId="compare-condition"
       heading={{ text: 'Compare', tooltip: RULE_TEXTS.rowCompare, className: 'text-teal-700' }}
       help={help ?? compareHelpLine([sourceTooltipOf(condition.left, sourceKinds), sourceTooltipOf(condition.right, sourceKinds)])}>
       <ValueGroup title="Left value" tooltip={oh.help.leftValue} testId="compare-left">{sideEditor('left')}</ValueGroup>

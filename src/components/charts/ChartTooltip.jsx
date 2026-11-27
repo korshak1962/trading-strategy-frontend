@@ -322,7 +322,10 @@ const ChartTooltip = ({ tooltipData }) => {
               {Array.isArray(signal.sources) && signal.sources.length > 0 && (
                 <div className="chart-tooltip-muted">from: {signal.sources.join(', ')}</div>
               )}
-              {signal.comment && <div style={{ fontSize: '0.8em' }}>{truncateLabel(signal.comment, COMMENT_MAX)}</div>}
+              {/* Stage B: the plain-English twin when the backend sends one, else the code comment */}
+              {(signal.displayComment || signal.comment) && (
+                <div style={{ fontSize: '0.8em' }}>{truncateLabel(signal.displayComment || signal.comment, COMMENT_MAX)}</div>
+              )}
             </div>
           ))}
         </div>

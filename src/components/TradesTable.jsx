@@ -1,9 +1,31 @@
 // src/components/TradesTable.jsx
-import { useState, useMemo } from 'react';
+import { Fragment, useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import './TradesTable.css';
 import { formatNumber, formatDate, formatSigned, formatSignedPercent } from '../utils/formatters';
 import { parseExchangeTs, toLocalIsoDate } from '../utils/dates';
+import { reasonOf, splitReason, reasonTitle, toggleExpanded, excelOpenReason } from './tradesReason';
+import { useEscapeLayer } from '../hooks/useEscapeLayer';
+import { ESCAPE_LEVEL } from '../utils/escapeStack';
+
+/**
+ * A reason cell (Stage B, designer §6.3 / m7a): rule head semibold + the first sentence, clamped to
+ * 2 lines, and a muted `· also …` line; the full text (and the code comment) in the title. A click
+ * toggles the trade's expand row.
+ */
+const ReasonCell = ({ text, code, onToggle, testId }) => {
+  const { head, body, also } = splitReason(text);
+  return (
+    <td className="comment-cell" title={reasonTitle(text, code)} onClick={text ? onToggle : undefined} data-testid={testId}>
+      <div className="comment-clamp">
+        {head && <span className="reason-head">{head}</span>}
+        {head && ' · '}
+        {body || (head ? '' : '—')}
+      </div>
+      {also && <div className="reason-also">· {also}</div>}
+    </td>
+  );
+};
 
 const TradesTable = ({
   data,
@@ -40,6 +62,10 @@ const TradesTable = ({
     (typeof pct === 'number' && Number.isFinite(pct) ? formatSignedPercent(pct / 100) : '');
   // Per-trade % on the trade's own entry price. The short pnl is already sign-reversed.
   const tradePnlPercent = (pnl, openPrice) => (openPrice ? (pnl / openPrice) * 100 : 0);
+  // m7a: trades whose expand row (both reasons in full) is open; Esc closes them
+  const [expanded, setExpanded] = useState(() => new Set());
+  const toggle = (id) => setExpanded((e) => toggleExpanded(e, id));
+  useEscapeLayer(() => { setExpanded(new Set()); }, { enabled: expanded.size > 0, level: ESCAPE_LEVEL.POPOVER });
   const [sortConfig, setSortConfig] = useState({
     key: 'openDate',
     direction: 'asc'
@@ -73,8 +99,11 @@ const TradesTable = ({
           closePrice: signal.price,
           pnl: profit,
           pnlPercent: tradePnlPercent(profit, openSignal.price),
-          openReason: openSignal.comment || '',
-          closeReason: signal.comment || '',
+          // Stage B: the plain-English twin (displayComment) when the backend sends one, else the code comment
+          openReason: reasonOf(openSignal).text,
+          closeReason: reasonOf(signal).text,
+          openCode: reasonOf(openSignal).code,
+          closeCode: reasonOf(signal).code,
           seeded: isSeededOpen(openSignal),
         });
         
@@ -99,8 +128,10 @@ const TradesTable = ({
           closePrice: signal.price,
           pnl: profit,
           pnlPercent: tradePnlPercent(profit, openSignal.price),
-          openReason: openSignal.comment || '',
-          closeReason: signal.comment || '',
+          openReason: reasonOf(openSignal).text,
+          closeReason: reasonOf(signal).text,
+          openCode: reasonOf(openSignal).code,
+          closeCode: reasonOf(signal).code,
         });
         
         // Clear open signal
@@ -164,7 +195,8 @@ const TradesTable = ({
       'Close Price': trade.closePrice,
       'P&L':         parseFloat(trade.pnl.toFixed(2)),
       'P&L %':       parseFloat(trade.pnlPercent.toFixed(2)),
-      'Open Reason':  trade.seeded ? `SEEDED (your entry)${trade.openReason ? ` ${trade.openReason}` : ''}` : trade.openReason,
+      // Stage B (S5): the plain-English reasons (displayComment ?? comment); width cap 60, no wrap (owner Q2)
+      'Open Reason':  excelOpenReason(trade),
       'Close Reason': trade.closeReason,
     }));
 
@@ -257,9 +289,23 @@ const TradesTable = ({
               </tr>
             </thead>
             <tbody>
-              {getSortedTrades().map((trade) => (
-                <tr key={trade.id} className={trade.pnl >= 0 ? 'profitable-trade' : 'losing-trade'}>
-                  <td>{trade.id}</td>
+              {getSortedTrades().map((trade) => {
+                const open = expanded.has(trade.id);
+                const hasReason = !!(trade.openReason || trade.closeReason);
+                return (
+                <Fragment key={trade.id}>
+                <tr className={trade.pnl >= 0 ? 'profitable-trade' : 'losing-trade'}>
+                  <td className="whitespace-nowrap">
+                    {hasReason && (
+                      <button type="button" className="reason-toggle" aria-expanded={open}
+                        aria-label={open ? 'Hide the full reasons' : 'Show the full reasons'}
+                        title={open ? 'Hide the full reasons (Esc)' : 'Show the full reasons'}
+                        onClick={() => toggle(trade.id)} data-testid="trade-reason-toggle">
+                        {open ? '▾' : '▸'}
+                      </button>
+                    )}
+                    {trade.id}
+                  </td>
                   <td className={trade.type === 'Long' ? 'long-trade' : 'short-trade'}>
                     {trade.type}
                     {trade.seeded && (
@@ -282,14 +328,24 @@ const TradesTable = ({
                   <td className={`pnl-cell ${trade.pnl >= 0 ? 'positive' : 'negative'}`}>
                     {formatSignedPercent(trade.pnlPercent / 100)}
                   </td>
-                  <td className="comment-cell" title={trade.openReason}>
-                    <div className="comment-clamp">{trade.openReason || '—'}</div>
-                  </td>
-                  <td className="comment-cell" title={trade.closeReason}>
-                    <div className="comment-clamp">{trade.closeReason || '—'}</div>
-                  </td>
+                  <ReasonCell text={trade.openReason} code={trade.openCode} onToggle={() => toggle(trade.id)} testId="trade-open-reason" />
+                  <ReasonCell text={trade.closeReason} code={trade.closeCode} onToggle={() => toggle(trade.id)} testId="trade-close-reason" />
                 </tr>
-              ))}
+                {open && (
+                  <tr className="trade-reason-detail" data-testid="trade-reason-detail">
+                    <td colSpan="10">
+                      <dl className="trade-reason-list">
+                        <dt>Opened by</dt>
+                        <dd>{trade.openReason || '—'}</dd>
+                        <dt>Closed by</dt>
+                        <dd>{trade.closeReason || '—'}</dd>
+                      </dl>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
+                );
+              })}
             </tbody>
             <tfoot>
               <tr>

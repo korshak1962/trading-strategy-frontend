@@ -35,6 +35,7 @@ import PositionDependentBadge from './PositionDependentBadge';
 import UnsavedChangesDialog from './UnsavedChangesDialog';
 import { useEscapeLayer } from '../../hooks/useEscapeLayer';
 import { ESCAPE_LEVEL } from '../../utils/escapeStack';
+import { levelsLegendText } from '../../utils/displayLabels';
 import {
   afterSaveAndClose, editorEscapeAction, isTextField, leaveDirty, requestLeave, resolveLeave,
 } from './editorLeave';
@@ -211,7 +212,9 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
   // re-arm round: the Levels take-profit vs the take-profit rule (non-blocking), and the Levels legend (@L2 tags)
   const levelsWarnings = useMemo(
     () => levelsTakeProfitWarnings(draft?.rules, draft?.axes || [], meta.levels?.defaults), [draft, meta]);
-  const levelsLegend = useMemo(() => levelsLegendLines(draft?.rules, draft?.axes || [], meta.levels?.defaults), [draft, meta]);
+  const levelsLegendCode = useMemo(() => levelsLegendLines(draft?.rules, draft?.axes || [], meta.levels?.defaults), [draft, meta]);
+  // Stage B (B2): the plain-English legend (`Levels: default settings · re-arm`, `Levels axes: …` once); code in the title
+  const levelsLegend = useMemo(() => levelsLegendText(draft?.rules, draft?.axes || []), [draft]);
   // stage 4b: the Levels spec / links a new Levels occurrence copies (the strategy's last one)
   const levelsTemplate = useMemo(() => lastLevelsTemplate(draft?.rules, meta.levels?.defaults), [draft, meta]);
   const evalTf = previewForm.timeFrame;
@@ -681,8 +684,8 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
             {draft.rules.length === 0 && <p className="text-sm text-gray-500">No rules yet.</p>}
           </div>
           {levelsLegend.length > 0 && (
-            <div className="mt-3 text-xs font-mono text-gray-600" data-testid="constructed-levels-legend"
-              title="The Levels params of this strategy; with several different specs the labels carry @L1, @L2, …">
+            <div className="mt-3 text-xs text-gray-600" data-testid="constructed-levels-legend"
+              title={`The Levels settings of this strategy (changed fields only).\n\ncode: ${levelsLegendCode.join(' | ')}`}>
               {levelsLegend.map((l) => <div key={l}>{l}</div>)}
             </div>
           )}

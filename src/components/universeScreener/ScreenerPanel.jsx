@@ -602,6 +602,7 @@ function ScreenerPanel({
               diff={diff}
               conditions={resultsDraft?.conditions || []}
               labels={run.conditionLabels}
+              displayLabels={run.conditionDisplayLabels}
               evalTf={run.evalTf || evalTfOf(resultsDraft?.conditions || [])}
               onOpenTicker={(row) => openInChannels(row, run, resultsDraft)}
               onBacktest={handleBacktest}
