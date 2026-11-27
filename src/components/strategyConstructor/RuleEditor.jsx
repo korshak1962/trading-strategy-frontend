@@ -34,6 +34,8 @@ import LevelConditionRow from './LevelConditionRow';
 import WithinConditionRow from './WithinConditionRow';
 import BrickOperandEditor from './BrickOperandEditor';
 import FieldLabel from '../common/FieldLabel';
+import DisplayCaption from '../common/DisplayCaption';
+import { displayOpts, EDITOR_MODE, ruleHead, ruleBodyText, ruleConditionText } from '../../utils/displayLabels';
 import { useEditorHelp, OPERAND_HELP, POSITION_HELP, RULE_TEXTS, positionRefusedText } from '../../api/editorTexts';
 import { levelsBlockInfo, linkInfoOf } from '../common/paramBlockFormat';
 
@@ -76,6 +78,9 @@ export default function RuleEditor({
   const set = (patch) => onChange({ ...rule, ...patch });
   // Short labels (re-arm round): a Levels caption carries no spec, `@L2` when the strategy has several specs
   const capOpts = levelsCaptionOpts(allRules || [rule], axes, levelsMeta?.defaults);
+  // Stage B (B2): the plain-English captions (`[Levels set 2]` tags over all rules); the code caption in the ⓘ
+  const dOpts = displayOpts(allRules || [rule], axes, EDITOR_MODE);
+  const ruleBody = ruleBodyText(rule, axes, dOpts);
   // An operand change can drop a linkable threshold (SMA → close, CONST → field): its link goes too.
   // Stage 4b: a new Levels occurrence (a side became a Levels value / brick) takes the template's links.
   const setCondition = (i, condition) => set({
@@ -196,7 +201,8 @@ export default function RuleEditor({
             errors: errors?.conditions?.[i] || [],
             onRemove: () => removeCondition(i),
             onMove: (d) => moveCondition(i, d),
-            caption: ruleConditionCaption(c, evalTf, axes, capOpts),
+            caption: ruleConditionText(c, axes, dOpts),
+            codeCaption: ruleConditionCaption(c, evalTf, axes, capOpts),
             linkedValue: (suffix) => linkedThresholdValue(c, suffix, axes),
             renderLink: (suffix) => (
               <LinkPicker
@@ -279,7 +285,8 @@ export default function RuleEditor({
         </button>
         <span className="text-xs text-gray-500">Conditions are AND-ed. For OR add another rule with the same signal type.</span>
       </div>
-      <div className="mt-2 text-xs font-mono text-gray-700" data-testid="rule-caption">{ruleCaption(rule, evalTf, axes, capOpts)}</div>
+      <DisplayCaption className="mt-2 text-sm text-gray-700" head={ruleHead(rule)} text={ruleBody || '(no conditions)'}
+        code={ruleCaption(rule, evalTf, axes, capOpts)} testId="rule-caption" codeTestId="rule-caption-code" />
       {stats && (
         <div className="mt-1 text-xs text-gray-600" data-testid="rule-inline-stats">
           Last preview: fired {stats.fired} of {stats.bars} bars

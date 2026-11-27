@@ -7,11 +7,13 @@
 // Editor UX Stage A (screener logs/agents/architect.md §3.2, §5.1): a row heading with an ⓘ
 // ("COMPARE", "CHANNEL", …), headings above every control, the compare grid "Left value · Op ·
 // Right value · Tolerance %" (controls aligned at the bottom, the right group wraps as a whole), and a
-// help line. The code caption under the row is unchanged (Stage B replaces it).
+// help line. Stage B (B2): a row given `codeCaption` shows `caption` as a plain-English sentence with
+// the code caption in its ⓘ; without it the caption is shown as before (mono).
 import { METRICS, OPERATORS, SCREEN_TFS, LEVELS } from '../../api/screenerApi';
 import { useEditorHelp, firstSentence, CHANNEL_HELP, RULE_TEXTS } from '../../api/editorTexts';
 import { sourceTooltipOf, compareHelpLine } from '../strategyConstructor/operandSource';
 import InfoTooltip from '../common/InfoTooltip';
+import DisplayCaption from '../common/DisplayCaption';
 import FieldLabel from '../common/FieldLabel';
 import OperandPicker from './OperandPicker';
 import { conditionCaption, fmtNum, operandUnit } from './conditionFormat';
@@ -35,7 +37,9 @@ export function RowHeading({ text, tooltip, className = 'text-gray-600', testId 
  * WITHIN) renders the controls only - no number, move / remove, caption or errors.
  * `heading` (Stage A): `{text, tooltip, className}` shown above the controls.
  */
-export function RowShell({ index, caption, errors, onRemove, onMove, count, disabled, children, testId, bare = false, heading = null, help = null }) {
+export function RowShell({
+  index, caption, codeCaption = null, errors, onRemove, onMove, count, disabled, children, testId, bare = false, heading = null, help = null,
+}) {
   if (bare) {
     return <span className="inline-flex flex-wrap items-end gap-x-2 gap-y-1" data-testid={testId}>{children}</span>;
   }
@@ -58,7 +62,12 @@ export function RowShell({ index, caption, errors, onRemove, onMove, count, disa
         </div>
       </div>
       {help && <div className="mt-1 ml-7 text-[11px] text-gray-500" data-testid="condition-help">{help}</div>}
-      <div className="mt-1 ml-7 text-xs font-mono text-gray-700" data-testid="condition-caption">{caption}</div>
+      {codeCaption != null ? (
+        <DisplayCaption className="mt-1 ml-7 text-sm text-gray-700" text={caption} code={codeCaption}
+          testId="condition-caption" codeTestId="condition-caption-code" />
+      ) : (
+        <div className="mt-1 ml-7 text-xs font-mono text-gray-700" data-testid="condition-caption">{caption}</div>
+      )}
       {hasErrors && (
         <ul className="mt-1 ml-7 text-xs text-red-600 list-disc list-inside">
           {errors.map((e) => <li key={e}>{e}</li>)}

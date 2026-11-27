@@ -14,9 +14,10 @@ import { useEffect, useState } from 'react';
 import { listTemplates, createFromTemplate } from '../../api/constructedApi';
 import { describeApiError } from '../../api/httpClient';
 import {
-  AXIS_KIND_LABEL, constraintText, ruleCaption, runTfsOf, runTfsHint, levelsCaptionOpts, levelsLegendLines, usesPosition,
+  AXIS_KIND_LABEL, constraintText, ruleCaption, runTfsOf, runTfsHint, levelsCaptionOpts, usesPosition,
 } from './constructedFormat';
 import PositionDependentBadge from './PositionDependentBadge';
+import { displayOpts, EDITOR_MODE, ruleText, levelsLegendText } from '../../utils/displayLabels';
 import { fmtNum } from '../universeScreener/conditionFormat';
 import '../watch/watch.css';
 import { useEscapeLayer } from '../../hooks/useEscapeLayer';
@@ -130,13 +131,16 @@ export default function TemplatePickerDialog({ onCreated, onClose }) {
                   title="These rules read the trade (AT_ENTRY / STICKY_SINCE_ENTRY, LONG only): the strategy is position dependent. Unticking an option that adds them (entryAnchor) gives a stateless variant." />
               )}
             </div>
-            <ul className="text-xs font-mono space-y-1 mb-2" data-testid="template-rules">
+            {/* Stage B (B2): plain-English rule texts and legend; the code caption in each row's title */}
+            <ul className="text-xs space-y-1 mb-2" data-testid="template-rules">
               {template.rules.map((r, i) => (
-                <li key={i}>{ruleCaption(r, 'DAY', template.axes, levelsCaptionOpts(template.rules, template.axes))}</li>
+                <li key={i} title={`code: ${ruleCaption(r, 'DAY', template.axes, levelsCaptionOpts(template.rules, template.axes))}`}>
+                  {ruleText(r, template.axes, displayOpts(template.rules, template.axes, EDITOR_MODE))}
+                </li>
               ))}
             </ul>
-            {levelsLegendLines(template.rules, template.axes).map((l) => (
-              <p key={l} className="text-xs font-mono text-gray-500 mb-1" data-testid="template-levels-legend">{l}</p>
+            {levelsLegendText(template.rules, template.axes).map((l) => (
+              <p key={l} className="text-xs text-gray-500 mb-1" data-testid="template-levels-legend">{l}</p>
             ))}
             {template.axes.length > 0 && (
               <>
