@@ -98,6 +98,12 @@ export const buildSeriesList = (chartDataDTO) => {
     return Array.isArray(source[ref]) && isSeriesRedundant(source[entry.name], source[ref]);
   };
 
+  // Stage B (B1 twin): the plain label of a price line (`R2 entry's stop`, `SMA 50`); the key otherwise
+  const labels = chartDataDTO.priceIndicatorLabels && typeof chartDataDTO.priceIndicatorLabels === 'object'
+    ? chartDataDTO.priceIndicatorLabels : {};
+  const twinOf = (entry) => (entry.kind === 'price' && typeof labels[entry.name] === 'string' && labels[entry.name]
+    ? labels[entry.name] : null);
+
   return list.map((entry, index) => {
     if (redundant(entry)) return null; // after the palette index is taken, so colours do not shift
     const style = SERIES_STYLE[entry.name] || {};
@@ -106,7 +112,7 @@ export const buildSeriesList = (chartDataDTO) => {
       name: entry.name,
       kind: entry.kind,
       color: style.color || INDICATOR_PALETTE[index % INDICATOR_PALETTE.length],
-      label: style.label || entry.name,
+      label: twinOf(entry) || style.label || entry.name,
       stepped: style.stepped === true,
       dashed: style.dashed === true,
       defaultHidden: style.defaultHidden === true,
@@ -118,8 +124,8 @@ export const buildSeriesList = (chartDataDTO) => {
 /** Display name of a series entry (legend, chips, tooltip). */
 export const seriesLabel = (series) => series?.label || series?.name || '';
 
-/** Legend chips / tooltip rows keep at most this many characters (m7: rule-line keys up to 64). */
-export const SERIES_LABEL_MAX = 40;
+/** Legend chips / tooltip rows keep at most this many characters, full on hover (m7; Stage B: ~48). */
+export const SERIES_LABEL_MAX = 48;
 
 /** `text` cut to `max` characters with a trailing ellipsis (the full text goes in a title). */
 export const truncateLabel = (text, max = SERIES_LABEL_MAX) => {

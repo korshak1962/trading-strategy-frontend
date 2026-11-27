@@ -960,7 +960,8 @@ const ReporterStyleChart = ({
   // missing entirely.
   const getSignalReasonText = useCallback((signal, tradeIndex) => {
     if (!signal) return null;
-    let text = signal.comment || `${signal.type} signal.`;
+    // Stage B: the plain-English twin (displayComment) when the backend sends one, not cut
+    let text = signal.displayComment || signal.comment || `${signal.type} signal.`;
 
     const isOpen = signal.type.endsWith('Open');
     const relevantRole = isOpen ? 'entryChild' : 'resumptionLeg';
