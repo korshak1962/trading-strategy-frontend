@@ -685,9 +685,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
           </div>
           {levelsLegend.length > 0 && (
             <div className="mt-3 text-xs text-gray-600" data-testid="constructed-levels-legend"
-              title={`The Levels settings of this strategy (changed fields only).
-
-code: ${levelsLegendCode.join(' | ')}`}>
+              title={`The Levels settings of this strategy (changed fields only).\n\ncode: ${levelsLegendCode.join(' | ')}`}>
               {levelsLegend.map((l) => <div key={l}>{l}</div>)}
             </div>
           )}

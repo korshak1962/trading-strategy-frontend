@@ -1014,7 +1014,7 @@ const countMap = (v) => (v && typeof v === 'object' && !Array.isArray(v)
   : {});
 
 /**
- * PreviewDTO `{ticker, timeFrame, bars, prices[], signals[], rules[]: {ruleId, signalType, label,
+ * PreviewDTO `{ticker, timeFrame, bars, prices[], signals[], rules[]: {ruleId, signalType, label, displayLabel?,
  * fired, failed, notEvaluated, notEvaluatedByReason{}, firedDates[], stateRule, warnings[]},
  * sweepThresholds, warnings[], backtest?}` → the same, every field defaulted.
  * `backtest` (screener architect_constructor_preview_backtest_v1.md §2.4): the Backtest's
@@ -1033,11 +1033,17 @@ export const normalizePreview = (p) => {
     prices,
     signals: (Array.isArray(p.signals) ? p.signals : [])
       .filter((s) => s && s.date && s.type)
-      .map((s) => ({ date: s.date, price: Number(s.price), type: s.type, comment: s.comment ?? null })),
+      .map((s) => ({
+        date: s.date, price: Number(s.price), type: s.type, comment: s.comment ?? null,
+        // Stage B (B1 twin): the plain-English comment; absent on an older backend (consumers: displayComment ?? comment)
+        ...(typeof s.displayComment === 'string' && s.displayComment ? { displayComment: s.displayComment } : {}),
+      })),
     rules: (Array.isArray(p.rules) ? p.rules : []).map((r) => ({
       ruleId: r?.ruleId ?? r?.id ?? null,
       signalType: r?.signalType ?? null,
       label: r?.label ?? '',
+      // Stage B (B1 twin): the rule body in plain English without the head; null on an older backend
+      displayLabel: typeof r?.displayLabel === 'string' && r.displayLabel ? r.displayLabel : null,
       fired: isNum(r?.fired) ? r.fired : 0,
       failed: isNum(r?.failed) ? r.failed : 0,
       notEvaluated: isNum(r?.notEvaluated) ? r.notEvaluated : 0,
@@ -1055,6 +1061,8 @@ export const normalizePreview = (p) => {
     warnings: (Array.isArray(p.warnings) ? p.warnings : []).filter((w) => typeof w === 'string' && w),
     // re-arm round (m7): one line per Levels spec, `Levels[L2]: MinStrength 2, StopBuffer 1, re-arm (TP 4)`
     levelsLegend: (Array.isArray(p.levelsLegend) ? p.levelsLegend : []).filter((x) => typeof x === 'string' && x),
+    // Stage B (B1 twin): `Levels: default settings · re-arm`, `Levels axes: …`; [] on an older backend
+    levelsLegendText: (Array.isArray(p.levelsLegendText) ? p.levelsLegendText : []).filter((x) => typeof x === 'string' && x),
     // stage 4c-1: the previewed version reads the trade (its `warnings` carry the POSITION_SOLO note)
     positionDependent: p.positionDependent === true,
     backtest: normalizePreviewBacktest(p.backtest, prices),

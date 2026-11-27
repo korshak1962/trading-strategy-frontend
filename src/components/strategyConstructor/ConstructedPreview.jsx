@@ -20,6 +20,7 @@ import { adaptNextTriggers, chartTriggers } from '../nextTriggers/nextTriggersAd
 import { useFullscreen } from '../../hooks/useFullscreen';
 import { useElementSize } from '../../hooks/useElementSize';
 import { parseExchangeTs } from '../../utils/dates';
+import { signalWord } from '../../utils/displayLabels';
 import { ofBars, reasonsText, stateRuleWarning, deadEntryRuleWarning, SIGNAL_TYPE_CLASS } from './constructedFormat';
 import {
   mergedPreviewWarnings, noTradesMessage, previewStaleText, previewTradeCount, relabelUnsavedDraft, rulesWithWarnings,
@@ -79,7 +80,11 @@ function RulesTable({ preview, warningsOf, stateRuleFireRate }) {
                         title={`Fires on more than ${Math.round(stateRuleFireRate * 100)} % of the bars`}>state rule</span>
                     )}
                   </div>
-                  <div className="text-xs font-mono text-gray-600 mt-0.5 break-words">{r.label}</div>
+                  {r.displayLabel ? (
+                    <div className="text-sm text-gray-700 mt-0.5 break-words" title={`code: ${r.label}`} data-testid="preview-rule-text">{r.displayLabel}</div>
+                  ) : (
+                    <div className="text-xs font-mono text-gray-600 mt-0.5 break-words" data-testid="preview-rule-text">{r.label}</div>
+                  )}
                   {warningsOf(r).map((w, i) => (
                     <div key={i} className="mt-1 text-xs text-amber-800" data-testid="preview-rule-warning">{w}</div>
                   ))}
@@ -97,7 +102,12 @@ function RulesTable({ preview, warningsOf, stateRuleFireRate }) {
           </tbody>
         </table>
       </div>
-      {preview.levelsLegend.length > 0 && (
+      {preview.levelsLegendText?.length > 0 ? (
+        <div className="mt-2 text-xs text-gray-600" data-testid="preview-levels-legend"
+          title={`The Levels settings of the rules above.\n\ncode: ${(preview.levelsLegend || []).join(' | ')}`}>
+          {preview.levelsLegendText.map((l) => <div key={l}>{l}</div>)}
+        </div>
+      ) : preview.levelsLegend.length > 0 && (
         <div className="mt-2 text-xs font-mono text-gray-600" data-testid="preview-levels-legend"
           title="The Levels params of the rules above (the labels carry @L1, @L2, … when there are several specs)">
           {preview.levelsLegend.map((l) => <div key={l}>{l}</div>)}
@@ -155,7 +165,8 @@ export default function ConstructedPreview({
     if (selectedRule) {
       const close = new Map(prices.map((p) => [parseExchangeTs(p.date).getTime(), p.close]));
       signals = selectedRule.firedDates
-        .map((d) => ({ date: d, price: Number(close.get(parseExchangeTs(d).getTime())), type: selectedRule.signalType, comment: selectedRule.label }))
+        .map((d) => ({ date: d, price: Number(close.get(parseExchangeTs(d).getTime())), type: selectedRule.signalType, comment: selectedRule.label,
+          ...(selectedRule.displayLabel ? { displayComment: `R${selectedRule.ruleId} ${signalWord(selectedRule.signalType)}: ${selectedRule.displayLabel}` } : {}) }))
         .filter((s) => Number.isFinite(s.price));
     }
     return {
@@ -217,7 +228,7 @@ export default function ConstructedPreview({
           : 'Markers on the price chart and the strip under it.'}>
         <option value="all">the strategy&apos;s signals (one per bar)</option>
         {preview?.rules.map((r) => (
-          <option key={r.ruleId} value={String(r.ruleId)}>R{r.ruleId} {r.signalType}: every bar it fired</option>
+          <option key={r.ruleId} value={String(r.ruleId)}>R{r.ruleId} {signalWord(r.signalType)}: every bar it fired</option>
         ))}
       </select>
       <span className="text-xs text-gray-500">
