@@ -1652,10 +1652,34 @@ export const REASON_ADVICE = Object.freeze({
   LIMITS: null,
   MISSING_FIELD: null,
   UNKNOWN_KIND: null,
+  // reasons the B3 backend added (screener logs/agents/backend_dev.md): the plain message says it all
+  CONST_LEFT: null,
+  BRICK_X: null,
+  UNKNOWN_VALUE: null,
+  LAG_RANGE: null,
+  CHANNEL_LEVEL: null,
+  CHANNEL_BOUNDS: null,
+  WITHIN_BARS: null,
+  AXIS_INVALID: null,
+  AXIS_UNUSED: null,
+  RULE_INVALID: null,
+  FILTER_INVALID: null,
+  // the "same kind" case gets HINT.linkKind in constructedErrorHint; other link problems say it all
+  LINK_INVALID: null,
 });
 
+/** The hint texts, for the test proving each one is still reachable through a reason. */
+export const CONSTRUCTED_HINTS = HINT;
+
+// Reasons of a value that can come from an axis link: with "$Axis=v" in the message the value is
+// linked, and the advice is the linked-threshold one (as the regexes gave it on an old backend).
+const LINKABLE_VALUE_REASONS = new Set(['LENGTH_RANGE', 'TOLERANCE_RANGE', 'CONST_NOT_FINITE']);
+const LINKED_VALUE_RE = /\$[A-Za-z][A-Za-z0-9]*\s*=/;
+
 /** The constraint text of a "violated (axis constraint $A <= $B)" message, else null. */
-const violatedConstraintOf = (m) => /violated \(axis constraint ([^)]+)\)/.exec(m)?.[1] || null;
+const violatedConstraintOf = (m) => /violated \(axis constraint ([^)]+)\)/.exec(m)?.[1]
+  // B3 plain message: "The axis values $A=1 and $B=0 break the axis constraint $A <= $B. Pick …"
+  || /break the axis constraint (\S+ \S+ \S+?)\.?(?:\s|$)/.exec(m)?.[1] || null;
 
 /** A Levels distance (ATR multiples) named in a UNIT_MISMATCH message, old or plain. */
 const DIST_ATR_RE = /ATR_MULTIPLE|ATR multiples|distance to (support|resistance)|DIST_(SUPPORT|RESISTANCE)_ATR/i;
@@ -1671,6 +1695,8 @@ export const constructedErrorHint = (message, reason = null) => {
   if (typeof reason === 'string' && reason) {
     if (reason === 'AXIS_CONSTRAINT_VIOLATED') return HINT.constraintViolated(violatedConstraintOf(m));
     if (reason === 'UNIT_MISMATCH') return DIST_ATR_RE.test(m) ? HINT.distAtr : unitMismatchHint(m, reason);
+    if (LINKABLE_VALUE_REASONS.has(reason) && LINKED_VALUE_RE.test(m)) return HINT.linkedInvalid;
+    if (reason === 'LINK_INVALID') return /same kind/i.test(m) ? HINT.linkKind : null;
     if (Object.prototype.hasOwnProperty.call(REASON_ADVICE, reason)) return REASON_ADVICE[reason];
   }
   // Stage 3b-2: "$TiltSell=0.02 <= $TiltBuy=0: violated (axis constraint $TiltSell <= $TiltBuy)", as a 400

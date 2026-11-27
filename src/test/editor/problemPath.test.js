@@ -68,6 +68,19 @@ describe('locateRuleProblem', () => {
     expect(locateRuleProblem('R3', rules)).toEqual({ ruleIndex: 0, condIndex: null, rest: '' });
   });
 
+  it('F-B3b: B3 path shapes (rules[i] before the id, run-check R2.C1, axes / constraints not outlined)', () => {
+    expect(parseProblemPath('rules[1].signalType')).toEqual({ kind: 'ruleIndex', ruleIndex: 1, rest: 'signalType' });
+    expect(locateRuleProblem('rules[1].signalType', rules)).toEqual({ ruleIndex: 1, condIndex: null, rest: 'signalType' });
+    expect(locateRuleProblem('rules[0]', rules)).toEqual({ ruleIndex: 0, condIndex: null, rest: '' });
+    expect(locateRuleProblem('rules[5]', rules)).toBeNull();
+    expect(locateRuleProblem('R3.C1', rules)).toEqual({ ruleIndex: 0, condIndex: 0, rest: '' });
+    ['constraints[0]', 'axes[0]', '$Gap', 'name', 'rules', 'detectorParams.coveragePct'].forEach((p) => {
+      expect(locateRuleProblem(p, rules)).toBeNull();
+    });
+    expect(filterProblemIndex('conditions[0].left.tf')).toBe(0);
+    expect(filterProblemIndex('detectorParams.coveragePct')).toBeNull();
+  });
+
   it('a rule / condition the draft no longer has, a filter path, no path → null', () => {
     expect(locateRuleProblem('R9.C1', rules)).toBeNull();
     expect(locateRuleProblem('R3.C2', rules)).toBeNull();

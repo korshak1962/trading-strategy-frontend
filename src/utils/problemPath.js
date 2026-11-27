@@ -8,9 +8,11 @@
 
 const RULE_RE = /^R(\d+)(?:\.C(\d+))?(?:\.(.+))?$/;
 const FILTER_RE = /^conditions\[(\d+)\](?:\.(.+))?$/;
+// B3: a rule before its id is known (its signal type, an empty rule): `rules[0]`, `rules[0].signalType`, 0-based draft order
+const RULE_INDEX_RE = /^rules\[(\d+)\](?:\.(.+))?$/;
 
 /**
- * `{kind: 'rule', ruleId, condId, rest}` / `{kind: 'filter', condIndex, rest}` / null.
+ * `{kind: 'rule', ruleId, condId, rest}` / `{kind: 'ruleIndex', ruleIndex, rest}` / `{kind: 'filter', condIndex, rest}` / null.
  * `condId` / `condIndex` null when the path names the whole rule; `rest` '' when nothing follows.
  */
 export const parseProblemPath = (path) => {
@@ -19,6 +21,8 @@ export const parseProblemPath = (path) => {
   if (r) return { kind: 'rule', ruleId: Number(r[1]), condId: r[2] != null ? Number(r[2]) : null, rest: r[3] || '' };
   const f = FILTER_RE.exec(path);
   if (f) return { kind: 'filter', condIndex: Number(f[1]), rest: f[2] || '' };
+  const ri = RULE_INDEX_RE.exec(path);
+  if (ri) return { kind: 'ruleIndex', ruleIndex: Number(ri[1]), rest: ri[2] || '' };
   return null;
 };
 
@@ -52,6 +56,9 @@ export const effectiveIds = (rules, saved = null) => {
  */
 export const locateRuleProblem = (path, rules, saved = null) => {
   const p = parseProblemPath(path);
+  if (p && p.kind === 'ruleIndex') {
+    return Array.isArray(rules) && p.ruleIndex < rules.length ? { ruleIndex: p.ruleIndex, condIndex: null, rest: p.rest } : null;
+  }
   if (!p || p.kind !== 'rule') return null;
   const ids = effectiveIds(rules, saved);
   const ruleIndex = ids.findIndex((x) => x.ruleId === p.ruleId);
