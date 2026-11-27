@@ -32,12 +32,16 @@
 //   - N nearest above: low > ref, ascending low
 //   - N nearest below: high < ref, descending high
 // done separately for strong and weak zones (weak only when showWeak). With allStrong every
-// strong segment covering t is drawn. The segment flagged `trigger` (the zone the
-// resistanceTrigger line comes from) is outlined and always drawn, regardless of N.
+// strong segment covering t is drawn; the strong ones that are neither among the N nearest nor the
+// trigger zone are flagged `faint` (drawn as faint context, one fill without stacking - constructor
+// editor UX Stage B, B4). The segment flagged `trigger` (the zone the resistanceTrigger line comes
+// from) is outlined and always drawn, regardless of N.
 // ref = close(t-1) matches the backend's dating: a segment dated t is the map that decided close(t).
 //
-// Consecutive bars showing the same segment with the same outline flag merge into one run,
-// returned with its x extent in ms (bar-slot edges), so the canvas draws one fillRect per run.
+// Consecutive bars showing the same segment with the same faint state merge into one run,
+// returned with its x extent in ms (bar-slot edges), so the canvas draws one fillRect per run;
+// a segment that turns faint (or back) on a bar starts a new run there.
+// Without allStrong the runs carry no `faint` key: the output is exactly the pre-B4 one (gate GB8).
 
 import { parseExchangeTs } from './dates';
 
@@ -199,10 +203,12 @@ export const slotEdges = (barTimes) => {
  * @param {Object} options
  * @param {number} [options.nearestN=1] - N nearest above / below, 0..5
  * @param {boolean} [options.showWeak=false] - also draw weak zones (own N nearest)
- * @param {boolean} [options.allStrong=false] - every strong zone, no nearest filter (debug)
+ * @param {boolean} [options.allStrong=false] - every strong zone; the ones outside the N nearest
+ *   (and not the trigger zone) come back `faint: true`
  * @returns {Array<{zoneId, low: number, high: number, strong: boolean, armed: boolean, outlined: boolean,
- *   startMs: number, endMs: number, startIndex: number, endIndex: number, segment: Object}>}
- *   `segment`: the normalized segment the run draws (all its fields, for the zone tooltip)
+ *   startMs: number, endMs: number, startIndex: number, endIndex: number, segment: Object, faint?: boolean}>}
+ *   `segment`: the normalized segment the run draws (all its fields, for the zone tooltip);
+ *   `faint`: present only with allStrong (true / false)
  */
 export const buildLevelZoneRuns = (prices, rawSegments, options = {}) => {
   const bars = prices || [];
@@ -218,7 +224,7 @@ export const buildLevelZoneRuns = (prices, rawSegments, options = {}) => {
   const { left, right } = slotEdges(barTimes);
 
   const runs = [];
-  const openRuns = new Map(); // segment key -> run still being extended
+  const openRuns = new Map(); // segment key (+ ':f' when faint) -> run still being extended
   let active = [];
   let next = 0; // sweep pointer into segments (sorted by fromMs)
 
@@ -236,14 +242,19 @@ export const buildLevelZoneRuns = (prices, rawSegments, options = {}) => {
     const strong = covering.filter(seg => seg.strong);
     const weak = covering.filter(seg => !seg.strong);
 
-    const selected = new Set(allStrong ? strong : selectNearest(strong, ref, nearestN));
+    const nearest = selectNearest(strong, ref, nearestN);
+    const nearestSet = new Set(nearest);
+    const selected = new Set(allStrong ? strong : nearest);
     if (showWeak) selectNearest(weak, ref, nearestN).forEach(seg => selected.add(seg));
 
     // The trigger zone is always shown (outlined), even outside the N nearest / when weak.
     covering.forEach(seg => { if (seg.trigger) selected.add(seg); });
 
     selected.forEach(seg => {
-      const open = openRuns.get(seg.key);
+      // Faint: a strong zone drawn only because of allStrong (weak ones come from showWeak's own N)
+      const faint = allStrong && seg.strong && !seg.trigger && !nearestSet.has(seg);
+      const runKey = faint ? `${seg.key}:f` : seg.key;
+      const open = openRuns.get(runKey);
       if (open && open.endIndex === i - 1) {
         open.endIndex = i;
         open.endMs = right[i];
@@ -261,8 +272,9 @@ export const buildLevelZoneRuns = (prices, rawSegments, options = {}) => {
           endMs: right[i],
           segment: seg,
         };
+        if (allStrong) run.faint = faint;
         runs.push(run);
-        openRuns.set(seg.key, run);
+        openRuns.set(runKey, run);
       }
     });
   }
