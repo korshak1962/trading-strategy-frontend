@@ -87,7 +87,7 @@ export default function LevelsSpecEditor({
     return {
       key: p.name,
       label: p.plainLabel || p.name,
-      tooltip: `${p.tooltip || p.hint} Range ${rangeText(p)}, default ${fmtNum(p.defaultValue)}.${usedNote}`,
+      tooltip: `${p.tooltip} Range ${rangeText(p)}, default ${fmtNum(p.defaultValue)}.${usedNote}`,
       group: p.group,
       value: spec?.[p.name],
       defaultValue: meta.defaults?.[p.name] ?? p.defaultValue,

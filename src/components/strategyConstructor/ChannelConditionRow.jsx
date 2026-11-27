@@ -89,7 +89,7 @@ export default function ChannelConditionRow({
   const metric = channelMetricOf(condition.metric, meta.metrics);
   const metrics = meta.metrics.some((m) => m.name === condition.metric)
     ? meta.metrics
-    : [...meta.metrics, { name: condition.metric, label: `${condition.metric} (not in semantics B)`, unit: null, hint: '' }];
+    : [...meta.metrics, { name: condition.metric, label: `${condition.metric} (not in semantics B)`, unit: null, tooltip: '' }];
   const unit = UNIT_TEXT[metric?.unit] ?? '';
   const ch = condition.channel || {};
 
@@ -148,7 +148,7 @@ export default function ChannelConditionRow({
   return (
     <RowShell {...shell} caption={caption} testId="channel-condition"
       heading={{ text: 'Channel', tooltip: RULE_TEXTS.rowChannel, className: 'text-indigo-700' }}
-      help={firstSentence(metric?.tooltip || metric?.hint)}>
+      help={firstSentence(metric?.tooltip)}>
       <FieldLabel label="Source" tooltip={help.source}>
         <span className="px-1 py-1 text-sm text-gray-500"
           title="Semantics B: on bar t the channel tree after bar t−1 (no look-ahead), replayed from the ticker's first stored DAY bar">
@@ -170,8 +170,8 @@ export default function ChannelConditionRow({
       </FieldLabel>
       <FieldLabel label="Metric" tooltip={help.metric} code={condition.metric || null} testId="info-channel-metric">
         <select className={sel} value={condition.metric} disabled={shell.disabled} onChange={(e) => set({ metric: e.target.value })}
-          aria-label="channel metric" title={metric?.tooltip || metric?.hint} data-testid="channel-metric">
-          {metrics.map((m) => <option key={m.name} value={m.name} title={m.tooltip || m.hint}>{m.label || m.name}</option>)}
+          aria-label="channel metric" title={metric?.tooltip} data-testid="channel-metric">
+          {metrics.map((m) => <option key={m.name} value={m.name} title={m.tooltip}>{m.label || m.name}</option>)}
         </select>
       </FieldLabel>
       {bound('min')}

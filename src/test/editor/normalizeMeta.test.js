@@ -1,5 +1,7 @@
 // Editor UX Stage A F1: the normalizers carry the new text keys, fall back to editorTexts.js on an
 // old backend (the master meta pin, no new keys), and leave every existing field as it was.
+// Stage B3 (F-B3a.3): the meta `hint` key is retired: never read, never output; a meta without any
+// `hint` key (the B3 backend) normalizes exactly as the same meta with them (an older backend).
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -9,7 +11,8 @@ import {
 import { normalizeIndicator } from '../../api/indicatorCatalog';
 import { METRICS, OPERATORS } from '../../api/screenerApi';
 import {
-  LEVEL_EVENT_TEXTS, LEVELS_PARAM_TEXTS, SIGNAL_TYPE_TEXTS, firstSentence, helpMap, helpOf, normalizeOperandHelp,
+  LEVEL_EVENT_TEXTS, LEVELS_PARAM_TEXTS, SIGNAL_TYPE_TEXTS, CHANNEL_METRIC_TEXTS, SCREENER_METRIC_TEXTS, firstSentence, helpMap, helpOf,
+  normalizeOperandHelp,
 } from '../../api/editorTexts';
 import { levelsFieldLabel } from '../../components/strategyConstructor/constructedFormat';
 import { opSymbol, metricLabel } from '../../components/universeScreener/conditionFormat';
@@ -30,12 +33,11 @@ describe('old backend (master /meta, no Stage A keys)', () => {
     });
   });
 
-  it('existing hints are kept as the backend sent them', () => {
-    OLD.levels.events.forEach((x) => expect(m.levels.events.find((e) => e.name === x.name).hint).toBe(x.hint));
-    OLD.levels.params.forEach((x) => expect(m.levels.params.find((p) => p.name === x.name)?.hint ?? x.hint).toBe(x.hint));
-    OLD.bricks.kinds.forEach((x) => expect(m.bricks.kinds.find((k) => k.name === x.name).hint).toBe(x.hint));
-    expect(m.bricks.hint).toBe(OLD.bricks.hint);
-    expect(m.position.hint).toBe(OLD.position.hint);
+  it('the backend hints are ignored: the tooltips come from the fallbacks, no `hint` key is output', () => {
+    expect(JSON.stringify(m)).not.toContain('"hint"');
+    OLD.levels.events.forEach((x) => expect(m.levels.events.find((e) => e.name === x.name).tooltip).toBe(LEVEL_EVENT_TEXTS[x.name].tooltip));
+    m.levels.params.forEach((p) => expect(p.tooltip).toBe(LEVELS_PARAM_TEXTS[p.name].tooltip));
+    m.levels.outputs.forEach((o) => expect(o.tooltip).toBeTruthy());
   });
 
   it('Levels params: plainLabel / group / choices from the fallbacks, code label unchanged', () => {
@@ -74,7 +76,8 @@ describe('new backend keys win over the fallbacks', () => {
       fixedParams: [{ name: 'warmupBars', value: 60, label: 'WU', tooltip: 'wt' }],
       help: { summary: 'S' },
     });
-    expect(lv.events[0]).toMatchObject({ name: 'CONFIRMED_ANY', hint: 'h', label: 'L', tooltip: 'T', inMenu: false });
+    expect(lv.events[0]).toMatchObject({ name: 'CONFIRMED_ANY', label: 'L', tooltip: 'T', inMenu: false });
+    expect(lv.events[0].hint).toBeUndefined();
     expect(lv.params.find((p) => p.name === OLD.levels.params[0].name)).toMatchObject({
       plainLabel: 'Plain', tooltip: 'TT', group: 'BREAKOUT', choices: [{ value: 2, label: 'two' }],
     });
@@ -82,7 +85,10 @@ describe('new backend keys win over the fallbacks', () => {
     expect(lv.help.summary).toBe('S');
     expect(lv.help.applyToAll).toBeTruthy();
     const ch = normalizeChannelMeta({ metrics: [{ name: 'POSITION', unit: 'RATIO', hint: 'h', label: 'Pos', tooltip: 'pt' }] });
-    expect(ch.metrics[0]).toMatchObject({ label: 'Pos', tooltip: 'pt', hint: 'h' });
+    expect(ch.metrics[0]).toMatchObject({ label: 'Pos', tooltip: 'pt' });
+    expect(ch.metrics[0].hint).toBeUndefined();
+    // a hint alone is not a tooltip: the fallback's tooltip stays
+    expect(normalizeChannelMeta({ metrics: [{ name: 'POSITION', hint: 'h' }] }).metrics[0].tooltip).toBe(CHANNEL_METRIC_TEXTS.POSITION.tooltip);
     const op = normalizeOperandHelp({ operators: [{ name: 'GT', label: 'greater (>)', tooltip: 'x' }], help: { offset: 'o' } });
     expect(op.operators.GT.menuLabel).toBe('greater (>)');
     expect(op.operators.LT.menuLabel).toBe('is below (<)');
@@ -110,9 +116,46 @@ describe('fallbacks and caption keys', () => {
 
   it('helpers', () => {
     expect(helpOf({ name: 'X' })).toEqual({ label: 'X', tooltip: '' });
-    expect(helpOf({ name: 'X', hint: 'h' }, { label: 'F' })).toEqual({ label: 'F', tooltip: 'h' });
+    expect(helpOf({ name: 'X', hint: 'h' }, { label: 'F' })).toEqual({ label: 'F', tooltip: '' });
+    expect(helpOf({ name: 'X', hint: 'h' }, { label: 'F', tooltip: 'ft' })).toEqual({ label: 'F', tooltip: 'ft' });
     expect(helpMap({ a: '', b: 'B' }, { a: 'A' })).toEqual({ a: 'A', b: 'B' });
     expect(firstSentence('One. Two.')).toBe('One.');
     expect(firstSentence('Max 0.5 ATR above. Next.')).toBe('Max 0.5 ATR above.');
+  });
+});
+
+describe('Stage B3: a meta without `hint` keys', () => {
+  /** A deep copy of a meta without any `hint` key (what the B3 backend sends). */
+  const stripHints = (v) => {
+    if (Array.isArray(v)) return v.map(stripHints);
+    if (v && typeof v === 'object') {
+      return Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'hint').map(([k, x]) => [k, stripHints(x)]));
+    }
+    return v;
+  };
+
+  it('normalizes exactly as the same meta with hints (an older backend)', () => {
+    const noHints = stripHints(OLD);
+    expect(JSON.stringify(noHints)).not.toContain('"hint"');
+    expect(normalizeMeta(noHints)).toEqual(normalizeMeta(OLD));
+  });
+
+  it('every item still has a tooltip', () => {
+    const m = normalizeMeta(stripHints(OLD));
+    [...m.levels.events, ...m.levels.outputs, ...m.levels.params, ...m.bricks.kinds, ...m.position.kinds, ...m.channel.metrics]
+      .forEach((x) => expect(x.tooltip, x.name).toBeTruthy());
+    expect(m.levels.rearmHint).toBeTruthy();
+  });
+
+  it('the static fallbacks carry no hint either', () => {
+    expect(JSON.stringify(DEFAULT_META)).not.toContain('"hint"');
+    expect(JSON.stringify(normalizeMeta(null))).not.toContain('"hint"');
+  });
+
+  it('screener METRICS: tooltip, no hint', () => {
+    METRICS.forEach((x) => {
+      expect(x.hint).toBeUndefined();
+      expect(x.tooltip).toBe(SCREENER_METRIC_TEXTS[x.value].tooltip);
+    });
   });
 });

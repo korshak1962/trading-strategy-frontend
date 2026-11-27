@@ -68,7 +68,7 @@ export default function PositionOperandEditor({ value, onChange, prefix, linkabl
         <div className="flex flex-col gap-0.5" data-testid={`position-levels-${pathId(prefix)}`}>
           <span className="text-xs font-semibold text-gray-600 border-b border-gray-200">
             Levels settings
-            <InfoTooltip text={help.levels || kindMeta?.hint || ''} editor align="left" testId={`info-${tid}-position-levels`} />
+            <InfoTooltip text={help.levels || kindMeta?.tooltip || ''} editor align="left" testId={`info-${tid}-position-levels`} />
           </span>
           <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
             <LevelsSpecEditor

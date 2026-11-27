@@ -91,7 +91,7 @@ export function MetricConditionRow({ condition, onChange, evalTf, ...shell }) {
   return (
     <RowShell {...shell} caption={screenerConditionText(condition)} codeCaption={conditionCaption(condition, evalTf)} testId="metric-condition"
       heading={{ text: 'Channel', tooltip: CHANNEL_HELP.source, className: 'text-indigo-700' }}
-      help={firstSentence(mh(metric || {}).tooltip || metric?.hint)}>
+      help={firstSentence(mh(metric || {}).tooltip || metric?.tooltip)}>
       <FieldLabel label="Timeframe" tooltip={CHANNEL_HELP.tf}>
         <select className={sel} value={condition.tf} disabled={shell.disabled} onChange={(e) => set({ tf: e.target.value })} aria-label="timeframe">
           {SCREEN_TFS.map((tf) => <option key={tf} value={tf}>{tfHelp[tf]?.label || tf}</option>)}
@@ -105,8 +105,8 @@ export function MetricConditionRow({ condition, onChange, evalTf, ...shell }) {
       </FieldLabel>
       <FieldLabel label="Metric" tooltip={CHANNEL_HELP.metric}>
         <select className={sel} value={condition.metric} disabled={shell.disabled} onChange={(e) => set({ metric: e.target.value })}
-          aria-label="metric" title={mh(metric || {}).tooltip || metric?.hint}>
-          {METRICS.map((m) => <option key={m.value} value={m.value} title={mh(m).tooltip || m.hint}>{mh(m).label || m.menuLabel || m.label}</option>)}
+          aria-label="metric" title={mh(metric || {}).tooltip || metric?.tooltip}>
+          {METRICS.map((m) => <option key={m.value} value={m.value} title={mh(m).tooltip || m.tooltip}>{mh(m).label || m.menuLabel || m.label}</option>)}
         </select>
       </FieldLabel>
       <FieldLabel label="Min" tooltip={CHANNEL_HELP.min}>
