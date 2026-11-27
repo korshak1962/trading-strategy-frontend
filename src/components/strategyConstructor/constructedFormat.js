@@ -36,7 +36,9 @@ import {
   validateOperand, opSymbol,
 } from '../universeScreener/conditionFormat';
 import { OPERATORS, TOLERANCE_LIMIT as SCREEN_TOLERANCE_LIMIT, OFFSET_MIN } from '../../api/screenerApi';
-import { lengthParamOf, kindName, runsOn, CONST_KIND, operandUnitOf, unitLabel, runTfAdviceOf } from '../../api/indicatorCatalog';
+import { lengthParamOf, kindName, runsOn, CONST_KIND, operandUnitOf, runTfAdviceOf } from '../../api/indicatorCatalog';
+// a cycle (displayLabels imports this module): used only inside functions, never at load time
+import { unitClashText, EDITOR_MODE } from '../../utils/displayLabels';
 
 // ---- request key ----
 
@@ -1447,10 +1449,11 @@ export const validateStagedCondition = (c, ctx = {}) => {
     const lu = operandUnitOf(x.left);
     const ru = operandUnitOf(x.right);
     if (lu && ru && lu !== ru) {
-      errs.push(`${at(path)}: UNIT_MISMATCH: ${anyOperandCaption(x.left)} (${unitLabel(lu)}) vs ${anyOperandCaption(x.right)} (${unitLabel(ru)}) — `
+      // Stage B3: the plain sentence (utils/displayLabels.js, editor mode)
+      errs.push(`${at(path)}: ${unitClashText(x.left, lu, x.right, ru, { mode: EDITOR_MODE })} — `
         + (lu === 'ATR_MULTIPLE' || ru === 'ATR_MULTIPLE'
-          ? 'a DIST_* distance in ATR compares only with another DIST_* or a number'
-          : 'compare values of one unit (a constant fits any)'));
+          ? 'a distance to support / resistance in ATR compares only with another such distance or a number'
+          : 'compare values of one unit (a number fits any)'));
     }
     if (!OPERATORS.some((o) => o.value === x.op)) errs.push(`${at(path)}: unknown operator`);
     else {

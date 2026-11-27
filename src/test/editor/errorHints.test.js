@@ -2,9 +2,13 @@
 // under a server error. A new backend sends a stable `reason` (ProblemReason) beside a plain
 // message; an old one sends only the message, so the regexes stay as the fallback. The first block
 // pins every regex branch on old (master) backend messages: it must stay green unchanged.
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { constructedErrorHint, REASON_ADVICE } from '../../components/strategyConstructor/constructedFormat';
-import { unitMismatchHint } from '../../components/universeScreener/conditionFormat';
+import fs from 'node:fs';
+import path from 'node:path';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { constructedErrorHint, REASON_ADVICE, validateStagedCondition } from '../../components/strategyConstructor/constructedFormat';
+import { unitMismatchHint, validateCondition } from '../../components/universeScreener/conditionFormat';
+import { setIndicatorCatalog } from '../../api/indicatorCatalog';
+import { FIXTURE_DIR } from './baselines';
 import { apiRequest, problemOf } from '../../api/httpClient';
 import { problemReducer, withProblem } from '../../components/common/problemError';
 
@@ -149,5 +153,31 @@ describe('problemError state (App / editor / filter errors)', () => {
     // a failed job: errorReason only; an older backend: none
     expect(withProblem('Optimization failed: x', { reason: 'AXIS_CONSTRAINT_VIOLATED' }).reason).toBe('AXIS_CONSTRAINT_VIOLATED');
     expect(withProblem('Optimization failed: x', { reason: undefined })).toEqual({ text: 'Optimization failed: x', path: null, reason: null });
+  });
+});
+
+describe('client-side unit errors in plain words (F-B3a.4)', () => {
+  beforeAll(() => {
+    const meta = JSON.parse(fs.readFileSync(path.join(FIXTURE_DIR, '..', 'meta', 'constructed_meta_master.json'), 'utf8'));
+    setIndicatorCatalog({ indicators: meta.indicators });
+  });
+  const op = (kind, extra = {}) => ({ kind, tf: 'DAY', offset: 0, ...extra });
+
+  it('screener filter: every operand worded, ATR advice kept', () => {
+    const errs = validateCondition({ type: 'COMPARE', left: op('ATR', { n: 14 }), op: 'GT', right: op('CLOSE'), tolerancePct: 0 });
+    const e = errs.find((x) => x.startsWith('Different units'));
+    expect(e).toBe('Different units: “ATR 14 (day)” is a price range, “close (day)” is a price — '
+      + 'ATR compares only with ATR or a number (for a % threshold use ATR %)');
+    expect(errs.join(' ')).not.toMatch(/UNIT_MISMATCH|PRICE_RANGE/);
+  });
+
+  it('constructor: editor mode (RUN unworded), the place prefix kept', () => {
+    const c = {
+      type: 'COMPARE', left: { kind: 'LEVEL', tf: 'RUN', offset: 0, output: 'DIST_SUPPORT_ATR' }, op: 'GT',
+      right: op('CLOSE', { tf: 'RUN' }), tolerancePct: 0,
+    };
+    const e = validateStagedCondition(c, { where: 'R1.C1' }).find((x) => x.includes('Different units'));
+    expect(e).toBe('R1.C1: Different units: “the distance to support (ATR)” is in ATR multiples, “close” is a price — '
+      + 'a distance to support / resistance in ATR compares only with another such distance or a number');
   });
 });

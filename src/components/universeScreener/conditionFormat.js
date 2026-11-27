@@ -8,9 +8,11 @@ import {
   METRICS, OPERATORS, SCREEN_TFS, LEVELS, OFFSET_MIN, OFFSET_MAX, TOLERANCE_LIMIT,
 } from '../../api/screenerApi';
 import {
-  getIndicatorCatalog, hasLength, lengthParamOf, kindName, operandUnitOf, unitLabel, operandTfsOf, CONST_KIND,
+  getIndicatorCatalog, hasLength, lengthParamOf, kindName, operandUnitOf, operandTfsOf, CONST_KIND,
   hasBenchmark, benchmarkParamOf, defaultBenchmarkOf, modeParamOf, descriptorOf, isFieldKind,
 } from '../../api/indicatorCatalog';
+// a cycle (displayLabels → constructedFormat → this module): used only inside functions
+import { unitClashText, SCREENER_MODE } from '../../utils/displayLabels';
 
 /**
  * Market of the screener's universe (S&P 500 + ETF, the backend's `universe.market`): the benchmark
@@ -229,7 +231,8 @@ export const validateCondition = (c, { allowRun = false } = {}) => {
     const lu = operandUnit(c.left);
     const ru = operandUnit(c.right);
     if (unitsClash(lu, ru)) {
-      errs.push(`UNIT_MISMATCH: ${operandCaption(c.left)} (${unitLabel(lu)}) vs ${operandCaption(c.right)} (${unitLabel(ru)}) — `
+      // Stage B3: the plain sentence (utils/displayLabels.js, screener mode: every operand worded)
+      errs.push(`${unitClashText(c.left, lu, c.right, ru, { mode: SCREENER_MODE })} — `
         + (lu === 'PRICE_RANGE' || ru === 'PRICE_RANGE'
           ? 'ATR compares only with ATR or a number (for a % threshold use ATR %)'
           : 'compare values of one unit (a constant fits any)'));
