@@ -5,6 +5,7 @@
 // late / superseded / reappeared. A row click opens the watch's run in Backtest focused on the
 // signal's bar (deep link with signalId).
 import './watch.css';
+import { reasonTitle } from '../tradesReason';
 import {
   BIG_BAR_CHANGE_PCT, STATE_LABELS, actionOf, fmtDay, fmtPct, fmtPrice, fmtTs, signalPrices, zoneShort,
 } from './format';
@@ -123,7 +124,11 @@ const WatchSignalFeed = ({
                     </div>
                   </td>
                   <td className="px-3 py-2 max-w-xs">
-                    <div className="text-xs break-words line-clamp-2" title={s.comment || undefined}>{s.comment || '—'}</div>
+                    {/* Stage B: the plain-English twin (new rows); old rows / older backend show the code comment (S4) */}
+                    <div className="text-xs break-words line-clamp-2" data-testid="watch-signal-reason"
+                      title={reasonTitle(s.displayComment || s.comment || '', s.comment || '') || undefined}>
+                      {s.displayComment || s.comment || '—'}
+                    </div>
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap text-xs tabular-nums">
                     {fmtTs(s.firstSeenAt)} {zone}

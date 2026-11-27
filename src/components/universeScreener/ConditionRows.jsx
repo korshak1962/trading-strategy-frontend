@@ -17,6 +17,7 @@ import DisplayCaption from '../common/DisplayCaption';
 import FieldLabel from '../common/FieldLabel';
 import OperandPicker from './OperandPicker';
 import { conditionCaption, fmtNum, operandUnit } from './conditionFormat';
+import { screenerConditionText } from '../../utils/displayLabels';
 
 const sel = 'p-1 border rounded text-sm bg-white';
 const LEVEL_LABEL = { 0: '0 · current', 1: '1 · parent', 2: '2 · grandparent' };
@@ -84,7 +85,7 @@ export function MetricConditionRow({ condition, onChange, evalTf, ...shell }) {
   const mh = (m) => editorHelp.metrics[m.value] || {};
   const tfHelp = editorHelp.operand.timeframes;
   return (
-    <RowShell {...shell} caption={conditionCaption(condition, evalTf)} testId="metric-condition"
+    <RowShell {...shell} caption={screenerConditionText(condition)} codeCaption={conditionCaption(condition, evalTf)} testId="metric-condition"
       heading={{ text: 'Channel', tooltip: CHANNEL_HELP.source, className: 'text-indigo-700' }}
       help={firstSentence(mh(metric || {}).tooltip || metric?.hint)}>
       <FieldLabel label="Timeframe" tooltip={CHANNEL_HELP.tf}>
@@ -174,9 +175,14 @@ export function CompareConditionRow({
     });
   };
   const tolLinked = linkedValue ? linkedValue('tolerancePct') : null;
+  // Stage B: a screener row (no `caption`) shows the plain sentence (every operand worded) with the
+  // code caption in the ⓘ; a constructor row passes its own caption + codeCaption
   const op = oh.operators[condition.op];
   return (
-    <RowShell {...shell} caption={caption ?? conditionCaption(condition, evalTf)} testId="compare-condition"
+    <RowShell {...shell}
+      caption={caption ?? screenerConditionText(condition)}
+      codeCaption={caption != null ? (shell.codeCaption ?? null) : conditionCaption(condition, evalTf)}
+      testId="compare-condition"
       heading={{ text: 'Compare', tooltip: RULE_TEXTS.rowCompare, className: 'text-teal-700' }}
       help={help ?? compareHelpLine([sourceTooltipOf(condition.left, sourceKinds), sourceTooltipOf(condition.right, sourceKinds)])}>
       <ValueGroup title="Left value" tooltip={oh.help.leftValue} testId="compare-left">{sideEditor('left')}</ValueGroup>

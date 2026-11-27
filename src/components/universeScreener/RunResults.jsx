@@ -88,12 +88,21 @@ function TickerChips({ title, tickers, tone, onOpen, testId }) {
  * @param {Object|null} props.diff normalized DiffDTO (stored runs only)
  * @param {Array} props.conditions the run's filter conditions (editor shape), for column headers
  * @param {string[]} [props.labels] RunDTO.conditionLabels (the backend's caption per condition), as header tooltips
+ * @param {string[]} [props.displayLabels] RunDTO.conditionDisplayLabels (Stage B twin, plain English; absent on
+ *   an older backend): the header tooltip shows it first, the code label after a blank line
  * @param {string} props.evalTf DAY | WEEK
  * @param {(row: Object) => void} props.onOpenTicker → Channel Explorer
  * @param {(row: Object) => void} [props.onBacktest] → Backtest (with "Prepare for strategies" first)
  * @param {string|null} [props.busyTicker] the row whose Backtest transition is running
  */
-export default function RunResults({ run, diff = null, conditions = [], labels = null, evalTf = 'DAY', onOpenTicker, onBacktest = null, busyTicker = null }) {
+/** A condition header's tooltip: the plain text (Stage B twin) + the code label, or the code label alone. */
+const headerTitle = (display, code) => (typeof display === 'string' && display
+  ? (code && code !== display ? `${display}\n\ncode: ${code}` : display)
+  : code);
+
+export default function RunResults({
+  run, diff = null, conditions = [], labels = null, displayLabels = null, evalTf = 'DAY', onOpenTicker, onBacktest = null, busyTicker = null,
+}) {
   const [statusFilter, setStatusFilter] = useState('PASS');
   const [hideDuplicates, setHideDuplicates] = useState(true);
   const [sort, setSort] = useState({ key: 'ticker', dir: 1 });
@@ -286,7 +295,10 @@ export default function RunResults({ run, diff = null, conditions = [], labels =
               {th('provisional', 'Prov.', 'A provisional (forming) WEEK[0] took part in the evaluation')}
               {th('close', 'Close')}
               {conditions.map((c, i) => (
-                th(`cond:${i}`, conditionShort(c, i), (Array.isArray(labels) && labels[i]) || conditionCaption(c, evalTf))
+                th(`cond:${i}`, conditionShort(c, i), headerTitle(
+                  Array.isArray(displayLabels) ? displayLabels[i] : null,
+                  (Array.isArray(labels) && labels[i]) || conditionCaption(c, evalTf),
+                ))
               ))}
               {th('flags', 'Flags')}
               {onBacktest && <th className="px-2 py-1.5" />}

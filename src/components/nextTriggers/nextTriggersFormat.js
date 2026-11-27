@@ -74,16 +74,23 @@ export const conditionText = (cond) => (cond
 
 const thresholdText = (line) => `${ON[line.on] || 'close'} ${OP[line.direction] || '?'} ${priceText(line)}`;
 
+const nonEmpty = (v) => (typeof v === 'string' && v ? v : null);
+
 /**
  * The rule a line of a constructed strategy comes from (stage 3a §5: `meta {rule, condition}`):
- * "R1: RUN close[0] > RUN SMA(100)[0]"; '' for any other line.
+ * "R1: RUN close[0] > RUN SMA(100)[0]"; '' for any other line. Stage B (B1 twins): the plain
+ * `meta.ruleText` / `meta.conditionText` when the backend sends them - "R2 Sell: close is below the
+ * entry's stop"; an older backend / an old stored snapshot falls back to the codes.
  */
 export const lineRuleText = (line) => {
-  const rule = line?.meta?.rule;
-  if (typeof rule !== 'string' && typeof rule !== 'number') return '';
-  const r = String(rule);
-  const head = /^R/.test(r) ? r : `R${r}`;
-  return typeof line.meta.condition === 'string' && line.meta.condition ? `${head}: ${line.meta.condition}` : head;
+  const meta = line?.meta;
+  const rule = meta?.rule;
+  const ruleText = nonEmpty(meta?.ruleText);
+  if (typeof rule !== 'string' && typeof rule !== 'number' && !ruleText) return '';
+  const r = String(rule ?? '');
+  const head = ruleText || (/^R/.test(r) ? r : `R${r}`);
+  const condition = nonEmpty(meta.conditionText) || nonEmpty(meta.condition);
+  return condition ? `${head}: ${condition}` : head;
 };
 
 /** An intrabar stop (fills at the line, can be placed as a stop order). */
