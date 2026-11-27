@@ -273,6 +273,9 @@ export const partialText = (estimate) => {
       if (!p.reason) return null;
       // stage 4c-1: a partly estimable strategy - its other rules' lines are in the merged lines
       const kept = p.lines.some(l => !l.informational && l.price !== null) ? ' (its other rules\' lines are shown)' : '';
+      // B3: a merged partial item's reason already starts with the strategy's displayName
+      // (`Level breakout (bricks) · base v1: not estimated — …`): not named twice
+      if (p.displayName && p.reason.startsWith(p.displayName)) return `${p.reason}${kept}`;
       return `${estimateName(p)}: ${p.reason}${kept}`;
     })
     .filter(Boolean);

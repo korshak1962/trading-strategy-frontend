@@ -86,6 +86,13 @@ describe('next-bar partial names', () => {
     expect(partialText(n.merged)).toBe('partial: Level breakout (bricks) · base v1: Rule R2: Levels conditions and sequence bricks have no next-bar price yet');
   });
 
+  it('a merged partial reason that already names the strategy (live B3 shape) is not prefixed twice', () => {
+    const name = 'Level breakout (bricks) · base, own upgrade v1';
+    const n = nt([{ key: 'Constructed:53@1', displayName: name, kind: 'NOT_ESTIMABLE', lines: [],
+      reason: `${name}: not estimated — Rule R1: Levels conditions and sequence bricks have no next-bar price yet; it may also veto or remove part of this region` }]);
+    expect(partialText(n.merged)).toBe(`partial: ${name}: not estimated — Rule R1: Levels conditions and sequence bricks have no next-bar price yet; it may also veto or remove part of this region`);
+  });
+
   it('no displayName (older backend, class strategy, string item) → the key short name, as before', () => {
     const n = nt([{ key: 'SmaStrategy', kind: 'NOT_ESTIMABLE', lines: [] }, 'RsiStrategy']);
     expect(n.merged.partialBecause.map((p) => p.displayName)).toEqual([null, null]);
