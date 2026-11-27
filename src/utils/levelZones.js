@@ -59,6 +59,29 @@ export const clampNearestN = (value) => {
 };
 
 /**
+ * The strategy chart's zone settings as read from storage (a JSON string or null): nearestN and
+ * showWeak are kept, allStrong is session-only and always starts off (B4: one debug click must not
+ * make every later chart dense). Unreadable input gives the defaults.
+ */
+export const levelZoneSettingsFromStored = (raw) => {
+  try {
+    if (!raw) return { ...LEVEL_ZONES_DEFAULT_SETTINGS };
+    const stored = JSON.parse(raw) || {};
+    return {
+      nearestN: clampNearestN(stored.nearestN ?? LEVEL_ZONES_DEFAULT_SETTINGS.nearestN),
+      showWeak: stored.showWeak === true,
+      allStrong: false,
+    };
+  } catch {
+    return { ...LEVEL_ZONES_DEFAULT_SETTINGS };
+  }
+};
+
+/** The JSON string stored for the zone settings: nearestN and showWeak only (never allStrong). */
+export const levelZoneSettingsToStore = (settings) =>
+  JSON.stringify({ nearestN: settings.nearestN, showWeak: settings.showWeak === true });
+
+/**
  * Indicators Chart only (TASK_level_zone_hover_select §1.3): the Levels overlay draws the zone map
  * as of `to`, where a HOUR map can hold many zones, so its N goes up to 20 (plus an "all zones"
  * switch). The Backtest chart keeps LEVEL_ZONES_MAX_N.

@@ -26,8 +26,9 @@ import { parseExchangeTs, fmtExchangeIntl } from '../utils/dates';
 import { useElementSize } from '../hooks/useElementSize';
 import {
   buildLevelZoneRuns, hasLevelZones, clampNearestN, LEVEL_ZONES_MAX_N, LEVEL_ZONES_DEFAULT_SETTINGS,
-  describeZone
+  describeZone, levelZoneSettingsFromStored, levelZoneSettingsToStore
 } from '../utils/levelZones';
+import InfoTooltip from './common/InfoTooltip';
 
 // Pane canvases, top to bottom - used to tell which pane the cursor is over.
 const PANE_CANVASES = [
@@ -121,16 +122,10 @@ const Y_MAX_SPAN_RATIO = 50;
 // Price-only fullscreen: smallest price pane height.
 const MIN_PRICE_ONLY_PANE_PX = 200;
 
+// "All strong zones" is session-only: never read from nor written to storage (B4).
 const loadLevelZoneSettings = () => {
   try {
-    const raw = window.localStorage.getItem(LEVEL_ZONES_STORAGE_KEY);
-    if (!raw) return { ...LEVEL_ZONES_DEFAULT_SETTINGS };
-    const stored = JSON.parse(raw) || {};
-    return {
-      nearestN: clampNearestN(stored.nearestN ?? LEVEL_ZONES_DEFAULT_SETTINGS.nearestN),
-      showWeak: stored.showWeak === true,
-      allStrong: stored.allStrong === true,
-    };
+    return levelZoneSettingsFromStored(window.localStorage.getItem(LEVEL_ZONES_STORAGE_KEY));
   } catch {
     return { ...LEVEL_ZONES_DEFAULT_SETTINGS };
   }
@@ -138,7 +133,7 @@ const loadLevelZoneSettings = () => {
 
 const saveLevelZoneSettings = (settings) => {
   try {
-    window.localStorage.setItem(LEVEL_ZONES_STORAGE_KEY, JSON.stringify(settings));
+    window.localStorage.setItem(LEVEL_ZONES_STORAGE_KEY, levelZoneSettingsToStore(settings));
   } catch {
     // storage unavailable (private window, blocked site data) - the settings just aren't kept
   }
@@ -1476,14 +1471,21 @@ const ReporterStyleChart = ({
             />
             Show weak zones
           </label>
-          <label className="level-zones-controls__item" title="Debug: every strong zone, without the nearest-N filter">
-            <input
-              type="checkbox"
-              checked={levelZoneSettings.allStrong}
-              onChange={(e) => updateLevelZoneSettings({ allStrong: e.target.checked })}
+          <span className="level-zones-controls__item">
+            <label className="level-zones-controls__item">
+              <input
+                type="checkbox"
+                data-testid="level-zones-all-strong"
+                checked={levelZoneSettings.allStrong}
+                onChange={(e) => updateLevelZoneSettings({ allStrong: e.target.checked })}
+              />
+              All strong zones (faint)
+            </label>
+            <InfoTooltip
+              align="left"
+              text="Every strong zone, drawn faint; the N nearest stay solid. Not remembered after reload."
             />
-            All strong zones
-          </label>
+          </span>
         </div>
       )}
 
@@ -1550,6 +1552,11 @@ const ReporterStyleChart = ({
               <span className="price-legend__zone" title={LEVEL_ZONE_DESCRIPTIONS.trigger}>
                 <span className="level-zones-swatch level-zones-swatch--armed" /> resistance trigger zone
               </span>
+              {levelZoneSettings.allStrong && (
+                <span className="price-legend__zone" title={LEVEL_ZONE_DESCRIPTIONS.faint} data-testid="level-zones-faint-legend">
+                  <span className="level-zones-swatch level-zones-swatch--faint" /> faint: other strong zones
+                </span>
+              )}
             </span>
           )}
         </IndicatorPicker>
