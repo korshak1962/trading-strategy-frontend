@@ -8,10 +8,20 @@
 //   code    - an UPPER_SNAKE error code from the body (`{error: 'NAME_EXISTS', message}`), else null
 //   detail  - the backend's own text (`message`, else a non-code `error`), else null
 //   jobId / runId / previewId - from a 409 body (`{jobId, error}` / `{runId, error}`), else null
+//   path    - where the problem is (`R1.C1.left.tf`, `conditions[0]`), editor UX Stage B3; else null
+//   reason  - its stable sub-code (backend ProblemReason, e.g. `UNIT_MISMATCH`), Stage B3; else null
 //   body    - the parsed JSON body (null when not JSON)
 // `message` is the detail when there is one, otherwise "<what>: <status line>".
 
 const CODE_RE = /^[A-Z][A-Z0-9_]*$/;
+
+const strOrNull = (v) => (typeof v === 'string' && v ? v : null);
+
+/**
+ * `{path, reason}` of an error body (editor UX Stage B3: `{error, code, message, path?, reason?}`);
+ * both null on an older backend or a body without them.
+ */
+export const problemOf = (body) => ({ path: strOrNull(body?.path), reason: strOrNull(body?.reason) });
 
 const httpError = async (res, what) => {
   const body = await res.json().catch(() => null);
@@ -25,6 +35,7 @@ const httpError = async (res, what) => {
   err.jobId = body?.jobId ?? null;
   err.runId = body?.runId ?? null;
   err.previewId = body?.previewId ?? null;
+  Object.assign(err, problemOf(body));
   err.body = body;
   return err;
 };
@@ -39,6 +50,8 @@ export const apiRequest = async (url, options, what) => {
     err.status = undefined;
     err.code = null;
     err.detail = null;
+    err.path = null;
+    err.reason = null;
     err.body = null;
     throw err;
   }

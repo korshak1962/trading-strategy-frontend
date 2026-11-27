@@ -135,11 +135,16 @@ export const unitsClash = (a, b) => !!a && !!b && a !== b;
  * Plain-language hint under a server UNIT_MISMATCH 400 (screener filter or constructed strategy),
  * e.g. "conditions[0]: UNIT_MISMATCH: 'DAY ATR(14)[0]' (PRICE_RANGE) vs 'DAY close[0]' (PRICE)".
  * null when the message is no unit mismatch.
+ * Editor UX Stage B3: `reason` (the 400 body's ProblemReason) decides first: `UNIT_MISMATCH` → a
+ * hint whatever the (now plain) wording, another reason → null; no reason (older backend) → the
+ * message regexes, unchanged.
  */
-export const unitMismatchHint = (message) => {
+export const unitMismatchHint = (message, reason = null) => {
   const m = String(message || '');
-  if (!/UNIT_MISMATCH/i.test(m)) return null;
-  if (/PRICE_RANGE/.test(m)) {
+  const hasReason = typeof reason === 'string' && reason !== '';
+  if (hasReason ? reason !== 'UNIT_MISMATCH' : !/UNIT_MISMATCH/i.test(m)) return null;
+  // the plain message names the units in words ("is a price range"), the old one by code
+  if (/PRICE_RANGE/.test(m) || (hasReason && /price range|\bATR \d/i.test(m))) {
     return 'ATR is a distance in price, not a price: compare it only with another ATR or a number. '
       + 'For a threshold in % of the price take ATR % instead.';
   }

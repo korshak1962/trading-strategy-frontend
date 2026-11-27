@@ -23,7 +23,8 @@
 // in the in-app "Unsaved changes" dialog (no window.confirm; editorLeave.js). Escape goes through
 // the escape stack (innermost first: that dialog, the template / import dialogs, an open link
 // editor, then the editor; the first Escape in a text field only blurs it).
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { problemReducer, withProblem } from '../common/problemError';
 import ConstructedStrategyList from './ConstructedStrategyList';
 import RuleEditor from './RuleEditor';
 import ImportFromFilterDialog from './ImportFromFilterDialog';
@@ -65,9 +66,9 @@ const defaultPreviewForm = () => {
   return { ticker: 'SPY', timeFrame: 'DAY', startDay: addYearsIso(today, -5), endDay: today, longOnly: false };
 };
 
-/** A server error with the stage-3a hint under it. */
-function ErrorWithHint({ text, testId }) {
-  const hint = constructedErrorHint(text);
+/** A server error with the stage-3a hint under it (by `reason` first, Stage B3). */
+function ErrorWithHint({ text, reason = null, testId }) {
+  const hint = constructedErrorHint(text, reason);
   return (
     <div className="form-error mt-4" role="alert" data-testid={testId}>
       {text}
@@ -114,7 +115,9 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
   const [loadError, setLoadError] = useState(null);
   const [showErrors, setShowErrors] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState(null);
+  // Stage B3: the errors keep the backend's `{path, reason}` (problemError.js)
+  const [saveProblem, setSaveError] = useReducer(problemReducer, null);
+  const saveError = saveProblem?.text ?? null;
   const [saveMessage, setSaveMessage] = useState(null);
   const [importOpen, setImportOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -123,7 +126,8 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
   const [preview, setPreview] = useState(null);
   const [previewSig, setPreviewSig] = useState(null);
   const [previewBusy, setPreviewBusy] = useState(false);
-  const [previewError, setPreviewError] = useState(null);
+  const [previewProblem, setPreviewError] = useReducer(problemReducer, null);
+  const previewError = previewProblem?.text ?? null;
   const previewSeq = useRef(0);
   const loadSeq = useRef(0);
   const [leaveOpen, setLeaveOpen] = useState(false);       // the "Unsaved changes" dialog
@@ -424,7 +428,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
     } catch (err) {
       setSaveError(err.status === 409 && (!err.code || err.code === 'NAME_EXISTS')
         ? `A strategy named "${draft.name.trim()}" already exists — choose another name.`
-        : describeApiError(err));
+        : withProblem(describeApiError(err), err));
       return null;
     } finally {
       setSaving(false);
@@ -497,7 +501,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
     } catch (err) {
       if (seq !== previewSeq.current) return;
       setPreview(null);
-      setPreviewError(`Preview failed: ${describeApiError(err)}`);
+      setPreviewError(withProblem(`Preview failed: ${describeApiError(err)}`, err));
     } finally {
       if (seq === previewSeq.current) setPreviewBusy(false);
     }
@@ -749,7 +753,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
               {validation.general.map((e) => <li key={e}>{e}</li>)}
             </ul>
           )}
-          {saveError && <ErrorWithHint text={saveError} testId="constructed-save-error" />}
+          {saveError && <ErrorWithHint text={saveError} reason={saveProblem.reason} testId="constructed-save-error" />}
           {saveMessage && <div className="mt-4 text-sm text-green-700" role="status" data-testid="constructed-save-message">{saveMessage}</div>}
 
           <div className="mt-6 flex flex-wrap items-end gap-3 border-t pt-4">
@@ -779,7 +783,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
           tickers={tickers}
           timeframes={previewTfs.length ? previewTfs : [...CONSTRUCTED_TFS]}
           runTfs={runTfs}
-          errorHint={constructedErrorHint(previewError)}
+          errorHint={constructedErrorHint(previewError, previewProblem?.reason)}
           stateRuleFireRate={meta.stateRuleFireRate}
         />
       )}

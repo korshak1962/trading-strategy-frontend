@@ -6,7 +6,8 @@
 // the AND-ed condition rows with live captions. Client validation mirrors the server's
 // FilterValidator; the server's 400 text is shown as is. "Preview" evaluates the unsaved filter
 // (optionally as of a past New York date-time) without storing a run.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { problemReducer, withProblem } from '../common/problemError';
 import RecursiveParamsPanel from '../channelExplorer/RecursiveParamsPanel';
 import { MetricConditionRow, CompareConditionRow } from './ConditionRows';
 import RunResults from './RunResults';
@@ -38,14 +39,17 @@ export default function FilterEditor({ initialDraft, detectorDefaults, schedules
   const [showParams, setShowParams] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState(null);
+  // Stage B3: the errors keep the backend's `{path, reason}` (the hint keys on `reason`)
+  const [saveProblem, setSaveError] = useReducer(problemReducer, null);
+  const saveError = saveProblem?.text ?? null;
 
   const [asOf, setAsOf] = useState('');
   const [previewTickers, setPreviewTickers] = useState('');
   const [preview, setPreview] = useState(null);
   const [previewDraft, setPreviewDraft] = useState(null);
   const [previewBusy, setPreviewBusy] = useState(false);
-  const [previewError, setPreviewError] = useState(null);
+  const [previewProblem, setPreviewError] = useReducer(problemReducer, null);
+  const previewError = previewProblem?.text ?? null;
   const previewSeq = useRef(0);
   useEffect(() => () => { previewSeq.current += 1; }, []);
 
@@ -84,7 +88,7 @@ export default function FilterEditor({ initialDraft, detectorDefaults, schedules
     } catch (err) {
       setSaveError(err.status === 409 && (!err.code || err.code === 'NAME_EXISTS')
         ? `A filter named "${draft.name.trim()}" already exists — choose another name.`
-        : describeApiError(err));
+        : withProblem(describeApiError(err), err));
     } finally {
       setSaving(false);
     }
@@ -120,7 +124,7 @@ export default function FilterEditor({ initialDraft, detectorDefaults, schedules
       if (seq === previewSeq.current) {
         setPreviewError(err.status === 409
           ? 'Another preview is running — try again in a moment.'
-          : `Preview failed: ${describeApiError(err)}`);
+          : withProblem(`Preview failed: ${describeApiError(err)}`, err));
       }
     } finally {
       if (seq === previewSeq.current) setPreviewBusy(false);
@@ -235,7 +239,7 @@ export default function FilterEditor({ initialDraft, detectorDefaults, schedules
         {saveError && (
           <div className="form-error mt-4" role="alert">
             {saveError}
-            {unitMismatchHint(saveError) && <div className="mt-1 text-xs font-normal" data-testid="unit-mismatch-hint">{unitMismatchHint(saveError)}</div>}
+            {unitMismatchHint(saveError, saveProblem.reason) && <div className="mt-1 text-xs font-normal" data-testid="unit-mismatch-hint">{unitMismatchHint(saveError, saveProblem.reason)}</div>}
           </div>
         )}
 
@@ -277,7 +281,7 @@ export default function FilterEditor({ initialDraft, detectorDefaults, schedules
           {previewError && (
             <div className="form-error mb-3" role="alert">
               {previewError}
-              {unitMismatchHint(previewError) && <div className="mt-1 text-xs font-normal" data-testid="unit-mismatch-hint">{unitMismatchHint(previewError)}</div>}
+              {unitMismatchHint(previewError, previewProblem.reason) && <div className="mt-1 text-xs font-normal" data-testid="unit-mismatch-hint">{unitMismatchHint(previewError, previewProblem.reason)}</div>}
             </div>
           )}
           {preview && RUN_TERMINAL.has(preview.status) && preview.status !== 'FAILED' && (
