@@ -8,6 +8,7 @@
 // (optionally as of a past New York date-time) without storing a run.
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { problemReducer, withProblem } from '../common/problemError';
+import { filterProblemIndex } from '../../utils/problemPath';
 import RecursiveParamsPanel from '../channelExplorer/RecursiveParamsPanel';
 import { MetricConditionRow, CompareConditionRow } from './ConditionRows';
 import RunResults from './RunResults';
@@ -132,6 +133,7 @@ export default function FilterEditor({ initialDraft, detectorDefaults, schedules
   };
 
   const err = (cond) => (showErrors ? cond : []);
+  const problemIndex = filterProblemIndex(saveProblem?.path || previewProblem?.path || null);
   const progress = preview && !RUN_TERMINAL.has(preview.status)
     ? (Number.isFinite(preview.done) && Number.isFinite(preview.total) ? ` ${preview.done}/${preview.total}` : '')
     : '';
@@ -212,6 +214,8 @@ export default function FilterEditor({ initialDraft, detectorDefaults, schedules
             const shell = {
               index: i, count: draft.conditions.length, disabled: saving,
               errors: err(validation.conditions[i] || []),
+              // Stage B3: the last server error's path `conditions[i]…` outlines the row
+              serverError: problemIndex === i,
               onRemove: () => removeCondition(i), onMove: (d) => moveCondition(i, d),
             };
             return c.type === 'CHANNEL_METRIC'

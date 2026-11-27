@@ -25,6 +25,7 @@
 // editor, then the editor; the first Escape in a text field only blurs it).
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { problemReducer, withProblem } from '../common/problemError';
+import { locateRuleProblem } from '../../utils/problemPath';
 import ConstructedStrategyList from './ConstructedStrategyList';
 import RuleEditor from './RuleEditor';
 import ImportFromFilterDialog from './ImportFromFilterDialog';
@@ -514,6 +515,13 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
     return m;
   }, [preview]);
 
+  // Stage B3: the rule / condition the last server error's `path` names (ids as the backend gives
+  // them, new rules included); null on an older backend (no path) or a client-side error
+  const problemTarget = useMemo(
+    () => locateRuleProblem(saveProblem?.path || previewProblem?.path || null, draft?.rules, saved),
+    [saveProblem, previewProblem, draft?.rules, saved],
+  );
+
   const runs = saved?.usage || [];
   const backtests = runs.reduce((s, u) => s + u.backtests, 0);
   const optimizations = runs.reduce((s, u) => s + u.optimizations, 0);
@@ -672,6 +680,7 @@ export default function StrategyConstructorPanel({ route, onRouteChange, onStrat
                 maxConditions={meta.maxConditions}
                 evalTf={evalTf}
                 errors={err(validation.rules[i])}
+                problem={problemTarget?.ruleIndex === i ? problemTarget : null}
                 stats={r.id != null && previewSig === draftSig ? statsByRule.get(r.id) || null : null}
                 disabled={saving}
                 axes={draft.axes || []}

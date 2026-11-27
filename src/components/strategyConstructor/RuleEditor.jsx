@@ -36,6 +36,7 @@ import BrickOperandEditor from './BrickOperandEditor';
 import FieldLabel from '../common/FieldLabel';
 import DisplayCaption from '../common/DisplayCaption';
 import { displayOpts, EDITOR_MODE, ruleHead, ruleBodyText, ruleConditionText } from '../../utils/displayLabels';
+import { blockErrorOf } from '../../utils/problemPath';
 import { useEditorHelp, OPERAND_HELP, POSITION_HELP, RULE_TEXTS, positionRefusedText } from '../../api/editorTexts';
 import { levelsBlockInfo, linkInfoOf } from '../common/paramBlockFormat';
 
@@ -66,6 +67,9 @@ const iconBtn = 'px-1.5 text-gray-500 hover:text-gray-800 disabled:text-gray-300
  * @param {{spec: Object, links: Object}|null} [props.levelsTemplate] the spec / field links a new Levels occurrence copies
  * @param {((condIndex: number, prefix: string) => void)|null} [props.onApplyLevelsToAll] "Apply to all Levels in this strategy"
  * @param {Object} [props.positionMeta] meta.position (stage 4c-1)
+ * @param {{condIndex: number|null, rest: string}|null} [props.problem] the last server error's `path`
+ *   inside this rule (editor UX Stage B3, utils/problemPath.js): the rule (condIndex null) or that
+ *   condition is outlined, the Levels / channel block it names opens with the field outlined
  * Operand kinds, lengths and units come from the indicator descriptors (indicatorCatalog.js); a
  * kind that does not run on `evalTf` (the preview's run TF, e.g. ATR on MIN5) is disabled.
  */
@@ -73,7 +77,7 @@ export default function RuleEditor({
   rule, index, count, onChange, onRemove, onMove, signalTypes, maxConditions, evalTf, errors, stats, disabled,
   axes = [], onCreateAxis = null, channelMeta = DEFAULT_CHANNEL_META, allRules = null,
   levelsMeta = DEFAULT_LEVELS_META, bricksMeta = DEFAULT_BRICKS_META, levelsTemplate = null, onApplyLevelsToAll = null,
-  positionMeta = DEFAULT_POSITION_META,
+  positionMeta = DEFAULT_POSITION_META, problem = null,
 }) {
   const set = (patch) => onChange({ ...rule, ...patch });
   // Short labels (re-arm round): a Levels caption carries no spec, `@L2` when the strategy has several specs
@@ -131,9 +135,14 @@ export default function RuleEditor({
     return prev;
   };
   const condErrors = (i) => errors?.conditions?.[i] || [];
+  // Stage B3: the server error's path (the rest after `R<id>.C<id>.`) when it names condition i;
+  // the substring checks of the client errors stay as the fallback (an older backend sends no path)
+  const problemRest = (i) => (problem && problem.condIndex === i ? problem.rest : null);
+  const ruleProblem = !!problem && problem.condIndex == null;
 
   return (
-    <div className="border rounded-lg p-3 bg-white" data-testid="constructor-rule">
+    <div className={`border rounded-lg p-3 bg-white ${ruleProblem ? 'border-red-500 ring-1 ring-red-400' : ''}`}
+      data-testid="constructor-rule" data-server-error={ruleProblem ? 'true' : undefined}>
       <div className="flex flex-wrap items-end gap-2">
         <span className="text-sm font-semibold text-gray-700 w-16 pb-1" title="Permanent rule id: threshold names R<id>.C<id>.* use it">
           {rule.id != null ? `R${rule.id}` : 'new rule'}
@@ -199,6 +208,7 @@ export default function RuleEditor({
             count: rule.conditions.length,
             disabled,
             errors: errors?.conditions?.[i] || [],
+            serverError: problemRest(i) != null,
             onRemove: () => removeCondition(i),
             onMove: (d) => moveCondition(i, d),
             caption: ruleConditionText(c, axes, dOpts),
@@ -232,7 +242,7 @@ export default function RuleEditor({
             linkInfo: (suffix) => linkInfoOf(c.links?.[suffix], axes),
             levelsSameAsPrevious: (prefix) => !!levelsInfo[prefix]?.sameAsPrevious,
             levelsSetLabel: (prefix) => levelsInfo[prefix]?.setLabel || null,
-            levelsErrorOpen: () => condErrors(i).some((e) => /levels\./i.test(e)),
+            levelsErrorOpen: (prefix) => blockErrorOf(problemRest(i), prefix, 'levels') || condErrors(i).some((e) => /levels\./i.test(e)),
           };
           if (isLevelEvent(c.condition)) return <LevelConditionRow key={key} {...rest} ctx={ctx} />;
           if (isWithin(c.condition)) return <WithinConditionRow key={key} {...rest} ctx={ctx} />;
@@ -245,7 +255,7 @@ export default function RuleEditor({
                   const prev = prevChannelOf(i);
                   return !!prev && sameChannelSpec(channelSpecOf(prev, channelMeta?.defaults), channelSpecOf(c.condition, channelMeta?.defaults));
                 })()}
-                errorOpen={condErrors(i).some((e) => /channel|coverage|minBars|minWidth|minAge/i.test(e))}
+                errorOpen={blockErrorOf(problemRest(i), '', 'channel') || condErrors(i).some((e) => /channel|coverage|minBars|minWidth|minAge/i.test(e))}
                 renderLink={(suffix) => (hasBound(suffix) || c.links?.[suffix] ? rest.renderLink(suffix) : null)} />
             );
           }
