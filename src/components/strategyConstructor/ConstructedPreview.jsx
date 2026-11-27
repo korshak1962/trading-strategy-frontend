@@ -23,10 +23,12 @@ import { parseExchangeTs } from '../../utils/dates';
 import { signalWord } from '../../utils/displayLabels';
 import { ofBars, reasonsText, stateRuleWarning, deadEntryRuleWarning, SIGNAL_TYPE_CLASS } from './constructedFormat';
 import {
-  mergedPreviewWarnings, noTradesMessage, previewStaleText, previewTradeCount, relabelUnsavedDraft, rulesWithWarnings,
+  mergedPreviewWarningItems, noTradesMessage, previewStaleText, previewTradeCount, relabelUnsavedDraft, rulesWithWarnings,
   unsavedDraftLabel,
 } from './previewFormat';
 import PositionDependentBadge from './PositionDependentBadge';
+import WarningLine from '../common/WarningLine';
+import { warningEntries } from '../../utils/warningItems';
 import '../../ChartFullscreen.css';
 
 const label = 'block text-xs text-gray-600 mb-1';
@@ -86,7 +88,7 @@ function RulesTable({ preview, warningsOf, stateRuleFireRate }) {
                     <div className="text-xs font-mono text-gray-600 mt-0.5 break-words" data-testid="preview-rule-text">{r.label}</div>
                   )}
                   {warningsOf(r).map((w, i) => (
-                    <div key={i} className="mt-1 text-xs text-amber-800" data-testid="preview-rule-warning">{w}</div>
+                    <WarningLine key={i} entry={w} className="mt-1 text-xs text-amber-800" testId="preview-rule-warning" />
                   ))}
                 </td>
                 <td className="px-2 py-1.5 whitespace-nowrap">{ofBars(r.fired, preview.bars)}</td>
@@ -196,9 +198,10 @@ export default function ConstructedPreview({
 
   const tradeCount = useMemo(() => previewTradeCount(backtest), [backtest]);
   const triggers = useMemo(() => chartTriggers(adaptNextTriggers(backtest?.nextTriggers)), [backtest]);
-  const warnings = useMemo(() => mergedPreviewWarnings(preview), [preview]);
+  // Stage B (F-B3b): entries `{text, message, code}`: the plain message shown, the code in an ⓘ
+  const warnings = useMemo(() => mergedPreviewWarningItems(preview), [preview]);
   const warningsOf = (r) => (r.warnings.length > 0
-    ? r.warnings
+    ? (Array.isArray(r.warningItems) && r.warningItems.length ? r.warningItems : warningEntries(r.warnings))
     : [stateRuleWarning(r, preview.bars, stateRuleFireRate), deadEntryRuleWarning(r, preview.bars)].filter(Boolean));
   const warnedRules = preview ? rulesWithWarnings(preview.rules, warningsOf) : 0;
   const longOnlyShown = backtest ? backtest.longOnly === true : preview?.longOnlyRequested === true;
@@ -332,7 +335,7 @@ export default function ConstructedPreview({
           )}
           {warnings.length > 0 && (
             <div className="mb-3 p-3 rounded bg-amber-50 border border-amber-300 text-amber-800 text-sm" role="status" data-testid="preview-warnings">
-              {warnings.map((w, i) => <div key={i}>{w}</div>)}
+              {warnings.map((w, i) => <WarningLine key={i} entry={w} testId="preview-warning" />)}
             </div>
           )}
 

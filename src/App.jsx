@@ -62,6 +62,8 @@ import {
 import ScreeningSettings from './components/screening/ScreeningSettings';
 import SensitivityView from './components/screening/SensitivityView';
 import ProfileBanner from './components/screening/ProfileBanner';
+import WarningLine from './components/common/WarningLine';
+import { warningEntries } from './utils/warningItems';
 import {
   batchInfo, defaultScreeningSettings, effectivePlan, formGridSize, formMatchesSearchSpace, profileChips, profileKey,
   profileProvenance, provisionalClean, screeningRequest, screeningSettingsFromRequest, screeningValidationError, searchSpaceToForm,
@@ -1304,9 +1306,8 @@ const App = () => {
   const showOptPanel = mode === 'optimize' && !!optJob;
   // Trading window line and warnings of the result on screen (absent from an older backend).
   const resultPrices = results?.chartDataDTO?.prices || [];
-  const resultWarnings = Array.isArray(results?.warnings)
-    ? results.warnings.filter((w) => typeof w === 'string' && w.length > 0)
-    : [];
+  // Stage B (F-B3b): `{text, message, code}` entries: the plain `warningItems` message, the code in an ⓘ
+  const resultWarnings = useMemo(() => warningEntries(results?.warnings, results?.warningItems), [results]);
   // Next-bar trigger lines of the merged estimate for the main chart (null: older backend,
   // Optimize results - the chart then draws exactly as before)
   const resultTriggers = useMemo(
@@ -1827,7 +1828,7 @@ const App = () => {
                     role="status"
                     data-testid="result-warnings"
                   >
-                    {resultWarnings.map((w, i) => <div key={i}>{w}</div>)}
+                    {resultWarnings.map((w, i) => <WarningLine key={i} entry={w} testId="result-warning" />)}
                   </div>
                 )}
 

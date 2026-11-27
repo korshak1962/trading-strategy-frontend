@@ -16,6 +16,9 @@ const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 /** Short name of a strategy key: a constructed key → its display name, a class → without "Strategy". */
 export const strategyShortName = (key) => strategyLabel(key).replace(/Strategy$/, '');
 
+/** The name of an estimate / partial item: the backend's `displayName` (Stage B, B3), else the key's short name. */
+export const estimateName = (p) => p?.displayName ?? strategyShortName(p?.key);
+
 /** A price with 2 decimals (4 below 1), '—' when absent. */
 export const fmtTriggerPrice = (v) => {
   if (!isNum(v)) return '—';
@@ -257,7 +260,7 @@ export const nextBarLabel = (nt) => {
   return day !== '—' ? day : 'next bar';
 };
 
-const partialNames = (estimate) => estimate.partialBecause.map(p => strategyShortName(p.key)).join(', ');
+const partialNames = (estimate) => estimate.partialBecause.map(estimateName).join(', ');
 
 /** Partial wording (architect §2.5): certain-but-incomplete vs may-veto, as the backend gives it. */
 export const partialText = (estimate) => {
@@ -266,11 +269,11 @@ export const partialText = (estimate) => {
   const details = estimate.partialBecause
     .map(p => {
       const band = p.kind === 'POSSIBLE_OUTSIDE_BAND' ? bandOf(p) : null;
-      if (band) return `${strategyShortName(p.key)} possible only if close < ${fmtTriggerPrice(band[0])} or > ${fmtTriggerPrice(band[1])}`;
+      if (band) return `${estimateName(p)} possible only if close < ${fmtTriggerPrice(band[0])} or > ${fmtTriggerPrice(band[1])}`;
       if (!p.reason) return null;
       // stage 4c-1: a partly estimable strategy - its other rules' lines are in the merged lines
       const kept = p.lines.some(l => !l.informational && l.price !== null) ? ' (its other rules\' lines are shown)' : '';
-      return `${strategyShortName(p.key)}: ${p.reason}${kept}`;
+      return `${estimateName(p)}: ${p.reason}${kept}`;
     })
     .filter(Boolean);
   if (details.length) return `partial: ${details.join('; ')}`;

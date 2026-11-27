@@ -45,6 +45,7 @@
 // Levels spec. Links on it: `P.levels.<field>` (as a LEVEL side), never `P.x.*`.
 
 import { apiRequest, readJson, jsonBody, enc } from './httpClient';
+import { warningEntries } from '../utils/warningItems';
 import { toConditionDTO, fromConditionDTO, toOperand, fromOperand } from './screenerApi';
 import {
   DEFAULT_INDICATORS, normalizeIndicator, hasLength, setIndicatorCatalog, setLevelOutputUnits,
@@ -1045,9 +1046,12 @@ export const normalizePreview = (p) => {
         : (r?.linkNotes && typeof r.linkNotes === 'object'
           ? Object.values(r.linkNotes).filter((x) => typeof x === 'string') : []),
       warnings: (Array.isArray(r?.warnings) ? r.warnings : []).filter((w) => typeof w === 'string' && w),
+      // Stage B (B3): `[{text, message, code}]` parallel to `warnings` (message = the string on an older backend)
+      warningItems: warningEntries(r?.warnings, r?.warningItems),
     })),
     sweepThresholds: isNum(p.sweepThresholds) ? p.sweepThresholds : 0,
     warnings: (Array.isArray(p.warnings) ? p.warnings : []).filter((w) => typeof w === 'string' && w),
+    warningItems: warningEntries(p.warnings, p.warningItems),
     // re-arm round (m7): one line per Levels spec, `Levels[L2]: MinStrength 2, StopBuffer 1, re-arm (TP 4)`
     levelsLegend: (Array.isArray(p.levelsLegend) ? p.levelsLegend : []).filter((x) => typeof x === 'string' && x),
     // Stage B (B1 twin): `Levels: default settings · re-arm`, `Levels axes: …`; [] on an older backend
@@ -1065,6 +1069,8 @@ export const normalizePreviewBacktest = (bt, prices) => {
   return {
     ...bt,
     warnings: (Array.isArray(bt.warnings) ? bt.warnings : []).filter((w) => typeof w === 'string' && w),
+    // shown entries (the raw `warningItems` of StrategyResultDTO are replaced by them)
+    warningItems: warningEntries(bt.warnings, bt.warningItems),
     chartDataDTO: {
       ...chart,
       prices: Array.isArray(chart.prices) && chart.prices.length ? chart.prices : (prices || []),

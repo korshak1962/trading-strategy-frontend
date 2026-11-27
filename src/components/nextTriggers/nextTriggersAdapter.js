@@ -18,7 +18,9 @@
 //     merged: TriggerEstimate, strategies: [TriggerEstimate],
 //     actual: { date, open, high, low, close, outcome: 'BUY'|'SELL'|'NO_ACTION'|'UNKNOWN_PARTIAL', line } | null,
 //     warnings: [string | {code, message}], executionNote }
-//   TriggerEstimate: { key, strategyClass, kind, partial, partialBecause: [string | {key, kind, reason, lines}],
+//   TriggerEstimate: { key, displayName?, strategyClass, kind, partial,
+//                      partialBecause: [string | {key, displayName?, kind, reason, lines}],
+//     displayName (editor UX Stage B, B3): `<name> v<version>` of a constructed strategy; absent otherwise / older backend
 //                      lines: [TriggerLine], regions: [PriceRegion], reason, detail }
 //     kind: LINES | UNCONDITIONAL | NONE | NOT_ESTIMABLE | UNAVAILABLE | POSSIBLE_OUTSIDE_BAND | POSSIBLE_ANY_PRICE
 //   TriggerLine: { side: BUY|SELL|VETO|INFO, on: CLOSE|LOW|HIGH, direction: ABOVE|BELOW|AT_OR_ABOVE|AT_OR_BELOW,
@@ -117,12 +119,13 @@ const adaptRegion = (raw) => {
 };
 
 const adaptPartialItem = (raw, basisClose, atr) => {
-  if (typeof raw === 'string') return raw.length > 0 ? { key: raw, kind: null, reason: null, lines: [] } : null;
+  if (typeof raw === 'string') return raw.length > 0 ? { key: raw, displayName: null, kind: null, reason: null, lines: [] } : null;
   if (!raw || typeof raw !== 'object') return null;
   const key = str(raw.key) ?? str(raw.strategyClass);
   if (!key) return null;
   return {
     key,
+    displayName: str(raw.displayName),
     kind: oneOf(raw.kind, KINDS),
     reason: str(raw.reason),
     lines: asArray(raw.lines).map(l => adaptLine(l, basisClose, atr)).filter(Boolean),
@@ -138,6 +141,7 @@ const adaptEstimate = (raw, basisClose, atr, fallbackKey) => {
   const detail = asMap(raw.detail);
   return {
     key,
+    displayName: str(raw.displayName),
     strategyClass: str(raw.strategyClass) ?? (key === 'MERGED' ? null : key),
     kind,
     partial: raw.partial === true || partialBecause.length > 0,
