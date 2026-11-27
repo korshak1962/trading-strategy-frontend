@@ -19,7 +19,7 @@ const ReasonCell = ({ text, code, onToggle, testId }) => {
     <td className="comment-cell" title={reasonTitle(text, code)} onClick={text ? onToggle : undefined} data-testid={testId}>
       <div className="comment-clamp">
         {head && <span className="reason-head">{head}</span>}
-        {head && ' · '}
+        {head && body && ' · '}
         {body || (head ? '' : '—')}
       </div>
       {also && <div className="reason-also">· {also}</div>}
