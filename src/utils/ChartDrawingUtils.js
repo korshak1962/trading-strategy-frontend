@@ -949,10 +949,13 @@ export const findMinMaxPriceRange = (prices) => {
   // trigger sits a buffer above. The edge is fuchsia and dashed so it does not read as a solid
   // green breakout line drawn just above it: fuchsia is not in
   // the indicator palette (utils/indicatorSeries.js), nor a candle / signal colour.
+  // "All strong zones" (run.faint): the strong zones outside the N nearest are faint context, all of
+  // them filled as ONE path (non-zero winding), so overlapping bands do not stack their alpha.
   // The swatches in ReporterStyleChart.css read the same tokens.
   export const LEVEL_ZONE_STYLE = Object.freeze({
     get strongFill() { return chartColor('zone-strong'); }, // violet, from the channel palette
     get weakFill() { return chartColor('zone-weak'); },
+    get faintFill() { return chartColor('zone-faint'); },
     get armedEdge() { return chartColor('zone-armed'); }, // fuchsia
     armedEdgeWidth: 2,
     armedEdgeDash: [6, 4],
@@ -964,7 +967,7 @@ export const findMinMaxPriceRange = (prices) => {
    * drawChannels / drawPriceOverlays; drawn under the candles so they stay readable.
    *
    * @param {CanvasRenderingContext2D} ctx
-   * @param {Array<{low, high, strong, outlined, startMs, endMs}>} runs - from buildLevelZoneRuns
+   * @param {Array<{low, high, strong, outlined, startMs, endMs, faint?}>} runs - from buildLevelZoneRuns
    * @param {[Date, Date]} dateRange - the plot range
    * @param {{min: number, max: number}} minMax - the candle-derived price range
    * @param {number} width
@@ -987,13 +990,29 @@ export const findMinMaxPriceRange = (prices) => {
     const xOf = (ms) => timeToX(ms, dateRange, width);
     const yOf = (price) => height - ((price - min) / (max - min)) * height;
 
-    // Weak under strong, the outlined trigger zone on top.
+    // Faint context first (one path, one fill: no stacking, no edge), then weak under strong, the
+    // outlined trigger zone on top.
     const rank = (run) => (run.outlined ? 2 : run.strong ? 1 : 0);
-    const visible = runs
-      .filter(run => run.endMs >= startMs && run.startMs <= endMs && run.high >= min && run.low <= max)
+    const inView = runs
+      .filter(run => run.endMs >= startMs && run.startMs <= endMs && run.high >= min && run.low <= max);
+    const faint = inView.filter(run => run.faint === true);
+    const visible = inView
+      .filter(run => run.faint !== true)
       .sort((a, b) => rank(a) - rank(b));
 
     ctx.save();
+    if (faint.length > 0) {
+      ctx.beginPath();
+      faint.forEach(run => {
+        const x0 = Math.max(0, xOf(run.startMs));
+        const x1 = Math.min(width, xOf(run.endMs));
+        if (x1 <= x0) return;
+        const yTop = yOf(run.high);
+        ctx.rect(x0, yTop, x1 - x0, Math.max(1, yOf(run.low) - yTop));
+      });
+      ctx.fillStyle = LEVEL_ZONE_STYLE.faintFill;
+      ctx.fill('nonzero');
+    }
     visible.forEach(run => {
       const x0 = Math.max(0, xOf(run.startMs));
       const x1 = Math.min(width, xOf(run.endMs));

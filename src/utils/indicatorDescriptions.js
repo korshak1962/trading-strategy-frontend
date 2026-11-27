@@ -61,6 +61,7 @@ export const LEVEL_ZONE_DESCRIPTIONS = {
   strong: 'Strong zone: a support/resistance price band that passes the strategy’s strength and touch-count gate. Only strong zones can be traded on a breakout. Drawn per bar: the zone containing the previous close plus the N nearest above and below (see "Level zones").',
   weak: 'Weak zone: an active support/resistance band below the strategy’s strength / touch-count gate. Not traded; shown only with "Show weak zones" (own N nearest).',
   trigger: 'Resistance trigger zone: the zone that produces the breakout line on that bar - the lowest ARMED zone at or above the previous close. Its dashed top edge is zone.high; a close above zone.high plus the break buffer breaks it out. Always drawn, even outside the N nearest.',
+  faint: 'Other strong zones ("All strong zones" on): every strong zone outside the N nearest, drawn faint as context, all in one fill so overlapping bands do not darken. The N nearest and the trigger zone stay solid. Not remembered after reload.',
 };
 
 // Next-bar trigger prices (StrategyResultDTO / SignalChartsDTO.nextTriggers), for the legend.

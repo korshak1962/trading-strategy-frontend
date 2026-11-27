@@ -265,6 +265,9 @@
 
 .level-zones-swatch--strong { background-color: var(--chart-zone-strong); }
 .level-zones-swatch--weak { background-color: var(--chart-zone-weak); border: 1px solid var(--c-gray-200); }
+/* "All strong zones" on: the faint context fill (LEVEL_ZONE_STYLE.faintFill), no edge like the canvas;
+   the dashed outline only marks the swatch's extent on a near-transparent fill. */
+.level-zones-swatch--faint { background-color: var(--chart-zone-faint); outline: 1px dashed var(--c-gray-200); outline-offset: -1px; }
 /* Dashed fuchsia top edge, like the canvas (LEVEL_ZONE_STYLE.armedEdge / armedEdgeDash). */
 .level-zones-swatch--armed {
   background-color: var(--chart-zone-strong);
