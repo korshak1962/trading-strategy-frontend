@@ -69,14 +69,14 @@ export function LevelOperandFields({ operand, onChange, prefix, linkable, ctx, o
       <FieldLabel label="Output" tooltip={out?.tooltip ? `${out.tooltip}` : help.output} code={operand.output || null}
         testId={`info-${tid}-output`}>
         <select className={sel} value={operand.output || ''} disabled={ctx.disabled} aria-label="Levels output"
-          title={out?.tooltip || out?.hint} data-testid={`${tid}-output`}
+          title={out?.tooltip} data-testid={`${tid}-output`}
           onChange={(e) => onChange({ ...operand, output: e.target.value })}>
           {lm.outputs.map((o) => {
             const u = levelOutputUnit(o.name) || o.unit;
             const clash = otherUnit && u && u !== otherUnit && o.name !== operand.output;
             return (
               <option key={o.name} value={o.name} disabled={!!clash}
-                title={clash ? `${o.label || o.name} is a ${unitLabel(u)} value; the other side is a ${unitLabel(otherUnit)} value` : (o.tooltip || o.hint)}>
+                title={clash ? `${o.label || o.name} is a ${unitLabel(u)} value; the other side is a ${unitLabel(otherUnit)} value` : o.tooltip}>
                 {o.label || o.name}
               </option>
             );
@@ -276,7 +276,7 @@ export default function BrickOperandEditor({
               ) : null} />
           </BlockSection>
           <span className="text-[11px] text-amber-800" data-testid={`${tid}-hint`}>
-            {firstSentence(kindMeta?.tooltip || kindMeta?.hint)}
+            {firstSentence(kindMeta?.tooltip)}
           </span>
         </div>
       )}

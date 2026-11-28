@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, useReducer } from 'react';
 import { useFullscreen } from './hooks/useFullscreen';
 import { useElementSize } from './hooks/useElementSize';
 import { useHashRoute } from './hooks/useHashRoute';
@@ -36,6 +36,7 @@ import WatchlistPanel from './components/watch/WatchlistPanel';
 import WatchToasts from './components/watch/WatchToasts';
 import ScreenerPanel from './components/universeScreener/ScreenerPanel';
 import StrategyConstructorPanel from './components/strategyConstructor/StrategyConstructorPanel';
+import { problemReducer, withProblem } from './components/common/problemError';
 import { constructedErrorHint, currentVersionOf, isConstructedKey, strategyDisplayName } from './components/strategyConstructor/constructedFormat';
 import useConstructedNames from './components/strategyConstructor/useConstructedNames';
 import PrepareStrategiesHint from './components/universeScreener/PrepareStrategiesHint';
@@ -61,6 +62,8 @@ import {
 import ScreeningSettings from './components/screening/ScreeningSettings';
 import SensitivityView from './components/screening/SensitivityView';
 import ProfileBanner from './components/screening/ProfileBanner';
+import WarningLine from './components/common/WarningLine';
+import { warningEntries } from './utils/warningItems';
 import {
   batchInfo, defaultScreeningSettings, effectivePlan, formGridSize, formMatchesSearchSpace, profileChips, profileKey,
   profileProvenance, provisionalClean, screeningRequest, screeningSettingsFromRequest, screeningValidationError, searchSpaceToForm,
@@ -249,7 +252,12 @@ const App = () => {
   const [mode, setMode] = useState('backtest'); // 'backtest' | 'optimize' | 'signals'
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
-  const [error, setError] = useState(null);
+  // The form's error: its text and (editor UX Stage B3) the backend's ProblemReason of a 400 body /
+  // a failed job (`err.reason` / `job.errorReason`; null on an older backend): the constructed-error
+  // hint keys on it first (components/common/problemError.js: setError(text | withProblem(text, err) | null)).
+  const [errorState, setError] = useReducer(problemReducer, null);
+  const error = errorState?.text ?? null;
+  const errorReason = errorState?.reason ?? null;
 
   // ---- Signals mode (screener TASK_position_dependable_and_signals_tab.md §2.5) ----
   // Its own result (adaptSignalCharts of POST /signal-charts), never mixed with `results`. Cleared
@@ -491,12 +499,12 @@ const App = () => {
             setError('Screening stopped before any sample finished');
           } else {
             setScreeningView(null);
-            setError('Screening failed: ' + (job.error || 'unknown error'));
+            setError(withProblem('Screening failed: ' + (job.error || 'unknown error'), { reason: job.errorReason }));
           }
         } catch (err) {
           if (cancelled) return;
           setScreeningView(null);
-          setError('Screening failed: ' + err.message);
+          setError(withProblem('Screening failed: ' + err.message, err));
         } finally {
           if (!cancelled) setLoading(false);
         }
@@ -518,12 +526,12 @@ const App = () => {
           setError('Optimization stopped before any combination finished');
         } else {
           setResults(null);
-          setError('Optimization failed: ' + (job.error || 'unknown error'));
+          setError(withProblem('Optimization failed: ' + (job.error || 'unknown error'), { reason: job.errorReason }));
         }
       } catch (err) {
         if (cancelled) return;
         setResults(null);
-        setError('Optimization failed: ' + err.message);
+        setError(withProblem('Optimization failed: ' + err.message, err));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -650,7 +658,7 @@ const App = () => {
       }
     } catch (err) {
       setResults(null);
-      setError('Optimization failed: ' + err.message);
+      setError(withProblem('Optimization failed: ' + err.message, err));
       setLoading(false);
     }
   };
@@ -717,7 +725,7 @@ const App = () => {
       } catch (err) {
         if (seq !== signalSeq.current) return;
         setSignalCharts(null);
-        setError('Signals failed: ' + err.message);
+        setError(withProblem('Signals failed: ' + err.message, err));
       } finally {
         setLoading(false);
       }
@@ -739,7 +747,7 @@ const App = () => {
     } catch (err) {
       backtestConfigRef.current = null;
       setResults(null);
-      setError('Backtest failed: ' + err.message);
+      setError(withProblem('Backtest failed: ' + err.message, err));
     } finally {
       setLoading(false);
     }
@@ -793,7 +801,7 @@ const App = () => {
         attachOptimizationJob({ jobId: res.jobId, status: 'QUEUED', total: res.total, done: 0, percent: 0, kind: 'SCREENING' });
       }
     } catch (err) {
-      setError('Screening failed: ' + err.message);
+      setError(withProblem('Screening failed: ' + err.message, err));
       setLoading(false);
     }
   };
@@ -1298,9 +1306,8 @@ const App = () => {
   const showOptPanel = mode === 'optimize' && !!optJob;
   // Trading window line and warnings of the result on screen (absent from an older backend).
   const resultPrices = results?.chartDataDTO?.prices || [];
-  const resultWarnings = Array.isArray(results?.warnings)
-    ? results.warnings.filter((w) => typeof w === 'string' && w.length > 0)
-    : [];
+  // Stage B (F-B3b): `{text, message, code}` entries: the plain `warningItems` message, the code in an ⓘ
+  const resultWarnings = useMemo(() => warningEntries(results?.warnings, results?.warningItems), [results]);
   // Next-bar trigger lines of the merged estimate for the main chart (null: older backend,
   // Optimize results - the chart then draws exactly as before)
   const resultTriggers = useMemo(
@@ -1708,8 +1715,8 @@ const App = () => {
                 <div className="form-error" role="alert">
                   {error}
                   {/* Stage 3a hints (reviewer #35): the same as in the constructor, for a constructed strategy */}
-                  {Object.keys(selectedStrategies).some((k) => isConstructedKey(k)) && constructedErrorHint(error) && (
-                    <div className="mt-1 text-xs font-normal" data-testid="constructed-error-hint">{constructedErrorHint(error)}</div>
+                  {Object.keys(selectedStrategies).some((k) => isConstructedKey(k)) && constructedErrorHint(error, errorReason) && (
+                    <div className="mt-1 text-xs font-normal" data-testid="constructed-error-hint">{constructedErrorHint(error, errorReason)}</div>
                   )}
                 </div>
               )}
@@ -1821,7 +1828,7 @@ const App = () => {
                     role="status"
                     data-testid="result-warnings"
                   >
-                    {resultWarnings.map((w, i) => <div key={i}>{w}</div>)}
+                    {resultWarnings.map((w, i) => <WarningLine key={i} entry={w} testId="result-warning" />)}
                   </div>
                 )}
 

@@ -4,6 +4,7 @@
 // §1.4-§1.5): the trade count of the summary line, the "No trades" info box and the warnings box
 // (the preview's own ∪ the Backtest run's, de-duplicated). Pure logic for ConstructedPreview.
 import { extractTradesFromSignals } from '../../utils/ChartDataUtils';
+import { mergeWarningEntries, warningEntries } from '../../utils/warningItems';
 
 const ENTRY_TYPES = ['LongOpen', 'ShortOpen'];
 
@@ -41,6 +42,15 @@ export const mergedPreviewWarnings = (preview) => {
   (preview?.backtest?.warnings || []).forEach((w) => { if (!out.includes(w)) out.push(w); });
   return out;
 };
+
+/**
+ * The shown entries `{text, message, code}` of the same list (Stage B F-B3b: plain message, code in
+ * the ⓘ); an older backend / a test object without `warningItems` → the strings as messages.
+ */
+export const mergedPreviewWarningItems = (preview) => mergeWarningEntries(
+  Array.isArray(preview?.warningItems) ? preview.warningItems : warningEntries(preview?.warnings),
+  Array.isArray(preview?.backtest?.warningItems) ? preview.backtest.warningItems : warningEntries(preview?.backtest?.warnings),
+);
 
 /** Rules with at least one warning (the backend's, or the client's state / dead-entry ones). */
 export const rulesWithWarnings = (rules, warningsOf) => (rules || []).filter((r) => (warningsOf(r) || []).length > 0).length;

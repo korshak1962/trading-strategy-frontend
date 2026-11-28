@@ -37,16 +37,20 @@ export function RowHeading({ text, tooltip, className = 'text-gray-600', testId 
  * by the constructor's rows. `bare` (constructor stage 4b: a condition nested in a sequence brick or
  * WITHIN) renders the controls only - no number, move / remove, caption or errors.
  * `heading` (Stage A): `{text, tooltip, className}` shown above the controls.
+ * `serverError` (editor UX Stage B3): the last server error's `path` names this condition: the row
+ * is outlined (`data-server-error`).
  */
 export function RowShell({
   index, caption, codeCaption = null, errors, onRemove, onMove, count, disabled, children, testId, bare = false, heading = null, help = null,
+  serverError = false,
 }) {
   if (bare) {
     return <span className="inline-flex flex-wrap items-end gap-x-2 gap-y-1" data-testid={testId}>{children}</span>;
   }
   const hasErrors = errors?.length > 0;
   return (
-    <div className={`border rounded p-3 bg-gray-50 ${hasErrors ? 'border-red-300' : ''}`} data-testid={testId}>
+    <div className={`border rounded p-3 bg-gray-50 ${serverError ? 'border-red-500 ring-1 ring-red-400' : hasErrors ? 'border-red-300' : ''}`}
+      data-testid={testId} data-server-error={serverError ? 'true' : undefined}>
       <div className="flex flex-wrap items-start gap-2">
         <span className="text-xs font-semibold text-gray-500 w-5 pt-0.5">{index + 1}.</span>
         <div className="flex flex-col gap-1 flex-1 min-w-0">
@@ -87,7 +91,7 @@ export function MetricConditionRow({ condition, onChange, evalTf, ...shell }) {
   return (
     <RowShell {...shell} caption={screenerConditionText(condition)} codeCaption={conditionCaption(condition, evalTf)} testId="metric-condition"
       heading={{ text: 'Channel', tooltip: CHANNEL_HELP.source, className: 'text-indigo-700' }}
-      help={firstSentence(mh(metric || {}).tooltip || metric?.hint)}>
+      help={firstSentence(mh(metric || {}).tooltip || metric?.tooltip)}>
       <FieldLabel label="Timeframe" tooltip={CHANNEL_HELP.tf}>
         <select className={sel} value={condition.tf} disabled={shell.disabled} onChange={(e) => set({ tf: e.target.value })} aria-label="timeframe">
           {SCREEN_TFS.map((tf) => <option key={tf} value={tf}>{tfHelp[tf]?.label || tf}</option>)}
@@ -101,8 +105,8 @@ export function MetricConditionRow({ condition, onChange, evalTf, ...shell }) {
       </FieldLabel>
       <FieldLabel label="Metric" tooltip={CHANNEL_HELP.metric}>
         <select className={sel} value={condition.metric} disabled={shell.disabled} onChange={(e) => set({ metric: e.target.value })}
-          aria-label="metric" title={mh(metric || {}).tooltip || metric?.hint}>
-          {METRICS.map((m) => <option key={m.value} value={m.value} title={mh(m).tooltip || m.hint}>{mh(m).label || m.menuLabel || m.label}</option>)}
+          aria-label="metric" title={mh(metric || {}).tooltip || metric?.tooltip}>
+          {METRICS.map((m) => <option key={m.value} value={m.value} title={mh(m).tooltip || m.tooltip}>{mh(m).label || m.menuLabel || m.label}</option>)}
         </select>
       </FieldLabel>
       <FieldLabel label="Min" tooltip={CHANNEL_HELP.min}>

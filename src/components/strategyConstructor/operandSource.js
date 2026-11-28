@@ -178,14 +178,14 @@ export const sourceGroups = (ctx) => {
   }
   if (Array.isArray(ctx.bricks) && ctx.bricks.length) {
     const ev = g('EVENT_FUNCTIONS');
-    ctx.bricks.forEach((k) => ev.items.push({ source: k.name, label: k.label || k.name, tooltip: k.tooltip || k.hint || '', disabledReason: null }));
+    ctx.bricks.forEach((k) => ev.items.push({ source: k.name, label: k.label || k.name, tooltip: k.tooltip || '', disabledReason: null }));
     groups.push(ev);
   }
   if (Array.isArray(ctx.positions) && ctx.positions.length) {
     const pos = g('POSITION_FUNCTIONS');
     const refused = (ctx.refusedInRules || POSITION_REFUSED_DEFAULT).includes(ctx.signalType);
     ctx.positions.forEach((k) => pos.items.push({
-      source: k.name, label: k.label || k.name, tooltip: k.tooltip || k.hint || '',
+      source: k.name, label: k.label || k.name, tooltip: k.tooltip || '',
       disabledReason: refused ? (ctx.refusedText || positionRefusedText()) : null,
     }));
     groups.push(pos);
@@ -228,7 +228,7 @@ export const sourceTooltipOf = (o, kinds = null) => {
   if (source === CONST_KIND || source === LEVEL_KIND) return help.sources[source]?.tooltip || '';
   if (BRICK_OPERAND_KINDS.includes(source) || POSITION_KINDS.includes(source)) {
     const k = Array.isArray(kinds) ? kinds.find((x) => x?.name === source) : null;
-    const live = (k && (k.tooltip || k.hint)) || '';
+    const live = (k && k.tooltip) || '';
     if (live) return live;
     return (BRICK_OPERAND_KINDS.includes(source) ? BRICK_TEXTS : POSITION_TEXTS)[source]?.tooltip || '';
   }
@@ -247,7 +247,7 @@ export const compareHelpLine = (sideTips) => sideTips.map(firstSentence).filter(
 export const eventMenuOf = (events, selected) => {
   const shown = (events || []).filter((e) => e.inMenu !== false || e.name === selected);
   if (selected && !(events || []).some((e) => e.name === selected)) {
-    shown.push({ name: selected, label: `${selected} ${RULE_TEXTS.unknownSuffix}`, tooltip: '', hint: '', needsStrength: eventNeedsStrength(selected) });
+    shown.push({ name: selected, label: `${selected} ${RULE_TEXTS.unknownSuffix}`, tooltip: '', needsStrength: eventNeedsStrength(selected) });
   }
   return shown;
 };

@@ -45,6 +45,7 @@
 // Levels spec. Links on it: `P.levels.<field>` (as a LEVEL side), never `P.x.*`.
 
 import { apiRequest, readJson, jsonBody, enc } from './httpClient';
+import { warningEntries } from '../utils/warningItems';
 import { toConditionDTO, fromConditionDTO, toOperand, fromOperand } from './screenerApi';
 import {
   DEFAULT_INDICATORS, normalizeIndicator, hasLength, setIndicatorCatalog, setLevelOutputUnits,
@@ -104,11 +105,13 @@ export const MAX_RULES = 20;
 export const MAX_CONDITIONS = 10;
 
 // Editor UX Stage A: a fallback list item gets its plain-English `label` / `tooltip` (and the other
-// text keys of its texts entry, e.g. `inMenu`) from editorTexts.js.
+// text keys of its texts entry, e.g. `inMenu`) from editorTexts.js. Stage B3: the meta `hint` key
+// is retired (the backend drops it, `tooltip` carries the text): the fallback lists have none and
+// the normalizers never read one.
 function withTexts(texts, list) {
   return list.map((x) => {
     const t = texts[x.name] || {};
-    return { ...x, ...t, label: t.label || x.label || x.name, tooltip: t.tooltip || x.hint || '' };
+    return { ...x, ...t, label: t.label || x.label || x.name, tooltip: t.tooltip || '' };
   });
 }
 
@@ -121,14 +124,12 @@ export const CHANNEL_RUN_TFS = Object.freeze(['DAY', 'WEEK']);
 export const CHANNEL_LEVELS = Object.freeze([0, 1, 2]);
 /** Semantics-B metrics (TOUCHES_* are not in B yet). `unit` = backend ValueUnit. */
 export const CHANNEL_METRICS = Object.freeze(withTexts(CHANNEL_METRIC_TEXTS, [
-  { name: 'POSITION', label: 'Position', unit: 'RATIO',
-    hint: '(ln close − lower) / (upper − lower) on the bar: 0 = at the lower line, 1 = at the upper line; not clipped (<0 below, >1 above)' },
-  { name: 'SLOPE_PCT_YEAR', label: 'Slope %/year', unit: 'PERCENT', hint: 'Signed annualized slope of the channel, e.g. −30 = falling 30 % a year' },
-  { name: 'WIDTH_PCT', label: 'Width %', unit: 'PERCENT', hint: 'Upper line above the lower one by this many % of price' },
-  { name: 'WIDTH', label: 'Width (price)', unit: 'PRICE_RANGE', hint: 'Upper line minus lower line on the bar, in price' },
-  { name: 'AGE_BARS', label: 'Age (bars)', unit: 'BARS', hint: 'Bars of the channel TF since the channel start' },
-  { name: 'EXISTS', label: 'Exists', unit: 'RATIO',
-    hint: '1 when the channel of this level exists on the bar, else 0 (level 1 / 2: L0 and its parent / grandparent exist). EXISTS in [0, 0] = "no channel"' },
+  { name: 'POSITION', label: 'Position', unit: 'RATIO' },
+  { name: 'SLOPE_PCT_YEAR', label: 'Slope %/year', unit: 'PERCENT' },
+  { name: 'WIDTH_PCT', label: 'Width %', unit: 'PERCENT' },
+  { name: 'WIDTH', label: 'Width (price)', unit: 'PRICE_RANGE' },
+  { name: 'AGE_BARS', label: 'Age (bars)', unit: 'BARS' },
+  { name: 'EXISTS', label: 'Exists', unit: 'RATIO' },
 ]));
 /** Detector parameters of a channel condition (architect K1: written in full in every version). */
 export const CHANNEL_DEFAULTS = Object.freeze({ coveragePct: 0.95, minBars: 5, minWidthPct: 0.05, minAgeBars: 0 });
@@ -187,8 +188,8 @@ export const LAG_MAX = 10;
 /** Events that take a strength threshold (SUPPORT_BREAK / RESISTANCE_REACHED). */
 export const STRENGTH_EVENTS = Object.freeze(['SUPPORT_BREAK', 'RESISTANCE_REACHED']);
 
-const lp = (name, defaultValue, min, max, minInclusive, integer, hint, inPass) => ({
-  name, defaultValue, min, max, minInclusive, integer, hint, inPass,
+const lp = (name, defaultValue, min, max, minInclusive, integer, inPass) => ({
+  name, defaultValue, min, max, minInclusive, integer, inPass,
 });
 /**
  * Editor UX Stage A: a Levels param's plain-English `plainLabel` (the meta `label`; the code-style
@@ -198,7 +199,7 @@ function paramTexts(x, f = {}) {
   const t = LEVELS_PARAM_TEXTS[x.name] || {};
   return {
     plainLabel: (typeof x.label === 'string' && x.label) || f.plainLabel || t.label || x.name,
-    tooltip: (typeof x.tooltip === 'string' && x.tooltip) || f.tooltip || t.tooltip || x.hint || '',
+    tooltip: (typeof x.tooltip === 'string' && x.tooltip) || f.tooltip || t.tooltip || '',
     group: (typeof x.group === 'string' && LEVELS_GROUPS.includes(x.group) && x.group) || f.group || t.group || null,
     choices: normalizeChoices(x.choices) || f.choices || t.choices || null,
   };
@@ -214,20 +215,19 @@ function withParamTexts(list) {
 }
 /** Fallback of meta.levels.params (backend ConstructedLevelsMeta). */
 export const LEVELS_PARAMS = Object.freeze(withParamTexts([
-  lp('minStrength', 3, 0, 50, false, false, 'Strength a zone needs to be tracked (and for IN_ZONE / DIST_*)', true),
-  lp('breakBuffer', 0.5, 0, 5, true, false, 'Breakout / break-down line beyond the zone, ATR multiples', true),
-  lp('touchTolerance', 0.25, 0, 5, true, false, 'A retest touch: low within this many ATR above the zone', true),
-  lp('maxRetestBars', 15, 1, 500, true, true, 'Bars to wait for a retest (only with baseMinBars 0)', true),
-  lp('maxDwellBars', 3, 1, 500, true, true, 'Bars in the zone after the touch before the setup is missed', true),
-  lp('confirmMode', 0, 0, 1, true, true, '0 = close above the zone on the touch bar, 1 = close above the touch bar high', true),
-  lp('runawayAtr', 1, 0, 10, true, false, 'Runaway entry without a retest this many ATR above the zone (0 = off)', true),
-  lp('baseMinBars', 5, 0, 500, true, true, 'Base entry after this many bars holding above the zone (0 = off)', true),
-  lp('maxBaseBars', 120, 1, 1000, true, true, 'Safety cap of the base wait', true),
-  lp('stopBuffer', 0.5, 0, 5, true, false, 'SETUP_STOP below the zone (or the retest low), ATR multiples', false),
-  lp('upgradeStrength', 3, 0, 50, false, false, 'Strength a zone needs to become SUPPORT_LINE', false),
-  lp('upgradeMinTouches', 2, 1, 20, true, true, 'Touches a zone needs to become SUPPORT_LINE', false),
-  lp('takeProfitStrength', 0, 0, 50, true, false, 'Re-arm only: take-profit of the virtual position, '
-    + 'RESISTANCE_REACHED of this strength (0 = none). Keep it equal to your take-profit rule\'s strength', false),
+  lp('minStrength', 3, 0, 50, false, false, true),
+  lp('breakBuffer', 0.5, 0, 5, true, false, true),
+  lp('touchTolerance', 0.25, 0, 5, true, false, true),
+  lp('maxRetestBars', 15, 1, 500, true, true, true),
+  lp('maxDwellBars', 3, 1, 500, true, true, true),
+  lp('confirmMode', 0, 0, 1, true, true, true),
+  lp('runawayAtr', 1, 0, 10, true, false, true),
+  lp('baseMinBars', 5, 0, 500, true, true, true),
+  lp('maxBaseBars', 120, 1, 1000, true, true, true),
+  lp('stopBuffer', 0.5, 0, 5, true, false, false),
+  lp('upgradeStrength', 3, 0, 50, false, false, false),
+  lp('upgradeMinTouches', 2, 1, 20, true, true, false),
+  lp('takeProfitStrength', 0, 0, 50, true, false, false),
 ]));
 export const LEVELS_DEFAULTS = Object.freeze({
   ...Object.fromEntries(LEVELS_PARAMS.map((p) => [p.name, p.defaultValue])),
@@ -235,26 +235,26 @@ export const LEVELS_DEFAULTS = Object.freeze({
   rearm: LEVELS_REARM_DEFAULT,
 });
 export const LEVEL_EVENTS = Object.freeze(withTexts(LEVEL_EVENT_TEXTS, [
-  { name: 'BREAKOUT_UP', needsStrength: false, hint: 'Close crossed above a tracked zone + BreakBuffer x ATR' },
-  { name: 'CONFIRMED_RETEST', needsStrength: false, hint: 'Breakout confirmed by a retest of the zone' },
-  { name: 'CONFIRMED_RUNAWAY', needsStrength: false, hint: 'Breakout ran away RunawayAtr x ATR above the zone' },
-  { name: 'CONFIRMED_BASE', needsStrength: false, hint: 'Breakout held above the zone for BaseMinBars and made a new high' },
-  { name: 'CONFIRMED_ANY', needsStrength: false, hint: 'Any of the three confirmations' },
-  { name: 'FAILED', needsStrength: false, hint: 'The breakout failed: close back below the zone - BreakBuffer x ATR' },
-  { name: 'BROKEN_DOWN', needsStrength: false, hint: 'A confirmed zone broke down' },
-  { name: 'SUPPORT_BREAK', needsStrength: true, hint: 'Close below the nearest support zone of this strength - BreakBuffer x ATR' },
-  { name: 'RESISTANCE_REACHED', needsStrength: true, hint: 'Close reached the nearest resistance zone of this strength' },
+  { name: 'BREAKOUT_UP', needsStrength: false },
+  { name: 'CONFIRMED_RETEST', needsStrength: false },
+  { name: 'CONFIRMED_RUNAWAY', needsStrength: false },
+  { name: 'CONFIRMED_BASE', needsStrength: false },
+  { name: 'CONFIRMED_ANY', needsStrength: false },
+  { name: 'FAILED', needsStrength: false },
+  { name: 'BROKEN_DOWN', needsStrength: false },
+  { name: 'SUPPORT_BREAK', needsStrength: true },
+  { name: 'RESISTANCE_REACHED', needsStrength: true },
 ]).map((e) => ({ ...e, inMenu: e.inMenu !== false })));
 export const LEVEL_OUTPUTS = Object.freeze(withTexts(LEVEL_OUTPUT_TEXTS, [
-  { name: 'IN_ZONE', unit: 'RATIO', hint: '1 when the close is inside a strong zone; outside one the value is "not met" (not 0), so a comparison must hold at 1 (IN_ZONE > 0, IN_ZONE ≥ 1)' },
-  { name: 'SETUP_STOP', unit: 'PRICE', hint: 'On a confirmation bar: the setup stop (zone or retest low - StopBuffer x ATR)' },
-  { name: 'SETUP_ZONE_LINE', unit: 'PRICE', hint: 'On a confirmation bar: zone low - BreakBuffer x ATR' },
-  { name: 'SUPPORT_LINE', unit: 'PRICE', hint: 'Highest strong zone fully below the close - BreakBuffer x ATR (the sticky-support candidate)' },
-  { name: 'DIST_SUPPORT_ATR', unit: 'ATR_MULTIPLE', hint: 'Close above the nearest strong support, in ATR' },
-  { name: 'DIST_RESISTANCE_ATR', unit: 'ATR_MULTIPLE', hint: 'Nearest strong resistance above the close, in ATR' },
+  { name: 'IN_ZONE', unit: 'RATIO' },
+  { name: 'SETUP_STOP', unit: 'PRICE' },
+  { name: 'SETUP_ZONE_LINE', unit: 'PRICE' },
+  { name: 'SUPPORT_LINE', unit: 'PRICE' },
+  { name: 'DIST_SUPPORT_ATR', unit: 'ATR_MULTIPLE' },
+  { name: 'DIST_RESISTANCE_ATR', unit: 'ATR_MULTIPLE' },
   // stage 4c-1: the lines of a long opened at this close (read them as AT_ENTRY(LEVEL OPEN_*))
-  { name: 'OPEN_STOP', unit: 'PRICE', hint: 'Where the stop would be had you bought at this close (long side only): SETUP_STOP on a confirmation bar, else the support zone low - StopBuffer x ATR; read it as AT_ENTRY(LEVEL OPEN_STOP)' },
-  { name: 'OPEN_LINE', unit: 'PRICE', hint: 'Where the initial sticky-support line would be had you bought at this close (long side only): SETUP_ZONE_LINE on a confirmation bar, else SUPPORT_LINE; read it as AT_ENTRY(LEVEL OPEN_LINE)' },
+  { name: 'OPEN_STOP', unit: 'PRICE' },
+  { name: 'OPEN_LINE', unit: 'PRICE' },
 ]));
 export const LEVELS_RUN_TFS = Object.freeze(['DAY', 'WEEK']);
 /** Editor UX Stage A: the fixed fields with their plain-English texts (meta.levels.fixedParams). */
@@ -274,44 +274,38 @@ export const DEFAULT_LEVELS_META = Object.freeze({
   help: helpMap(null, LEVELS_HELP),
 });
 export const BRICK_KINDS = Object.freeze(withTexts(BRICK_TEXTS, [
-  { name: 'WITHIN', form: 'CONDITION', hasX: false, hasLag: false, unit: null, hint: 'PASS when the event passed on one of the last k bars' },
-  { name: 'BARS_SINCE', form: 'OPERAND', hasX: false, hasLag: false, unit: 'BARS', hint: 'Bars since the last time the event passed (0 on that bar)' },
-  { name: 'AT_LAST', form: 'OPERAND', hasX: true, hasLag: false, unit: null, hint: 'X on the bar the event last passed' },
-  { name: 'MAX_SINCE', form: 'OPERAND', hasX: true, hasLag: true, unit: null, hint: 'Highest X after the last event, up to lag bars ago (lag 1: the line as of the previous bar)' },
-  { name: 'MIN_SINCE', form: 'OPERAND', hasX: true, hasLag: true, unit: null, hint: 'Lowest X after the last event, up to lag bars ago' },
+  { name: 'WITHIN', form: 'CONDITION', hasX: false, hasLag: false, unit: null },
+  { name: 'BARS_SINCE', form: 'OPERAND', hasX: false, hasLag: false, unit: 'BARS' },
+  { name: 'AT_LAST', form: 'OPERAND', hasX: true, hasLag: false, unit: null },
+  { name: 'MAX_SINCE', form: 'OPERAND', hasX: true, hasLag: true, unit: null },
+  { name: 'MIN_SINCE', form: 'OPERAND', hasX: true, hasLag: true, unit: null },
 ]));
-export const BRICKS_HINT = 'The stop and the sticky support follow the last level confirmation, not your trade: honest alone or '
-  + 'with LongBlock partners; for the entries of other strategies wait for stage 4c. Levels runs over the bars of the run window '
-  + 'and re-arms the exited zone after a virtual stop / support break, so its events depend on the window start.';
 export const DEFAULT_BRICKS_META = Object.freeze({
-  kinds: BRICK_KINDS, kMax: WITHIN_BARS_MAX, lagMax: LAG_MAX, hint: BRICKS_HINT, help: helpMap(null, BRICKS_HELP),
+  kinds: BRICK_KINDS, kMax: WITHIN_BARS_MAX, lagMax: LAG_MAX, help: helpMap(null, BRICKS_HELP),
 });
 
 // ---- position operands (stage 4c-1) ----
 
 /** Fallback of meta.position.kinds (backend ConstructedStrategyServiceImpl.positionMeta). */
 export const POSITION_KIND_META = Object.freeze(withTexts(POSITION_TEXTS, [
-  { name: 'AT_ENTRY', form: 'AT_ENTRY', hint: 'X on the entry bar of the open long (seeded: the seed bar); "in position" = AT_ENTRY(close) > 0; a % stop = close < AT_ENTRY(close) with tolerance -5' },
-  { name: 'MAX_SINCE_ENTRY', form: 'WINDOW', hint: 'The maximum of X over (entry, t - lag], bars without a value skipped; lag 1 = a ratchet as of the previous bar (the entry bar is not in the window)' },
-  { name: 'MIN_SINCE_ENTRY', form: 'WINDOW', hint: 'The minimum of X over (entry, t - lag]' },
+  { name: 'AT_ENTRY', form: 'AT_ENTRY' },
+  { name: 'MAX_SINCE_ENTRY', form: 'WINDOW' },
+  { name: 'MIN_SINCE_ENTRY', form: 'WINDOW' },
   // R5 v2 F1: form LEVELS - no X / lag, its own `levels`
-  { name: 'STICKY_SINCE_ENTRY', form: 'LEVELS', hint: "The Levels sticky-support exit line of the open long: the entry zone, followed through merges, raised to a higher zone fully below the close, re-priced every bar (max(line, zone low - BreakBuffer x ATR)); the value on bar t is the line after bar t-1. Only `levels`, no X / lag." },
+  { name: 'STICKY_SINCE_ENTRY', form: 'LEVELS' },
 ]));
 export const POSITION_RUN_TFS = Object.freeze(['DAY', 'WEEK']);
 export const POSITION_REFUSED_IN = Object.freeze(['ShortClose']);
-export const POSITION_HINT = 'Position operands read the merged position at the start of the bar and have a value only in a LONG '
-  + '(FLAT / SHORT: the condition FAILs, NOT_LONG). X is a market operand of the run timeframe: a bar field, an indicator, '
-  + 'LEVEL or a brick; STICKY_SINCE_ENTRY has no X (form LEVELS: its own levels). Not in the screener, not inside a brick / WITHIN; a version with one is position dependent.';
 export const DEFAULT_POSITION_META = Object.freeze({
   kinds: POSITION_KIND_META, lagMax: LAG_MAX, runTimeframes: POSITION_RUN_TFS, side: 'LONG',
-  refusedInRules: POSITION_REFUSED_IN, hint: POSITION_HINT, help: helpMap(null, POSITION_HELP),
+  refusedInRules: POSITION_REFUSED_IN, help: helpMap(null, POSITION_HELP),
 });
 
 /** meta.position (PositionMetaDTO) merged over the fallbacks. */
 export const normalizePositionMeta = (m) => {
   if (!m || typeof m !== 'object') return DEFAULT_POSITION_META;
   const kinds = mergeByName(m.kinds, POSITION_KIND_META, (k, f) => ({
-    name: k.name, form: k.form || f.form || 'AT_ENTRY', hint: k.hint || f.hint || '', ...helpOf(k, f),
+    name: k.name, form: k.form || f.form || 'AT_ENTRY', ...helpOf(k, f),
   })).filter((k) => POSITION_KINDS.includes(k.name));
   return {
     kinds: kinds.length ? kinds : [...POSITION_KIND_META],
@@ -319,7 +313,6 @@ export const normalizePositionMeta = (m) => {
     runTimeframes: Array.isArray(m.runTimeframes) && m.runTimeframes.length ? m.runTimeframes : [...POSITION_RUN_TFS],
     side: typeof m.side === 'string' && m.side ? m.side : 'LONG',
     refusedInRules: Array.isArray(m.refusedInRules) ? m.refusedInRules.filter((x) => typeof x === 'string') : [...POSITION_REFUSED_IN],
-    hint: typeof m.hint === 'string' && m.hint ? m.hint : POSITION_HINT,
     help: helpMap(m.help, POSITION_HELP),
   };
 };
@@ -335,14 +328,13 @@ export const normalizeLevelsMeta = (m) => {
   if (!m || typeof m !== 'object') return DEFAULT_LEVELS_META;
   const events = mergeByName(m.events, LEVEL_EVENTS, (x, f) => ({
     name: x.name,
-    hint: x.hint || f.hint || '',
     needsStrength: typeof x.needsStrength === 'boolean' ? x.needsStrength : STRENGTH_EVENTS.includes(x.name),
     ...helpOf(x, f),
     // an old backend sends no flag: every event but BROKEN_DOWN is in the menu (architect §3.2)
     inMenu: typeof x.inMenu === 'boolean' ? x.inMenu : x.name !== 'BROKEN_DOWN',
   }));
   const outputs = mergeByName(m.outputs, LEVEL_OUTPUTS, (x, f) => ({
-    name: x.name, unit: x.unit || f.unit || null, hint: x.hint || f.hint || '', ...helpOf(x, f),
+    name: x.name, unit: x.unit || f.unit || null, ...helpOf(x, f),
   }));
   const params = mergeByName(m.params, LEVELS_PARAMS, (x, f) => ({
     name: x.name,
@@ -351,7 +343,6 @@ export const normalizeLevelsMeta = (m) => {
     max: finiteOr(x.max, f.max),
     minInclusive: typeof x.minInclusive === 'boolean' ? x.minInclusive : f.minInclusive !== false,
     integer: typeof x.integer === 'boolean' ? x.integer : !!f.integer,
-    hint: x.hint || f.hint || '',
     inPass: typeof x.inPass === 'boolean' ? x.inPass : !!f.inPass,
     ...paramTexts(x, f),
   })).filter((x) => LEVEL_FIELDS.includes(x.name));
@@ -366,7 +357,8 @@ export const normalizeLevelsMeta = (m) => {
   const rearmParam = Array.isArray(m.params) ? m.params.find((x) => x && x.name === 'rearm') : null;
   const rearmRaw = m.defaults?.rearm ?? rearmParam?.defaultValue ?? rearmParam?.default ?? m.rearmDefault;
   defaults.rearm = rearmRaw == null ? LEVELS_REARM_DEFAULT : rearmOf({ rearm: rearmRaw });
-  const rearmHint = (typeof m.rearmHint === 'string' && m.rearmHint) || rearmParam?.hint || LEVELS_REARM_HINT;
+  const rearmHint = (typeof m.rearmHint === 'string' && m.rearmHint) || (typeof rearmParam?.tooltip === 'string' && rearmParam.tooltip)
+    || LEVELS_REARM_HINT;
   return {
     events: events.length ? events : [...LEVEL_EVENTS],
     outputs: outputs.length ? outputs : [...LEVEL_OUTPUTS],
@@ -395,14 +387,12 @@ export const normalizeBricksMeta = (m) => {
     hasX: typeof k.hasX === 'boolean' ? k.hasX : !!f.hasX,
     hasLag: typeof k.hasLag === 'boolean' ? k.hasLag : !!f.hasLag,
     unit: k.unit ?? f.unit ?? null,
-    hint: k.hint || f.hint || '',
     ...helpOf(k, f),
   }));
   return {
     kinds: kinds.length ? kinds : [...BRICK_KINDS],
     kMax: finiteOr(m.kMax, WITHIN_BARS_MAX),
     lagMax: finiteOr(m.lagMax, LAG_MAX),
-    hint: typeof m.hint === 'string' && m.hint ? m.hint : BRICKS_HINT,
     help: helpMap(m.help, BRICKS_HELP),
   };
 };
@@ -441,9 +431,10 @@ const normalizeRange = (r, fallback) => {
 };
 
 /**
- * `meta.channel` (ConstructedMetaDTO.channel, stage 4a): `{metrics: [{name, unit, hint}], levels,
- * timeframes, runTimeframes, defaults, ranges}` merged over the static fallbacks. A metric keeps
- * the fallback's label / hint when the backend sends none; TOUCHES_* are never offered (not in B).
+ * `meta.channel` (ConstructedMetaDTO.channel, stage 4a): `{metrics: [{name, unit, label, tooltip}],
+ * levels, timeframes, runTimeframes, defaults, ranges}` merged over the static fallbacks. A metric
+ * keeps the fallback's label / tooltip when the backend sends none (a `hint` is ignored, Stage B3);
+ * TOUCHES_* are never offered (not in B).
  */
 export const normalizeChannelMeta = (m) => {
   if (!m || typeof m !== 'object') return DEFAULT_CHANNEL_META;
@@ -452,10 +443,9 @@ export const normalizeChannelMeta = (m) => {
     ? m.metrics.map((x) => {
       const name = typeof x === 'string' ? x : x?.name;
       if (!name || /^TOUCHES_/.test(name)) return null;
-      const base = known.get(name) || { name, label: name, unit: null, hint: '', tooltip: '' };
+      const base = known.get(name) || { name, label: name, unit: null, tooltip: '' };
       return {
-        ...base, unit: x?.unit || base.unit, hint: x?.hint || base.hint, label: x?.label || base.label,
-        tooltip: x?.tooltip || base.tooltip || x?.hint || base.hint || '',
+        ...base, unit: x?.unit || base.unit, label: x?.label || base.label, tooltip: x?.tooltip || base.tooltip || '',
       };
     }).filter(Boolean)
     : [...CHANNEL_METRICS];
@@ -1056,9 +1046,12 @@ export const normalizePreview = (p) => {
         : (r?.linkNotes && typeof r.linkNotes === 'object'
           ? Object.values(r.linkNotes).filter((x) => typeof x === 'string') : []),
       warnings: (Array.isArray(r?.warnings) ? r.warnings : []).filter((w) => typeof w === 'string' && w),
+      // Stage B (B3): `[{text, message, code}]` parallel to `warnings` (message = the string on an older backend)
+      warningItems: warningEntries(r?.warnings, r?.warningItems),
     })),
     sweepThresholds: isNum(p.sweepThresholds) ? p.sweepThresholds : 0,
     warnings: (Array.isArray(p.warnings) ? p.warnings : []).filter((w) => typeof w === 'string' && w),
+    warningItems: warningEntries(p.warnings, p.warningItems),
     // re-arm round (m7): one line per Levels spec, `Levels[L2]: MinStrength 2, StopBuffer 1, re-arm (TP 4)`
     levelsLegend: (Array.isArray(p.levelsLegend) ? p.levelsLegend : []).filter((x) => typeof x === 'string' && x),
     // Stage B (B1 twin): `Levels: default settings · re-arm`, `Levels axes: …`; [] on an older backend
@@ -1076,6 +1069,8 @@ export const normalizePreviewBacktest = (bt, prices) => {
   return {
     ...bt,
     warnings: (Array.isArray(bt.warnings) ? bt.warnings : []).filter((w) => typeof w === 'string' && w),
+    // shown entries (the raw `warningItems` of StrategyResultDTO are replaced by them)
+    warningItems: warningEntries(bt.warnings, bt.warningItems),
     chartDataDTO: {
       ...chart,
       prices: Array.isArray(chart.prices) && chart.prices.length ? chart.prices : (prices || []),

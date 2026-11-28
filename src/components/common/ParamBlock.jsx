@@ -26,7 +26,8 @@ import { fmtNum } from '../universeScreener/conditionFormat';
  * @param {Array<{name, label, value, tooltip}>} [props.fixed] the FIXED line
  * @param {JSX.Element} [props.topSlot] always shown when expanded (the re-arm box)
  * @param {boolean} [props.sameAsPrevious] the summary reads "same as above"
- * @param {boolean} [props.errorOpen] a server error names this block: open, red "!"
+ * @param {boolean|string} [props.errorOpen] a server error names this block: open, red "!"; a string
+ *   (editor UX Stage B3, from the error's `path`) names the field too: it is outlined and listed
  * @param {(() => void)|null} [props.onApplyToAll]
  * @param {string} [props.applyLabel]
  * @param {string} [props.applyTooltip]
@@ -45,10 +46,14 @@ export default function ParamBlock({
   const [open, setOpen] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const errors = fields.map((f) => fieldError(f)).filter(Boolean);
-  const invalid = errors.length > 0 || errorOpen;
+  const errorKey = typeof errorOpen === 'string' && errorOpen ? errorOpen : null;
+  const invalid = errors.length > 0 || !!errorOpen;
+  const serverField = (f) => errorKey != null && f.key === errorKey;
   const expanded = open || invalid;
   const summary = blockSummary({ fields, defaultsText, tail, sameAsPrevious });
+  // the field a server error names is listed with the changed ones even at its default
   const changed = changedFields(fields);
+  const listed = errorKey && !changed.some(serverField) ? [...changed, ...fields.filter(serverField)] : changed;
   const total = fields.length + fixed.length + extraCount;
   const tid = `paramblock-${id}`;
   const groupOf = (name) => fields.filter((f) => (f.group || '') === name);
@@ -56,11 +61,12 @@ export default function ParamBlock({
 
   const fieldRow = (f, withDefault) => (
     <span key={f.key} className={`inline-flex items-center gap-1 text-xs ${disabled ? 'text-gray-400' : 'text-gray-600'}`}>
-      <span className={`shrink-0 ${fieldError(f) ? 'text-red-700' : ''}`}>
+      <span className={`shrink-0 ${fieldError(f) || serverField(f) ? 'text-red-700' : ''}`}>
         {f.label}
         <InfoTooltip text={f.tooltip} code={f.code || null} editor align="left" />
       </span>
-      <span className={fieldError(f) ? 'rounded ring-1 ring-red-400' : ''}>{f.render()}</span>
+      <span className={fieldError(f) || serverField(f) ? 'rounded ring-1 ring-red-400' : ''}
+        data-server-error={serverField(f) ? 'true' : undefined}>{f.render()}</span>
       {withDefault && (
         <span className="text-[11px] text-gray-500">
           (default {fmtNum(f.defaultValue)})
@@ -91,16 +97,16 @@ export default function ParamBlock({
             {topSlot}
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-gray-600">
-                {changedTitle}: {changed.length ? '' : <span className="text-gray-500">none</span>}
+                {changedTitle}: {listed.length ? '' : <span className="text-gray-500">none</span>}
               </span>
               <button type="button" className="ml-auto text-xs text-indigo-700" onClick={() => setShowAll(!showAll)}
                 aria-expanded={showAll} data-testid={`${tid}-showall`}>
                 {showAll ? `Hide fields ▴` : `Show all ${total} fields ▾`}
               </button>
             </div>
-            {changed.length > 0 && !showAll && (
+            {listed.length > 0 && !showAll && (
               <div className="flex flex-wrap gap-x-4 gap-y-1" data-testid={`${tid}-changed`}>
-                {changed.map((f) => fieldRow(f, true))}
+                {listed.map((f) => fieldRow(f, true))}
               </div>
             )}
             {errors.length > 0 && (

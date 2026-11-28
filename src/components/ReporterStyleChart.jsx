@@ -122,7 +122,8 @@ const Y_MAX_SPAN_RATIO = 50;
 // Price-only fullscreen: smallest price pane height.
 const MIN_PRICE_ONLY_PANE_PX = 200;
 
-// "All strong zones" is session-only: never read from nor written to storage (B4).
+// The zone settings (N, "Show weak zones") are stored; only `allStrong` ("All strong zones") is
+// session-only: never read from nor written to storage (B4).
 const loadLevelZoneSettings = () => {
   try {
     return levelZoneSettingsFromStored(window.localStorage.getItem(LEVEL_ZONES_STORAGE_KEY));

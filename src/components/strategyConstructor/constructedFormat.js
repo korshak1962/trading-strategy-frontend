@@ -36,7 +36,9 @@ import {
   validateOperand, opSymbol,
 } from '../universeScreener/conditionFormat';
 import { OPERATORS, TOLERANCE_LIMIT as SCREEN_TOLERANCE_LIMIT, OFFSET_MIN } from '../../api/screenerApi';
-import { lengthParamOf, kindName, runsOn, CONST_KIND, operandUnitOf, unitLabel, runTfAdviceOf } from '../../api/indicatorCatalog';
+import { lengthParamOf, kindName, runsOn, CONST_KIND, operandUnitOf, runTfAdviceOf } from '../../api/indicatorCatalog';
+// a cycle (displayLabels imports this module): used only inside functions, never at load time
+import { unitClashText, EDITOR_MODE } from '../../utils/displayLabels';
 
 // ---- request key ----
 
@@ -1447,10 +1449,11 @@ export const validateStagedCondition = (c, ctx = {}) => {
     const lu = operandUnitOf(x.left);
     const ru = operandUnitOf(x.right);
     if (lu && ru && lu !== ru) {
-      errs.push(`${at(path)}: UNIT_MISMATCH: ${anyOperandCaption(x.left)} (${unitLabel(lu)}) vs ${anyOperandCaption(x.right)} (${unitLabel(ru)}) — `
+      // Stage B3: the plain sentence (utils/displayLabels.js, editor mode)
+      errs.push(`${at(path)}: ${unitClashText(x.left, lu, x.right, ru, { mode: EDITOR_MODE })} — `
         + (lu === 'ATR_MULTIPLE' || ru === 'ATR_MULTIPLE'
-          ? 'a DIST_* distance in ATR compares only with another DIST_* or a number'
-          : 'compare values of one unit (a constant fits any)'));
+          ? 'a distance to support / resistance in ATR compares only with another such distance or a number'
+          : 'compare values of one unit (a number fits any)'));
     }
     if (!OPERATORS.some((o) => o.value === x.op)) errs.push(`${at(path)}: unknown operator`);
     else {
@@ -1567,110 +1570,180 @@ export const runTfError = (rules, tf) => {
   return `On ${tf} only RUN operands with offset [0] and constants are allowed: offsets and fixed timeframes on ${tf} are not supported yet`;
 };
 
+// ---- hints under a server error (Stage 3a #49; editor UX Stage B3: by `reason` first) ----
+
+// The texts are shared by the reason map and the regex fallback, so an old and a new backend get
+// the same advice.
+const HINT = Object.freeze({
+  constraintViolated: (c) => `${c ? `These axis values break the constraint ${c}` : 'These axis values break an axis constraint'}: `
+    + 'the backend refused this run before evaluating anything. '
+    + 'A backtest or preview needs values that satisfy it; in Optimize every pair of the two axes’ grid values must satisfy it, '
+    + 'so narrow their Min / Max.',
+  constraint: 'An axis constraint compares two different axes of one kind (a length with a length, a constant with a constant), '
+    + `at most ${MAX_CONSTRAINTS} of them, each once; the axes' default values must satisfy it.`,
+  channelMetricB: 'Touch counts (TOUCHES_UPPER / TOUCHES_LOWER) are not available in strategies yet: use Position, Slope, Width, Age or Exists.',
+  channelRunTf: 'A strategy with channel conditions runs on DAY or WEEK only (a DAY channel: DAY only).',
+  boundsOrder: 'On this point of the axes’ grid the channel condition’s min is above its max: narrow the two axes’ Min / Max '
+    + 'or add an axis constraint (e.g. $BuyLow < $BuyHigh).',
+  channelDetector: 'Channel detector params: coverage in (0.5, 1], min bars 2..1000, min width in [0, 1), min age 0..500 bars.',
+  positionShortClose: 'Position operands read a LONG position. A ShortClose rule with them could only cancel this bar’s long signals: '
+    + 'use LongClose for an exit from the long.',
+  positionRunTf: 'AT_ENTRY / MAX_SINCE_ENTRY / MIN_SINCE_ENTRY / STICKY_SINCE_ENTRY run on DAY or WEEK, and their X reads the run timeframe (use RUN operands inside).',
+  positionPlacement: 'A position operand stands only on a side of a rule’s comparison: not inside a brick, not in WITHIN’s event, not in a screener filter.',
+  positionX: 'The X of AT_ENTRY / *_SINCE_ENTRY is a market operand (a bar field, an indicator, a Levels value or a brick), not a constant.',
+  positionOffset: 'A position operand has no offset; MAX_SINCE_ENTRY / MIN_SINCE_ENTRY shift their window with lag (lag 1 = the line as of the previous bar), AT_ENTRY has none.',
+  levelsRunTf: 'A strategy with Levels conditions or sequence bricks runs on DAY or WEEK only.',
+  brickTf: 'Operands inside a brick (its X and its anchor event) must read the run timeframe: use RUN operands, or run on WEEK.',
+  brickAnchor: 'A brick’s anchor (and WITHIN’s event) is one market condition: a Levels event, a channel condition or a comparison without bricks.',
+  brickOffset: 'A brick has no offset: MAX_SINCE / MIN_SINCE shift their window with lag (lag 1 = the line as of the previous bar).',
+  levelsField: 'Levels params: strengths in (0, 50]; buffers and touch tolerance in [0, 5]; RunawayAtr [0, 10]; bar counts whole numbers '
+    + '(retest / dwell 1..500, base 0..500, max base 1..1000, touches 1..20); ConfirmMode 0 or 1.',
+  levelsStrength: 'SUPPORT_BREAK / RESISTANCE_REACHED need a zone strength in (0, 50].',
+  screenerStage4: 'Levels conditions and sequence bricks are not available in screener filters yet (stage 4d).',
+  distAtr: 'DIST_SUPPORT_ATR / DIST_RESISTANCE_ATR are distances in ATR, not prices: compare them only with another DIST_* or a number.',
+  runTfFixedOffset: 'On HOUR / MIN5 / MONTH a constructed strategy takes only RUN operands with offset [0] (and constants). '
+    + 'Offsets and fixed DAY / WEEK operands there are not supported yet — run it on DAY or WEEK, or use RUN [0].',
+  indicatorTf: 'The stage-3b indicators (SMA tilt, IBS, ATR, ATR %, efficiency ratio, RSI) do not run on MIN5 yet: '
+    + 'run the strategy on HOUR or a coarser timeframe, or use SMA / bar fields on MIN5.',
+  runTfScreener: 'The RUN timeframe exists only inside constructed strategies, not in screener filters.',
+  linkedInvalid: 'A linked threshold is invalid on that point of the axes\' grid: narrow the axis range (Min / Max) or change the link.',
+  axisOutOfRange: 'An axis value is outside its allowed range: change the axis Min / Max (or its fixed value).',
+  lengthRange: 'A length must be a whole number of bars within the range shown in the message (SMA and SMA tilt: a stored length).',
+  smaNotStored: 'An SMA length the strategy needs is not stored (or stale) for this ticker / timeframe: '
+    + 'narrow the length axis to stored lengths, or calculate that SMA first.',
+  linkKind: 'A link must use an axis of the same kind: a length with a length axis, a tolerance with a tolerance axis.',
+});
+
+/**
+ * The extra hint of each backend `reason` (ProblemReason, editor UX Stage B3, screener
+ * logs/agents/architect.md §6.2), only where the advice adds something to the (now plain) message:
+ * `null` = the message says it all, no hint. A reason not listed here (OTHER, a newer one) falls
+ * back to the message regexes. UNIT_MISMATCH and AXIS_CONSTRAINT_VIOLATED also read the message.
+ */
+export const REASON_ADVICE = Object.freeze({
+  RUN_TF_SCREENER: HINT.runTfScreener,
+  TF_NOT_ALLOWED: null,
+  RUN_TF_FIXED_OFFSET: HINT.runTfFixedOffset,
+  INDICATOR_TF: HINT.indicatorTf,
+  LENGTH_RANGE: HINT.lengthRange,
+  OFFSET_RANGE: null,
+  TOLERANCE_RANGE: null,
+  CONST_NOT_FINITE: null,
+  AXIS_OUT_OF_RANGE: HINT.axisOutOfRange,
+  AXIS_UNKNOWN: null,
+  AXIS_CONSTRAINT: HINT.constraint,
+  BOUNDS_ORDER: HINT.boundsOrder,
+  CHANNEL_RUN_TF: HINT.channelRunTf,
+  CHANNEL_METRIC_B: HINT.channelMetricB,
+  CHANNEL_DETECTOR_RANGE: HINT.channelDetector,
+  LEVELS_RUN_TF: HINT.levelsRunTf,
+  LEVELS_FIELD_RANGE: HINT.levelsField,
+  LEVELS_STRENGTH: HINT.levelsStrength,
+  BRICK_TF: HINT.brickTf,
+  BRICK_ANCHOR: HINT.brickAnchor,
+  BRICK_OFFSET: HINT.brickOffset,
+  POSITION_RUN_TF: HINT.positionRunTf,
+  POSITION_SHORT_CLOSE: HINT.positionShortClose,
+  POSITION_PLACEMENT: HINT.positionPlacement,
+  POSITION_X: HINT.positionX,
+  POSITION_OFFSET: HINT.positionOffset,
+  SCREENER_STAGE4: HINT.screenerStage4,
+  BENCHMARK_MARKET: null,
+  LIMITS: null,
+  MISSING_FIELD: null,
+  UNKNOWN_KIND: null,
+  // reasons the B3 backend added (screener logs/agents/backend_dev.md): the plain message says it all
+  CONST_LEFT: null,
+  BRICK_X: null,
+  UNKNOWN_VALUE: null,
+  LAG_RANGE: null,
+  CHANNEL_LEVEL: null,
+  CHANNEL_BOUNDS: null,
+  WITHIN_BARS: null,
+  AXIS_INVALID: null,
+  AXIS_UNUSED: null,
+  RULE_INVALID: null,
+  FILTER_INVALID: null,
+  // the "same kind" case gets HINT.linkKind in constructedErrorHint; other link problems say it all
+  LINK_INVALID: null,
+});
+
+/** The hint texts, for the test proving each one is still reachable through a reason. */
+export const CONSTRUCTED_HINTS = HINT;
+
+// Reasons of a value that can come from an axis link: with "$Axis=v" in the message the value is
+// linked, and the advice is the linked-threshold one (as the regexes gave it on an old backend).
+const LINKABLE_VALUE_REASONS = new Set(['LENGTH_RANGE', 'TOLERANCE_RANGE', 'CONST_NOT_FINITE']);
+const LINKED_VALUE_RE = /\$[A-Za-z][A-Za-z0-9]*\s*=/;
+
+/** The constraint text of a "violated (axis constraint $A <= $B)" message, else null. */
+const violatedConstraintOf = (m) => /violated \(axis constraint ([^)]+)\)/.exec(m)?.[1]
+  // B3 plain message: "The axis values $A=1 and $B=0 break the axis constraint $A <= $B. Pick …"
+  || /break the axis constraint (\S+ \S+ \S+?)\.?(?:\s|$)/.exec(m)?.[1] || null;
+
+/** A Levels distance (ATR multiples) named in a UNIT_MISMATCH message, old or plain. */
+const DIST_ATR_RE = /ATR_MULTIPLE|ATR multiples|distance to (support|resistance)|DIST_(SUPPORT|RESISTANCE)_ATR/i;
+
 /**
  * A plain-language hint for a 400 of the backend (the server text is shown as is, the hint goes
  * under it); null when there is none. The backtester shows it too (minor #49).
+ * Editor UX Stage B3: `reason` (the 400 body's or the failed job's ProblemReason) picks the hint
+ * first; an older backend sends none and the message regexes below decide, unchanged.
  */
-export const constructedErrorHint = (message) => {
+export const constructedErrorHint = (message, reason = null) => {
   const m = String(message || '');
+  if (typeof reason === 'string' && reason) {
+    if (reason === 'AXIS_CONSTRAINT_VIOLATED') return HINT.constraintViolated(violatedConstraintOf(m));
+    if (reason === 'UNIT_MISMATCH') return DIST_ATR_RE.test(m) ? HINT.distAtr : unitMismatchHint(m, reason);
+    if (LINKABLE_VALUE_REASONS.has(reason) && LINKED_VALUE_RE.test(m)) return HINT.linkedInvalid;
+    if (reason === 'LINK_INVALID') return /same kind/i.test(m) ? HINT.linkKind : null;
+    if (Object.prototype.hasOwnProperty.call(REASON_ADVICE, reason)) return REASON_ADVICE[reason];
+  }
   // Stage 3b-2: "$TiltSell=0.02 <= $TiltBuy=0: violated (axis constraint $TiltSell <= $TiltBuy)", as a 400
   // body or as the error of a FAILED optimize / screening job (possibly with a " [CODE]" suffix).
-  const violated = /violated \(axis constraint ([^)]+)\)/.exec(m);
-  if (violated) {
-    return `These axis values break the constraint ${violated[1]}: the backend refused this run before evaluating anything. `
-      + 'A backtest or preview needs values that satisfy it; in Optimize every pair of the two axes\u2019 grid values must satisfy it, '
-      + 'so narrow their Min / Max.';
-  }
+  const violated = violatedConstraintOf(m);
+  if (violated) return HINT.constraintViolated(violated);
   // Stage 3b-2 validation: "constraint 1 ($A <= $B): unknown axis $B", "… compares $A with itself",
   // "constraint 1: $A is a length, $B is a constant", "… is not unique", "At most 5 axis constraints"
-  if (/^constraint \d+\b|axis constraints/i.test(m)) {
-    return 'An axis constraint compares two different axes of one kind (a length with a length, a constant with a constant), '
-      + `at most ${MAX_CONSTRAINTS} of them, each once; the axes' default values must satisfy it.`;
-  }
+  if (/^constraint \d+\b|axis constraints/i.test(m)) return HINT.constraint;
   // Stage 4a channel conditions: "R2.C1: TOUCHES_UPPER is not in semantics B yet", "channel conditions run on
   // DAY / WEEK in stage 4", "R1.C2.min = $BuyLow=0.3 > R1.C2.max = $BuyHigh=0.2", "R1.C1.channel.minBars must be in [2, 1000]"
-  if (/not in semantics B yet/i.test(m)) {
-    return 'Touch counts (TOUCHES_UPPER / TOUCHES_LOWER) are not available in strategies yet: use Position, Slope, Width, Age or Exists.';
-  }
-  if (/channel conditions run on DAY/i.test(m)) {
-    return 'A strategy with channel conditions runs on DAY or WEEK only (a DAY channel: DAY only).';
-  }
-  if (/\.min = .*> .*\.max = /.test(m)) {
-    return 'On this point of the axes’ grid the channel condition’s min is above its max: narrow the two axes’ Min / Max '
-      + 'or add an axis constraint (e.g. $BuyLow < $BuyHigh).';
-  }
-  if (/\.channel\.\w+ must be/i.test(m)) {
-    return 'Channel detector params: coverage in (0.5, 1], min bars 2..1000, min width in [0, 1), min age 0..500 bars.';
-  }
+  if (/not in semantics B yet/i.test(m)) return HINT.channelMetricB;
+  if (/channel conditions run on DAY/i.test(m)) return HINT.channelRunTf;
+  if (/\.min = .*> .*\.max = /.test(m)) return HINT.boundsOrder;
+  if (/\.channel\.\w+ must be/i.test(m)) return HINT.channelDetector;
   // Stage 4c-1: position operands
-  if (/ShortClose rule with them/i.test(m)) {
-    return 'Position operands read a LONG position. A ShortClose rule with them could only cancel this bar\u2019s long signals: '
-      + 'use LongClose for an exit from the long.';
-  }
-  if (/position operands run on DAY|operands inside AT_ENTRY/i.test(m)) {
-    return 'AT_ENTRY / MAX_SINCE_ENTRY / MIN_SINCE_ENTRY / STICKY_SINCE_ENTRY run on DAY or WEEK, and their X reads the run timeframe (use RUN operands inside).';
-  }
-  if (/no position operands inside|exist only in constructed strategy rules/i.test(m)) {
-    return 'A position operand stands only on a side of a rule\u2019s comparison: not inside a brick, not in WITHIN\u2019s event, not in a screener filter.';
-  }
-  if (/reads a market series/i.test(m)) {
-    return 'The X of AT_ENTRY / *_SINCE_ENTRY is a market operand (a bar field, an indicator, a Levels value or a brick), not a constant.';
-  }
-  if (/position operands have no offset|only MAX_SINCE_ENTRY \/ MIN_SINCE_ENTRY have a lag/i.test(m)) {
-    return 'A position operand has no offset; MAX_SINCE_ENTRY / MIN_SINCE_ENTRY shift their window with lag (lag 1 = the line as of the previous bar), AT_ENTRY has none.';
-  }
+  if (/ShortClose rule with them/i.test(m)) return HINT.positionShortClose;
+  if (/position operands run on DAY|operands inside AT_ENTRY/i.test(m)) return HINT.positionRunTf;
+  if (/no position operands inside|exist only in constructed strategy rules/i.test(m)) return HINT.positionPlacement;
+  if (/reads a market series/i.test(m)) return HINT.positionX;
+  if (/position operands have no offset|only MAX_SINCE_ENTRY \/ MIN_SINCE_ENTRY have a lag/i.test(m)) return HINT.positionOffset;
   // Stage 4b: Levels / sequence bricks
-  if (/level conditions and sequence bricks run on DAY/i.test(m)) {
-    return 'A strategy with Levels conditions or sequence bricks runs on DAY or WEEK only.';
-  }
-  if (/WEEK operands inside a brick|count bars of the run timeframe/i.test(m)) {
-    return 'Operands inside a brick (its X and its anchor event) must read the run timeframe: use RUN operands, or run on WEEK.';
-  }
-  if (/anchor event must be one market condition/i.test(m)) {
-    return 'A brick’s anchor (and WITHIN’s event) is one market condition: a Levels event, a channel condition or a comparison without bricks.';
-  }
-  if (/use lag/i.test(m)) return 'A brick has no offset: MAX_SINCE / MIN_SINCE shift their window with lag (lag 1 = the line as of the previous bar).';
-  if (/\.levels\.\w+.*must be/i.test(m)) {
-    return 'Levels params: strengths in (0, 50]; buffers and touch tolerance in [0, 5]; RunawayAtr [0, 10]; bar counts whole numbers '
-      + '(retest / dwell 1..500, base 0..500, max base 1..1000, touches 1..20); ConfirmMode 0 or 1.';
-  }
-  if (/a strength must be in|needs a strength/i.test(m)) return 'SUPPORT_BREAK / RESISTANCE_REACHED need a zone strength in (0, 50].';
-  if (/stage 4d/i.test(m)) return 'Levels conditions and sequence bricks are not available in screener filters yet (stage 4d).';
-  if (/UNIT_MISMATCH/i.test(m) && /ATR_MULTIPLE/.test(m)) {
-    return 'DIST_SUPPORT_ATR / DIST_RESISTANCE_ATR are distances in ATR, not prices: compare them only with another DIST_* or a number.';
-  }
+  if (/level conditions and sequence bricks run on DAY/i.test(m)) return HINT.levelsRunTf;
+  if (/WEEK operands inside a brick|count bars of the run timeframe/i.test(m)) return HINT.brickTf;
+  if (/anchor event must be one market condition/i.test(m)) return HINT.brickAnchor;
+  if (/use lag/i.test(m)) return HINT.brickOffset;
+  if (/\.levels\.\w+.*must be/i.test(m)) return HINT.levelsField;
+  if (/a strength must be in|needs a strength/i.test(m)) return HINT.levelsStrength;
+  if (/stage 4d/i.test(m)) return HINT.screenerStage4;
+  if (/UNIT_MISMATCH/i.test(m) && /ATR_MULTIPLE/.test(m)) return HINT.distAtr;
   const unit = unitMismatchHint(m);
   if (unit) return unit;
   // #49: "R1 LongOpen: offsets and fixed timeframes on HOUR are not supported yet ('…'; use RUN operands at [0])"
-  if (/offsets and fixed timeframes|stage 3b/i.test(m)) {
-    return 'On HOUR / MIN5 / MONTH a constructed strategy takes only RUN operands with offset [0] (and constants). '
-      + 'Offsets and fixed DAY / WEEK operands there are not supported yet — run it on DAY or WEEK, or use RUN [0].';
-  }
+  if (/offsets and fixed timeframes|stage 3b/i.test(m)) return HINT.runTfFixedOffset;
   // F10: "R1 LongOpen: ATR(14) on MIN5 is not supported yet"; TIMEFRAME_NOT_SUPPORTED "ATR on MIN5 is not supported yet"
-  if (/on MIN5 is not supported yet|TIMEFRAME_NOT_SUPPORTED/i.test(m)) {
-    return 'The stage-3b indicators (SMA tilt, IBS, ATR, ATR %, efficiency ratio, RSI) do not run on MIN5 yet: '
-      + 'run the strategy on HOUR or a coarser timeframe, or use SMA / bar fields on MIN5.';
-  }
-  if (/RUN is for constructed strategies/i.test(m)) return 'The RUN timeframe exists only inside constructed strategies, not in screener filters.';
+  if (/on MIN5 is not supported yet|TIMEFRAME_NOT_SUPPORTED/i.test(m)) return HINT.indicatorTf;
+  if (/RUN is for constructed strategies/i.test(m)) return HINT.runTfScreener;
   // "R1.C1.n ($MaLength = 205): must be an integer SMA length in [5, 200], got 205" (#45: any kind, "… ATR length …")
   if (/\$[A-Za-z][A-Za-z0-9]*\s*=/.test(m) && /not stored|is not a length|outside|must be an integer \w+ length/i.test(m)) {
-    return 'A linked threshold is invalid on that point of the axes\' grid: narrow the axis range (Min / Max) or change the link.';
+    return HINT.linkedInvalid;
   }
   // "$Gap must be >= 0, got -1" / "... must be <= 50, got 60" / "... must be finite" / "... integer, got"
-  if (/\$[A-Za-z][A-Za-z0-9]*\s+must be\b/.test(m)) {
-    return 'An axis value is outside its allowed range: change the axis Min / Max (or its fixed value).';
-  }
-  if (/must be an integer \w+ length|\.n must be in \[/i.test(m)) {
-    return 'A length must be a whole number of bars within the range shown in the message (SMA and SMA tilt: a stored length).';
-  }
+  if (/\$[A-Za-z][A-Za-z0-9]*\s+must be\b/.test(m)) return HINT.axisOutOfRange;
+  if (/must be an integer \w+ length|\.n must be in \[/i.test(m)) return HINT.lengthRange;
   // SMA_NOT_AVAILABLE: "... 205 (not stored)" - the length has no stored SMA for this ticker / TF
-  if (/SMA_NOT_AVAILABLE|\(not stored\)|\(stale: stored to/i.test(m)) {
-    return 'An SMA length the strategy needs is not stored (or stale) for this ticker / timeframe: '
-      + 'narrow the length axis to stored lengths, or calculate that SMA first.';
-  }
-  if (/is a (length|tolerance|SMA length|constant).*\$[A-Za-z]/i.test(m)) {
-    return 'A link must use an axis of the same kind: a length with a length axis, a tolerance with a tolerance axis.';
-  }
+  if (/SMA_NOT_AVAILABLE|\(not stored\)|\(stale: stored to/i.test(m)) return HINT.smaNotStored;
+  if (/is a (length|tolerance|SMA length|constant).*\$[A-Za-z]/i.test(m)) return HINT.linkKind;
   return null;
 };
 

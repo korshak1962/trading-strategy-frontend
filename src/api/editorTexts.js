@@ -319,11 +319,12 @@ const str = (v) => (typeof v === 'string' && v ? v : '');
 
 /**
  * `{label, tooltip}` of a meta item merged over its fallback: `label: x.label || f.label || x.name`,
- * `tooltip: x.tooltip || f.tooltip || x.hint || f.hint || ''` (architect §6).
+ * `tooltip: x.tooltip || f.tooltip || ''` (architect §6). Stage B3: the retired `hint` key is never
+ * read (an older backend still sends it; the fallbacks carry a tooltip for every item).
  */
 export const helpOf = (x, f = {}) => ({
   label: str(x?.label) || str(f?.label) || str(x?.name) || '',
-  tooltip: str(x?.tooltip) || str(f?.tooltip) || str(x?.hint) || str(f?.hint) || '',
+  tooltip: str(x?.tooltip) || str(f?.tooltip) || '',
 });
 
 /** A meta `help` map over its fallback (`{...fallback, ...meta}`, blank meta values ignored). */

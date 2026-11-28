@@ -23,15 +23,15 @@ const API_BASE_URL = '/api/screener';
 const withMetricTexts = (list) => list.map((m) => ({
   ...m,
   menuLabel: SCREENER_METRIC_TEXTS[m.value]?.label || m.label,
-  tooltip: SCREENER_METRIC_TEXTS[m.value]?.tooltip || m.hint,
+  tooltip: SCREENER_METRIC_TEXTS[m.value]?.tooltip || m.tooltip,
 }));
 export const METRICS = Object.freeze(withMetricTexts([
-  { value: 'WIDTH_PCT', label: 'Width %', unit: '%', hint: 'Upper line above the lower one by this many % of price' },
-  { value: 'SLOPE_PCT_YEAR', label: 'Slope %/year', unit: '%/yr', hint: 'Signed annualized slope, e.g. -30 = falling 30 % a year' },
-  { value: 'POSITION', label: 'Position', unit: '', hint: '0 = at the lower line, 1 = at the upper line; not clipped (<0 below, >1 above)' },
-  { value: 'AGE_BARS', label: 'Age (bars)', unit: 'bars', hint: 'Bars since the channel start (not since its confirmation)' },
-  { value: 'TOUCHES_UPPER', label: 'Touches upper', unit: '', hint: 'Bars whose high touched the upper line (within 0.1 ATR)' },
-  { value: 'TOUCHES_LOWER', label: 'Touches lower', unit: '', hint: 'Bars whose low touched the lower line (within 0.1 ATR)' },
+  { value: 'WIDTH_PCT', label: 'Width %', unit: '%', tooltip: 'Upper line above the lower one by this many % of price' },
+  { value: 'SLOPE_PCT_YEAR', label: 'Slope %/year', unit: '%/yr', tooltip: 'Signed annualized slope, e.g. -30 = falling 30 % a year' },
+  { value: 'POSITION', label: 'Position', unit: '', tooltip: '0 = at the lower line, 1 = at the upper line; not clipped (<0 below, >1 above)' },
+  { value: 'AGE_BARS', label: 'Age (bars)', unit: 'bars', tooltip: 'Bars since the channel start (not since its confirmation)' },
+  { value: 'TOUCHES_UPPER', label: 'Touches upper', unit: '', tooltip: 'Bars whose high touched the upper line (within 0.1 ATR)' },
+  { value: 'TOUCHES_LOWER', label: 'Touches lower', unit: '', tooltip: 'Bars whose low touched the lower line (within 0.1 ATR)' },
 ]));
 
 // Operand kinds and their rules (length n, unit, TFs) come from meta.indicators / operandKinds:

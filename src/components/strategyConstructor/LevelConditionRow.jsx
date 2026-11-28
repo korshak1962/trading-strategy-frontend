@@ -51,8 +51,8 @@ export function LevelEventFields({ condition, onChange, prefix = '', linkable = 
     <>
       <FieldLabel label="Event" tooltip={ev?.tooltip || help.event} code={condition.event || null} testId={`info-${tid}-event`}>
         <select className={sel} value={condition.event || ''} disabled={ctx.disabled} onChange={(e) => changeEvent(e.target.value)}
-          aria-label="Levels event" title={ev?.tooltip || ev?.hint} data-testid={`${tid}-event`}>
-          {events.map((e) => <option key={e.name} value={e.name} title={e.tooltip || e.hint}>{e.label || e.name}</option>)}
+          aria-label="Levels event" title={ev?.tooltip} data-testid={`${tid}-event`}>
+          {events.map((e) => <option key={e.name} value={e.name} title={e.tooltip}>{e.label || e.name}</option>)}
         </select>
       </FieldLabel>
       {needs && (
@@ -101,7 +101,7 @@ export default function LevelConditionRow({ condition, onChange, ctx, caption, .
   return (
     <RowShell {...shell} caption={caption} testId="level-condition"
       heading={{ text: 'Level event', tooltip: RULE_TEXTS.rowLevel, className: 'text-amber-700' }}
-      help={firstSentence(ev?.tooltip || ev?.hint)}>
+      help={firstSentence(ev?.tooltip)}>
       <FieldLabel label="Source" tooltip={(lm.help || LEVELS_HELP).event}>
         <span className="px-1 py-1 text-sm text-gray-500">Levels</span>
       </FieldLabel>

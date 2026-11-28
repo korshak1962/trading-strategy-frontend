@@ -1,7 +1,13 @@
 // src/api/strategyApi.js
 
+import { problemOf } from './httpClient';
+
 // Base URL for API
 const API_BASE_URL = '/api/strategy';
+
+// An Error of a non-2xx body `{message, error, path?, reason?}` (editor UX Stage B3: `path` /
+// `reason` null on an older backend), with the backend's message when there is one.
+const bodyError = (body, fallback) => Object.assign(new Error(body?.message || body?.error || fallback), problemOf(body));
 /**
  * Get available strategies from the server
  * @returns {Promise<Array>} List of available strategies
@@ -40,7 +46,7 @@ export const submitStrategies = async (config) => {
     });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
-      throw new Error(body?.message || `Error: ${response.status}`);
+      throw bodyError({ ...body, error: null }, `Error: ${response.status}`);
     }
     return await response.json();
   } catch (error) {
@@ -66,7 +72,7 @@ export const fetchSignalCharts = async (config) => {
     });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
-      throw new Error(body?.message || body?.error || `Error: ${response.status}`);
+      throw bodyError(body, `Error: ${response.status}`);
     }
     return await response.json();
   } catch (error) {
@@ -84,7 +90,7 @@ export const optimizeStrategies = async (config) => {
     });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
-      throw new Error(body?.message || `Error: ${response.status}`);
+      throw bodyError({ ...body, error: null }, `Error: ${response.status}`);
     }
     return await response.json();
   } catch (error) {
@@ -107,6 +113,7 @@ const jobHttpError = async (res, what) => {
   const err = new Error(detail || `${what}: ${res.status} ${res.statusText}`);
   err.status = res.status;
   err.detail = detail || null;
+  Object.assign(err, problemOf(body));
   err.body = body;
   return err;
 };
@@ -139,6 +146,8 @@ export const startOptimization = async (config) => {
 /**
  * GET /optimize-jobs/{jobId}?logSince=<seq>. A 404 (unknown / evicted / backend restarted)
  * throws an Error whose `status` is 404 so the caller can tell it from a transient failure.
+ * A FAILED job carries `error` (the message) and, from editor UX Stage B3 on, `errorReason`
+ * (ProblemReason of a validation failure; absent on an older backend): the JSON is returned as is.
  */
 export const fetchOptimizationJob = async (jobId, logSince) => {
   const res = await fetch(`${API_BASE_URL}/optimize-jobs/${encodeURIComponent(jobId)}${logSinceQuery(logSince)}`);

@@ -8,9 +8,11 @@ import {
   METRICS, OPERATORS, SCREEN_TFS, LEVELS, OFFSET_MIN, OFFSET_MAX, TOLERANCE_LIMIT,
 } from '../../api/screenerApi';
 import {
-  getIndicatorCatalog, hasLength, lengthParamOf, kindName, operandUnitOf, unitLabel, operandTfsOf, CONST_KIND,
+  getIndicatorCatalog, hasLength, lengthParamOf, kindName, operandUnitOf, operandTfsOf, CONST_KIND,
   hasBenchmark, benchmarkParamOf, defaultBenchmarkOf, modeParamOf, descriptorOf, isFieldKind,
 } from '../../api/indicatorCatalog';
+// a cycle (displayLabels → constructedFormat → this module): used only inside functions
+import { unitClashText, SCREENER_MODE } from '../../utils/displayLabels';
 
 /**
  * Market of the screener's universe (S&P 500 + ETF, the backend's `universe.market`): the benchmark
@@ -135,11 +137,16 @@ export const unitsClash = (a, b) => !!a && !!b && a !== b;
  * Plain-language hint under a server UNIT_MISMATCH 400 (screener filter or constructed strategy),
  * e.g. "conditions[0]: UNIT_MISMATCH: 'DAY ATR(14)[0]' (PRICE_RANGE) vs 'DAY close[0]' (PRICE)".
  * null when the message is no unit mismatch.
+ * Editor UX Stage B3: `reason` (the 400 body's ProblemReason) decides first: `UNIT_MISMATCH` → a
+ * hint whatever the (now plain) wording, another reason → null; no reason (older backend) → the
+ * message regexes, unchanged.
  */
-export const unitMismatchHint = (message) => {
+export const unitMismatchHint = (message, reason = null) => {
   const m = String(message || '');
-  if (!/UNIT_MISMATCH/i.test(m)) return null;
-  if (/PRICE_RANGE/.test(m)) {
+  const hasReason = typeof reason === 'string' && reason !== '';
+  if (hasReason ? reason !== 'UNIT_MISMATCH' : !/UNIT_MISMATCH/i.test(m)) return null;
+  // the plain message names the units in words ("is a price range"), the old one by code
+  if (/PRICE_RANGE/.test(m) || (hasReason && /price range|\bATR \d/i.test(m))) {
     return 'ATR is a distance in price, not a price: compare it only with another ATR or a number. '
       + 'For a threshold in % of the price take ATR % instead.';
   }
@@ -224,7 +231,8 @@ export const validateCondition = (c, { allowRun = false } = {}) => {
     const lu = operandUnit(c.left);
     const ru = operandUnit(c.right);
     if (unitsClash(lu, ru)) {
-      errs.push(`UNIT_MISMATCH: ${operandCaption(c.left)} (${unitLabel(lu)}) vs ${operandCaption(c.right)} (${unitLabel(ru)}) — `
+      // Stage B3: the plain sentence (utils/displayLabels.js, screener mode: every operand worded)
+      errs.push(`${unitClashText(c.left, lu, c.right, ru, { mode: SCREENER_MODE })} — `
         + (lu === 'PRICE_RANGE' || ru === 'PRICE_RANGE'
           ? 'ATR compares only with ATR or a number (for a % threshold use ATR %)'
           : 'compare values of one unit (a constant fits any)'));

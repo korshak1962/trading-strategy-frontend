@@ -32,7 +32,7 @@ export default function WithinConditionRow({ condition, onChange, ctx, caption, 
   return (
     <RowShell {...shell} caption={caption} testId="within-condition"
       heading={{ text: 'Within', tooltip: RULE_TEXTS.rowWithin, className: 'text-purple-700' }}
-      help={firstSentence(within?.tooltip || within?.hint)}>
+      help={firstSentence(within?.tooltip)}>
       <FieldLabel label="Within the last" tooltip={`${bh.within} k in [1, ${bm.kMax}] bars of the run TF.`} testId="info-within-bars">
         <span className="inline-flex items-center gap-1 text-xs text-gray-600">
           {linked != null ? (

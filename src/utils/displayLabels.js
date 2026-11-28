@@ -286,6 +286,28 @@ const anchorText = (a, opts) => {
   return `the last time “${conditionText(a, opts)}”`;
 };
 
+// ---- client-side errors (Stage B3, F-B3a.4) ----
+
+/** What a value of a unit is, as a predicate: `is a price`, `is in ATR multiples`. */
+const UNIT_IS = Object.freeze({
+  PRICE: 'is a price',
+  PRICE_RANGE: 'is a price range',
+  VOLUME: 'is a volume',
+  PERCENT: 'is a %',
+  RATIO: 'is a ratio',
+  BARS: 'is a bar count',
+  ATR_MULTIPLE: 'is in ATR multiples',
+});
+const unitIs = (u) => UNIT_IS[u] || `is in ${String(u).toLowerCase()}`;
+
+/**
+ * The plain sentence of a unit clash of a comparison, without advice:
+ * `Different units: “ATR 14” is a price range, “close” is a price`. `opts` as operandText (editor
+ * mode in the constructor, screener mode in a filter).
+ */
+export const unitClashText = (left, leftUnit, right, rightUnit, opts) => `Different units: “${operandText(left, opts)}” ${unitIs(leftUnit)}, `
+  + `“${operandText(right, opts)}” ${unitIs(rightUnit)}`;
+
 // ---- conditions ----
 
 /** `a long is open`: exactly `AT_ENTRY(any X) > 0`, tolerance 0 (owner Q2). */
